@@ -27,6 +27,54 @@
 /api/v1
 ```
 
+### 3.0 认证
+
+```http
+POST /auth/login
+POST /auth/logout
+GET  /auth/me
+GET  /auth/csrf
+```
+
+登录请求：
+
+```json
+{
+  "email": "listener@example.test",
+  "password": "<not-logged>"
+}
+```
+
+成功返回 200：
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "display_name": "虚构倾听员",
+    "role": "interviewer",
+    "status": "active"
+  },
+  "csrf_token": "opaque-random"
+}
+```
+
+规则：
+
+- `email` 为去除首尾空白后的 ASCII 字符串，最长 254 字节并按 `04` 规范化；`password` 为 12 至 128 UTF-8 字节，服务端不得记录原值；格式不合法返回 422 `VALIDATION_ERROR`；
+- 登录成功后只通过 `HttpOnly` 会话 Cookie 返回不透明会话 ID，不在 JSON、URL 或浏览器存储中返回访问令牌；
+- production Cookie 为 `__Host-elder_interview_session; Path=/; HttpOnly; Secure; SameSite=Strict` 且无 `Domain`；local/test HTTP Cookie 名为 `elder_interview_session`；
+- 登录失败或限流统一返回 401 `INVALID_CREDENTIALS`，不得暴露账号是否存在；服务端按 `04` 的数据库限流规则处理；
+- `/auth/logout` 必须撤销当前服务端会话；
+- `/auth/me` 只返回当前用户 ID、显示名、角色和状态，不返回 `password_hash`、会话哈希或权限内部信息；
+- 登录响应和 `/auth/csrf` 都可签发与当前会话绑定的 CSRF token；两者都设置 `Cache-Control: no-store`，后者需要有效会话且每次调用轮换 token；前端只在内存保存，并通过 `X-CSRF-Token` 发送；
+- 所有状态变更浏览器请求（包括登录）必须校验配置白名单中的 `Origin`；安全 GET 在存在 `Origin` 时也必须校验；登录不要求既有会话或 CSRF token，其他写请求必须同时验证会话和与该会话绑定的 CSRF token；
+- 状态变更请求缺少或不匹配 `Origin` 返回 403 `INVALID_ORIGIN`；会话有效但 CSRF token 缺少或错误返回 403 `INVALID_CSRF_TOKEN`；错误正文不得回显 header、Cookie 或允许来源配置；
+- 会话默认空闲 30 分钟、绝对 12 小时；登录和权限变化轮换 CSRF token，登出、会话撤销或过期时一并失效；
+- `/auth/logout` 成功或重复调用都清除 Cookie（`Max-Age=0; Path=/`，production 同时保留 `Secure` 等属性）；
+- 未认证返回 401 `AUTH_REQUIRED`，已认证但角色或资源无权返回 403 `FORBIDDEN`；
+- 账号停用后现存会话不得继续访问。
+
 ### 3.1 项目
 
 ```http
@@ -37,6 +85,8 @@ PATCH  /projects/:id
 DELETE /projects/:id
 POST   /projects/:id/restore
 ```
+
+`DELETE /projects/:id` 与 `/restore` 只用于普通、可恢复的软删除：前者设置 `deleted_at` 但不执行隐私物理清理，后者只清除该软删除标记。它们不得替代 deletion-request 流程；存在非终态删除申请或项目已因 completed project scope 请求进入 `status=deleted` 时，普通删除/恢复返回 409 `PROJECT_DELETION_LOCKED`，物理删除完成后的项目永远不得 restore。
 
 ### 3.2 项目分配
 
@@ -60,7 +110,43 @@ POST /projects/:id/consents
 GET  /projects/:id/consents
 POST /consents/:id/revoke
 POST /projects/:id/deletion-requests
+GET  /projects/:id/deletion-requests
+GET  /deletion-requests/:id
+POST /deletion-requests/:id/verify
+POST /deletion-requests/:id/reject
+POST /deletion-requests/:id/start-processing
+POST /deletion-requests/:id/complete
+POST /deletion-requests/:id/withdraw
 ```
+
+删除申请请求至少包含：
+
+```json
+{
+  "request_id": "uuid",
+  "scope": "project",
+  "session_id": null,
+  "source_marker_id": null
+}
+```
+
+`scope` 为 `project`、`session` 或 `segment_range`；`session` 必须提供本项目的 `session_id`，`segment_range` 必须提供 `source_marker_id`。创建成功表示申请已登记并进入限制处理，不表示物理删除已经完成。
+
+`scope=session` 时 `session_id` 必填且 `source_marker_id` 为空；`scope=segment_range` 时 `source_marker_id` 必须属于本项目、类型为 `deletion_request` 且 `session_id` 为空；`scope=project` 时两者均为空。归属和类型不符返回 422 `INVALID_DELETION_SCOPE`。
+
+创建 `segment_range` 请求时，服务端必须在同一事务读取 source marker 并冻结当时的 segment start/end ID；后续 marker PATCH/DELETE 不改变申请范围、AI 阻断或清理范围。scope 摘要必须覆盖 project/session 和冻结端点，处理接口不得重新读取 marker 的可变范围替代快照。
+
+删除申请处理规则：
+
+- 创建可由被分配的倾听员或 `data_admin` 执行；处理动作仅 `data_admin` 可执行；登记人只能查询自己登记申请的状态、scope 和范围 ID，`data_admin` 可查询处理所需的完整状态与最小审计信息；
+- 所有处理 action 请求至少包含新的 `request_id`；`reject`、`complete`、`withdraw` 还必须提供不含正文的 `resolution_note`；
+- `verify`：`pending_verification -> verified`；`reject`：`pending_verification -> rejected`；`start-processing`：`verified -> processing`；`complete`：`processing -> completed`；
+- `processing` 阶段执行实际清理；`complete` 只有在范围内在线对象存储、数据库业务数据与临时导出清理成功，提交 SHA-256 `cleanup_manifest_hash`，并以 `backup_cleanup_status=scheduled` + `backup_cleanup_due_at` 或 `not_applicable` 登记备份处理后才允许。project scope 完成时项目置为不可恢复的 `deleted`；session/segment scope 只完成相应范围清理；
+- `withdraw` 仅在数据管理员核验请求人撤回后允许 `pending_verification | verified -> withdrawn`；倾听员不能直接撤回或关闭；
+- 状态更新、transition 记录和审计必须同事务提交；同一 action `request_id` 重试返回首次结果；非法前置状态返回 409 `INVALID_DELETION_TRANSITION`；
+- project scope 请求进入限制时保留先前项目状态；`rejected`/`withdrawn` 仅在不存在授权撤回或其他正式限制原因时恢复先前状态；`completed` 表示在线清理已完成，不恢复且项目置为不可恢复的 `deleted`；
+- 查询和错误响应不得返回待删除正文、内部存储位置或不必要身份核验信息。
+- completed 后查询只返回 scope 类型、不可逆 `scope_reference_hash`、状态与最小审计时间；已清空的 session/marker FK 不得通过其他关系反查或恢复正文。
 
 ### 3.5 访谈
 
@@ -96,7 +182,18 @@ POST  /sessions/:id/speaker-remap
 POST   /sessions/:id/markers
 PATCH  /markers/:id
 DELETE /markers/:id
+POST   /sessions/:id/boundary-candidates/:candidate_id/actions
 ```
+
+创建和修改规则：
+
+- `marker_type=do_not_ask` 时 `note` 必填，必须是人工确认的短小抽象禁区描述，不得复制原始受限正文；
+- AI 可以返回候选标记，但只能写入正式 `boundary_candidate` 载体，不能直接调用最终标记写接口或解除标记；候选响应至少含不透明 `candidate_id`、`marker_type`、片段范围、最小抽象说明、`status` 和 `expires_at`；
+- 候选不是 `content_marker`；服务端从最新 `pending` 候选重建当前会话临时保守阻断，只有人工确认事务才创建正式 marker 并把候选置为 `confirmed`；驳回、过期或会话结束必须解除临时阻断；
+- 候选 action 只接受 `confirm` 或 `reject`；`confirm` 必须提供人工确认后的 marker 数据，`do_not_ask` 还必须提供合规 `note`，重复 action 返回原业务结果；
+- `marker_type=deletion_request` 的候选确认必须同时提供 `request_id` 和 `scope`，并按 3.4 的删除申请契约在同一事务登记 `deletion_request`；不得只创建 marker 后声称已经发起删除；
+- 解除 `restricted`、`do_not_ask` 必须记录原因并写入审计；
+- 无权查看受限正文时，接口不得通过 marker 的 `note`、关联片段或错误详情泄露内容。
 
 ### 3.9 AI 建议
 
@@ -129,6 +226,27 @@ POST /projects/:id/exports
 GET  /exports/:id
 ```
 
+创建导出请求至少包含：
+
+```json
+{
+  "request_id": "uuid",
+  "export_profile": "ordinary",
+  "reason": null
+}
+```
+
+`export_profile`：
+
+- `ordinary`：默认；被分配的倾听员可请求，不包含敏感正文、`restricted` 正文或待删除内容；
+- `restricted`：MVP 仅 `data_admin` 可请求，`reason` 必填并二次确认，访问和下载必须审计；不得自行增加“额外权限”角色。
+
+存在非终态删除申请（`pending_verification`、`verified`、`processing`）时：
+
+- `ordinary` 返回 409 `DELETION_REQUEST_PENDING`，不创建导出记录或资料包；
+- `restricted` 只允许 `data_admin` 以删除处理为 `reason` 创建删除处理证据包；该包排除申请范围内全部正文、派生记忆和媒体，只包含请求状态、范围标识和最小必要审计证据；
+- 删除请求 `completed` 后，新导出仍不得恢复已删除内容；`rejected` 或 `withdrawn` 后按其他有效 marker 和授权重新判断。
+
 ## 4. 幂等要求
 
 以下写操作必须接受 `request_id`：
@@ -140,9 +258,20 @@ GET  /exports/:id
 - 保存建议操作；
 - 创建导出任务；
 - 撤回授权；
-- 创建删除申请。
+- 创建删除申请；
+- 推进删除申请状态。
+
+认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
 重复请求必须返回同一业务结果，不得产生重复记录。
+
+删除申请处于非终态（`pending_verification`、`verified`、`processing`）时：
+
+- `scope=project` 时项目进入或保持 `restricted` 并停止整个项目新的 AI 任务；
+- `scope=session` 时只停止该会话内容及派生记忆的新 AI 任务；`scope=segment_range` 时只停止 marker 范围及派生记忆的新 AI 任务；
+- AI job 在入队/调用前和任何结果持久化或展示前都必须重新读取当前非终态 deletion scope；segment_range 以创建时冻结的 start/end 快照匹配，不读取可变 marker 范围；命中 scope 的在途 job 取消，无法取消供应商调用时丢弃结果；不得更新 memory、question suggestion、boundary candidate 或 session note，也不得展示；
+- 阻止普通导出；
+- 查询接口只向有权处理者返回必要状态，不返回无权查看的正文。
 
 ## 5. WebSocket
 
@@ -276,8 +405,10 @@ GET  /exports/:id
 
 规则：
 
-- 普通内容与受限内容分离；
-- 删除请求未完成时明确标记；
+- 普通内容与受限内容分离；普通资料包不包含敏感正文、`restricted` 正文或待删除内容；
+- `do_not_ask` 的抽象边界标签可以进入工作记录的“边界”区域，但不进入叙事正文；既有内容是否导出由其其他 marker 决定；
+- 受限资料包不自动生成 AI 摘要，只包含授权范围内必要的原始证据和 marker 清单；
+- 普通资料包不得在删除请求处于 `pending_verification`、`verified`、`processing` 时生成；删除处理证据包只在 manifest 中标记请求状态和范围标识，不包含申请范围正文；
 - 下载使用短期签名地址；
 - 导出写入审计日志；
 - 临时导出文件到期清理。

@@ -45,3 +45,51 @@
 - 状态：Accepted
 - 决定：中间态只用于界面展示。
 - 原因：中间态会被 ASR 后续修正，写入长期记忆会制造错误事实和重复更新。
+
+## ADR-007｜固定 Node 24、pnpm workspace 与统一测试工具链
+
+- 状态：Accepted
+- 决定：使用 Node `>=24.11.0 <25`（开发基线 `24.18.0`）、pnpm `>=11.15.1 <12`（固定 `11.15.1`）和 pnpm workspace；采用 Vitest、Supertest、React Testing Library、Playwright；不引入 Nx/Turborepo 或双测试 runner。
+- 原因：Node 24 是当前 LTS，pnpm 11 与其正式兼容；当前仅两个应用和少量共享包，不需要额外任务图平台；统一测试工具减少 ESM/TypeScript 配置分叉。
+- 代价：NestJS 社区部分示例需要从 Jest 转换；Playwright 浏览器增加 CI 时间。
+- 边界：依赖补丁版本由锁文件固定；主版本升级必须作为独立任务验证。
+
+## ADR-008｜使用 Prisma 7 与前向迁移治理 PostgreSQL
+
+- 状态：Accepted
+- 决定：使用 Prisma ORM 7、Prisma Migrate 和 PostgreSQL 驱动适配器；复杂数据库能力允许使用经审查的迁移 SQL。
+- 原因：类型安全和声明式 Schema 便于与 `04` 对照审查，迁移历史可进入 Git，适合小团队与 Agent 协作。
+- 代价：ESM、生成客户端和驱动适配器增加初始化复杂度；部分原生约束需手写 SQL；不提供可依赖的自动 down migration。
+- 边界：业务模块经模块服务访问数据；恢复依赖前向修复、备份恢复和可验证迁移，不用 `db push` 代替正式迁移。
+
+## ADR-009｜同源 Web 使用服务端不透明会话
+
+- 状态：Accepted
+- 决定：MVP 使用 PostgreSQL 持久化的不透明会话、Argon2id 密码、HttpOnly `__Host-` Cookie、会话绑定 CSRF token、Origin 校验、数据库登录限流和服务层资源授权；浏览器不保存 JWT。production 用户通过受控交互式运维 CLI 创建、重置密码、停用和启用，启用不恢复历史会话；MVP 无公开注册或自助找回。
+- 原因：账号停用、权限变更和敏感资料访问需要即时撤销；当前并发规模不需要 Redis 会话存储。
+- 代价：写操作必须处理 CSRF；每次请求需要会话读取。
+- 边界：仅 local/test 允许显式虚构身份 seed；production 拒绝默认账号和测试 seed；真实项目分配隔离在 `DEV-002` 验收，`DEV-001B` 只交付授权接口模式；若未来跨站或接入 OIDC，必须重新审查 Cookie、CORS、CSRF 与身份适配器。
+
+## ADR-010｜延后 Redis、BullMQ 与 Nginx
+
+- 状态：Accepted
+- 决定：DEV-001 只编排 PostgreSQL；Redis/BullMQ 等到首个真实后台任务消费者出现，Nginx 等到 staging 部署链路可以验证 TLS、WebSocket 与上传限制时引入。
+- 原因：当前没有队列消费者或部署入口，提前启用只增加运维面和失败模式。
+- 代价：后续导出、删除、AI 后处理和部署任务需要增加基础设施变更。
+- 重新评估条件：出现需要可靠异步执行的任务，或进入 staging 部署验证。
+
+## ADR-011｜AI 边界采用控制上下文与内容上下文分离
+
+- 状态：Accepted
+- 决定：服务端分别维护本地策略状态、供应商可见的最小控制信封和许可内容上下文；`do_not_ask` 只发送人工确认的抽象禁区标签，不发送原始标记正文；模型输出还必须经过服务端边界过滤。
+- 原因：完全排除拒绝边界会使 AI 无法避免重复追问，发送受限正文又违反数据最小化。
+- 代价：需要独立的输入过滤、输出过滤、跨会话边界加载和失败安全逻辑。
+- 边界：AI 不能确认、解除或覆盖人工边界；AI 候选保存在独立 `boundary_candidate`，仅对当前会话形成临时保守阻断，跨会话只读取正式 marker；无法安全构造控制标签或过滤器失败时返回“继续倾听”，录音与转录继续。
+
+## ADR-012｜删除申请采用 scope 限制与显式状态流转
+
+- 状态：Accepted
+- 决定：非终态 `project` 删除申请停止整个项目 AI 并把项目置为 `restricted`；非终态 `session`、`segment_range` 只停止对应内容及派生记忆的新 AI 处理；任何非终态 scope 都拒绝项目级普通回顾和普通导出。`processing` 执行在线清理，清理证据和备份处理登记完成后才可转 `completed`；每次变化写 `deletion_request_transition` 和审计。
+- 原因：内容处理应遵守申请范围，不能无依据停止未申请删除的其他会话；项目级导出无法在删除处理中可靠证明遗漏范围已完全排除，因此统一失败安全拒绝。
+- 代价：需要状态机、幂等 transition 记录和按 scope 的 AI 过滤测试。
+- 边界：`completed`、`rejected`、`withdrawn` 为终态；project scope 限制保留原项目状态，`rejected`/`withdrawn` 仅在没有其他限制原因时恢复，`completed` 不恢复；删除创建与 AI 写回竞态时丢弃命中 scope 的在途结果；完成后只保留不可恢复 project tombstone 或不可逆 scope 摘要与最小审计；删除候选或 marker 不等于删除申请已经成立或完成。
