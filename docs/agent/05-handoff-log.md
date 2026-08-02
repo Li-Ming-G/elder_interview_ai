@@ -90,7 +90,7 @@
 - 执行测试与结果：全新 clone 冻结安装通过；format/lint/typecheck 通过；单元 4 files/6 tests、集成 1 file/2 tests、build、真实资产 smoke、Chromium E2E 1/1 通过；空 test PostgreSQL 首次迁移成功、status up to date、重复 deploy 无待处理，public 仅 `_prisma_migrations`；Git 干净且端口无残留。
 - 已知问题：仓库未配置远端，远端 CI 无运行证据；用户级 Git ignore 权限 warning 不影响仓库结论。
 - 风险：DEV-001B 涉及身份、会话、CSRF、限流和 RBAC，必须独立安全审查；不得把 DEV-002 资源权限提前实现。
-- 下一步：从 `fb99560` 创建 `feature/DEV-001B-auth-session-rbac`，按任务卡单线程实现并在完成后安排独立审查。
+- 下一步：从包含最终验收状态证据的 `f1f7f13` 创建 `feature/DEV-001B-auth-session-rbac`，按任务卡单线程实现并在完成后安排独立审查；不得退回仅含工程候选的 `fb99560`。
 - 必须先读取的文件：`AGENTS.md`、`00` 至 `10`、任务板、REV-006、DEV-001B 任务卡和本交接。
 - 运行或复现方式：从候选提交按 DEV-001A 任务卡完整复跑；Chromium 在当前 Codex 沙箱外启动。
 

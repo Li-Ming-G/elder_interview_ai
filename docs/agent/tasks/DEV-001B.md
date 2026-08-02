@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配（工程基础实现 Agent）
+- 状态：`IN_PROGRESS`
+- 负责人：身份安全实现 Agent（dev001b_identity_security）
 - 前置依赖：`DEV-001A`
 - 分支：`feature/DEV-001B-auth-session-rbac`
 - 提交：待产生
@@ -18,6 +18,7 @@
 - `AGENTS.md`、`00`、`01`、`02`、`04`、`05`、`08`、`09`、`10`
 - `ADR-009`
 - `DEV-001A` 最新交接和提交
+- `REV-006`、`HO-005` 与 DEV-001B iteration-coach 独立只读校正结论
 
 ## 允许修改范围
 
@@ -28,6 +29,13 @@
 - local/test 虚构身份 seed；
 - production 用户创建、交互式密码重置、停用和启用的受控运维 CLI `user:create`、`user:set-password`、`user:disable`、`user:enable`；
 - 相关测试、配置和 `docs/agent/` 记录。
+
+## 实现边界补充
+
+- 分支必须基于最新状态证据提交 `f1f7f13`，不得退回仅含工程候选的 `fb99560`；
+- “权限撤回后旧会话失效”通过身份域内可复用的会话撤销服务 seam 与测试证明，供未来角色或 assignment 变化调用；本任务不创建项目或 assignment 表；
+- 资源授权接口接收可信 actor、全局 role 与调用服务从持久层派生的合成 ownership/assignment context，不接受调用者直接传入可伪造的 `isAllowed` 布尔值；真实 `project_assignment` 查询留给 `DEV-002`；
+- 根 `test:auth` 是身份专项唯一权威入口；E2E 必须同时启动真实 API 与 Web，连接隔离 PostgreSQL，并通过浏览器验证 Cookie、Origin、CSRF 与主登录链路；CI 调用相同根脚本。
 
 ## 明确不做
 
@@ -69,6 +77,7 @@ git status --short --branch
 5. 密码、会话原值、Cookie 和 CSRF token 不进入日志；
 6. production 运维 CLI 安全创建、重置密码、停用和启用用户，不从参数或环境变量读取密码；CLI `--operator-ref` 映射审计 `actor_reference`，启用清空 `disabled_at` 但不恢复历史会话；
 7. 独立安全/工程审查通过后，父任务 `DEV-001` 才能完成并解锁业务任务。
+8. `test:auth`、集成测试和 Chromium E2E 均由根脚本可重复执行；E2E 不得只测试静态 Web 外壳。
 
 ## 风险
 
