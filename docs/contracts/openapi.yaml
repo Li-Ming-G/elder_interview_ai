@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info:
+  title: AI辅助长者访谈系统 API
+  version: 0.0.0-placeholder
+  description: >-
+    占位文件。REST API 的当前正式依据是根目录
+    05-API与实时事件契约.md。此文件完成并通过审查前不得用于代码生成。
+paths: {}

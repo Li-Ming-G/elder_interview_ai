@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/ExportManifest.json",
+  "title": "ExportManifest",
+  "$comment": "占位文件。正式导出结构以 05-API与实时事件契约.md 和 08-安全隐私与数据治理.md 为准。",
+  "type": "object",
+  "additionalProperties": true
+}

@@ -1,0 +1,113 @@
+{
+  "package": "AI辅助长者访谈系统-项目文档基线-v1.1",
+  "files": [
+    {
+      "path": ".gitignore",
+      "size_bytes": 724
+    },
+    {
+      "path": "00-项目说明与执行入口.md",
+      "size_bytes": 7209
+    },
+    {
+      "path": "01-产品需求文档.md",
+      "size_bytes": 7492
+    },
+    {
+      "path": "02-项目开发规范.md",
+      "size_bytes": 9200
+    },
+    {
+      "path": "03-业务流程与交互规范.md",
+      "size_bytes": 9725
+    },
+    {
+      "path": "04-数据模型规范.md",
+      "size_bytes": 6623
+    },
+    {
+      "path": "05-API与实时事件契约.md",
+      "size_bytes": 5614
+    },
+    {
+      "path": "06-实时音频与转录规范.md",
+      "size_bytes": 6659
+    },
+    {
+      "path": "07-AI访谈引擎规范.md",
+      "size_bytes": 8687
+    },
+    {
+      "path": "08-安全隐私与数据治理.md",
+      "size_bytes": 7192
+    },
+    {
+      "path": "09-测试与验收规范.md",
+      "size_bytes": 7385
+    },
+    {
+      "path": "10-研发协作与交接规范.md",
+      "size_bytes": 7573
+    },
+    {
+      "path": "AGENTS.md",
+      "size_bytes": 3091
+    },
+    {
+      "path": "docs/agent/00-task-board.md",
+      "size_bytes": 1911
+    },
+    {
+      "path": "docs/agent/01-requirement-traceability.md",
+      "size_bytes": 846
+    },
+    {
+      "path": "docs/agent/02-conflict-log.md",
+      "size_bytes": 589
+    },
+    {
+      "path": "docs/agent/03-architecture-decisions.md",
+      "size_bytes": 2097
+    },
+    {
+      "path": "docs/agent/04-review-report.md",
+      "size_bytes": 654
+    },
+    {
+      "path": "docs/agent/05-handoff-log.md",
+      "size_bytes": 674
+    },
+    {
+      "path": "docs/agent/reviews/README.md",
+      "size_bytes": 228
+    },
+    {
+      "path": "docs/contracts/README.md",
+      "size_bytes": 697
+    },
+    {
+      "path": "docs/contracts/export-manifest.schema.json",
+      "size_bytes": 342
+    },
+    {
+      "path": "docs/contracts/interview-director-output.schema.json",
+      "size_bytes": 354
+    },
+    {
+      "path": "docs/contracts/interview-recorder-output.schema.json",
+      "size_bytes": 354
+    },
+    {
+      "path": "docs/contracts/openapi.yaml",
+      "size_bytes": 278
+    },
+    {
+      "path": "docs/contracts/websocket-events.md",
+      "size_bytes": 276
+    },
+    {
+      "path": "文档清单.md",
+      "size_bytes": 2239
+    }
+  ]
+}

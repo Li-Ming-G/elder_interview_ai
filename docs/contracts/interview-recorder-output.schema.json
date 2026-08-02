@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/InterviewRecorderOutput.json",
+  "title": "InterviewRecorderOutput",
+  "$comment": "占位文件。正式结构以 07-AI访谈引擎规范.md 为准，完成审查前不得用于生产校验。",
+  "type": "object",
+  "additionalProperties": true
+}
