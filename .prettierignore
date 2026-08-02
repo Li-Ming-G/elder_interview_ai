@@ -1,0 +1,11 @@
+node_modules/
+.pnpm-store/
+.npm-cache/
+.codex/
+dist/
+coverage/
+apps/api/src/generated/prisma/
+docs/contracts/
+*.md
+*.json
+pnpm-lock.yaml

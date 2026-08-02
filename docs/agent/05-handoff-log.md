@@ -40,6 +40,42 @@
 - 必须先读取：`AGENTS.md`、`00`、`01`、`02`、任务板、`04`、`05`、`08`、`09`、`10`、REV-003、DEV-001A 任务卡及本交接。
 - 运行或复现方式：当前无应用可运行；执行任务卡中的 `node/pnpm`、format/lint/typecheck/unit、Compose、Prisma migration、integration、build、smoke 和 Git 门禁。
 
+## HO-003｜DEV-001A 工程骨架与可重复工具链实现
+
+- 任务编号：`DEV-001A`
+- 交出角色：工程基础实现 Agent（Archimedes）
+- 接收角色：总控 Agent
+- 时间：2026-08-02
+- 分支与提交：`feature/DEV-001A-engineering-foundation`；未提交，等待总控审查和提交。
+- 修改文件：根 workspace、版本、TypeScript、ESLint、Prettier、Vitest、Playwright、Compose、环境示例和 CI 配置；`apps/web/`、`apps/api/`、`packages/config/`、`packages/contracts/`、`packages/eslint-config/`、`packages/shared/`、`scripts/`、`tests/`；本任务对应任务板、任务卡、追踪矩阵、迭代日志和本交接。
+- 已完成：固定 Node 24.18.0、pnpm 11.15.1 与冻结锁文件；建立 React/Vite Web 和 NestJS API 健康入口；建立 ESM strict TypeScript 及根 format/lint/typecheck/unit/build 门禁；实现安全配置校验、请求 ID、统一错误外壳和 JSON 日志基础；接入 Prisma 7 PostgreSQL adapter；建立不含业务表的空迁移；仅配置 PostgreSQL dev/test Compose；建立源码级单元/集成测试、构建产物 Web/API/PostgreSQL smoke 和固定 SHA 的 GitHub Actions 外壳。
+- 未完成：未在全新克隆目录复跑，未执行远端 GitHub Actions，未安装或运行 Playwright 浏览器测试，未提交 Git；由总控决定审查结论和提交。本任务没有实现 `DEV-001B` 或任何业务功能。
+- 数据库或接口变更：新增空 Prisma 迁移历史，不创建业务表；新增工程健康端点 `GET /api/v1/health` 与公共错误外壳。未改变正式业务接口、数据表、字段或枚举契约。
+- 执行测试与结果：`node --version`=`v24.18.0`；`pnpm.cmd --version`=`11.15.1`；`pnpm.cmd install --frozen-lockfile` 成功且锁文件无变化；`pnpm.cmd format:check`、`lint`、`typecheck` 通过；`test:unit --run` 为 3 files/4 tests 全过；`docker compose config --quiet` 通过；两个 PostgreSQL 18.3 容器 healthy；首次 `db:migrate:deploy` 应用 `20260802000000_engineering_baseline`，`db:migrate:status` up to date，第二次 deploy 无待处理迁移；`test:integration --run` 为 1 file/2 tests 全过；`build` 通过；`test:smoke` 输出 `Web/API/PostgreSQL smoke passed`；`pnpm.cmd audit --audit-level high` 输出 `No known vulnerabilities found`；常见私钥和供应商 token 模式扫描无命中；`git diff --check` 通过。初次集成测试发现 workspace 包依赖预构建 `dist`，已改为测试源码别名；PostgreSQL 18 初次启动发现数据卷目标约定变化，已改挂载 `/var/lib/postgresql` 后通过。
+- 已知问题：Docker 在沙箱内读取 `C:\Users\TR\.docker\config.json` 时报告 Access denied warning，但 Compose 配置和容器运行成功；用户级 Git ignore 也会产生 permission warning；PowerShell 使用 `pnpm.cmd`。远端仓库/CI 尚未配置或验证。
+- 风险：干净克隆复现与远端 CI 仍需总控或后续环境验证；GitHub Actions 平台仅为已批准的默认外壳；当前数据库容器仍在本机运行以便审查复现。
+- 下一步：总控审查变更和本地证据，决定是否追加独立工程审查；通过后提交本分支。只有 DEV-001A 被正式验收后才可启动 DEV-001B，不解锁其他业务任务。
+- 必须先读取的文件：`AGENTS.md`、`00`、`01`、`02`、任务板、`04`、`05`、`08`、`09`、`10`、REV-003、HO-002、DEV-001A 任务卡及本交接。
+- 运行或复现方式：按 DEV-001A 任务卡顺序执行冻结安装、format/lint/typecheck/unit、Compose、迁移 deploy/status/重复 deploy、integration、build、smoke 和 Git 门禁；迁移与集成使用 `.env.example` 中的本地测试数据库值，不使用真实密钥。
+
+## HO-004｜REV-004 FAIL 修复交接
+
+- 任务编号：`DEV-001A` / `REV-004`
+- 交出角色：工程基础实现 Agent（Archimedes）
+- 接收角色：总控 Agent / 独立审查 Agent
+- 时间：2026-08-02
+- 分支与提交：`feature/DEV-001A-engineering-foundation`；未提交。
+- 修改文件：`package.json`、`playwright.config.ts`、`.github/workflows/ci.yml`、`apps/web/package.json`、`scripts/smoke.mjs`、`apps/api/src/logging/json.logger.ts`、`apps/api/src/logging/json.logger.spec.ts`，以及 DEV-001A 任务、追踪和交接记录。
+- 已完成：增加权威根 `test:e2e` 与锁定 Playwright 版本的 Chromium 安装脚本；Playwright webServer 改为启动真实 Vite preview 且禁止复用既有服务；CI 通过根脚本安装 Chromium 并运行 E2E；smoke 改为真实服务 `apps/web/dist` 并请求 HTML 引用的 JS/CSS；JSON logger 不再原样输出任意字符串、`Error.message` 或 trace，并增加脱敏单测。
+- 未完成：未做候选提交后的干净检出验证；未提交，DEV-001A 仍不能声明通过。
+- 数据库或接口变更：无。
+- 执行测试与结果：`format:check`、`lint`、`typecheck` 通过；单元测试 4 files/6 tests 通过；集成测试 1 file/2 tests 通过；`build` 通过；`test:smoke` 输出 `Web/API/PostgreSQL smoke passed (2 assets fetched)`；smoke 后 3100/4173 无监听。`test:e2e:install` 在批准权限下成功。实现 Agent 的沙箱内两次 E2E 因浏览器启动限制和清理挂起而终止；总控经批准在沙箱外复跑为 `1 passed (4.1s)`，独立审查复跑为 `1 passed (5.3s)`；复跑后 3100/4173 无监听；`git diff --check` 通过。
+- 已知问题：沙箱内 Chromium 启动被拒，Playwright 清理 webServer 时挂起；总控经批准在沙箱外执行同一根命令后 `1 passed (4.1s)`，独立审查复跑为 `1 passed (5.3s)`，结束后 3100/4173 均无监听。
+- 风险：远端 GitHub Actions 尚无运行证据；候选提交前不能证明干净检出可重复性。
+- 下一步：保持 `REVIEW`；先提交固定候选，再在全新 clone/worktree 完整复跑，未通过前不启动 DEV-001B。
+- 必须先读取的文件：REV-004 审查消息、`AGENTS.md`、`00`、`01`、`02`、任务板、`08`、`09`、`10`、DEV-001A 任务卡、HO-003 和本交接。
+- 运行或复现方式：先执行 `pnpm.cmd build` 和 `pnpm.cmd test:e2e:install`，再单独执行 `pnpm.cmd test:e2e`；结束后检查 4173 端口和 Node/Vite/Chromium 子进程是否残留。
+
 ## 交接模板
 
 ```text

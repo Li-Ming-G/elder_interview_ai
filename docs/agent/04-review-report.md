@@ -94,6 +94,33 @@ P2（不阻塞 `DEV-001A`，已登记为后续阻塞）：
 1. `DEV-008` 开工前补齐备份清理状态的完成、失败、重试与审计规则；
 2. `DEV-008` 开工前补齐删除范围摘要 pepper 的密钥版本、轮换和历史摘要验证策略。
 
+## REV-004｜DEV-001A 工程基线独立审查
+
+- 审查提交：未提交工作区，基线 `2ff795a`
+- 审查范围：DEV-001A 任务边界、工程配置、Web/API/DB smoke、Playwright、CI、日志与当前 diff
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`FAIL`
+- P0：0
+- P1：1（Playwright Chromium 根门禁未建立，Web smoke 未实际请求构建资产）
+- P2：2（logger 可原样输出消息/trace；缺少候选提交后的干净检出证据）
+- 验证证据：冻结安装、format/lint/typecheck、单元 4/4、独立空库首次/重复迁移、集成 2/2、build、原 smoke、依赖审计和敏感模式扫描通过；Chromium 因未启动 Web 服务报 `ERR_CONNECTION_REFUSED`。
+- 允许进入的下一状态：DEV-001A 保持 `REVIEW`；修复 P1 后复审，不解锁 DEV-001B。
+
+## REV-005｜DEV-001A REV-004 修复独立复审
+
+- 审查提交：未提交工作区，基线 `2ff795a`
+- 审查范围：REV-004 三项修复、根脚本、Playwright webServer、CI、真实静态资产 smoke、logger 脱敏及测试
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`PARTIAL`
+- P0：0
+- P1：0
+- P2：1（候选尚未提交，缺少全新检出的冻结安装、全部根门禁和空库迁移可重复证据）
+- 已关闭：Playwright 已接入根脚本和 CI；smoke 实际获取 2 个 JS/CSS 资产；logger 不再原样输出任意消息、`Error.message` 或 trace。
+- 验证证据：format/lint/typecheck 通过；单元 4 files/6 tests；build 通过；smoke 通过且 3100/4173 无残留；独立沙箱外 `pnpm.cmd test:e2e` 为 `1 passed (5.3s)`；`git diff --check` 通过。
+- 允许进入的下一状态：仅允许提交固定候选并执行干净检出复跑；DEV-001A 保持 `REVIEW`，DEV-001B 保持 `BLOCKED`。
+
 ## 审查模板
 
 ```text

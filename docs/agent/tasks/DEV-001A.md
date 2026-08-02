@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`READY`
+- 状态：`REVIEW`
 - 负责人：工程基础实现 Agent（Archimedes）
 - 前置依赖：`DEC-001`
 - 分支：`feature/DEV-001A-engineering-foundation`
-- 提交：待产生
+- 提交：待总控审查后产生
 - 交接对象：总控 Agent
 
 ## 目标
@@ -63,6 +63,8 @@ pnpm.cmd db:migrate:status
 pnpm.cmd test:integration --run
 pnpm.cmd build
 pnpm.cmd test:smoke
+pnpm.cmd test:e2e:install
+pnpm.cmd test:e2e
 git diff --check
 git status --short --branch
 ```
@@ -80,4 +82,5 @@ git status --short --branch
 
 - 首次依赖安装和 Playwright 安装可能需要网络批准；
 - Prisma 7 的 ESM/驱动适配器必须在本任务最早验证；
+- REV-004 的 E2E、静态资产 smoke 与日志问题已关闭；REV-005 为 `PARTIAL`（P0/P1 为 0），尚需候选提交后的干净检出复跑；
 - 本任务不替父任务解锁业务开发，完成后只允许启动 `DEV-001B`。
