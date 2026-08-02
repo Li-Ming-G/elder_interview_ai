@@ -76,6 +76,24 @@
 - 必须先读取的文件：REV-004 审查消息、`AGENTS.md`、`00`、`01`、`02`、任务板、`08`、`09`、`10`、DEV-001A 任务卡、HO-003 和本交接。
 - 运行或复现方式：先执行 `pnpm.cmd build` 和 `pnpm.cmd test:e2e:install`，再单独执行 `pnpm.cmd test:e2e`；结束后检查 4173 端口和 Node/Vite/Chromium 子进程是否残留。
 
+## HO-005｜DEV-001A 最终验收与 DEV-001B 放行
+
+- 任务编号：`DEV-001A` / `REV-006`
+- 交出角色：总控 Agent
+- 接收角色：DEV-001B 身份安全实现 Agent / 项目负责人
+- 时间：2026-08-02
+- 分支与提交：`feature/DEV-001A-engineering-foundation`；候选 `fb99560d56988500c39ac996189e80313c173d9e`；本记录随状态证据提交。
+- 修改文件：DEV-001A 工程基线全部交付物；`00`、任务板、追踪矩阵、审查报告、任务卡、交接和迭代日志。
+- 已完成：REV-004 问题全部关闭；REV-006 PASS（P0/P1/P2 为 0）；DEV-001A 转 `DONE`，DEV-001B 转 `READY`。
+- 未完成：未运行远端 GitHub Actions；未实现 DEV-001B 或任何业务功能；父 DEV-001 仍未完成。
+- 数据库或接口变更：仅空 Prisma 迁移和工程健康端点；没有业务表或身份接口。
+- 执行测试与结果：全新 clone 冻结安装通过；format/lint/typecheck 通过；单元 4 files/6 tests、集成 1 file/2 tests、build、真实资产 smoke、Chromium E2E 1/1 通过；空 test PostgreSQL 首次迁移成功、status up to date、重复 deploy 无待处理，public 仅 `_prisma_migrations`；Git 干净且端口无残留。
+- 已知问题：仓库未配置远端，远端 CI 无运行证据；用户级 Git ignore 权限 warning 不影响仓库结论。
+- 风险：DEV-001B 涉及身份、会话、CSRF、限流和 RBAC，必须独立安全审查；不得把 DEV-002 资源权限提前实现。
+- 下一步：从 `fb99560` 创建 `feature/DEV-001B-auth-session-rbac`，按任务卡单线程实现并在完成后安排独立审查。
+- 必须先读取的文件：`AGENTS.md`、`00` 至 `10`、任务板、REV-006、DEV-001B 任务卡和本交接。
+- 运行或复现方式：从候选提交按 DEV-001A 任务卡完整复跑；Chromium 在当前 Codex 沙箱外启动。
+
 ## 交接模板
 
 ```text

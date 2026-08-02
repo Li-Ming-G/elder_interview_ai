@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - 负责人：待分配（工程基础实现 Agent）
 - 前置依赖：`DEV-001A`
 - 分支：`feature/DEV-001B-auth-session-rbac`

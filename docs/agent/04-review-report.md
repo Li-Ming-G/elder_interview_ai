@@ -121,6 +121,19 @@ P2（不阻塞 `DEV-001A`，已登记为后续阻塞）：
 - 验证证据：format/lint/typecheck 通过；单元 4 files/6 tests；build 通过；smoke 通过且 3100/4173 无残留；独立沙箱外 `pnpm.cmd test:e2e` 为 `1 passed (5.3s)`；`git diff --check` 通过。
 - 允许进入的下一状态：仅允许提交固定候选并执行干净检出复跑；DEV-001A 保持 `REVIEW`，DEV-001B 保持 `BLOCKED`。
 
+## REV-006｜DEV-001A 候选提交与干净检出最终复审
+
+- 审查提交：`fb99560d56988500c39ac996189e80313c173d9e`
+- 审查范围：候选提交、原工作区与全新 clone、REV-005 唯一 P2 关闭证据
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`PASS`
+- P0：0
+- P1：0
+- P2：0
+- 验证证据：两处 HEAD 精确一致且工作树干净；全新 clone 完成冻结安装、Prisma Client 生成、format/lint/typecheck、单元 6/6、空库首次/重复迁移、集成 2/2、build、真实资产 smoke、Chromium E2E 1/1；迁移后 public 仅 `_prisma_migrations`；3100/4173 无监听。
+- 允许进入的下一状态：DEV-001A 可 `DONE`；DEV-001B 可 `READY` 并启动；父 DEV-001 和其余业务任务继续阻塞。
+
 ## 审查模板
 
 ```text

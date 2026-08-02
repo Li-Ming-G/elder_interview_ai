@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: DEV-001A 工程骨架已完成本地实现与门禁并进入 REVIEW；正式业务功能仍未开始，等待总控审查和提交。
+- Current stage: DEV-001A 已由 REV-006 独立验收并提交；DEV-001B 已 READY，其他业务任务仍受父任务 DEV-001 阻塞。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；DEV-008 前的备份清理状态与删除摘要密钥轮换策略（CON-006/007）。
@@ -77,6 +77,6 @@
 - Review finding: 只读顾问未发现阻塞性偏离，并要求用真实 Web/API/PostgreSQL 路径、进程级缺失配置失败、空业务迁移和根 CI 脚本证明边界。
 - Options considered: 只提供静态脚手架；测试依赖预先构建的 workspace `dist`；让测试直接解析 workspace 源码并以构建产物做独立 smoke。
 - Adopted decision: 采用第三条路径；单元/集成测试显式解析工作区源码，构建后 smoke 单独启动 API 产物，并实际连接 PostgreSQL 18。
-- Implementation evidence: 根 workspace/锁文件/CI/Compose，`apps/web`、`apps/api`、`packages/*`、空 Prisma 迁移，以及单元 4/4、集成 2/2、迁移幂等、build 和 Web/API/PostgreSQL smoke 结果。
+- Implementation evidence: 提交 `fb99560`；全新 clone 的冻结安装、单元 6/6、集成 2/2、空库迁移幂等、build、真实资产 Web/API/PostgreSQL smoke、Chromium E2E 1/1 和干净 Git 状态；REV-006 PASS。
 - Lesson: 可重复工具链不能依赖未声明的执行顺序；测试、构建和烟测应分别证明源码边界、产物边界与真实基础设施边界。
 - Better future prompt: “请从冻结锁文件安装开始，分别验证源码测试、空库迁移幂等、构建产物启动和真实 PostgreSQL 健康检查；任何一步不得依赖未写入根脚本的前置动作。”

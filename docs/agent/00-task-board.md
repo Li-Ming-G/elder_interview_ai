@@ -16,8 +16,8 @@
 | DOC-001 | 建立项目文档基线 | 总控 Agent | DONE | 无 | 文档包完整性与一致性检查 | REV-003 PASS；文档和契约一致性门禁通过 |
 | DEC-001 | 确认工程技术基线与跨规范冲突 | 总控 Agent | DONE | BASE-001 | `02` 至 `10`、ADR、冲突日志 | REV-003 PASS；P0/P1 为 0 |
 | DEV-001 | 初始化工程与环境（父任务） | 总控 Agent | BLOCKED | DEV-001A、DEV-001B | [父任务卡](tasks/DEV-001.md) | 等待两个子任务完成及独立审查 |
-| DEV-001A | 工程骨架与可重复工具链 | 工程基础实现 Agent（Archimedes） | REVIEW | DEC-001 | [任务卡](tasks/DEV-001A.md) | REV-005 PARTIAL：P0/P1 为 0；等待候选提交后的干净检出复跑 |
-| DEV-001B | 身份、会话与权限基础 | 待分配 | BLOCKED | DEV-001A | [任务卡](tasks/DEV-001B.md) | 等待工程骨架 |
+| DEV-001A | 工程骨架与可重复工具链 | 工程基础实现 Agent（Archimedes） | DONE | DEC-001 | [任务卡](tasks/DEV-001A.md)、`fb99560`、REV-006 | REV-006 PASS；P0/P1/P2 均为 0 |
+| DEV-001B | 身份、会话与权限基础 | 待分配 | READY | DEV-001A | [任务卡](tasks/DEV-001B.md) | 无；仅允许按任务卡启动身份安全实现 |
 | DEV-002 | 项目、服务信息与授权 | 待分配 | BLOCKED | DEV-001 | `03`、`04`、`05`、`08`、`09` | 等待工程初始化 |
 | DEV-003 | 原始录音与分片上传 | 待分配 | BLOCKED | DEV-001 | `06`、`09` | 等待工程初始化 |
 | DEV-004 | 实时 ASR 与说话人映射 | 待分配 | BLOCKED | DEV-003 | `05`、`06`、`09` | 等待录音链路 |

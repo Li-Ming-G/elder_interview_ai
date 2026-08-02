@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：工程基础实现 Agent（Archimedes）
 - 前置依赖：`DEC-001`
 - 分支：`feature/DEV-001A-engineering-foundation`
-- 提交：待总控审查后产生
+- 提交：`fb99560d56988500c39ac996189e80313c173d9e`
 - 交接对象：总控 Agent
 
 ## 目标
