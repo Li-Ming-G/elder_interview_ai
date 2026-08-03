@@ -114,6 +114,18 @@
 - 需要同步修改的文件：`04`、`05`、ADR-014、任务板、DEV-002 任务卡、追溯和交接。
 - 完成确认：正式契约已写回；DEV-002 可恢复实现。真实口头授权音频仍由后续音频集成和真实试点门禁验证。
 
+### CON-010｜口头授权音频缺少可验证的项目对象关系
+
+- 状态：`OPEN`
+- 发现时间：2026-08-03
+- 发现者：DEV-002 后端业务 Agent
+- 涉及文件与章节：`03` §6.2、`04` §4.5、`05` §3.4、`06`、DEV-002/DEV-003B
+- 冲突内容：正式契约要求 `recorded_verbal` 的 `consent_audio_object_id` 已属于当前项目且可靠保存，但 `04` 尚无授权音频对象实体/关系，DEV-003B 也尚未提供可查询对象 seam。只校验 UUID 格式会把未保存或跨项目对象伪装成合规授权。
+- 受影响任务：阻塞 recorded_verbal 正式实现、DEV-003B 授权音频集成和真实试点；不阻塞只使用虚构数据及 `electronic|written` 的内部纵向原型。
+- 临时处理：DEV-002 对 `recorded_verbal` 失败关闭并返回稳定 `CONSENT_AUDIO_NOT_VERIFIED`；不得创建 `valid` 授权。`electronic|written` 仅限内部虚构数据，不能作为真实试点证据。
+- 候选方案：DEV-003B 开工时明确授权音频与普通 session audio 的对象模型、project 归属、checksum/manifest 和可靠保存查询 seam，再由 DEV-002 接入同事务授权校验。
+- 需要谁决策：总控 Agent + DEV-003B 后端音频实现/审查角色；真实试点前必须解决。
+
 ## 登记模板
 
 ```text
