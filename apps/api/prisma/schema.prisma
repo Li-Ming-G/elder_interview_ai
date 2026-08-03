@@ -28,18 +28,66 @@ enum AuthThrottleKeyKind {
   ip
 }
 
+enum ProjectStatus {
+  draft
+  ready
+  active
+  completed
+  restricted
+  deleted
+}
+
+enum AssignmentRole {
+  interviewer
+}
+
+enum ConsentType {
+  recording_transcription_ai
+}
+
+enum ConsentMethod {
+  recorded_verbal
+  electronic
+  written
+}
+
+enum ConsentStatus {
+  pending
+  valid
+  revoked
+  expired
+}
+
+enum InterviewSessionStatus {
+  created
+  device_check
+  recording
+  reconnecting
+  stopping
+  processing
+  completed
+  interrupted
+  failed
+}
+
 model User {
-  id           String        @id @default(uuid()) @db.Uuid
-  email        String        @unique @db.VarChar(254)
-  displayName  String        @map("display_name") @db.VarChar(120)
-  passwordHash String        @map("password_hash")
-  role         UserRole
-  status       UserStatus    @default(active)
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  disabledAt   DateTime?     @map("disabled_at") @db.Timestamptz(3)
-  sessions     AuthSession[]
-  auditLogs    AuditLog[]
+  id                       String              @id @default(uuid()) @db.Uuid
+  email                    String              @unique @db.VarChar(254)
+  displayName              String              @map("display_name") @db.VarChar(120)
+  passwordHash             String              @map("password_hash")
+  role                     UserRole
+  status                   UserStatus          @default(active)
+  createdAt                DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  disabledAt               DateTime?           @map("disabled_at") @db.Timestamptz(3)
+  sessions                 AuthSession[]
+  auditLogs                AuditLog[]
+  createdProjects          ElderProject[]      @relation("ProjectCreator")
+  projectAssignments       ProjectAssignment[]
+  explainedServiceTerms    ServiceTerm[]       @relation("ServiceTermExplainer")
+  createdConsents          ConsentRecord[]     @relation("ConsentCreator")
+  createdInterviewSessions InterviewSession[]  @relation("InterviewSessionCreator")
+  idempotencyRecords       IdempotencyRecord[]
 
   @@map("user")
 }
@@ -88,4 +136,116 @@ model AuditLog {
 
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@map("audit_log")
+}
+
+model ElderProject {
+  id                      String              @id @default(uuid()) @db.Uuid
+  displayName             String?             @map("display_name") @db.VarChar(120)
+  birthYear               Int?                @map("birth_year")
+  approximateAge          Int?                @map("approximate_age")
+  nativePlace             String?             @map("native_place") @db.VarChar(200)
+  currentCity             String?             @map("current_city") @db.VarChar(200)
+  status                  ProjectStatus       @default(draft)
+  statusBeforeRestriction ProjectStatus?      @map("status_before_restriction")
+  createdBy               String?             @map("created_by") @db.Uuid
+  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt               DateTime?           @map("deleted_at") @db.Timestamptz(3)
+  creator                 User?               @relation("ProjectCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  assignments             ProjectAssignment[]
+  serviceTerms            ServiceTerm[]
+  consents                ConsentRecord[]
+  interviewSessions       InterviewSession[]
+
+  @@index([status, updatedAt(sort: Desc)])
+  @@map("elder_project")
+}
+
+model ProjectAssignment {
+  id             String         @id @default(uuid()) @db.Uuid
+  projectId      String         @map("project_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  assignmentRole AssignmentRole @default(interviewer) @map("assignment_role")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt      DateTime?      @map("revoked_at") @db.Timestamptz(3)
+  project        ElderProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("project_assignment")
+}
+
+model ServiceTerm {
+  id                     String       @id @default(uuid()) @db.Uuid
+  projectId              String       @map("project_id") @db.Uuid
+  includedMinutes        Int          @map("included_minutes")
+  estimatedSessionCount  Int          @map("estimated_session_count")
+  expectedCurrentMinutes Int          @map("expected_current_minutes")
+  overtimeUnitMinutes    Int          @map("overtime_unit_minutes")
+  overtimePriceMinor     Int          @map("overtime_price_minor")
+  currency               String       @db.Char(3)
+  explainedAt            DateTime     @map("explained_at") @db.Timestamptz(3)
+  explainedBy            String       @map("explained_by") @db.Uuid
+  effectiveFrom          DateTime     @map("effective_from") @db.Timestamptz(3)
+  supersededAt           DateTime?    @map("superseded_at") @db.Timestamptz(3)
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  project                ElderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  explainer              User         @relation("ServiceTermExplainer", fields: [explainedBy], references: [id], onDelete: Restrict)
+
+  @@index([projectId, effectiveFrom(sort: Desc)])
+  @@map("service_term")
+}
+
+model ConsentRecord {
+  id                   String        @id @default(uuid()) @db.Uuid
+  projectId            String        @map("project_id") @db.Uuid
+  consentType          ConsentType   @default(recording_transcription_ai) @map("consent_type")
+  consentTextVersion   String        @map("consent_text_version") @db.VarChar(80)
+  consentMethod        ConsentMethod @map("consent_method")
+  consentedAt          DateTime      @map("consented_at") @db.Timestamptz(3)
+  consentAudioObjectId String?       @map("consent_audio_object_id") @db.Uuid
+  status               ConsentStatus @default(valid)
+  revokedAt            DateTime?     @map("revoked_at") @db.Timestamptz(3)
+  createdBy            String        @map("created_by") @db.Uuid
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  project              ElderProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator              User          @relation("ConsentCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([projectId, consentType, createdAt(sort: Desc)])
+  @@map("consent_record")
+}
+
+model InterviewSession {
+  id              String                 @id @default(uuid()) @db.Uuid
+  projectId       String                 @map("project_id") @db.Uuid
+  sequenceNo      Int                    @map("sequence_no")
+  status          InterviewSessionStatus @default(created)
+  startedAt       DateTime?              @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime?              @map("ended_at") @db.Timestamptz(3)
+  durationSeconds Int?                   @map("duration_seconds")
+  asrProvider     String?                @map("asr_provider") @db.VarChar(100)
+  llmProvider     String?                @map("llm_provider") @db.VarChar(100)
+  promptVersion   String?                @map("prompt_version") @db.VarChar(100)
+  createdBy       String                 @map("created_by") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project         ElderProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator         User                   @relation("InterviewSessionCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, sequenceNo])
+  @@map("interview_session")
+}
+
+model IdempotencyRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  requestId       String   @unique @map("request_id") @db.Uuid
+  action          String   @db.VarChar(100)
+  actorId         String   @map("actor_id") @db.Uuid
+  targetType      String   @map("target_type") @db.VarChar(80)
+  targetId        String   @map("target_id") @db.Uuid
+  responsePayload Json     @map("response_payload") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor           User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@map("idempotency_record")
 }

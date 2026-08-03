@@ -13,14 +13,16 @@ import { CsrfMiddleware } from './auth/csrf.middleware.js';
 import { OriginMiddleware } from './auth/origin.middleware.js';
 import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
+import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
 
 @Module({})
 export class AppModule implements NestModule {
   public static register(config: ApiConfig): DynamicModule {
+    const authModule = createAuthModule(config);
     return {
       controllers: [HealthController],
       global: true,
-      imports: [createAuthModule(config)],
+      imports: [authModule, createProjectFoundationModule(config, authModule)],
       module: AppModule,
       providers: [
         {
