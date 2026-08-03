@@ -170,6 +170,19 @@
 - 下一步：项目负责人选择 CON-009 A/B；总控更新 `04`/`05` 后恢复 DEV-002。并行可为 DEV-003A 增加内部 Chromium harness，验证原生 IndexedDB/MediaRecorder 与刷新恢复，随后才决定是否解锁 DEV-003B 集成。
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、CON-009、REV-008、DEV-002/003A/003B 任务卡及本交接。
 
+## HO-009｜CON-009 方案 A 决策与 DEV-002 恢复
+
+- 任务编号：`DEV-002`、CON-009、ADR-014
+- 交出角色：项目负责人 / 总控 Agent
+- 接收角色：DEV-002 后端业务实现 Agent
+- 时间：2026-08-03
+- 分支与提交：`codex/mvp-v01-vertical-slice`；决策提交待产生。
+- 最终决定：一次 `recording_transcription_ai` 捆绑授权覆盖录音、转录和 AI；倾听员创建项目时在同一事务自动获得 `interviewer` assignment，但访问只认 assignment，`created_by` 不产生 owner 权限；draft session 可创建，start 必须重新校验 assignment、服务说明、有效捆绑授权和 device check。
+- 契约变更：`04` 补 assignment/consent 枚举、append-only 和 ready/restricted 规则；`05` 补项目、assignment、服务、授权、撤回、session/device-check/start 最小 snake_case DTO 与事务边界；ADR-014 记录取舍。
+- 探索期边界：只用虚构数据，允许 electronic/written 测试授权；真实试点仍必须保存合规口头授权音频并通过 `09` 发布门禁。
+- 下一步：DEV-002 在单一前向迁移中实现 project/assignment/service_term/consent_record/interview_session、REST、审计与集成测试；不得修改 DEV-003A、CON-008 或扩展到音频/ASR/AI。
+- 验收重点：创建与 assignment 同事务；assignment-only 资源隔离；历史服务/授权不覆盖；撤回限制；draft session 与 start gate 分离；重复 request_id 幂等；空库/重复迁移和虚构 A/B 权限测试。
+
 ## 交接模板
 
 ```text

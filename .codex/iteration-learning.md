@@ -109,3 +109,9 @@
 - Evidence: `1085ae6`、`41d6104`；总控 format/lint/typecheck、10 files/45 tests、build、diff check、prod audit 通过；REV-008 最终内部候选 PASS、P0/P1=0。
 - Boundary: DEV-002 因 CON-009 BLOCKED；DEV-003A 只进入 REVIEW，真实 Chromium 与长时/崩溃恢复仍为 P2，禁止真实访谈。
 - Lesson: 原始分片可靠性不仅是“ACK 前不删”，还包括 ACK 后仍持久保存序号和时间轴进度；资源 `created_by` 也不能在 assignment 规则未定时隐含等于 owner。
+
+### 2026-08-03 — CON-009 选择捆绑授权方案 A
+- Decision: 用户明确选择 A；一次授权覆盖录音/转录/AI，项目创建与创建者 interviewer assignment 同事务。
+- Guardrail: `created_by` 仍只作审计，不产生 owner 权限；正式 start 重新读取全部门禁，不能信任客户端 can_record。
+- Prototype boundary: 虚构内部数据可用 electronic/written；真实试点必须回到口头授权音频和完整发布门禁。
+- Rationale: 与现有单次固定文本授权流程一致，能用最少状态验证核心链路；分别授权留到出现明确产品或合规证据时再评估。
