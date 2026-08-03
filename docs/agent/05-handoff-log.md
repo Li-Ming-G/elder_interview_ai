@@ -183,6 +183,24 @@
 - 下一步：DEV-002 在单一前向迁移中实现 project/assignment/service_term/consent_record/interview_session、REST、审计与集成测试；不得修改 DEV-003A、CON-008 或扩展到音频/ASR/AI。
 - 验收重点：创建与 assignment 同事务；assignment-only 资源隔离；历史服务/授权不覆盖；撤回限制；draft session 与 start gate 分离；重复 request_id 幂等；空库/重复迁移和虚构 A/B 权限测试。
 
+## HO-010｜DEV-002 正式项目、授权与会话 seam
+
+- 任务编号：`DEV-002`、REV-009、ADR-015
+- 交出角色：DEV-002 后端业务 Agent、独立审查 Agent、总控 Agent
+- 接收角色：DEV-003B 后端音频 Agent、后续工作台/转录 Agent
+- 时间：2026-08-03
+- 分支与提交：`codex/mvp-v01-vertical-slice`；实现 `f16b82a`；状态收束提交见后续 Git 记录。
+- 修改文件：`04`、`05`、Prisma schema/迁移、`apps/api/src/project-foundation/`、contracts、project/auth integration tests、ADR-015、任务/追溯/审查/交接记录。
+- 已完成：项目与创建者 assignment 原子创建；assignment-only A/B 隔离；追加式服务条款与捆绑授权；撤回、限制和审计同事务；draft session、device-check、start 门禁；全局幂等绑定/首次快照；资源并发串行；模块装配和 snake_case DTO。
+- 未完成：assignment 管理 API 不在本次最小范围；音频、ASR、AI、导出、删除未实现；CON-010 的口头授权音频对象 seam 未决定。
+- 数据库或接口变更：单一迁移 `20260803153000_project_consent_session` 新增 5 张业务表和 `idempotency_record`；新增 `05` §3.1-3.5 REST；`recorded_verbal` 在 CON-010 关闭前返回 `CONSENT_AUDIO_NOT_VERIFIED`。
+- 执行测试与结果：独立 REV-009 最终 PASS（P0/P1/P2=0）；总控 migration deploy/status、integration 7/7、auth 13/13、unit 45/45、format/lint/typecheck/build、diff check、prod audit 全通过；测试 PostgreSQL 容器健康。
+- 已知问题：未执行 Playwright 或远端 CI，本任务不包含浏览器交互；真实口头授权和真实资料仍禁止。
+- 风险：任何新幂等动作必须沿用 actor/target 绑定、首次响应快照和一致资源锁顺序；重放不能绕过当前 assignment。
+- 下一步：DEV-003B 开工前由总控与后端音频角色解决 CON-010，明确授权音频对象的 project 归属、checksum/manifest 和可靠保存查询；DEV-003A 仍需真实 Chromium 证据。
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003B、ADR-014/015、CON-010、REV-009、HO-010。
+- 运行或复现方式：启动 `postgres-test`，设置 `.env.example` 中的 `TEST_DATABASE_URL`/`DATABASE_URL`，执行根 migration、integration、auth、unit 和静态/构建命令。
+
 ## 交接模板
 
 ```text

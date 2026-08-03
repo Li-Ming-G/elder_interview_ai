@@ -115,3 +115,11 @@
 - Guardrail: `created_by` 仍只作审计，不产生 owner 权限；正式 start 重新读取全部门禁，不能信任客户端 can_record。
 - Prototype boundary: 虚构内部数据可用 electronic/written；真实试点必须回到口头授权音频和完整发布门禁。
 - Rationale: 与现有单次固定文本授权流程一致，能用最少状态验证核心链路；分别授权留到出现明确产品或合规证据时再评估。
+
+### 2026-08-03 — DEV-002 最小项目—授权—会话纵向 seam
+- User outcome: 把 A 方案变成可迁移、可调用、可并发验证的内部虚构数据业务链路，为录音服务提供稳定 project/session seam。
+- Review correction: 初版只按 request ID 加锁和查审计，无法阻止不同键并发改变同一资源，还可能跨 actor/target 返回其他实体；总控另发现 assignment 撤销后不能允许旧键绕过当前授权。
+- Adopted decision: 采用 ADR-015；持久化全局幂等绑定与首次响应快照，业务变化另按 project/session/consent 统一顺序串行，重放前仍检查当前 assignment。
+- Evidence: `f16b82a`；REV-009 最终 PASS（P0/P1/P2=0）；migration deploy/status、integration 7/7、auth 13/13、unit 45/45、format/lint/typecheck/build/diff check/prod audit 全通过。
+- Boundary: `recorded_verbal` 因 CON-010 失败关闭；当前 DONE 只代表 electronic/written 虚构数据内部范围，不代表真实试点授权、音频链路或生产部署通过。
+- Lesson: 幂等键只能识别重放，不能代替资源并发控制；首次结果、操作者、目标和当前授权必须同时成立，才不会把“防重复”变成越权或竞态入口。

@@ -173,6 +173,19 @@ P2：
 - DEV-002 结论：CON-009 仍阻塞迁移/API；REV-008 不批准任何授权枚举、自动 assignment 或 DTO。
 - 后续状态：项目负责人随后选择方案 A，并在 ADR-014、CON-009 与 HO-009 中形成正式决定；不改写 REV-008 审查当时的事实。
 
+## REV-009｜DEV-002 项目、捆绑授权与会话链路独立审查
+
+- 审查基线：分支 `codex/mvp-v01-vertical-slice`；未提交实现树，随后固定为 `f16b82a`
+- 审查范围：DEV-002 数据模型/迁移、项目与 assignment 原子创建、assignment-only 隔离、服务/授权追加、撤回限制、session/device-check/start 状态机、幂等、审计和测试
+- 审查人：独立纵向基础审查 Agent（vertical_slice_foundation_review）
+- 审查时间：2026-08-03
+- 初审结论：`FAIL`，P0=0、P1=2、P2=2。P1 为不同 request ID 可并发重复 start/revoke，以及 request ID 未绑定 actor/target 导致跨项目返回实体且不能保留首次响应。
+- 修复：新增全局唯一 `idempotency_record`，绑定 action/actor/target 与首次最小响应快照；统一 `request → project → consent/session` 锁顺序；append/revoke 共用 project 锁；重放前重新检查当前 assignment；补并发、跨绑定、assignment 撤销、竞态、序号和回滚证据。
+- 最终结论：`PASS`，P0=0、P1=0、P2=0；允许 DEV-002 内部候选进入 VERIFY，经总控完整门禁复跑后关闭任务。
+- 独立执行：Prisma deploy 无待应用迁移；DEV-002 PostgreSQL integration 1 file/5 tests、unit 2 files/22 tests、format/lint/typecheck 全通过。
+- 总控执行：migration deploy/status、根 integration 2 files/7 tests、auth 3 files/13 tests、unit 10 files/45 tests、format/lint/typecheck/build、diff check 与 production dependency audit 全通过。
+- 边界：CON-010 保持 OPEN；`recorded_verbal` 失败关闭，只批准 electronic/written 虚构数据内部链路，不批准真实试点或公网使用。
+
 ## 审查模板
 
 ```text
