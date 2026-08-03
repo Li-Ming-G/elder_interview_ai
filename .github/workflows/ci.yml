@@ -27,6 +27,9 @@ jobs:
           --health-timeout 3s
           --health-retries 15
     env:
+      APP_ENV: test
+      AUTH_ALLOWED_ORIGINS: http://127.0.0.1:4173
+      AUTH_LOGIN_THROTTLE_PEPPER: test-only-login-throttle-pepper
       DATABASE_URL: postgresql://elder_interview_test:local_test_only@127.0.0.1:5433/elder_interview_test
       TEST_DATABASE_URL: postgresql://elder_interview_test:local_test_only@127.0.0.1:5433/elder_interview_test
     steps:
@@ -49,7 +52,9 @@ jobs:
       - run: pnpm db:migrate:deploy
       - run: pnpm db:migrate:status
       - run: pnpm test:integration --run
+      - run: pnpm test:auth --run
       - run: pnpm build
       - run: pnpm test:smoke
       - run: pnpm test:e2e:install
       - run: pnpm test:e2e
+      - run: pnpm test:e2e:auth -- --project=chromium

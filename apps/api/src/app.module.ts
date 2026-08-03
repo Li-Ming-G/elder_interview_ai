@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 
 import { API_CONFIG } from './api-config.js';
-import { PrismaService } from './database/prisma.service.js';
+import { createAuthModule } from './auth/auth.module.js';
+import { CsrfMiddleware } from './auth/csrf.middleware.js';
+import { OriginMiddleware } from './auth/origin.middleware.js';
 import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
 
@@ -17,9 +19,10 @@ export class AppModule implements NestModule {
   public static register(config: ApiConfig): DynamicModule {
     return {
       controllers: [HealthController],
+      global: true,
+      imports: [createAuthModule(config)],
       module: AppModule,
       providers: [
-        PrismaService,
         {
           provide: API_CONFIG,
           useValue: config,
@@ -29,6 +32,8 @@ export class AppModule implements NestModule {
   }
 
   public configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes({ path: '*splat', method: RequestMethod.ALL });
+    consumer
+      .apply(RequestIdMiddleware, OriginMiddleware, CsrfMiddleware)
+      .forRoutes({ path: '*splat', method: RequestMethod.ALL });
   }
 }

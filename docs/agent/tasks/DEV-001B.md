@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 负责人：身份安全实现 Agent（dev001b_identity_security）
 - 前置依赖：`DEV-001A`
 - 分支：`feature/DEV-001B-auth-session-rbac`
@@ -84,3 +84,22 @@ git status --short --branch
 - 若正式部署不是同源，必须重新审查 Cookie、CORS 和 CSRF；
 - `pnpm audit` 结果需按可利用性判断，不能通过忽略脚本伪造通过；
 - 资源授权接口只能建立模式，不能用虚构项目逻辑提前实现 `DEV-002`。
+
+## 实现 Agent 交接状态
+
+- 实现已进入 `REVIEW`，尚未经过独立安全/工程审查，不得标记 `DONE`；
+- `CON-008`（未知账号登录失败缺少合法 audit actor 表达）为最终安全验收阻塞，未擅自变更正式数据模型；
+- 实现 Agent 沙箱内 Chromium 启动受限；总控已在沙箱外复跑真实 Web/API/PostgreSQL auth E2E，结果 `1 passed (10.1s)`，3101/4173 无残留；
+- 候选提交仍待总控审查后产生。
+
+> 阶段说明（2026-08-03）：当前成果可作为虚构数据、非公网内部原型的固定身份 seam；任务仍为 `REVIEW`。CON-008、增强 Chromium 证据和独立复审只阻塞本任务最终 `DONE`、真实身份部署与真实试点，不阻塞边界清晰的后续内部原型任务。
+
+### REV-007 修复状态
+
+- P1-01：登录使用短事务 reservation 原子完成阻断裁定与失败预占，Argon2 在事务外执行，成功再用短事务结算；真实 PostgreSQL 并发测试证明预置 4 次失败后并发正确/错误猜测全部 401 且不创建会话；
+- P1-02：Web 登出检查响应，陈旧 CSRF 会轮换后重试，403/网络或轮换失败保留已登录状态；
+- P1-03：已知账号登录失败、成功及角色/资源权限拒绝写入合规 user actor 审计；未知账号仍由 CON-008 阻塞；
+- P2-04：CLI 四命令的数据变化和 system_operator 审计同事务，真实 PostgreSQL 覆盖 operator-ref、改密/停用撤销与 enable 不恢复；
+- P2-05：已挂载 Nest `RoleGuard`，合成 admin proof 路由覆盖 403、审计和允许路径，不涉及 DEV-002；
+- P2-06：Web 初始化通过 me+csrf 恢复会话并覆盖 401/错误；测试 teardown 防止初始化失败后的次生异常；
+- 修复后本地非 Chromium 门禁通过；baseline 1 条、auth 2 条 Chromium 已成功发现，执行结果等待总控沙箱外复跑和 REV-008。

@@ -6,6 +6,10 @@ const apiConfigSchema = z.object({
   APP_ENV: z.enum(['local', 'test', 'staging', 'production']),
   DATABASE_URL: z.url({ protocol: /^postgresql$/ }),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  AUTH_ALLOWED_ORIGINS: z.string().min(1),
+  AUTH_LOGIN_THROTTLE_PEPPER: z.string().min(16),
+  AUTH_SESSION_IDLE_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
+  AUTH_SESSION_ABSOLUTE_TTL_HOURS: z.coerce.number().int().min(1).default(12),
 });
 
 export interface ApiConfig {
@@ -14,6 +18,10 @@ export interface ApiConfig {
   appEnv: 'local' | 'test' | 'staging' | 'production';
   databaseUrl: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
+  authAllowedOrigins: readonly string[];
+  authLoginThrottlePepper: string;
+  authSessionIdleTtlMinutes: number;
+  authSessionAbsoluteTtlHours: number;
 }
 
 export class ConfigValidationError extends Error {
@@ -42,5 +50,11 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
     appEnv: result.data.APP_ENV,
     databaseUrl: result.data.DATABASE_URL,
     logLevel: result.data.LOG_LEVEL,
+    authAllowedOrigins: result.data.AUTH_ALLOWED_ORIGINS.split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+    authLoginThrottlePepper: result.data.AUTH_LOGIN_THROTTLE_PEPPER,
+    authSessionIdleTtlMinutes: result.data.AUTH_SESSION_IDLE_TTL_MINUTES,
+    authSessionAbsoluteTtlHours: result.data.AUTH_SESSION_ABSOLUTE_TTL_HOURS,
   };
 }

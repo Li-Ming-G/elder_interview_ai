@@ -94,6 +94,48 @@
 - 必须先读取的文件：`AGENTS.md`、`00` 至 `10`、任务板、REV-006、DEV-001B 任务卡和本交接。
 - 运行或复现方式：从候选提交按 DEV-001A 任务卡完整复跑；Chromium 在当前 Codex 沙箱外启动。
 
+## HO-006｜DEV-001B 身份、会话与权限基础实现
+
+- 任务编号：`DEV-001B`
+- 交出角色：身份安全实现 Agent（dev001b_identity_security）
+- 接收角色：总控 Agent / 独立安全与工程审查 Agent
+- 时间：2026-08-02
+- 分支与提交：`feature/DEV-001B-auth-session-rbac`；未提交，等待总控审查。
+- 修改文件：`apps/api/src/auth/`、`apps/api/src/cli/`、Prisma identity migration、`apps/web` 登录壳、contracts/config、根脚本/CI、`tests/auth`、`tests/e2e-auth` 及协作文档。
+- 已完成：Argon2id；规范化 ASCII 邮箱；哈希 session/CSRF、TTL、撤销 seam；Cookie/Origin/默认拒绝 CSRF；数据库原子限流；四个 auth API；actor+role+持久层派生 context 授权 seam；显式虚构 seed；交互式 production CLI 与 operator-ref 审计。未创建 project/assignment 或 DEV-002 业务。
+- 未完成：CON-008 未决；未进行独立安全审查；未产生提交；远端 CI 未运行。
+- 数据库或接口变更：新增正式契约内 `user`、`auth_session`、`auth_login_throttle`、必要 `audit_log` 及迁移；实现正式 `/api/v1/auth/*`。
+- 执行测试与结果：format/lint/typecheck；unit 6/6；integration 2/2；auth 10/10；build/smoke；迁移首次/status/重复 deploy；`audit --prod` 无已知漏洞；diff check 和敏感模式扫描通过。总控沙箱外 auth Chromium `1 passed (10.1s)`，3101/4173 无残留。总控最终门禁发现 baseline E2E 仍断言 DEV-001A 旧标题，已改为验证 DEV-001B 新入口、登录按钮及“不包含长者项目或访谈业务”边界；修复后 format/lint/typecheck、unit 6/6 通过，baseline 与 auth Playwright 分别成功发现 1 条测试；两条 Chromium 执行结果待总控沙箱外复跑。
+- 已知问题与风险：CON-008 阻塞最终安全验收；CLI 完整 TTY 人工验收宜由独立审查补充；候选提交后需复核敏感信息和生成物。
+- 下一步：先决定 CON-008 并更新正式契约，再做最小修复与独立安全审查；PASS 前保持 REVIEW，父 DEV-001 不解锁。
+- 必须先读取：`AGENTS.md`、`00` 至 `10`、任务板、DEV-001B、REV-006、HO-005、本交接、CON-008 和当前 diff。
+- 复现：设置隔离 `TEST_DATABASE_URL`，执行任务卡根命令；auth E2E 为 `pnpm.cmd test:e2e:auth -- --project=chromium`。
+
+### HO-006 补充｜REV-007 FAIL 修复
+
+- 审查依据：REV-007（P0=0、P1=3、P2=3、结论 FAIL）已写入 `04-review-report.md`。
+- 原子限流：短事务按摘要排序取得 advisory transaction lock，原子判断 active block 并预占本次失败；达到阈值即 fail-closed。Argon2 仅在事务提交后执行；成功使用第二个短事务按 reservation 快照清除此前 identity 失败、保留后续并发尝试并撤销本次 IP 预占。预置 4 次失败后并发两个正确密码和一个错误密码全部 401、零 session。
+- Web：初始化执行 me+csrf；陈旧 CSRF 登出自动轮换并重试；403、网络或轮换失败不清除 user/token，并显示明确错误。auth Chromium 增至 2 条场景。
+- 审计与角色：已知账号失败/成功和权限拒绝使用正式 user actor/actor_id；Nest RoleGuard 已挂载合成 admin proof 路由，覆盖 interviewer 403+审计和 admin 200。未知账号仍不写伪造 audit，由 CON-008 阻塞。
+- CLI：create/set-password/disable/enable 的数据变化、会话撤销和 system_operator 审计均在各自同一事务；真实 PostgreSQL 验证四个 operator-ref、改密/停用撤销及 enable 不恢复旧会话。
+- 修复后验证：format/lint/typecheck 通过；unit 4 files/8 tests、auth 3 files/13 tests、integration 1 file/2 tests 全过；build 和 `Web/API/PostgreSQL smoke passed (2 assets fetched)`；迁移 status up to date、重复 deploy 无 pending；prod audit 无已知漏洞；两套 Playwright 分别发现 baseline 1 条、auth Chromium 2 条；`git diff --check` 与敏感模式扫描无命中。
+- 未验证：修复后的 3 条 Chromium 尚未在实现 Agent 沙箱执行，交由总控沙箱外复跑；远端 CI、候选提交后干净检出与 REV-008 尚未完成。
+- 状态：保持 `REVIEW`；CON-008 继续 `OPEN`；禁止实现 DEV-002，禁止由实现 Agent宣布安全通过。
+
+### HO-006 补充｜登出 E2E 缓存诊断
+
+- 证据：失败场景对应的数据库会话已写 `revoked_at`/`revoked_reason=logout`，说明服务端撤销成功；后续 `/auth/me` 旧 200 来自浏览器缓存。
+- 修复：`AuthController.me` 与其他身份响应一致设置 `Cache-Control: no-store`；Web 的 me/csrf 请求显式 `cache: no-store`；API 测试断言 me header，E2E 用 `cache: no-store` 直接确认登出后服务端 401，避免测试自身缓存造成假阳性。
+- 验证：format/lint/typecheck 通过；unit 8/8、auth 13/13 通过；auth Playwright 成功发现 2 条 Chromium 场景；`git diff --check` 通过。Chromium 执行仍由总控沙箱外复跑。
+- 边界：未改变会话、接口或数据契约；CON-008 保持 OPEN，DEV-001B 保持 REVIEW。
+
+### HO-006 补充｜内部原型候选收束（2026-08-03）
+
+- 定位：本次提交只作为虚构数据、非公网内部验证可复用的身份候选，不代表 DEV-001B 已 `DONE`，也不代表真实试点安全门禁通过。
+- 当次验证：`format:check`、`lint`、`typecheck`、unit 4 files/8 tests、`git diff --check`、`pnpm audit --prod` 均通过，无已知生产依赖漏洞。
+- 无法验证：Docker Desktop 守护进程未运行，Prisma 无法连接测试 PostgreSQL，因此当次未复跑数据库 auth/integration、迁移和增强 Chromium 登出场景；最近一次已记录的数据库 auth 13/13、integration 2/2、迁移与 smoke 证据仍保留，但不得冒充本次执行结果。
+- 后续门禁：CON-008、增强 Chromium 证据和独立复审继续阻塞 DEV-001B 最终 `DONE` 及真实身份部署，不阻塞只使用显式虚构身份的内部纵向原型。
+
 ## 交接模板
 
 ```text

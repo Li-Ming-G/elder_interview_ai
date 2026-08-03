@@ -134,6 +134,32 @@ P2（不阻塞 `DEV-001A`，已登记为后续阻塞）：
 - 验证证据：两处 HEAD 精确一致且工作树干净；全新 clone 完成冻结安装、Prisma Client 生成、format/lint/typecheck、单元 6/6、空库首次/重复迁移、集成 2/2、build、真实资产 smoke、Chromium E2E 1/1；迁移后 public 仅 `_prisma_migrations`；3100/4173 无监听。
 - 允许进入的下一状态：DEV-001A 可 `DONE`；DEV-001B 可 `READY` 并启动；父 DEV-001 和其余业务任务继续阻塞。
 
+## REV-007｜DEV-001B 身份安全独立审查
+
+- 审查提交：未提交工作区，基线 `6001a82`
+- 审查范围：DEV-001B 身份、会话、登录限流、Web 会话、CLI、角色/资源授权、审计、迁移、测试和当前 diff
+- 审查人：独立安全/工程审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`FAIL`
+- P0：0
+- P1：3
+- P2：3
+- 允许进入的下一状态：DEV-001B 保持 `REVIEW`；只允许修复下列问题并重新独立审查。CON-008 继续 `OPEN`，父 DEV-001 与 DEV-002 保持阻塞。
+
+P1 阻塞：
+
+1. 登录阻断裁定与失败计数不是单一原子协议；已存在 4 次失败时，并发猜测可能出现正确密码 200。必须使用短事务 reservation/attempt 状态完成原子裁定，不得在持锁事务内运行 Argon2。
+2. Web 登出未检查响应，陈旧 CSRF、403 或网络错误时会错误清空本地已登录状态；必须安全轮换后重试或明确保留登录态。
+3. 已知账号错误密码、disabled 登录失败与权限拒绝没有写入合规 audit；必须补审计且不得引入账号枚举侧信道。未知账号审计继续由 CON-008 阻塞，不得伪称完成。
+
+P2：
+
+1. CLI 四命令的数据变化与审计必须在同一事务，并用真实 PostgreSQL 覆盖 operator 映射、会话撤销和 enable 不恢复旧会话。
+2. 需要实现并挂载最小 Nest 角色 Guard，以真实 403 路由证据证明角色门禁；不得创建 DEV-002 业务表。
+3. Web 应在初始化时通过 `/auth/me` 与 `/auth/csrf` 恢复已有会话，并覆盖 401 与网络错误；auth 测试 `afterAll` 在初始化失败时不得制造次生异常。
+
+修复后诊断补充：总控外部 Chromium 首轮发现正常登出后数据库会话已 `revoked_at` 且 reason=`logout`，但浏览器复用了 `/auth/me` 的旧 200。实现已为 `/auth/me` 补 `Cache-Control: no-store`，Web 身份 GET 显式使用 `cache: no-store`，API 测试断言 header，E2E 登出后用非缓存请求验证真实服务端 401；该修复仍须随 REV-007 其他项一起复审，不改变当前 FAIL 结论。
+
 ## 审查模板
 
 ```text

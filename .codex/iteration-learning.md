@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: DEV-001A 已由 REV-006 独立验收并提交；DEV-001B 已 READY，其他业务任务仍受父任务 DEV-001 阻塞。
+- Current stage: DEV-001B 实现已进入 REVIEW；CON-008 与独立安全审查尚未闭合，其他业务任务仍受父任务 DEV-001 阻塞。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；DEV-008 前的备份清理状态与删除摘要密钥轮换策略（CON-006/007）。
+- Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -80,3 +80,17 @@
 - Implementation evidence: 提交 `fb99560`；全新 clone 的冻结安装、单元 6/6、集成 2/2、空库迁移幂等、build、真实资产 Web/API/PostgreSQL smoke、Chromium E2E 1/1 和干净 Git 状态；REV-006 PASS。
 - Lesson: 可重复工具链不能依赖未声明的执行顺序；测试、构建和烟测应分别证明源码边界、产物边界与真实基础设施边界。
 - Better future prompt: “请从冻结锁文件安装开始，分别验证源码测试、空库迁移幂等、构建产物启动和真实 PostgreSQL 健康检查；任何一步不得依赖未写入根脚本的前置动作。”
+
+### 2026-08-02 — DEV-001B 身份安全基础实现
+- User outcome: 不提前建立项目业务表，交付可撤销本地身份、服务端会话、浏览器安全边界和逐资源授权 seam。
+- Review mode: Correction mode（唯一独立预审已在开工前完成）。
+- Review finding: 真实项目隔离留给 DEV-002；未知账号失败无法按现有 audit actor 契约合法落表。
+- Adopted decision: 只增加 user/session/throttle/audit 身份表；授权接收 actor/role/持久层派生 context；全局 Origin 和默认拒绝 CSRF 保护写路由；未知账号审计登记 CON-008，不把 throttle 冒充审计。
+- Implementation evidence: auth 10/10、unit 6/6、integration 2/2、format/lint/typecheck/build/smoke、迁移首次/status/重复 deploy、prod audit 通过；总控沙箱外 Chromium 1/1（10.1s），端口无残留。
+- Lesson: 安全事件能否审计取决于数据模型能否合法表达未知主体，不能滥用 system_operator 伪造 actor。
+
+### 2026-08-02 — DEV-001B REV-007 安全回归修复
+- Review finding: 先查阻断再在另一事务计数会留下阈值并发竞态；不检查登出响应会把服务端失败伪装为本地退出；只有授权 service 而没有 Nest Guard 不能证明 HTTP 角色门禁。
+- Adopted decision: 使用短事务 provisional reservation，在事务外执行 Argon2，再以短事务结算成功；Web 对陈旧 CSRF 轮换重试且失败保留登录态；已知 actor 的认证/权限失败同步审计；CLI 数据变化与审计同事务。
+- Evidence: 预置 4 次失败后的并发真实 PostgreSQL 测试全部 401；auth 13/13、unit 8/8、integration 2/2 以及静态、构建、迁移和 smoke 门禁通过。
+- Boundary: 未知账号审计仍由 CON-008 阻塞；不改正式契约、不创建 project/assignment，Chromium 与独立安全结论交总控和复审角色。

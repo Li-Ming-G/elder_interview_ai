@@ -17,7 +17,7 @@
 | REQ-007 | `01` §6；`03` §13-17；`08` §11-14 | 回顾、普通/受限导出、撤回和删除 | `DEV-008`（未实现） | `05` §3.11-3.12、§7 | `09` §8、场景 D | REV-003 契约 PASS；CON-006/007 待 DEV-008 前解决 | 规划 |
 | REQ-008 | `00` §11；`02` §6、§12-13；`08`；`09` §13 | 三链路降级、审计、安全和 MVP 发布门禁 | `DEV-001` 至 `QA-001`（未实现） | 全局 | `09` 发布门禁 | 待执行 | 规划 |
 | REQ-009 | `02` §3；`ADR-007`、`ADR-008`、`ADR-010` | 可重复 workspace、PostgreSQL 迁移、统一测试和 CI 根门禁 | `package.json`、`apps/web`、`apps/api`、`packages/*`、`scripts`、`.github/workflows/ci.yml` | `GET /api/v1/health`、公共错误外壳 | 全新 clone：冻结安装、单元 6/6、集成 2/2、空迁移 deploy/status/重复 deploy、build、真实 dist 资产 smoke、Chromium E2E 1/1；Git 干净 | REV-006 PASS；P0/P1/P2 均为 0 | 已验收 |
-| REQ-010 | `02` §3.5；`04` §4.1、§4.19-4.20；`05` §3.0；`08` §5.1 | 密码、production 身份启停、服务端会话、登录限流、CSRF、角色和逐资源授权基础 | `DEV-001B`（未实现） | `/api/v1/auth/*`、运维 CLI | `09` §8.1 | REV-003 契约 PASS；DEV-001A 已由 REV-006 验收 | 待实现 |
+| REQ-010 | `02` §3.5；`04` §4.1、§4.19-4.20；`05` §3.0；`08` §5.1 | 密码、production 身份启停、服务端会话、登录限流、CSRF、角色和逐资源授权基础 | `apps/api/src/auth`、`apps/api/src/cli`、`apps/web/src/app.tsx`、Prisma identity migration、`tests/auth`、`tests/e2e-auth` | `/api/v1/auth/login`、`logout`、`me`、`csrf`；`user:create/set-password/disable/enable` | auth 3 files/13 tests；unit 8/8；integration 2/2；build/smoke；迁移 status/重复 deploy；baseline Chromium 1 条、auth Chromium 2 条待外部执行 | REV-007 修复进入 REVIEW；CON-008 阻塞未知账号审计完整性与最终独立验收 | 待复审 |
 | REQ-011 | `01` §9；`03` §10；`04` §4.13、§4.18、§4.21-4.22；`07` §5；`08` §11、§14 | 四类 marker 分义、候选载体、scope 删除状态机、AI 竞态/tombstone、最小控制信封和失败安全 | `DEV-005` 至 `DEV-008`（未实现） | markers、boundary-candidates、suggestions、exports、deletion-requests | `09` §8.2 | REV-003 PASS；P2 见 CON-006/007 | 已定义 |
 
 ## 维护要求

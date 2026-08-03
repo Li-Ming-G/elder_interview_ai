@@ -29,6 +29,8 @@ describe('API and PostgreSQL integration', () => {
     application = await createApplication(
       loadApiConfig({
         APP_ENV: 'test',
+        AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+        AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
         DATABASE_URL: databaseUrl,
         LOG_LEVEL: 'error',
       }),

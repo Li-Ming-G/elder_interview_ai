@@ -67,6 +67,8 @@ async function expectMissingConfigFailure() {
   const environment = {
     ...process.env,
     APP_ENV: 'test',
+    AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+    AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
     DATABASE_URL: undefined,
     SECRET_SMOKE_MARKER: marker,
   };
@@ -167,6 +169,8 @@ const api = spawn(process.execPath, ['apps/api/dist/main.js'], {
     API_HOST: '127.0.0.1',
     API_PORT: String(apiPort),
     APP_ENV: 'test',
+    AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+    AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
     DATABASE_URL: databaseUrl,
     LOG_LEVEL: 'error',
   },

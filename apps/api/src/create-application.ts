@@ -8,6 +8,7 @@ import { JsonLogger } from './logging/json.logger.js';
 
 export async function createApplication(config: ApiConfig): Promise<INestApplication> {
   const application = await NestFactory.create(AppModule.register(config), {
+    abortOnError: false,
     bufferLogs: true,
     logger: new JsonLogger(),
   });
