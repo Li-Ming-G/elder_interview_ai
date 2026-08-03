@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: DEV-001B 实现已进入 REVIEW；CON-008 与独立安全审查尚未闭合，其他业务任务仍受父任务 DEV-001 阻塞。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-001B 内部身份候选已提交但保持 REVIEW，DEV-002 与 DEV-003A 可有限并行。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -94,3 +94,11 @@
 - Adopted decision: 使用短事务 provisional reservation，在事务外执行 Argon2，再以短事务结算成功；Web 对陈旧 CSRF 轮换重试且失败保留登录态；已知 actor 的认证/权限失败同步审计；CLI 数据变化与审计同事务。
 - Evidence: 预置 4 次失败后的并发真实 PostgreSQL 测试全部 401；auth 13/13、unit 8/8、integration 2/2 以及静态、构建、迁移和 smoke 门禁通过。
 - Boundary: 未知账号审计仍由 CON-008 阻塞；不改正式契约、不创建 project/assignment，Chromium 与独立安全结论交总控和复审角色。
+
+### 2026-08-03 — 探索期 MVP 优先级重基线
+- User outcome: 先用最小纵向链路验证核心产品假设，治理和生产化门禁按当前风险分层，不让未来部署问题阻塞本地内部原型。
+- Review mode: Correction mode；独立只读评估支持分层门禁与有限并行，并警告不得把 DEV-001B 或父 DEV-001 伪造为 DONE。
+- Adopted decision: 新增 ADR-013；区分内部原型可集成、任务 DONE、真实试点可发布；固定 DEV-001B 候选 `ab9628b`，CON-008 只阻塞最终身份验收/真实部署；建立 MVP-V01，并有限并行 DEV-002 与 DEV-003A。
+- Evidence: 正式入口、测试、协作、任务板、追溯、冲突、ADR、任务卡和交接同步；DEV-001B 收束时 format/lint/typecheck/unit 8/8/diff check/prod audit 通过，Docker daemon 未运行导致数据库与增强 Chromium 当次无法复跑并已登记。
+- Lesson: “能继续验证”与“已经完成/可发布”必须分别陈述；探索期可以降低非当前风险的流程成本，但不能降低原始数据、授权和证据链底线。
+- Better future prompt: “请指出该问题阻塞的是内部原型、任务最终验收还是真实试点，并只对受影响层级设置门禁；给出可回退的最小 seam 和证据。”
