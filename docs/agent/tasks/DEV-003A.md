@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 负责人：音频前端 Agent（dev003a_browser_audio_buffer）
 - 前置依赖：DEV-001A
 - 分支：`codex/mvp-v01-vertical-slice`
@@ -44,3 +44,11 @@
 - 未连接服务端时也能证明分片持久化与恢复；
 - 不把内存队列冒充可靠保存，不在 ACK 前清理原始分片；
 - 当前仅为内部原型，可进入 `REVIEW`；真实长时录音与跨浏览器兼容仍由 DEV-003/QA 门禁验证。
+
+## 2026-08-03 内部候选状态
+
+- 提交：`41d6104`；
+- 已实现同步启动锁、外部 `canRecord` 默认拒绝、分片 SHA-256/不可变幂等、本地容量失败停止、IndexedDB 可靠暂存、ACK 前保留、序号与时间轴高水位、刷新恢复 seam、尾片收束；
+- 自动证据：音频 4 files/15 tests，根 10 files/45 tests；fake-indexeddb 覆盖事务、ACK 后重开和高水位；format/lint/typecheck/build/diff check 通过；
+- REV-008 最终结论仅对“内部候选提交并进入 REVIEW” PASS，P0/P1=0；
+- 未验证真实 Chromium 的 MediaRecorder、原生 IndexedDB、页面刷新/崩溃、多标签、真实配额、60/180 分钟；因此不得标 `DONE`、不得用于真实访谈。

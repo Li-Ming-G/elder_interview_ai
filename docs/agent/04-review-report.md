@@ -160,6 +160,18 @@ P2：
 
 修复后诊断补充：总控外部 Chromium 首轮发现正常登出后数据库会话已 `revoked_at` 且 reason=`logout`，但浏览器复用了 `/auth/me` 的旧 200。实现已为 `/auth/me` 补 `Cache-Control: no-store`，Web 身份 GET 显式使用 `cache: no-store`，API 测试断言 header，E2E 登出后用非缓存请求验证真实服务端 401；该修复仍须随 REV-007 其他项一起复审，不改变当前 FAIL 结论。
 
+## REV-008｜DEV-002 领域基础与 DEV-003A 音频候选独立审查
+
+- 审查基线：分支 `codex/mvp-v01-vertical-slice`；初审基线 `34d8b18` 的未提交实现；最终候选 `1085ae6`、`41d6104`
+- 审查人：独立纵向基础审查 Agent（vertical_slice_foundation_review）
+- 时间：2026-08-03
+- 初审：`FAIL`，P0=0、P1=3、P2=2。P1 为创建者被静默当 owner、并发双 start、ACK 后 seq 复用；相邻复审另发现 ACK 后时间轴归零。P2 为真实浏览器 IndexedDB/MediaRecorder 证据和 start 失败 stop 挂起。
+- 修复：访问上下文 `ownerUserId=null` 且只认 assignment；start 在首个 await 前同步加锁并双层禁用；IndexedDB v2 同事务持久化 session 序号与时间轴高水位；ACK 只删 chunk；start 失败清理停止 Promise；新增 fake-indexeddb 与回归测试。
+- 最终结论：`PASS`，仅适用于 DEV-002 合同中立策略检查点、DEV-003A 内部候选提交并进入 `REVIEW`；P0=0、P1=0。
+- 独立复跑：最终相关 4 个测试文件/20 tests 通过；未发现新增 P0/P1。
+- 未覆盖：真实 Chromium MediaRecorder、原生 IndexedDB 页面刷新/崩溃、真实配额、多标签、60/180 分钟、服务端上传与 manifest。该 P2 阻塞 DEV-003A `DONE` 和真实试点，不阻塞候选提交。
+- DEV-002 结论：CON-009 仍阻塞迁移/API；REV-008 不批准任何授权枚举、自动 assignment 或 DTO。
+
 ## 审查模板
 
 ```text

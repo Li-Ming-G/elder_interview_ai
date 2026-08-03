@@ -119,7 +119,7 @@
 - 审计与角色：已知账号失败/成功和权限拒绝使用正式 user actor/actor_id；Nest RoleGuard 已挂载合成 admin proof 路由，覆盖 interviewer 403+审计和 admin 200。未知账号仍不写伪造 audit，由 CON-008 阻塞。
 - CLI：create/set-password/disable/enable 的数据变化、会话撤销和 system_operator 审计均在各自同一事务；真实 PostgreSQL 验证四个 operator-ref、改密/停用撤销及 enable 不恢复旧会话。
 - 修复后验证：format/lint/typecheck 通过；unit 4 files/8 tests、auth 3 files/13 tests、integration 1 file/2 tests 全过；build 和 `Web/API/PostgreSQL smoke passed (2 assets fetched)`；迁移 status up to date、重复 deploy 无 pending；prod audit 无已知漏洞；两套 Playwright 分别发现 baseline 1 条、auth Chromium 2 条；`git diff --check` 与敏感模式扫描无命中。
-- 未验证：修复后的 3 条 Chromium 尚未在实现 Agent 沙箱执行，交由总控沙箱外复跑；远端 CI、候选提交后干净检出与 REV-008 尚未完成。
+- 未验证：修复后的 3 条 Chromium 尚未在实现 Agent 沙箱执行，交由总控沙箱外复跑；远端 CI、候选提交后干净检出与 DEV-001B 独立复审尚未完成。
 - 状态：保持 `REVIEW`；CON-008 继续 `OPEN`；禁止实现 DEV-002，禁止由实现 Agent宣布安全通过。
 
 ### HO-006 补充｜登出 E2E 缓存诊断
@@ -142,7 +142,7 @@
 - 交出角色：总控 Agent
 - 接收角色：后端业务 Agent、音频前端 Agent、项目负责人
 - 时间：2026-08-03
-- 分支与提交：`feature/DEV-001B-auth-session-rbac`；身份内部候选 `ab9628b`；治理提交待产生。
+- 分支与提交：治理基线 `5dedabd` 后切换至 `codex/mvp-v01-vertical-slice`；任务启动状态 `ff90b8a`；CON-009 `34d8b18`。
 - 修改文件：`00`、`09`、`10`、ADR-013、任务板、追溯、CON-008、MVP-V01/DEV-002/DEV-003A/DEV-003B 任务卡、迭代日志和本交接。
 - 已完成：把内部原型、任务 DONE、真实试点门禁分离；父 DEV-001 保持 IN_PROGRESS，DEV-001B 保持 REVIEW；允许 DEV-002 与 DEV-003A 在不重叠文件边界下有限并行。
 - 未完成：DEV-002/003 尚未实现；DEV-003B 等待两个 seam；CON-008、增强 Chromium 与独立复审仍阻塞 DEV-001B 最终 DONE/真实部署；Docker daemon 未运行。
@@ -152,6 +152,23 @@
 - 下一步：后端业务 Agent 实现 DEV-002；音频前端 Agent 实现 DEV-003A；总控审查两者交接后固定 session/上传 seam，再解锁 DEV-003B。
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、各自任务卡、ADR-013、HO-006/007；DEV-002 另读 CON-008，DEV-003A 重点读 `06`。
 - 交接要求：分别记录修改文件、命令、实际测试、未验证项、风险和提交；不得宣布真实试点通过。
+
+## HO-008｜DEV-002 领域基础与 DEV-003A 音频内部候选
+
+- 任务编号：`DEV-002`、`DEV-003A`、REV-008
+- 交出角色：后端业务 Agent、音频前端 Agent、总控 Agent
+- 接收角色：项目负责人、后续 DEV-002/DEV-003B 实现 Agent
+- 时间：2026-08-03
+- 分支与提交：`codex/mvp-v01-vertical-slice`；DEV-002 `1085ae6`；DEV-003A `41d6104`。
+- 修改文件：`apps/api/src/project-foundation/`；`apps/web/src/audio/`；Web 测试依赖 `fake-indexeddb` 与锁文件。
+- 已完成：合同中立的 assignment-only 项目访问策略与 start gate；浏览器采集/本地分片队列候选，含外部门禁、启动锁、SHA-256、不可变幂等、IndexedDB、容量失败停止、ACK 前保留、序号/时间轴高水位和尾片收束。
+- 未完成：DEV-002 的 Prisma/迁移/API/审计事务受 CON-009 阻塞；DEV-003A 未接入 App，未完成真实 Chromium MediaRecorder/原生 IndexedDB 刷新崩溃验证；DEV-003B 服务端上传与 manifest 未开始。
+- 数据库或接口变更：无 production 数据库、REST 或公共契约变更。IndexedDB 内部库版本为 v2，包含 chunk 与 session progress 两个 store；`fake-indexeddb` 仅 devDependency。
+- 测试：总控最终复跑 format/lint/typecheck、根 10 files/45 tests、build、diff check、prod audit 全过；音频相关 4 files/15 tests；独立最终复核指定 4 files/20 tests 通过。Docker daemon 未运行，未执行数据库/迁移/集成；本轮也没有相关数据库改动。
+- 独立审查：初审 P0=0/P1=3/P2=2，修复创建者 owner、双 start、ACK 后 seq 复用、start 失败 stop 挂起，并在相邻复审修复时间轴归零；最终内部候选 PASS，P0/P1=0。
+- 风险：真实浏览器证据缺口阻塞 DEV-003A `DONE`；真实录音和公网仍禁止。CON-009 未决定前不得实现授权枚举、自动 assignment 或 DTO。
+- 下一步：项目负责人选择 CON-009 A/B；总控更新 `04`/`05` 后恢复 DEV-002。并行可为 DEV-003A 增加内部 Chromium harness，验证原生 IndexedDB/MediaRecorder 与刷新恢复，随后才决定是否解锁 DEV-003B 集成。
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、CON-009、REV-008、DEV-002/003A/003B 任务卡及本交接。
 
 ## 交接模板
 

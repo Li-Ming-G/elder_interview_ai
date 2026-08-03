@@ -102,3 +102,10 @@
 - Evidence: 正式入口、测试、协作、任务板、追溯、冲突、ADR、任务卡和交接同步；DEV-001B 收束时 format/lint/typecheck/unit 8/8/diff check/prod audit 通过，Docker daemon 未运行导致数据库与增强 Chromium 当次无法复跑并已登记。
 - Lesson: “能继续验证”与“已经完成/可发布”必须分别陈述；探索期可以降低非当前风险的流程成本，但不能降低原始数据、授权和证据链底线。
 - Better future prompt: “请指出该问题阻塞的是内部原型、任务最终验收还是真实试点，并只对受影响层级设置门禁；给出可回退的最小 seam 和证据。”
+
+### 2026-08-03 — 首批有限并行实现与审查
+- Outcome: DEV-002 在 CON-009 前只交付合同中立访问/start 策略；DEV-003A 交付浏览器本地可靠音频候选，不扩展到服务端上传。
+- Review correction: 独立审查连续发现 creator-owner 越权、并发双 start、ACK 后序号复用及时间轴归零；均在提交前修复并加入回归测试。
+- Evidence: `1085ae6`、`41d6104`；总控 format/lint/typecheck、10 files/45 tests、build、diff check、prod audit 通过；REV-008 最终内部候选 PASS、P0/P1=0。
+- Boundary: DEV-002 因 CON-009 BLOCKED；DEV-003A 只进入 REVIEW，真实 Chromium 与长时/崩溃恢复仍为 P2，禁止真实访谈。
+- Lesson: 原始分片可靠性不仅是“ACK 前不删”，还包括 ACK 后仍持久保存序号和时间轴进度；资源 `created_by` 也不能在 assignment 规则未定时隐含等于 owner。
