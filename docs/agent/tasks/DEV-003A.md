@@ -2,9 +2,10 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：音频前端 Agent（待启动）
+- 状态：`IN_PROGRESS`
+- 负责人：音频前端 Agent（dev003a_browser_audio_buffer）
 - 前置依赖：DEV-001A
+- 分支：`codex/mvp-v01-vertical-slice`
 - 交接对象：总控 Agent、DEV-003B
 
 ## 目标
