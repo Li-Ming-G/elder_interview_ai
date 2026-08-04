@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { AudioChunkQueue } from './audio-chunk-queue.js';
+import { AudioUploadJobRunner } from './audio-upload-job.js';
 import { type AudioCaptureSnapshot, BrowserAudioRecorder } from './browser-audio-recorder.js';
 import { IndexedDbAudioChunkStore } from './indexeddb-audio-chunk-store.js';
 import type { BufferedAudioChunk } from './types.js';
 
 interface AudioBrowserHarnessProps {
+  projectId: string | null;
   sessionId: string;
 }
 
@@ -13,6 +15,8 @@ interface HarnessRuntime {
   queue: AudioChunkQueue;
   recorder: BrowserAudioRecorder;
   source: SyntheticAudioMediaDevices;
+  store: IndexedDbAudioChunkStore;
+  uploader: AudioUploadJobRunner;
 }
 
 interface QueueSnapshot {
@@ -27,11 +31,17 @@ const EMPTY_QUEUE: QueueSnapshot = {
   timelineEndMs: 0,
 };
 
-export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): React.JSX.Element {
+export function AudioBrowserHarness({
+  projectId,
+  sessionId,
+}: AudioBrowserHarnessProps): React.JSX.Element {
   const [runtime] = useState<HarnessRuntime>(() => createRuntime());
   const [capture, setCapture] = useState<AudioCaptureSnapshot>(runtime.recorder.snapshot);
   const [queueSnapshot, setQueueSnapshot] = useState<QueueSnapshot>(EMPTY_QUEUE);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState('not-configured');
+  const [audioObjectId, setAudioObjectId] = useState<string | null>(null);
+  const jobId = projectId === null ? null : `${projectId}:${sessionId}:consent`;
 
   const refreshQueue = useCallback(async (): Promise<void> => {
     const [chunks, nextSequenceNo, timelineEndMs] = await Promise.all([
@@ -47,11 +57,18 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
     void refreshQueue().catch((error: unknown) => {
       setActionError(error instanceof Error ? error.message : '无法读取原生 IndexedDB');
     });
+    if (jobId !== null) {
+      void runtime.store.getUploadJob(jobId).then((job) => {
+        if (job === null) return;
+        setUploadStatus(job.status);
+        setAudioObjectId(job.audioObjectId);
+      });
+    }
     return (): void => {
       unsubscribe();
       void runtime.source.closeAll();
     };
-  }, [refreshQueue, runtime]);
+  }, [jobId, refreshQueue, runtime]);
 
   async function start(): Promise<void> {
     setActionError(null);
@@ -69,6 +86,7 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
       await runtime.recorder.stop();
       await runtime.source.closeAll();
       await refreshQueue();
+      if (projectId !== null && jobId !== null) await ensureFrozenUploadJob(projectId, jobId);
     } catch (error) {
       await runtime.source.closeAll();
       setActionError(error instanceof Error ? error.message : '合成音频录制无法停止');
@@ -92,11 +110,57 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
     }
   }
 
+  async function uploadAndComplete(): Promise<void> {
+    if (projectId === null || jobId === null) return;
+    setActionError(null);
+    try {
+      await ensureFrozenUploadJob(projectId, jobId);
+      const csrfResponse = await fetch('/api/v1/auth/csrf', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!csrfResponse.ok) throw new Error(`CSRF_${String(csrfResponse.status)}`);
+      const csrf = (await csrfResponse.json()) as { csrf_token: string };
+      const result = await runtime.uploader.resume(jobId, csrf.csrf_token);
+      setUploadStatus(result.status);
+      setAudioObjectId(result.audioObjectId);
+      if (result.status === 'failed') throw new Error(result.lastError ?? '上传失败');
+      await refreshQueue();
+    } catch (error) {
+      const persisted = await runtime.store.getUploadJob(jobId);
+      if (persisted !== null) {
+        setUploadStatus(persisted.status);
+        setAudioObjectId(persisted.audioObjectId);
+      }
+      await refreshQueue();
+      setActionError(error instanceof Error ? error.message : '上传失败');
+    }
+  }
+
+  async function ensureFrozenUploadJob(project: string, uploadJobId: string): Promise<void> {
+    let existing = await runtime.store.getUploadJob(uploadJobId);
+    if (existing === null) {
+      const first = (await runtime.queue.restore(sessionId))[0];
+      if (first === undefined) throw new Error('没有可创建上传作业的分片');
+      existing = await runtime.uploader.create({
+        bufferSessionId: sessionId,
+        jobId: uploadJobId,
+        mimeType: first.chunk.mimeType,
+        projectId: project,
+        purpose: 'consent',
+        serverSessionId: null,
+      });
+    }
+    if (existing.expectedChunkCount === null) existing = await runtime.uploader.freeze(uploadJobId);
+    setUploadStatus(existing.status);
+    setAudioObjectId(existing.audioObjectId);
+  }
+
   return (
     <main data-testid="audio-browser-harness">
       <p className="eyebrow">DEV-003A · Chromium only</p>
       <h1>原生浏览器音频持久化验证</h1>
-      <p>仅使用 Web Audio 合成测试音，不访问真实麦克风、不连接服务端。</p>
+      <p>仅使用 Web Audio 合成测试音，不访问真实麦克风；提供 project_id 时连接本地正式 API。</p>
       <dl>
         <dt>session</dt>
         <dd data-testid="session-id">{sessionId}</dd>
@@ -118,9 +182,18 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
         <dd data-testid="next-sequence">{queueSnapshot.nextSequenceNo}</dd>
         <dt>timeline end (ms)</dt>
         <dd data-testid="timeline-end">{queueSnapshot.timelineEndMs}</dd>
+        <dt>upload status</dt>
+        <dd data-testid="upload-status">{uploadStatus}</dd>
+        <dt>audio object</dt>
+        <dd data-testid="audio-object-id">{audioObjectId ?? 'none'}</dd>
       </dl>
       <button
-        disabled={capture.status === 'recording' || capture.status === 'stopping'}
+        data-testid="start-recording"
+        disabled={
+          capture.status === 'recording' ||
+          capture.status === 'stopping' ||
+          (projectId !== null && uploadStatus !== 'not-configured')
+        }
         onClick={() => {
           void start();
         }}
@@ -129,6 +202,17 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
         开始合成录音
       </button>
       <button
+        data-testid="upload-action"
+        disabled={projectId === null || queueSnapshot.nextSequenceNo === 0}
+        onClick={() => {
+          void uploadAndComplete();
+        }}
+        type="button"
+      >
+        上传并完成
+      </button>
+      <button
+        data-testid="stop-recording"
         disabled={capture.status !== 'recording'}
         onClick={() => {
           void stop();
@@ -170,14 +254,16 @@ export function AudioBrowserHarness({ sessionId }: AudioBrowserHarnessProps): Re
 
 function createRuntime(): HarnessRuntime {
   const source = new SyntheticAudioMediaDevices();
-  const queue = new AudioChunkQueue(new IndexedDbAudioChunkStore(), {
+  const store = new IndexedDbAudioChunkStore();
+  const queue = new AudioChunkQueue(store, {
     maximumBufferedBytes: 5 * 1024 * 1024,
   });
   const recorder = new BrowserAudioRecorder(queue, {
     mediaDevices: source,
     timesliceMs: 200,
   });
-  return { queue, recorder, source };
+  const uploader = new AudioUploadJobRunner(queue, store);
+  return { queue, recorder, source, store, uploader };
 }
 
 class SyntheticAudioMediaDevices implements Pick<MediaDevices, 'getUserMedia'> {

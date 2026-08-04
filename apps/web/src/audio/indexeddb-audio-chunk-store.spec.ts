@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AudioChunkQueue } from './audio-chunk-queue.js';
 import { IndexedDbAudioChunkStore } from './indexeddb-audio-chunk-store.js';
+import type { BufferedAudioChunk } from './types.js';
 
 function queue(factory: IDBFactory): AudioChunkQueue {
   return new AudioChunkQueue(new IndexedDbAudioChunkStore(factory), {
@@ -56,4 +57,111 @@ describe('IndexedDbAudioChunkStore', () => {
       ),
     ).toEqual([1]);
   });
+
+  it('persists upload jobs across store instances without changing chunk progress', async () => {
+    const factory = new IDBFactory();
+    const first = new IndexedDbAudioChunkStore(factory);
+    await first.putUploadJob({
+      audioObjectId: null,
+      bufferSessionId: 'fictional-job-session',
+      chunkRequestIds: { '0': '00000000-0000-4000-8000-000000000002' },
+      completeRequestId: '00000000-0000-4000-8000-000000000003',
+      createRequestId: '00000000-0000-4000-8000-000000000001',
+      expectedChunkCount: 1,
+      jobId: 'fictional-job',
+      lastError: null,
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'consent',
+      serverSessionId: null,
+      status: 'uploading',
+    });
+
+    const reopened = new IndexedDbAudioChunkStore(factory);
+    expect(await reopened.getUploadJob('fictional-job')).toMatchObject({
+      chunkRequestIds: { '0': '00000000-0000-4000-8000-000000000002' },
+      expectedChunkCount: 1,
+      status: 'uploading',
+    });
+  });
+
+  it('upgrades the version 2 database without losing chunks or session high-water marks', async () => {
+    const factory = new IDBFactory();
+    const legacyChunk: BufferedAudioChunk = {
+      chunk: {
+        blob: new Blob(['legacy'], { type: 'audio/webm' }),
+        byteLength: 6,
+        checksumSha256: 'checksum:legacy',
+        createdAt: '2026-08-03T00:00:00.000Z',
+        endedAtMs: 1500,
+        key: 'legacy-session:0',
+        mimeType: 'audio/webm',
+        sequenceNo: 0,
+        sessionId: 'legacy-session',
+        startedAtMs: 0,
+      },
+      delivery: { lastError: null, retryCount: 0, status: 'pending' },
+    };
+    await createVersionTwoDatabase(factory, legacyChunk);
+
+    const upgraded = new IndexedDbAudioChunkStore(factory);
+    const [restored] = await upgraded.list('legacy-session');
+    expect(restored).toMatchObject({
+      chunk: {
+        byteLength: 6,
+        checksumSha256: 'checksum:legacy',
+        sequenceNo: 0,
+        sessionId: 'legacy-session',
+      },
+      delivery: { status: 'pending' },
+    });
+    expect(await upgraded.getNextSequenceNo('legacy-session')).toBe(1);
+    expect(await upgraded.getTimelineEndMs('legacy-session')).toBe(1500);
+    await upgraded.putUploadJob({
+      audioObjectId: null,
+      bufferSessionId: 'legacy-session',
+      chunkRequestIds: {},
+      completeRequestId: null,
+      createRequestId: '00000000-0000-4000-8000-000000000001',
+      expectedChunkCount: null,
+      jobId: 'post-upgrade-job',
+      lastError: null,
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'consent',
+      serverSessionId: null,
+      status: 'recording',
+    });
+    expect(await upgraded.getUploadJob('post-upgrade-job')).toMatchObject({
+      bufferSessionId: 'legacy-session',
+      status: 'recording',
+    });
+  });
 });
+
+function createVersionTwoDatabase(
+  factory: IDBFactory,
+  legacyChunk: BufferedAudioChunk,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const open = factory.open('elder-interview-audio-buffer', 2);
+    open.onupgradeneeded = (): void => {
+      const chunks = open.result.createObjectStore('chunks', { keyPath: 'chunk.key' });
+      chunks.createIndex('by-session', 'chunk.sessionId', { unique: false });
+      open.result.createObjectStore('session-state', { keyPath: 'sessionId' });
+      chunks.add(legacyChunk);
+      open.transaction?.objectStore('session-state').add({
+        nextSequenceNo: 1,
+        sessionId: 'legacy-session',
+        timelineEndMs: 1500,
+      });
+    };
+    open.onerror = (): void => {
+      reject(open.error ?? new Error('legacy database open failed'));
+    };
+    open.onsuccess = (): void => {
+      open.result.close();
+      resolve();
+    };
+  });
+}

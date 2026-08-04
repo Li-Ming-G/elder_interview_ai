@@ -4,13 +4,20 @@ import {
   AudioBufferWriteError,
 } from './errors.js';
 import { sameImmutableChunk } from './in-memory-audio-chunk-store.js';
-import { audioChunkKey, type AudioChunkStore, type BufferedAudioChunk } from './types.js';
+import {
+  audioChunkKey,
+  type AudioChunkStore,
+  type AudioUploadJob,
+  type AudioUploadJobStore,
+  type BufferedAudioChunk,
+} from './types.js';
 
 const DATABASE_NAME = 'elder-interview-audio-buffer';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const STORE_NAME = 'chunks';
 const SESSION_INDEX = 'by-session';
 const SESSION_STATE_STORE = 'session-state';
+const UPLOAD_JOB_STORE = 'upload-jobs';
 
 interface AudioSessionBufferState {
   nextSequenceNo: number;
@@ -18,7 +25,7 @@ interface AudioSessionBufferState {
   timelineEndMs: number;
 }
 
-export class IndexedDbAudioChunkStore implements AudioChunkStore {
+export class IndexedDbAudioChunkStore implements AudioChunkStore, AudioUploadJobStore {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
   public constructor(private readonly factory: IDBFactory = globalThis.indexedDB) {}
@@ -56,6 +63,31 @@ export class IndexedDbAudioChunkStore implements AudioChunkStore {
 
   public async getTimelineEndMs(sessionId: string): Promise<number> {
     return (await this.getSessionProgress(sessionId)).timelineEndMs;
+  }
+
+  public async getUploadJob(jobId: string): Promise<AudioUploadJob | null> {
+    const database = await this.database();
+    const transaction = database.transaction(UPLOAD_JOB_STORE, 'readonly');
+    const result = await request(
+      transaction.objectStore(UPLOAD_JOB_STORE).get(jobId) as IDBRequest<
+        AudioUploadJob | undefined
+      >,
+    );
+    await transactionComplete(transaction);
+    return result ?? null;
+  }
+
+  public async putUploadJob(job: AudioUploadJob): Promise<void> {
+    try {
+      const database = await this.database();
+      const transaction = database.transaction(UPLOAD_JOB_STORE, 'readwrite');
+      const completion = transactionComplete(transaction);
+      await request(transaction.objectStore(UPLOAD_JOB_STORE).put(job));
+      await completion;
+    } catch (error) {
+      if (error instanceof AudioBufferWriteError) throw error;
+      throw new AudioBufferWriteError(error);
+    }
   }
 
   private async getSessionProgress(sessionId: string): Promise<AudioSessionBufferState> {
@@ -155,6 +187,9 @@ export class IndexedDbAudioChunkStore implements AudioChunkStore {
         }
         if (!database.objectStoreNames.contains(SESSION_STATE_STORE)) {
           database.createObjectStore(SESSION_STATE_STORE, { keyPath: 'sessionId' });
+        }
+        if (!database.objectStoreNames.contains(UPLOAD_JOB_STORE)) {
+          database.createObjectStore(UPLOAD_JOB_STORE, { keyPath: 'jobId' });
         }
       };
       open.onerror = (): void => {
