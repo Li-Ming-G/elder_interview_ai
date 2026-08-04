@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { link, mkdir, open, readFile, rm } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 
 import { Inject, Injectable } from '@nestjs/common';
@@ -38,24 +39,71 @@ export class LocalAudioStorageAdapter extends AudioStorageProvider {
     if (existing !== null) return { ...existing, created: false };
 
     const temporary = `${target}.${randomUUID()}.tmp`;
-    const handle = await open(temporary, 'wx', 0o600);
+    let handle: FileHandle | undefined;
+    let result: PutStoredAudioChunkResult | undefined;
+    let operationFailed = false;
+    let operationError: unknown;
+    let cleanupFailed = false;
+    let cleanupError: unknown;
     try {
-      await handle.writeFile(bytes);
-      await handle.sync();
+      try {
+        handle = await this.openTemporary(temporary);
+        await this.writeTemporary(handle, bytes);
+        await this.syncTemporary(handle);
+        await handle.close();
+        handle = undefined;
+        try {
+          await this.linkTemporary(temporary, target);
+          result = { checksum: sha256(bytes), created: true, sizeBytes: bytes.byteLength };
+        } catch (error: unknown) {
+          if (!isNodeError(error, 'EEXIST')) throw error;
+          const raced = await this.inspect(objectKey);
+          result = { ...raced, created: false };
+        }
+      } catch (error: unknown) {
+        operationFailed = true;
+        operationError = error;
+      }
     } finally {
-      await handle.close();
+      if (handle !== undefined) {
+        try {
+          await handle.close();
+        } catch (error: unknown) {
+          cleanupFailed = true;
+          cleanupError = error;
+        }
+      }
+      try {
+        await this.removeTemporary(temporary);
+      } catch (error: unknown) {
+        if (!cleanupFailed) cleanupError = error;
+        cleanupFailed = true;
+      }
     }
+    if (operationFailed) throw toError(operationError);
+    if (cleanupFailed) throw toError(cleanupError);
+    if (result === undefined) throw new Error('Audio storage operation produced no result');
+    return result;
+  }
 
-    try {
-      await link(temporary, target);
-      return { checksum: sha256(bytes), created: true, sizeBytes: bytes.byteLength };
-    } catch (error: unknown) {
-      if (!isNodeError(error, 'EEXIST')) throw error;
-      const raced = await this.inspect(objectKey);
-      return { ...raced, created: false };
-    } finally {
-      await rm(temporary, { force: true });
-    }
+  protected async openTemporary(path: string): Promise<FileHandle> {
+    return open(path, 'wx', 0o600);
+  }
+
+  protected async writeTemporary(handle: FileHandle, bytes: Buffer): Promise<void> {
+    await handle.writeFile(bytes);
+  }
+
+  protected async syncTemporary(handle: FileHandle): Promise<void> {
+    await handle.sync();
+  }
+
+  protected async linkTemporary(temporary: string, target: string): Promise<void> {
+    await link(temporary, target);
+  }
+
+  protected async removeTemporary(temporary: string): Promise<void> {
+    await rm(temporary, { force: true });
   }
 
   private async inspectIfPresent(objectKey: string): Promise<StoredAudioChunk | null> {
@@ -83,4 +131,10 @@ function sha256(bytes: Buffer): string {
 
 function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && error.code === code;
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error
+    ? error
+    : new Error('Audio storage operation failed', { cause: error });
 }

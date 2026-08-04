@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -351,6 +351,47 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       });
     expect(unverifiedConsent.status).toBe(409);
     expect((unverifiedConsent.body as ErrorBody).code).toBe('CONSENT_AUDIO_NOT_VERIFIED');
+  });
+
+  it('checks database metadata before restoring a missing stored chunk', async () => {
+    const server = application().getHttpServer() as SupertestApp;
+    const listener = request.agent(server);
+    const csrf = await login(listener, 'audio-listener-a@example.test');
+    const projectId = await createProject(listener, csrf, '虚构缺失分片恢复');
+    const object = await listener
+      .post(`/api/v1/projects/${projectId}/audio-objects`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        mime_type: MIME,
+        purpose: 'consent',
+        request_id: requestId(40),
+        session_id: null,
+      });
+    const audioObjectId = (object.body as IdBody).id;
+    const bytes = Buffer.from('fictional-recoverable-audio');
+    const uploaded = await upload(listener, csrf, audioObjectId, 0, 0, 5000, bytes, 41);
+    expect(uploaded.status).toBe(200);
+    const chunk = await prisma.audioChunk.findFirstOrThrow({ where: { audioObjectId } });
+    const storedPath = join(storageRoot, chunk.objectKey);
+    await unlink(storedPath);
+
+    const conflictingBytes = Buffer.from('fictional-conflicting-recovery');
+    const conflict = await upload(listener, csrf, audioObjectId, 0, 0, 5000, conflictingBytes, 42);
+    expect(conflict.status).toBe(409);
+    expect((conflict.body as ErrorBody).code).toBe('AUDIO_CHUNK_CONFLICT');
+    await expect(access(storedPath)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const recovered = await upload(listener, csrf, audioObjectId, 0, 0, 5000, bytes, 43);
+    expect(recovered.status).toBe(200);
+    await expect(readFile(storedPath)).resolves.toEqual(bytes);
+
+    const tampered = Buffer.from('fictional-existing-storage-conflict');
+    await writeFile(storedPath, tampered);
+    const storageConflict = await upload(listener, csrf, audioObjectId, 0, 0, 5000, bytes, 44);
+    expect(storageConflict.status).toBe(409);
+    expect((storageConflict.body as ErrorBody).code).toBe('AUDIO_CHUNK_CONFLICT');
+    await expect(readFile(storedPath)).resolves.toEqual(tampered);
   });
 
   it('rechecks the current assignment before accepting a chunk', async () => {
