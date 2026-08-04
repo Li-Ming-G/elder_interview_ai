@@ -203,6 +203,7 @@ P2：
 - P2-2：数据库记录存在但存储文件缺失时，错误内容重试可能先留下冲突 orphan；后续先读取已有元数据，再决定是否恢复存储文件
 - 产品待确认：真实试点前明确同一 consent audio object 能否关联不同 `consent_text_version` 的多条授权记录，见 CON-012
 - 允许进入的下一状态：DEV-003A/B 转 `DONE`；父 DEV-003 保持 `IN_PROGRESS`，两项 P2 在下一实现批次处理
+- 合并记录：PR #1 于 2026-08-04 合入 `main`，merge commit `fa7b3a2669321ecc3fda0e991e733b0f7b6fc0d9`；不改变本审查绑定实现 head `936fd0408023ba074d2670576626e226f859923e` 的事实
 
 ## 审查模板
 
