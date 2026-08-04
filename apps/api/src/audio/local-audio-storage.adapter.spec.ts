@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +12,32 @@ import { canonicalAudioManifestChecksum } from './audio-manifest.js';
 import { LocalAudioStorageAdapter } from './local-audio-storage.adapter.js';
 
 const roots: string[] = [];
+
+class FaultInjectingStorageAdapter extends LocalAudioStorageAdapter {
+  public cleanupFails = false;
+  public failure: 'link' | 'sync' | 'write' | undefined;
+  public readonly failureError = new Error('injected storage failure');
+
+  protected override async writeTemporary(handle: FileHandle, bytes: Buffer): Promise<void> {
+    if (this.failure === 'write') throw this.failureError;
+    await super.writeTemporary(handle, bytes);
+  }
+
+  protected override async syncTemporary(handle: FileHandle): Promise<void> {
+    if (this.failure === 'sync') throw this.failureError;
+    await super.syncTemporary(handle);
+  }
+
+  protected override async linkTemporary(temporary: string, target: string): Promise<void> {
+    if (this.failure === 'link') throw this.failureError;
+    await super.linkTemporary(temporary, target);
+  }
+
+  protected override async removeTemporary(temporary: string): Promise<void> {
+    await super.removeTemporary(temporary);
+    if (this.cleanupFails) throw new Error('injected cleanup failure');
+  }
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -46,6 +73,39 @@ describe('LocalAudioStorageAdapter', () => {
     await expect(adapter.putImmutable('../outside.bin', Buffer.from('x'))).rejects.toThrow(
       'Invalid internal audio object key',
     );
+  });
+
+  it.each(['write', 'sync', 'link'] as const)(
+    'removes the temporary object when %s fails',
+    async (failure) => {
+      const root = await mkdtemp(join(tmpdir(), 'elder-audio-unit-'));
+      roots.push(root);
+      const adapter = new FaultInjectingStorageAdapter({
+        audioStorageRoot: root,
+      } as ApiConfigValue);
+      adapter.failure = failure;
+      const objectId = '00000000-0000-4000-8000-000000000002';
+
+      await expect(
+        adapter.putImmutable(`${objectId}/0.bin`, Buffer.from('fictional-failing-audio')),
+      ).rejects.toBe(adapter.failureError);
+      await expect(readdir(join(root, objectId))).resolves.toEqual([]);
+    },
+  );
+
+  it('does not replace an operation failure with a cleanup failure', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'elder-audio-unit-'));
+    roots.push(root);
+    const adapter = new FaultInjectingStorageAdapter({ audioStorageRoot: root } as ApiConfigValue);
+    adapter.failure = 'write';
+    adapter.cleanupFails = true;
+
+    await expect(
+      adapter.putImmutable(
+        '00000000-0000-4000-8000-000000000007/0.bin',
+        Buffer.from('fictional-failing-audio'),
+      ),
+    ).rejects.toBe(adapter.failureError);
   });
 
   it('re-inspects persisted bytes when verifying a completed manifest', async () => {

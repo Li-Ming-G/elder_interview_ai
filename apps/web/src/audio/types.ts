@@ -52,6 +52,29 @@ export interface AudioChunkStore {
   ): Promise<BufferedAudioChunk>;
 }
 
+export type AudioUploadJobStatus = 'recording' | 'uploading' | 'completing' | 'complete' | 'failed';
+
+export interface AudioUploadJob {
+  audioObjectId: string | null;
+  bufferSessionId: string;
+  chunkRequestIds: Record<string, string>;
+  completeRequestId: string | null;
+  createRequestId: string;
+  expectedChunkCount: number | null;
+  jobId: string;
+  lastError: string | null;
+  mimeType: string;
+  projectId: string;
+  purpose: 'consent' | 'interview';
+  serverSessionId: string | null;
+  status: AudioUploadJobStatus;
+}
+
+export interface AudioUploadJobStore {
+  getUploadJob(jobId: string): Promise<AudioUploadJob | null>;
+  putUploadJob(job: AudioUploadJob): Promise<void>;
+}
+
 export function audioChunkKey(sessionId: string, sequenceNo: number): string {
   return `${sessionId}:${sequenceNo.toString()}`;
 }

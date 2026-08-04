@@ -24,7 +24,7 @@ import { AudioIntegrityService } from './audio-integrity.service.js';
 import { canonicalAudioManifestChecksum } from './audio-manifest.js';
 import { mapAudioChunk, mapAudioManifest, mapAudioObject } from './audio.mapper.js';
 import type { AudioChunkInput } from './audio.validation.js';
-import { AudioStorageProvider } from './audio-storage.provider.js';
+import { AudioStorageObjectMissingError, AudioStorageProvider } from './audio-storage.provider.js';
 
 interface IdempotencyBinding {
   action: string;
@@ -116,36 +116,43 @@ export class AudioService {
       if (current.mimeType !== input.mimeType) throw this.chunkConflict();
 
       const objectKey = `${audioObjectId}/${String(input.sequenceNo)}.bin`;
-      let stored;
-      try {
-        stored = await this.storage.putImmutable(objectKey, bytes);
-      } catch {
-        throw new ServiceUnavailableException({
-          code: 'AUDIO_STORAGE_UNAVAILABLE',
-          details: {},
-          message: 'Audio storage is unavailable',
-        });
-      }
-      if (stored.checksum !== input.checksum || stored.sizeBytes !== bytes.byteLength) {
-        throw this.chunkConflict();
-      }
-
       const existing = await transaction.audioChunk.findUnique({
         where: { audioObjectId_sequenceNo: { audioObjectId, sequenceNo: input.sequenceNo } },
       });
-      let response: AudioChunkResponse;
-      if (existing !== null) {
-        if (
-          existing.checksum !== input.checksum ||
+      if (
+        existing !== null &&
+        (existing.checksum !== input.checksum ||
           existing.endMs !== input.endMs ||
           existing.mimeType !== input.mimeType ||
           existing.objectKey !== objectKey ||
           existing.sizeBytes !== bytes.byteLength ||
           existing.startMs !== input.startMs ||
-          existing.uploadStatus !== 'uploaded'
-        ) {
-          throw this.chunkConflict();
+          existing.uploadStatus !== 'uploaded')
+      ) {
+        throw this.chunkConflict();
+      }
+
+      let stored;
+      try {
+        if (existing === null) {
+          stored = await this.storage.putImmutable(objectKey, bytes);
+        } else {
+          try {
+            stored = await this.storage.inspect(objectKey);
+          } catch (error: unknown) {
+            if (!(error instanceof AudioStorageObjectMissingError)) throw error;
+            stored = await this.storage.putImmutable(objectKey, bytes);
+          }
         }
+      } catch {
+        throw this.storageUnavailable();
+      }
+      if (stored.checksum !== input.checksum || stored.sizeBytes !== bytes.byteLength) {
+        throw this.chunkConflict();
+      }
+
+      let response: AudioChunkResponse;
+      if (existing !== null) {
         response = mapAudioChunk(existing);
       } else {
         const uploaded = await transaction.audioChunk.create({
@@ -416,6 +423,14 @@ export class AudioService {
       code: 'AUDIO_CHUNK_CONFLICT',
       details: {},
       message: 'Audio chunk conflicts with immutable stored data',
+    });
+  }
+
+  private storageUnavailable(): ServiceUnavailableException {
+    return new ServiceUnavailableException({
+      code: 'AUDIO_STORAGE_UNAVAILABLE',
+      details: {},
+      message: 'Audio storage is unavailable',
     });
   }
 }

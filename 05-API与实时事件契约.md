@@ -272,6 +272,8 @@ X-Chunk-SHA256: 64-char-lowercase-hex
 
 `sequenceNo` 为从 0 开始的非负整数。服务端先校验 body 大小、时间范围和 SHA-256，再写入私有存储与数据库。相同 request ID 按 §4 重放；不同 request ID 重试同一 `(audio_object_id, sequenceNo)` 时，只有二进制、checksum、时间、size 和 MIME 全部一致才返回原分片结果，任一不同返回 409 `AUDIO_CHUNK_CONFLICT`。对象已 complete 后上传返回 409 `AUDIO_OBJECT_COMPLETE`。存储失败返回 503 `AUDIO_STORAGE_UNAVAILABLE`，不得写成 uploaded 或 ACK；响应和日志不返回 `object_key`。
 
+浏览器可靠补传必须为 init、每个 sequence 的 chunk upload 和 complete 分别生成并跨刷新持久化稳定 request ID；网络失败或响应丢失后的重试复用原 ID，不得因刷新重新创建 audio object。客户端只有在 ACK 的 audio object、sequence、时间范围、size、checksum、MIME 和 `upload_status=uploaded` 全部与本地不可变分片一致时才可删除本地 Blob。
+
 complete 请求：
 
 ```json
@@ -279,6 +281,8 @@ complete 请求：
 ```
 
 服务端按 audio object 资源串行，核对 `0..expected_chunk_count-1` 连续、全部为 uploaded，并重新读取私有存储中的 size/checksum。缺片或不一致返回 409 `AUDIO_MANIFEST_INCOMPLETE`，对象不进入 complete。成功时固化 chunk count、total bytes、canonical manifest SHA-256 和 completed time；相同请求重放返回首次快照。
+
+客户端必须在录制停止时冻结 `expected_chunk_count` 并持久化 complete request ID；不得根据 ACK 后仍残留的 Blob 数量推导总分片数。complete 成功响应至少核对 audio object ID、`status=complete`、chunk count 和非空 manifest checksum。
 
 manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。只有有效 assignment 可以初始化、上传、完成和查询。
 
