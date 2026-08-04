@@ -211,8 +211,8 @@ export class BrowserAudioRecorder {
     const sequenceNo = this.nextSequenceNo;
     this.nextSequenceNo += 1;
     const eventClock = this.clock();
-    const elapsed = Math.max(0, eventClock - this.lastChunkClock);
-    const startedAtMs = this.timelineEndMs;
+    const elapsed = Math.max(1, Math.round(eventClock - this.lastChunkClock));
+    const startedAtMs = Math.ceil(this.timelineEndMs);
     const endedAtMs = startedAtMs + elapsed;
     this.timelineEndMs = endedAtMs;
     this.lastChunkClock = eventClock;

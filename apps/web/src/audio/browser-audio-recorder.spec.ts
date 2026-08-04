@@ -88,13 +88,17 @@ describe('BrowserAudioRecorder', () => {
   it('persists ordinary and final tail chunks before reporting stopped', async () => {
     const { fakeRecorder, queue, recorder, setNow, stopTrack } = harness();
     await recorder.start({ canRecord: true, sessionId: 'fictional-session' });
-    setNow(1000);
+    setNow(1000.4);
     fakeRecorder.emit('first');
-    setNow(1500);
+    setNow(1500.6);
 
     const records = await recorder.stop();
 
     expect(records.map((record) => record.chunk.sequenceNo)).toEqual([0, 1]);
+    expect(records.map(({ chunk }) => [chunk.startedAtMs, chunk.endedAtMs])).toEqual([
+      [0, 1000],
+      [1000, 1500],
+    ]);
     expect(await records[1]?.chunk.blob.text()).toBe('tail');
     expect((await queue.restore('fictional-session')).map((item) => item.chunk.sequenceNo)).toEqual(
       [0, 1],
