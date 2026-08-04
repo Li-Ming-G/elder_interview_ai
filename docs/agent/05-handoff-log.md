@@ -328,6 +328,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-002/006/013/018、HO-016/017、CON-014/015/016
 - 运行或复现方式：只用虚构文本与隔离 PostgreSQL；本地/CI 执行 migration、unit、integration、format/lint/typecheck/build
 
+## HO-018｜DEV-004A 实现启动
+
+- 任务编号：`DEV-004A`
+- 交出角色：总控 Agent
+- 接收角色：后端转录实现 Agent（`dev004a_backend_impl`）
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；契约基线 `b0b57fae75adc57c92587fa9dfaa90560fa159af`
+- 修改文件：实现 Agent 仅允许修改 Prisma schema、单个前向 migration、`apps/api/src/transcription/**`、API module 注册及直接相关测试；治理记录由总控维护
+- 已完成：正式依据、任务边界、数据契约、ADR-018、CON-014/015/016 已冻结；实现 Agent 已获得明确职责、决策权限与禁止范围
+- 未完成：Prisma migration、transcription module、provider-neutral adapter、内部 query seam、测试与 GitHub 审查
+- 数据库或接口变更：按 DEV-004A 新增 append-only speaker mapping 与 final-only transcript segment；不得新增 REST/WS 公共入口
+- 执行测试与结果：启动时确认分支干净且 HEAD 为 `b0b57fa`；应用测试待实现完成后执行
+- 已知问题：CON-014 继续只阻塞 DEV-004C；真实供应商与实时协议不属于本任务
+- 风险：必须防止 interim 落库、原始证据覆盖、fixture 进入 production 组合根、provider payload 泄露以及查询绕过 assignment
+- 下一步：`dev004a_backend_impl` 完成限定范围实现并向总控交接；总控复核、运行验证、提交并创建 GitHub PR
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-016/017、CON-014/015/016
+- 运行或复现方式：仅使用虚构文本和隔离 PostgreSQL；执行 format、lint、typecheck、build、unit 与 PostgreSQL integration
+
 ## 交接模板
 
 ```text

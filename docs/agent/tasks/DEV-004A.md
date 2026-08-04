@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：后端转录实现 Agent（待启动）
+- 状态：`IN_PROGRESS`
+- 负责人：后端转录实现 Agent（`dev004a_backend_impl`）
 - 前置依赖：DEV-003、ADR-018、CON-015/016
 - 分支：`codex/dev004a-transcript-core`
 - 交接对象：父 DEV-004、DEV-004B、DEV-006、项目负责人（GitHub 审查）
