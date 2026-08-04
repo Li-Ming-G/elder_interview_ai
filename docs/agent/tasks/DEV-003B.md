@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：后端音频实现 Agent（待启动）
+- 状态：`IN_PROGRESS`
+- 负责人：后端音频实现 Agent（dev003b_audio_backend）
 - 前置依赖：DEV-002 会话 seam、DEV-003A 上传队列 seam
 - 交接对象：总控 Agent、DEV-004 与 MVP-V01 集成 Agent
 
