@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
-- 负责人：待分配
+- 状态：`READY`
+- 负责人：后端音频实现 Agent（待启动）
 - 前置依赖：DEV-002 会话 seam、DEV-003A 上传队列 seam
 - 交接对象：总控 Agent、DEV-004 与 MVP-V01 集成 Agent
 
@@ -11,12 +11,47 @@
 
 按 `04` 至 `06` 保存不可变原始音频分片，实现 session 内 seq 幂等、checksum 校验、缺失检测和 manifest。
 
-## 边界
+## 输入依据
 
-只实现本地/内部对象存储适配器及正式服务端契约；不实现 ASR/AI，不对公网开放，不使用真实录音。任何 API、表或枚举变更必须先更新并批准正式契约。
+`00`、`01`、`02`、`03`、`04` §4.8/§4.24、`05` §3.6/§4、`06`、`08`、`09`、`10`、ADR-013/015/016、CON-010、HO-010。
 
-## 交付与验收
+## 允许修改
 
-任务解锁时补充上传 API、存储适配器、迁移、测试和故障恢复的精确允许文件；至少验证重复上传、冲突 checksum、乱序、缺片、最后分片、存储失败、数据库失败及 manifest 完整性。原始对象与元数据在明确清理流程前不得覆盖或删除。
+- `apps/api` 中独立 audio 模块、本地私有存储适配器和必要配置；
+- Prisma schema 与单一前向迁移中的 `audio_object`、`audio_chunk` 及 consent FK；
+- `packages/contracts` 的正式 audio DTO；
+- DEV-003B 单元/PostgreSQL 集成测试，以及仅含人工生成虚构字节的 fixture；
+- DEV-002 consent service 的最小对象完整性校验接入；
+- 本任务直接相关的协作文档。
 
-开工时还必须解决 CON-010：明确口头授权音频对象与项目的归属关系、可靠保存状态和查询 seam；在对象不存在、未完成、checksum 不符或跨项目时，DEV-002 不得创建 `valid` 口头授权。
+## 禁止修改
+
+- 不实现 ASR、AI、转录、工作台、导出、删除、照片或通用附件；
+- 不接入真实云对象存储、真实密钥、公网或真实访谈录音；
+- 不修改 DEV-001B 身份协议、捆绑授权语义或 session start 门禁；
+- 不返回内部 object key，不在日志或测试仓库写入真实音频/转录/个人信息。
+
+## 交付物
+
+- `audio_object`/`audio_chunk` 前向迁移与 Prisma 模型；
+- 本地私有存储 adapter：原子写入、checksum/size 复核、已存在对象不可覆盖、测试隔离目录；
+- init、raw binary chunk upload、complete、manifest REST 与 snake_case contracts；
+- assignment-only 访问，consent/interview 用途和 session 状态门禁；
+- `recorded_verbal` 只接受同项目 complete consent object 的事务校验；
+- 给 DEV-003A 的稳定上传 client seam 与 GitHub 审查交接。
+
+## 验证方式与验收标准
+
+- format、lint、typecheck、build、相关 unit/PostgreSQL integration、空库迁移和重复 deploy；
+- 重复 request ID、不同 request ID 相同分片、checksum/不可变字段冲突、乱序、缺片、最后分片、complete 后写入、跨项目、无 assignment、非法 session 状态；
+- 存储失败不 ACK、不写 uploaded；数据库失败后的新文件补偿或可检测 orphan；complete 重新读取存储 size/checksum；
+- consent 对象可在 draft project 下保存，interview 对象必须绑定 recording session；两种用途不能互换；
+- 原始对象和元数据在明确清理流程前不得覆盖或删除；响应/日志不泄露 object key；
+- 本地验证完成后 commit/push GitHub，任务转 `REVIEW`。只有项目负责人返回明确通过意见并登记对应 commit/PR 后才可 `DONE`。
+
+## GitHub 审查交接
+
+- 仓库：`Li-Ming-G/elder_interview_ai`（private）；
+- 分支：`codex/mvp-v01-vertical-slice`；
+- PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/1`；
+- 实现完成后记录 commit SHA、CI/本地结果和未解决意见，保持 `REVIEW` 等待项目负责人。

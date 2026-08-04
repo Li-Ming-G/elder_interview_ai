@@ -116,7 +116,7 @@
 
 ### CON-010｜口头授权音频缺少可验证的项目对象关系
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-03
 - 发现者：DEV-002 后端业务 Agent
 - 涉及文件与章节：`03` §6.2、`04` §4.5、`05` §3.4、`06`、DEV-002/DEV-003B
@@ -125,6 +125,20 @@
 - 临时处理：DEV-002 对 `recorded_verbal` 失败关闭并返回稳定 `CONSENT_AUDIO_NOT_VERIFIED`；不得创建 `valid` 授权。`electronic|written` 仅限内部虚构数据，不能作为真实试点证据。
 - 候选方案：DEV-003B 开工时明确授权音频与普通 session audio 的对象模型、project 归属、checksum/manifest 和可靠保存查询 seam，再由 DEV-002 接入同事务授权校验。
 - 需要谁决策：总控 Agent + DEV-003B 后端音频实现/审查角色；真实试点前必须解决。
+- 最终决定：新增项目级 `audio_object` 聚合，以 `purpose=consent|interview` 区分用途；`audio_chunk` 改为归属 audio object。consent 对象不绑定 session，可在正式访谈 start 前保存；interview 对象必须绑定同项目且处于允许录音状态的 session。两者共享不可变分片、checksum、幂等、私有保存和 manifest，但不能互相冒充。
+- 需要同步修改的文件：`04`、`05`、`06`、ADR-016、DEV-003B、任务板、追溯和交接。
+- 完成确认：正式契约已写回，DEV-003B 可进入实现；`recorded_verbal` 仍必须等对象 complete 且存储复核通过才可创建 valid 授权。
+
+### CON-011｜高风险任务审查角色与 GitHub 人工审查流程不一致
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-04
+- 发现者：总控 Agent / iteration-coach 只读复核
+- 涉及文件与章节：用户指令、`AGENTS.md`、`00` §11、`09` §1/§13、`10` §1/§2/§6/§9/§10
+- 冲突内容：既有规范把高风险任务最终审查限定为独立审查/验收 Agent；项目负责人明确要求后续开发先提交 GitHub，并由本人审查后返回意见。
+- 最终决定：项目负责人可以作为与实现者分离的独立审查角色。流程固定为本地验证 → commit/push → GitHub `REVIEW` → 项目负责人返回意见 → 修复并再 push → 明确通过后才可 `DONE`。push、PR 和 CI 均不等于审查通过。
+- 需要同步修改的文件：`AGENTS.md`、`00`、`09`、`10`、任务板/任务卡/交接及迭代日志中的后续审查口径。
+- 完成确认：正式治理文件已写回；GitHub 私有仓库和 Draft PR 建立后，后续高风险开发不再由实现 Agent 或内部审查 Agent 宣布最终通过。
 
 ## 登记模板
 

@@ -176,7 +176,7 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 }
 ```
 
-创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目且已可靠保存的授权音频对象 ID；`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
+创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
 
 撤回请求至少包含新的 `request_id`：
 
@@ -241,11 +241,46 @@ POST /sessions/:id/recover
 ### 3.6 音频
 
 ```http
-POST /sessions/:id/audio-chunks/init
-PUT  /sessions/:id/audio-chunks/:sequenceNo
-POST /sessions/:id/audio-chunks/complete
-GET  /sessions/:id/audio-manifest
+POST /projects/:id/audio-objects
+PUT  /audio-objects/:id/chunks/:sequenceNo
+POST /audio-objects/:id/complete
+GET  /audio-objects/:id/manifest
 ```
+
+初始化请求：
+
+```json
+{
+  "request_id": "uuid",
+  "purpose": "consent",
+  "session_id": null,
+  "mime_type": "audio/webm;codecs=opus"
+}
+```
+
+`purpose=consent` 时 `session_id` 必须为空，只要求当前倾听员拥有有效 project assignment，不要求项目已经取得有效授权或 session 已 start。`purpose=interview` 时 `session_id` 必填、必须属于同一项目，且 session 必须为 `recording|reconnecting|stopping`；不得用 consent 对象冒充访谈录音。响应返回 audio object ID、project/session、purpose、status、mime type 和时间戳。
+
+分片上传使用原始二进制请求体，且至少包含以下 header：
+
+```text
+Content-Type: audio/webm;codecs=opus
+X-Request-Id: uuid
+X-Chunk-Start-Ms: 0
+X-Chunk-End-Ms: 5000
+X-Chunk-SHA256: 64-char-lowercase-hex
+```
+
+`sequenceNo` 为从 0 开始的非负整数。服务端先校验 body 大小、时间范围和 SHA-256，再写入私有存储与数据库。相同 request ID 按 §4 重放；不同 request ID 重试同一 `(audio_object_id, sequenceNo)` 时，只有二进制、checksum、时间、size 和 MIME 全部一致才返回原分片结果，任一不同返回 409 `AUDIO_CHUNK_CONFLICT`。对象已 complete 后上传返回 409 `AUDIO_OBJECT_COMPLETE`。存储失败返回 503 `AUDIO_STORAGE_UNAVAILABLE`，不得写成 uploaded 或 ACK；响应和日志不返回 `object_key`。
+
+complete 请求：
+
+```json
+{ "request_id": "uuid", "expected_chunk_count": 3 }
+```
+
+服务端按 audio object 资源串行，核对 `0..expected_chunk_count-1` 连续、全部为 uploaded，并重新读取私有存储中的 size/checksum。缺片或不一致返回 409 `AUDIO_MANIFEST_INCOMPLETE`，对象不进入 complete。成功时固化 chunk count、total bytes、canonical manifest SHA-256 和 completed time；相同请求重放返回首次快照。
+
+manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。只有有效 assignment 可以初始化、上传、完成和查询。
 
 ### 3.7 转录
 
@@ -333,6 +368,7 @@ GET  /exports/:id
 - 开始访谈；
 - 结束访谈；
 - 上传音频分片；
+- 初始化和完成音频对象；
 - 创建内容标记；
 - 保存建议操作；
 - 创建导出任务；

@@ -9,7 +9,7 @@
 | 追踪编号 | 需求或规则来源 | 需求摘要 | 代码模块 | 接口或事件 | 测试用例 | 审查结果 | 状态 |
 |---|---|---|---|---|---|---|---|
 | REQ-001 | `01` §6、§9；`03` §4-6；`04` §4.2-4.6、§4.23；`08` §4-5；ADR-014/015 | 项目、服务条款、捆绑授权与访问/start 门禁 | `apps/api/src/project-foundation`、Prisma migration `20260803153000_project_consent_session`、`f16b82a` | `05` §3.1-3.5、§4；snake_case contracts | project integration 5/5、根 integration 7/7、auth 13/13、unit 45/45；迁移 deploy/status 通过 | REV-009 PASS，P0/P1/P2=0；CON-010 只阻塞口头授权音频与真实试点 | DONE |
-| REQ-002 | `01` §6；`06` §2-3 | 原始录音、分片幂等、连续性与恢复 | `apps/web/src/audio` 浏览器本地候选；服务端 DEV-003B 未实现 | `05` §3.6、§4 | fake-indexeddb、录音器/队列/组件 15 tests；真实 Chromium 待补 | REV-008 内部候选 PASS；真实浏览器/长时/服务端 manifest 未验 | REVIEW |
+| REQ-002 | `01` §6；`04` §4.8/§4.24；`06` §2-3；ADR-016 | 原始录音、授权/访谈用途隔离、分片幂等、连续性与恢复 | `apps/web/src/audio` 浏览器本地候选；服务端 DEV-003B 待实现 | `05` §3.6、§4 已正式定义 audio object init/raw upload/complete/manifest | fake-indexeddb、录音器/队列/组件 15 tests；待 PostgreSQL/storage/真实 Chromium 集成 | CON-010 RESOLVED；DEV-003B READY；GitHub PR #1 等项目负责人后续审查 | IN_PROGRESS |
 | REQ-003 | `01` §6；`06` §4-10 | 实时 ASR、确定态转录与说话人映射 | `DEV-004`（未实现） | `05` §3.7、§5 | `09` §6 | 待执行 | 规划 |
 | REQ-004 | `01` §8；`03` §7-12、§18 | 访谈工作台、链路状态、标记和安全结束 | `DEV-005`（未实现） | `05` §3.5、§3.8、§5 | `09` 场景 A/C | 待执行 | 规划 |
 | REQ-005 | `01` §6、§9；`07` §3-5 | 项目级结构化记忆、证据回链与冲突处理 | `DEV-006`（未实现） | `05` §3.10 | `09` §4、§7、场景 B | 待执行 | 规划 |

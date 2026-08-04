@@ -201,6 +201,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003B、ADR-014/015、CON-010、REV-009、HO-010。
 - 运行或复现方式：启动 `postgres-test`，设置 `.env.example` 中的 `TEST_DATABASE_URL`/`DATABASE_URL`，执行根 migration、integration、auth、unit 和静态/构建命令。
 
+## HO-011｜GitHub 人工审查基线与 DEV-003B 契约解锁
+
+- 任务编号：`CON-010`、`CON-011`、`DEV-003A/B`、ADR-016
+- 交出角色：项目负责人 / 总控 Agent
+- 接收角色：DEV-003B 后端音频实现 Agent、DEV-003A 集成 Agent
+- 时间：2026-08-04
+- 分支与提交：`codex/mvp-v01-vertical-slice`；契约提交待产生；GitHub private repo `Li-Ming-G/elder_interview_ai`，Draft PR #1。
+- 修改文件：`AGENTS.md`、`00`、`04`、`05`、`06`、`09`、`10`、CON-010/011、ADR-016、任务板、追溯、DEV-003B 任务卡、迭代日志。
+- 已完成：后续高风险候选改为 push GitHub 后由项目负责人审查；CON-010 采用项目级 audio object、consent/interview purpose 分离、不可变 chunk 与完整 manifest；DEV-003B 具备正式范围和验收矩阵。
+- 未完成：尚无服务端 audio 实现、迁移、本地存储 adapter、上传 API 或浏览器集成；PR #1 尚无项目负责人审查结论。
+- 数据库或接口变更：正式契约新增 `audio_object`，`audio_chunk` 改归属 audio object；新增 `/projects/:id/audio-objects`、raw chunk PUT、complete、manifest；代码和迁移尚未形成。
+- 执行测试与结果：本交接为契约/治理变更；提交前执行 format、diff check、引用和 Git 检查。应用测试将在实现提交执行。
+- 已知问题：真实云对象存储、签名上传、加密与保留策略仍属于真实试点门禁；当前只允许本地私有 adapter 和虚构音频。
+- 风险：consent 对象初始化不得要求已有授权；interview 对象不得绕过 session recording 状态；对象 key 永不进入普通响应/日志；push/CI 不等于审查通过。
+- 下一步：后端音频 Agent 实现 DEV-003B；边界稳定后由前端集成 Agent 接入现有 IndexedDB 队列并补真实 Chromium 短链路；完成后 commit/push PR #1，任务保持 REVIEW。
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003A/B、ADR-015/016、CON-010/011、HO-010/011。
+- 运行或复现方式：使用虚构字节、隔离 PostgreSQL 和临时本地存储目录；不得使用真实录音。
+
 ## 交接模板
 
 ```text

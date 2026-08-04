@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-001B 内部身份候选已提交但保持 REVIEW，DEV-002 与 DEV-003A 可有限并行。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002 已完成内部 seam，DEV-003A 候选在 GitHub REVIEW，CON-010 已通过 ADR-016 解决并解锁 DEV-003B。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: 是否存在需要关联的远端 Git 仓库；“拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -37,6 +37,13 @@
 - Tradeoff: 增加候选载体、输入/输出过滤、删除 transition、scope 快照、tombstone 和竞态测试。
 - Boundary: completed 内容不可恢复；CON-006/007 必须在 DEV-008 前闭合。
 
+### D-005 — 高风险候选先推送 GitHub，再由项目负责人独立审查
+- Status: adopted
+- Evidence: 用户于 2026-08-04 明确要求后续开发完成后先提交 GitHub，并由本人处理审查；`AGENTS.md`、`00`、`09`、`10` 与 CON-011 已同步。
+- Reason: 项目负责人需要直接查看 GitHub diff、CI 和提交历史，并掌握最终审查结论。
+- Tradeoff: 任务在本地测试和 push 后仍保持 `REVIEW`，必须等待负责人意见，交付节奏增加一次外部往返。
+- Boundary: 实现者仍负责本地测试、迁移和交接；push/PR/CI 不等于通过；审查证据必须绑定 commit 与 PR。
+
 ## Assumptions to Validate
 
 ### A-001 — “拾光长者传记项目”与正式文档中的“AI 辅助长者访谈系统”是同一项目
@@ -46,8 +53,8 @@
 
 ### A-002 — 当前目录应新建独立 Git 仓库
 - Evidence: 首次检查未发现 `.git`，用户要求总控管理 Git，且后续任务要求提交级交接。
-- Validation: 已在本地初始化 `main` 并形成基线提交；仍需确认是否存在应关联的远端仓库。
-- Status: open
+- Validation: 2026-08-04 已在当前登录账号创建 private `Li-Ming-G/elder_interview_ai`，设置 `origin`，推送 `main` 与 `codex/mvp-v01-vertical-slice`，并创建 Draft PR #1。
+- Status: confirmed
 
 ## Iteration Log
 
@@ -123,3 +130,13 @@
 - Evidence: `f16b82a`；REV-009 最终 PASS（P0/P1/P2=0）；migration deploy/status、integration 7/7、auth 13/13、unit 45/45、format/lint/typecheck/build/diff check/prod audit 全通过。
 - Boundary: `recorded_verbal` 因 CON-010 失败关闭；当前 DONE 只代表 electronic/written 虚构数据内部范围，不代表真实试点授权、音频链路或生产部署通过。
 - Lesson: 幂等键只能识别重放，不能代替资源并发控制；首次结果、操作者、目标和当前授权必须同时成立，才不会把“防重复”变成越权或竞态入口。
+
+### 2026-08-04 — GitHub 人工审查与音频对象契约
+- User outcome: 继续核心纵向开发；开发完成后先提交 GitHub，后续由项目负责人在 GitHub 审查并返回意见。
+- Review mode: Correction mode。
+- Review finding: GitHub 是交付/审查载体而非验收结论；优先关闭 CON-010 和服务端原始音频保存，比单独补浏览器证据更接近当前核心目标。
+- Options considered: 先补 DEV-003A Chromium；绕过口头授权继续 AI fixture；先统一 audio object 契约并实现 DEV-003B，再做首次前后端 Chromium 集成。
+- Adopted decision: 采用第三条；建立 private repo 和 Draft PR #1；高风险候选保持 REVIEW 等负责人结论；ADR-016 用项目级 audio object 分离 consent/interview purpose，避免授权录音循环。
+- Implementation evidence: `AGENTS.md`、`00`、`04`、`05`、`06`、`09`、`10`、CON-010/011、ADR-016、DEV-003B 与 HO-011；GitHub `Li-Ming-G/elder_interview_ai` / PR #1。
+- Lesson: “先 push 再审查”改变的是证据流和责任边界，不降低实现者的测试责任；授权前音频必须有独立于正式访谈 start 的对象生命周期。
+- Better future prompt: “完成本地测试后推送到指定 private GitHub PR，保持 REVIEW；我按 commit SHA 返回审查结论。下一步优先解决授权音频与访谈音频的对象归属，再实现可靠分片。”
