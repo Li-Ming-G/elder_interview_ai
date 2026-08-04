@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002 已完成内部 seam，DEV-003A 候选在 GitHub REVIEW，CON-010 已通过 ADR-016 解决并解锁 DEV-003B。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002、DEV-003A/B 内部原型已通过，父 DEV-003 继续自动上传/重试编排和存储 P2 加固。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -150,3 +150,10 @@
 - Boundary: 所有内容只使用合成或虚构字节；不代表真实麦克风、长时录音、云存储、真实试点或生产部署通过；DEV-003A/B 均保持 REVIEW。
 - Lesson: 原始数据可靠性需要两类独立证据：浏览器 ACK 后仍保留序号/时间轴高水位，以及服务端 ACK 前确实完成不可变存储与元数据提交；任一端单独通过都不等于上传纵向链路已完成。
 - Better future prompt: “请先把浏览器队列的失败保留/成功 ACK 语义接到已审查的 audio object API，并用稳定 request ID 或可安全采用 orphan 的协议验证响应丢失重试；不要扩展到 ASR。”
+
+### 2026-08-04 — REV-010 项目负责人通过 DEV-003A/B
+
+- Review evidence: 项目负责人确认 PR #1 head `936fd0408023ba074d2670576626e226f859923e` 未漂移，声明范围、实现和 CI 一致；结论 PASS，P0/P1 为 0。
+- Closed scope: DEV-003A 原生浏览器录音/持久化内部原型与 DEV-003B 服务端可靠保存内部原型转 DONE；父 DEV-003 仍 IN_PROGRESS。
+- Non-blocking findings: 临时文件 write/sync 失败清理与存储缺失冲突恢复列入下一实现批次；授权音频跨 `consent_text_version` 复用登记 CON-012，真实试点前决策。
+- Lesson: 审查通过必须绑定不可漂移的 head，同时把“任务卡内通过”和“父链路/真实试点未通过”并列记录；非阻塞意见不能被 PASS 吞掉，也不能反向伪造为当前任务失败。

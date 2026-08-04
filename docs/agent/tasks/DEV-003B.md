@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：后端音频实现 Agent（dev003b_audio_backend）
 - 前置依赖：DEV-002 会话 seam、DEV-003A 上传队列 seam
 - 交接对象：总控 Agent、DEV-004 与 MVP-V01 集成 Agent
@@ -67,3 +67,11 @@
 - 未完成本地 PostgreSQL migration deploy/status/重复 deploy、integration/auth/E2E-auth，原因是 Docker daemon 与 `127.0.0.1:5433` 不可用；已实际尝试，不声称通过；
 - GitHub CI run `30872055084` 对 head `7e95bdf` PASS：migration deploy/status、PostgreSQL integration/auth、build/smoke、Chromium 与 auth Chromium 等全部根门禁通过；
 - 状态保持 `REVIEW`，等待项目负责人按 commit/PR 返回意见；CI PASS 不等于人工审查通过。
+
+## 2026-08-04 项目负责人验收
+
+- 审查对象：PR #1 head `936fd0408023ba074d2670576626e226f859923e`，未发生提交漂移；
+- 结论：REV-010 `PASS`，P0/P1 为 0；当前任务卡声明的内部虚构数据原型通过；
+- 非阻塞 P2：扩大 `putImmutable` 临时文件生命周期的 `try/finally` 并增加 write/sync 失败注入；上传时先读取已有数据库分片元数据，再决定存储缺失恢复，避免错误重试留下冲突 orphan；
+- 产品待确认：真实试点前明确同一 consent audio object 能否关联不同 `consent_text_version` 的多条授权记录，见 CON-012；
+- 两项 P2 转入父 DEV-003 的下一实现批次，不改写本次 PASS；本任务转为 `DONE`。

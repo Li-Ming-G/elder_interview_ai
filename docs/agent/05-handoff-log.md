@@ -237,6 +237,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003A/B、ADR-015/016、REV-010、HO-010 至 HO-012
 - 运行或复现方式：启用 Docker 测试库并设置 TEST_DATABASE_URL/DATABASE_URL 后运行 migration deploy/status、`pnpm test:integration -- --run`、`pnpm test:auth -- --run`；其余执行根 typecheck/lint/unit/build/format 和 `pnpm test:e2e -- --project=chromium`
 
+## HO-013｜REV-010 PASS 与 DEV-003A/B 关闭
+
+- 任务编号：`DEV-003A`、`DEV-003B`、REV-010、CON-012
+- 交出角色：项目负责人（GitHub 审查）/ 总控 Agent
+- 接收角色：父 DEV-003 下一实现角色
+- 时间：2026-08-04
+- 分支与提交：审查对象 `codex/mvp-v01-vertical-slice` / `936fd0408023ba074d2670576626e226f859923e`；PR #1；审查时 head 未漂移
+- 修改文件：本交接只更新任务板、任务卡、追溯、冲突、审查、交接和迭代记录；不修改已通过实现
+- 已完成：项目负责人确认 DEV-003A 原生 MediaRecorder/IndexedDB 恢复与高水位证据；确认 DEV-003B 分用途对象、不可变分片、checksum/size、assignment/session、幂等、complete manifest 和 recorded_verbal 存储复核；P0/P1 为 0，结论 PASS
+- 未完成：父 DEV-003 的自动上传/失败重试/complete 编排；真实麦克风、长时、浏览器崩溃、多标签、真实配额、云存储和真实试点
+- 数据库或接口变更：无；本次为审查状态收口
+- 执行测试与结果：沿用审查 head 的 GitHub CI run `30872251081` PASS；本次文档收口执行 format、diff check 和 Git 状态检查，不重复应用测试
+- 已知问题：P2 临时文件 write/sync 失败清理；P2 数据库已有元数据但存储缺失时的冲突恢复；CON-012 授权音频跨 consent text 版本复用规则
+- 风险：后续修复不得改写 REV-010 对 `936fd04` 的历史结论；任何代码修复形成新候选时仍需按 GitHub 流程验证和审查
+- 下一步：先在父 DEV-003 下一任务中修复两个存储 P2，再实现 IndexedDB 队列到 audio object API 的自动上传、失败保留、ACK 后删除和 complete；CON-012 只在真实试点准备前决策
+- 必须先读取：AGENTS、`00` 至 `06`、`08` 至 `10`、任务板、DEV-003A/B、ADR-016、REV-010、HO-012/013、CON-012
+- 运行或复现方式：以 `936fd04` 和 CI run `30872251081` 复核已通过候选；后续新代码使用虚构字节和隔离存储/数据库
+
 ## 交接模板
 
 ```text
