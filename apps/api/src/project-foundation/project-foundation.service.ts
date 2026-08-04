@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
+import { AudioIntegrityService } from '../audio/audio-integrity.service.js';
 import { ResourceAuthorizationService } from '../auth/resource-authorization.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
@@ -37,6 +38,7 @@ export class ProjectFoundationService {
     private readonly prisma: PrismaService,
     private readonly access: ProjectAccessService,
     private readonly authorization: ResourceAuthorizationService,
+    private readonly audioIntegrity: AudioIntegrityService,
   ) {}
 
   public async createProject(
@@ -155,16 +157,16 @@ export class ProjectFoundationService {
     input: CreateConsentRequest,
   ): Promise<ConsentResponse> {
     await this.assertInterviewerProject(actor, projectId);
-    if (input.consent_method === 'recorded_verbal') {
-      throw new ConflictException({
-        code: 'CONSENT_AUDIO_NOT_VERIFIED',
-        details: {},
-        message: 'Consent audio cannot yet be verified',
-      });
-    }
     const consent = await this.prisma.$transaction(async (transaction) => {
       await this.lock(transaction, `project:${projectId}`);
       await this.assertActiveAssignment(transaction, projectId, actor.id);
+      if (input.consent_method === 'recorded_verbal') {
+        await this.audioIntegrity.verifyCompleteConsentObject(
+          transaction,
+          projectId,
+          input.consent_audio_object_id ?? '',
+        );
+      }
       const previous = await transaction.consentRecord.findFirst({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         where: { consentType: 'recording_transcription_ai', projectId },

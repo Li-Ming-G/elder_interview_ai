@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { API_CONFIG } from './api-config.js';
+import { createAudioModule } from './audio/audio.module.js';
 import { createAuthModule } from './auth/auth.module.js';
 import { CsrfMiddleware } from './auth/csrf.middleware.js';
 import { OriginMiddleware } from './auth/origin.middleware.js';
@@ -19,10 +20,15 @@ import { createProjectFoundationModule } from './project-foundation/project-foun
 export class AppModule implements NestModule {
   public static register(config: ApiConfig): DynamicModule {
     const authModule = createAuthModule(config);
+    const audioModule = createAudioModule(config, authModule);
     return {
       controllers: [HealthController],
       global: true,
-      imports: [authModule, createProjectFoundationModule(config, authModule)],
+      imports: [
+        authModule,
+        audioModule,
+        createProjectFoundationModule(config, authModule, audioModule),
+      ],
       module: AppModule,
       providers: [
         {

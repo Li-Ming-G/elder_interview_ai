@@ -31,7 +31,7 @@ test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecy
   });
   await page.getByRole('button', { name: '退出登录' }).click();
   await expect(page.getByRole('button', { name: '登录' })).toBeVisible();
-  expect(logoutStatuses).toEqual([403, 200]);
+  await expect.poll(() => logoutStatuses).toEqual([403, 200]);
   expect(successfulLogoutClearsCookie).toBe(true);
   const cookiesAfterLogout = await context.cookies(page.url());
   expect(

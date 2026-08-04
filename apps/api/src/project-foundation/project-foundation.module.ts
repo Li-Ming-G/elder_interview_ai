@@ -21,10 +21,11 @@ export class ProjectFoundationModule {}
 export function createProjectFoundationModule(
   config: ApiConfig,
   authModule: DynamicModule,
+  audioModule: DynamicModule,
 ): DynamicModule {
   return {
     controllers: [ProjectFoundationController],
-    imports: [authModule],
+    imports: [authModule, audioModule],
     module: ProjectFoundationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },

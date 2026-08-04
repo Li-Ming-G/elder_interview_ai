@@ -42,8 +42,10 @@ describe('identity, opaque session, Origin and CSRF', () => {
     );
     await application().init();
     prisma = application().get(PrismaService);
-    await prisma.interviewSession.deleteMany();
     await prisma.consentRecord.deleteMany();
+    await prisma.audioChunk.deleteMany();
+    await prisma.audioObject.deleteMany();
+    await prisma.interviewSession.deleteMany();
     await prisma.serviceTerm.deleteMany();
     await prisma.projectAssignment.deleteMany();
     await prisma.elderProject.deleteMany();

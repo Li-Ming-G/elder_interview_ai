@@ -127,3 +127,58 @@ export interface DeviceCheckRequest {
   microphone_permission: 'granted' | 'denied';
   input_detected: boolean;
 }
+
+export type AudioPurpose = 'consent' | 'interview';
+export type AudioObjectStatus = 'initiated' | 'uploading' | 'complete' | 'failed';
+
+export interface CreateAudioObjectRequest extends IdempotentRequest {
+  purpose: AudioPurpose;
+  session_id: string | null;
+  mime_type: string;
+}
+
+export interface AudioObjectResponse {
+  id: string;
+  project_id: string;
+  session_id: string | null;
+  purpose: AudioPurpose;
+  status: AudioObjectStatus;
+  mime_type: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface CompleteAudioObjectRequest extends IdempotentRequest {
+  expected_chunk_count: number;
+}
+
+export interface AudioChunkResponse {
+  id: string;
+  audio_object_id: string;
+  sequence_no: number;
+  start_ms: number;
+  end_ms: number;
+  size_bytes: number;
+  checksum: string;
+  mime_type: string;
+  upload_status: 'uploaded';
+  uploaded_at: string;
+}
+
+export interface AudioManifestChunk {
+  sequence_no: number;
+  start_ms: number;
+  end_ms: number;
+  size_bytes: number;
+  checksum: string;
+  mime_type: string;
+  uploaded_at: string;
+}
+
+export interface AudioManifestResponse extends AudioObjectResponse {
+  chunk_count: number | null;
+  total_size_bytes: number | null;
+  manifest_checksum: string | null;
+  completed_at: string | null;
+  chunks: AudioManifestChunk[];
+}

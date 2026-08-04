@@ -33,6 +33,7 @@ logs/
 *.sqlite
 *.sqlite3
 .cache/
+.local/
 tmp/
 temp/
 

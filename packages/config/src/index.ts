@@ -10,6 +10,13 @@ const apiConfigSchema = z.object({
   AUTH_LOGIN_THROTTLE_PEPPER: z.string().min(16),
   AUTH_SESSION_IDLE_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
   AUTH_SESSION_ABSOLUTE_TTL_HOURS: z.coerce.number().int().min(1).default(12),
+  AUDIO_STORAGE_ROOT: z.string().min(1).default('.local/audio-storage'),
+  AUDIO_CHUNK_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(2_147_483_647)
+    .default(25 * 1024 * 1024),
 });
 
 export interface ApiConfig {
@@ -22,6 +29,8 @@ export interface ApiConfig {
   authLoginThrottlePepper: string;
   authSessionIdleTtlMinutes: number;
   authSessionAbsoluteTtlHours: number;
+  audioStorageRoot: string;
+  audioChunkMaxBytes: number;
 }
 
 export class ConfigValidationError extends Error {
@@ -56,5 +65,7 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
     authLoginThrottlePepper: result.data.AUTH_LOGIN_THROTTLE_PEPPER,
     authSessionIdleTtlMinutes: result.data.AUTH_SESSION_IDLE_TTL_MINUTES,
     authSessionAbsoluteTtlHours: result.data.AUTH_SESSION_ABSOLUTE_TTL_HOURS,
+    audioStorageRoot: result.data.AUDIO_STORAGE_ROOT,
+    audioChunkMaxBytes: result.data.AUDIO_CHUNK_MAX_BYTES,
   };
 }

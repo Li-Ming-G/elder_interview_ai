@@ -15,6 +15,8 @@ describe('loadApiConfig', () => {
       apiHost: '127.0.0.1',
       apiPort: 3000,
       appEnv: 'test',
+      audioChunkMaxBytes: 25 * 1024 * 1024,
+      audioStorageRoot: '.local/audio-storage',
       logLevel: 'info',
     });
   });
