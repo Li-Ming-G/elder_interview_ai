@@ -210,7 +210,8 @@
 - Review mode: Correction mode；开工前唯一独立只读预审已把路线级 DEV-004 收敛为 DEV-004A。
 - Adopted implementation: 新增 append-only speaker mapping、final-only transcript segment、稳定 ingest key、供应商中立 result、local/test fake、受信 ingestion seam 和 assignment-aware 内部 query；不新增 REST/WS。
 - Corrections during implementation: provider payload 被纳入 canonical 幂等比较但从 DTO 排除；受限项目即使仍有 assignment 也对普通角色失败关闭；interim 在门禁通过后明确零落库。
-- Evidence: 实现提交 `f80c4c3`；format、ESLint、全仓 typecheck、Prisma generate/validate、全仓 build 通过；unit 14 files / 63 tests PASS。
-- Unverified: 本机 Docker daemon 未运行且 `TEST_DATABASE_URL` 未配置，migration deploy/status 与 PostgreSQL transcription integration 未在本地执行，必须由 GitHub CI 补齐。
+- Evidence: 实现与 CI 纠错提交截至 `b34205f`；format、ESLint、全仓 typecheck、Prisma generate/validate、全仓 build 通过；unit 14 files / 63 tests PASS；GitHub CI `30886820301` 的 migration、integration、auth、smoke 与 E2E 全部 PASS。
+- CI corrections: 首轮发现动态 TranscriptionModule 未在自身作用域注册 `API_CONFIG`；次轮发现 PostgreSQL text 不接受 advisory lock key 中的 NUL。分别改为显式复用应用配置，以及固定 UUID 前缀加冒号的 PostgreSQL-safe lock key。
+- Local limitation: 本机 Docker daemon 未运行且 `TEST_DATABASE_URL` 未配置，因此数据库验证证据来自 GitHub 隔离 PostgreSQL，而不是本机复跑。
 - Lesson: 供应商中立不仅是字段命名中立；重放等价性、原始 payload 私密性、映射快照时点和 restricted 读取门禁也必须在持久化 seam 中固定，否则稳定 segment ID 仍可能掩盖证据漂移或越权。
 - Boundary: 候选不代表 DEV-004 完成；真实 ASR、WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据与生产部署仍未覆盖。
