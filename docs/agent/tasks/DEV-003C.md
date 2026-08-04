@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：总控 Agent（协调后端存储与音频前端实现）
 - 前置依赖：DEV-003A、DEV-003B、REV-010
 - 分支：`codex/dev003c-reliable-upload`
@@ -68,4 +68,6 @@
 - 本地：format、lint、typecheck、build、unit 12 files/56 tests、Chromium 3/3 通过；针对性上传/迁移 unit 5/5 与上传 Chromium 2/2 通过；
 - GitHub：PR #2，CI run `30875678125` 对实现 head `7d7785a` 全门禁通过，包含 migration deploy/status、PostgreSQL integration/auth、smoke、普通 Chromium 3/3 和认证真实 API Chromium 3/3；
 - 未在本地执行：PostgreSQL integration/auth（本机无可用 PostgreSQL/Docker）；由上述 GitHub CI 补齐；
-- 当前结论：交付物和自动验证已满足，进入 `REVIEW`；项目负责人尚未按最终 PR head 给出审查结论，因此不得标记 `DONE`。
+- 审查结论：项目负责人锁定 PR #2 head `1aa643a29a33fca00fb8e82d37ad3002b2a4fca5` 并给出 `PASS`，P0/P1 为 0；通过边界仅为内部虚构/合成音频 MVP；
+- 合并结果：PR #2 已合入 `main`，merge commit `bdf29108d8a650fedeefbab70db4f8c37cb12c25`；任务转 `DONE`；
+- 非阻塞意见：生产或真实试点前移除或严格限制查询参数启用的内部 audio harness，登记为 CON-013。

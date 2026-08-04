@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002、DEV-003A/B 已通过，DEV-003C 可靠上传候选已推送 PR #2 并等待项目负责人审查。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002 与 DEV-003 原始录音可靠保存内部链路已通过，下一步准备 DEV-004 实时 ASR 与说话人映射。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -176,3 +176,11 @@
 - Boundary: 候选只覆盖内部虚构/合成音频；项目负责人未审查前 DEV-003C/父 DEV-003 不得 DONE；真实麦克风、长时、崩溃、多标签、云存储、ASR 和真实试点未覆盖。
 - Lesson: mock E2E 适合证明重试状态机，但不能替代真实 API 纵向测试；跨层数值类型（小数时钟到数据库整数）必须在真实契约边界验证。
 - Better future prompt: “请同时提供可控失败的 mock 浏览器 E2E 和连接正式 API/数据库的纵向 E2E；逐字段验证浏览器生成值是否满足服务端 DTO 与持久层类型。”
+
+### 2026-08-04 — REV-011 项目负责人通过并合并 DEV-003C
+
+- Review evidence: 项目负责人锁定 PR #2 head `1aa643a29a33fca00fb8e82d37ad3002b2a4fca5`，确认非 Draft、可合并且未漂移；最终 CI `30875834803` PASS；结论 PASS，P0/P1 为 0。
+- Closed scope: DEV-003C 与父 DEV-003 在内部虚构/合成音频范围转 DONE；PR #2 以 merge commit `bdf29108d8a650fedeefbab70db4f8c37cb12c25` 合入 main。
+- Boundary: 真实麦克风、长时、浏览器进程崩溃、多标签、真实配额、云存储、ASR 和真实试点仍未通过；CON-012/013 保持真实试点门禁。
+- Non-blocking finding: 查询参数启用的内部 audio harness 在生产或真实试点前必须移除或严格限制；登记 CON-013，不阻塞 DEV-004 内部开发。
+- Lesson: 审查后先合并锁定 head，再在 main 做收口文档，可以同时保持审查对象不可漂移和项目状态可追溯。

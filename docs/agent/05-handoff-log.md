@@ -292,6 +292,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003C、ADR-015/016/017、REV-010/011、HO-013 至 HO-015、CON-012
 - 运行或复现方式：本地执行根 format/lint/typecheck/unit/build/E2E；具备隔离 PostgreSQL 时追加 migration deploy/status、integration、auth 和 auth E2E；只用虚构或合成音频
 
+## HO-016｜REV-011 PASS、PR #2 合并与 DEV-003 关闭
+
+- 任务编号：`DEV-003C`、父 `DEV-003`、REQ-002、REV-011、CON-013
+- 交出角色：项目负责人（GitHub 审查）/ 总控 Agent
+- 接收角色：DEV-004 后续任务负责人
+- 时间：2026-08-04
+- 分支与提交：审查分支 `codex/dev003c-reliable-upload`；锁定 head `1aa643a29a33fca00fb8e82d37ad3002b2a4fca5`；PR #2；merge commit `bdf29108d8a650fedeefbab70db4f8c37cb12c25`
+- 修改文件：本次收口只更新任务板、任务卡、追溯、冲突、审查、交接和迭代记录；不修改 REV-011 已通过代码
+- 已完成：项目负责人确认 PR 非 Draft、可合并且 head 未漂移；确认稳定阶段 request ID、严格 ACK、冻结 expected count、complete 校验、IndexedDB v3、服务端缺失存储恢复、临时文件清理及 PostgreSQL/Chromium 证据；P0/P1 为 0，结论 PASS；PR 已合并
+- 未完成：真实麦克风、长时录音、浏览器进程崩溃、多标签、真实配额、云存储、ASR 和真实试点；CON-012/013 在真实试点前处理
+- 数据库或接口变更：无新增；沿用 DEV-003C 已审查的 IndexedDB v3 与正式 audio REST
+- 执行测试与结果：沿用锁定 head GitHub CI `30875834803` PASS；本次为审查/合并文档收口，执行 format、diff check、Git/PR/merge 状态检查，不重复应用测试
+- 已知问题：内部 audio harness 当前可由查询参数启用；生产或真实试点前必须移除或严格限制，见 CON-013
+- 风险：本次 PASS 不能外推为真实录音、长时稳定性、生产安全或 ASR 通过；后续不得改写 REV-011 绑定 head 的历史结论
+- 下一步：DEV-004 已解除 DEV-003 依赖；总控先读取 ASR/说话人正式规范、运行 iteration-coach 预审并建立可执行任务卡，再决定是否启动音频/后端专业 Agent
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、REV-011、HO-016、CON-012/013，以及新建 DEV-004 任务卡
+- 运行或复现方式：以 PR #2、head `1aa643a` 和 CI `30875834803` 复核已通过候选；DEV-004 继续仅使用虚构/合成数据，不使用真实访谈资料
+
 ## 交接模板
 
 ```text
