@@ -225,13 +225,13 @@
 - 交出角色：音频前端 Agent、后端音频 Agent、总控 Agent
 - 接收角色：项目负责人（GitHub 审查）、后续 DEV-003 前后端上传集成角色
 - 时间：2026-08-04
-- 分支与提交：`codex/mvp-v01-vertical-slice`；实现 `134be76`；交接提交见 PR #1 最新 head
+- 分支与提交：`codex/mvp-v01-vertical-slice`；实现 `134be76`；认证 E2E 稳定性修复 `7e95bdf`；交接提交见 PR #1 最新 head
 - 修改文件：Prisma schema/新 migration、`apps/api/src/audio/**`、project consent 最小校验接入、config/contracts、数据库测试、`apps/web/src/audio/audio-browser-harness.tsx`、`apps/web/src/main.tsx`、Chromium E2E、auth E2E 时序修复及本协作文档
 - 已完成：项目级 consent/interview audio object；raw 不可变分片；本地私有原子存储；assignment/session/幂等门禁；complete 存储复核与 canonical manifest；`recorded_verbal` 存储重新验证；原生 Chromium MediaRecorder/IndexedDB 刷新与同源页面重开恢复证据
 - 未完成：浏览器队列到服务端的自动上传/重试/complete 编排；真实麦克风、崩溃、多标签、配额和长时录音；真实云存储、生产部署和真实试点门禁
 - 数据库或接口变更：新增 `audio_object`/`audio_chunk` 及 consent FK；新增 `/projects/:id/audio-objects`、raw chunk PUT、complete、manifest；内部 object key 不出普通响应
-- 执行测试与结果：总控通过 Prisma generate、typecheck、lint、unit 11 files/48 tests、build、format、diff check、Chromium 2/2；production audit 最终无已知漏洞；auth E2E 因缺少 TEST_DATABASE_URL 停止；后端 Agent 实际运行 integration 时因 `127.0.0.1:5433` 不可达失败
-- 已知问题：本地 Docker daemon/测试 PostgreSQL 不可用，migration deploy/status/重复 deploy、PostgreSQL integration/auth 尚无本轮本地通过证据；交由 GitHub CI 补证，CI 失败必须修复后再请审查
+- 执行测试与结果：总控通过 Prisma generate、typecheck、lint、unit 11 files/48 tests、build、format、diff check、Chromium 2/2；production audit 最终无已知漏洞；GitHub CI run `30872055084` 对 `7e95bdf` PASS，补齐 migration deploy/status、PostgreSQL integration/auth、smoke 和两组 Chromium E2E
+- 已知问题：本地 Docker daemon/测试 PostgreSQL 仍不可用，因此本机没有数据库复跑证据；GitHub CI 已提供 Linux/PostgreSQL 18 环境证据，但不替代项目负责人代码审查
 - 风险：匹配 orphan 由确定性内部 key 恢复，不能将内部 key 泄露给客户端；ACK 只能在服务端响应和 checksum/seq 元数据均匹配后删除本地 Blob；push/CI 不等于项目负责人通过
 - 下一步：提交并 push PR #1，等待 CI；总控修复任何 CI 问题；项目负责人按 commit 审查并返回意见。通过后才关闭 DEV-003A/B；之后单独实现浏览器上传编排，继续父 DEV-003
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003A/B、ADR-015/016、REV-010、HO-010 至 HO-012

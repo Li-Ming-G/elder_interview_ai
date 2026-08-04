@@ -191,12 +191,13 @@ P2：
 - 审查仓库：private `Li-Ming-G/elder_interview_ai`
 - 审查分支：`codex/mvp-v01-vertical-slice`
 - 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/1`
-- 候选实现提交：`134be76`；协作交接提交以 PR 最新 head 为准
+- 候选实现提交：`134be76`；认证 E2E 稳定性修复 `7e95bdf`；协作交接提交以 PR 最新 head 为准
 - 审查范围：DEV-003A 真实 Chromium MediaRecorder/IndexedDB 证据；DEV-003B audio object、不可变分片、manifest、授权音频存储复核和回归测试
 - 审查人：项目负责人（GitHub 人工审查）
 - 当前结论：`PENDING`
 - 本地证据：typecheck、lint、unit 48/48、build、format、diff check、Chromium 2/2 通过；PostgreSQL migration/integration/auth 因本地 Docker/5433 不可用而未通过环境验证
-- 待 GitHub 证据：CI 数据库迁移、integration/auth、候选 head 状态；项目负责人评论、未解决线程和明确 PASS/FAIL/PARTIAL
+- GitHub 证据：CI run `30872055084` 对 `7e95bdf` PASS，包含 migration deploy/status、PostgreSQL integration/auth、build/smoke、Chromium E2E 与 auth Chromium E2E
+- 待人工证据：项目负责人评论、未解决线程和明确 PASS/FAIL/PARTIAL
 - 允许进入的下一状态：DEV-003A/B 保持 `REVIEW`；只有项目负责人将结论绑定候选 commit/PR 并明确通过后才可 `DONE`
 
 ## 审查模板

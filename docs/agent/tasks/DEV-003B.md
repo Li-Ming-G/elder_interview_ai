@@ -65,4 +65,5 @@
 - 已覆盖 request/actor/target 幂等绑定、同序号冲突、缺片/乱序、complete 后写入、assignment 撤销、存储失败不 ACK、匹配 orphan 恢复和篡改拒绝；
 - 总控本地通过：Prisma generate/静态校验、typecheck、lint、unit 11 files/48 tests、build、format、diff check；production audit 最终未发现已知漏洞；
 - 未完成本地 PostgreSQL migration deploy/status/重复 deploy、integration/auth/E2E-auth，原因是 Docker daemon 与 `127.0.0.1:5433` 不可用；已实际尝试，不声称通过；
-- 候选提交和 GitHub CI 结果见 PR #1；状态保持 `REVIEW`，等待项目负责人按 commit 返回意见。
+- GitHub CI run `30872055084` 对 head `7e95bdf` PASS：migration deploy/status、PostgreSQL integration/auth、build/smoke、Chromium 与 auth Chromium 等全部根门禁通过；
+- 状态保持 `REVIEW`，等待项目负责人按 commit/PR 返回意见；CI PASS 不等于人工审查通过。
