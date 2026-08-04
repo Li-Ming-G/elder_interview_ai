@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003 已通过；DEV-004A 确定态转录证据核心已形成 GitHub 审查候选，父 DEV-004 仍需实时传输与校准子任务。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A 已通过；父 DEV-004 仍需实时传输与校准子任务。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -215,3 +215,11 @@
 - Local limitation: 本机 Docker daemon 未运行且 `TEST_DATABASE_URL` 未配置，因此数据库验证证据来自 GitHub 隔离 PostgreSQL，而不是本机复跑。
 - Lesson: 供应商中立不仅是字段命名中立；重放等价性、原始 payload 私密性、映射快照时点和 restricted 读取门禁也必须在持久化 seam 中固定，否则稳定 segment ID 仍可能掩盖证据漂移或越权。
 - Boundary: 候选不代表 DEV-004 完成；真实 ASR、WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据与生产部署仍未覆盖。
+
+### 2026-08-04 — REV-012 通过并合并 DEV-004A
+
+- Review evidence: 项目负责人锁定 PR #3 head `917f88827b80c88bba8515f0fe9aa0d92bb430c2`，确认非 Draft、可合并且未漂移；最终 CI `30887031030` 全门禁 PASS；结论 PASS。
+- Closed scope: DEV-004A 在内部虚构数据证据核心范围转 `DONE`，PR #3 以 merge commit `2098d9f41de92e61baa3079d7037e00022745899` 合入 `main`。
+- Boundary: 父 DEV-004 保持 `IN_PROGRESS`；实时 WebSocket/PCM、前端事件、校准/remap、真实供应商、故障区间、离线补录和真实试点仍未通过。
+- Follow-up hardening: 后续补同 ingest key 并发 PostgreSQL 测试，以及 provider payload 接近 64 KiB 时应用序列化与 `jsonb::text` 数据库约束的精确边界测试。
+- Lesson: 数据核心通过后可以为实时链路提供稳定落点，但不能反向证明传输顺序、恢复、背压和用户体验；父任务状态必须按未验证的纵向链路继续保持开放。

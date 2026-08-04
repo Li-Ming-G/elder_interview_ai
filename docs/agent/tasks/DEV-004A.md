@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：后端转录实现 Agent（`dev004a_backend_impl`）
 - 前置依赖：DEV-003、ADR-018、CON-015/016
 - 分支：`codex/dev004a-transcript-core`
@@ -66,3 +66,10 @@
 - provider payload 超过 64 KiB 被拒绝，且不出日志和普通查询；
 - 非允许 session 状态拒绝 ingestion；查询按有效 assignment 隔离；
 - 完成后提交 GitHub PR 并转 `REVIEW`；只有项目负责人按最终 head 明确 PASS 后才可 `DONE`。
+
+## 审查收口
+
+- 项目负责人于 2026-08-04 锁定 PR #3 最终 head `917f88827b80c88bba8515f0fe9aa0d92bb430c2` 并给出 `PASS`；GitHub CI `30887031030` 全门禁通过。
+- PR #3 已合入 `main`，merge commit `2098d9f41de92e61baa3079d7037e00022745899`；详见 REV-012、HO-020。
+- 非阻塞 P2：补同 ingest key 并发写 PostgreSQL 测试；补 provider payload 接近 64 KiB 的应用层/数据库双边界精确测试。
+- 本任务通过不代表父 DEV-004、实时传输、校准/remap、真实供应商、故障区间、离线补录或真实试点通过。

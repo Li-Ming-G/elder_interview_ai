@@ -364,6 +364,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-017/018/019、CON-014/015/016
 - 运行或复现方式：配置隔离 `TEST_DATABASE_URL` 后执行 migration deploy/status 与 `pnpm test:integration`；其余命令见上
 
+## HO-020｜REV-012 PASS、PR #3 合并与 DEV-004A 关闭
+
+- 任务编号：`DEV-004A`、父 `DEV-004`、REQ-003、REV-012
+- 交出角色：项目负责人（GitHub 审查）/ 总控 Agent
+- 接收角色：DEV-004B 后续任务负责人
+- 时间：2026-08-04
+- 分支与提交：审查分支 `codex/dev004a-transcript-core`；锁定 head `917f88827b80c88bba8515f0fe9aa0d92bb430c2`；PR #3；merge commit `2098d9f41de92e61baa3079d7037e00022745899`
+- 修改文件：本次收口更新任务板、任务卡、追溯、审查、交接与迭代日志；不改写已审查实现
+- 已完成：项目负责人确认 PR/head/CI 未漂移并对 DEV-004A 给出 PASS；final-only 证据核心转 `DONE`；PR #3 合入 `main`
+- 未完成：父 DEV-004；业务 WebSocket、实时 PCM、前端 interim/final 事件、校准/remap、真实 ASR、故障区间、离线补录与真实试点
+- 数据库或接口变更：沿用 REV-012 已通过的 `speaker_mapping`、`transcript_segment` 和内部 Nest services；无新增公共 API
+- 执行测试与结果：审查绑定最终 CI `30887031030` 全门禁 PASS；本次收口执行 PR/head/merge、Git 状态、文档格式和 diff 检查，不重复应用测试
+- 已知问题：CON-014 继续阻塞 DEV-004C；P2 为并发同 ingest key PostgreSQL 测试及 64 KiB payload 精确双边界测试
+- 风险：不得把 DEV-004A PASS 外推为实时链路、真实供应商、真实数据或父 DEV-004 通过
+- 下一步：总控先为 DEV-004B 补齐 WebSocket 鉴权/Origin、PCM 帧、背压、事件顺序/ACK、恢复游标、错误/关闭语义的正式契约和可执行任务卡，再决定前后端 Agent 边界
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004、REV-012、HO-020、CON-014，以及后续 DEV-004B 任务卡
+- 运行或复现方式：以 PR #3、head `917f888`、CI `30887031030` 复核 DEV-004A；后续只用合成 PCM/虚构文本，不使用真实访谈数据
+
 ## 交接模板
 
 ```text

@@ -221,6 +221,24 @@ P2：
 - 允许进入的下一状态：DEV-003C 与父 DEV-003 转 `DONE`；DEV-004 解除录音依赖但须先补正式任务卡和迭代预审
 - 合并记录：PR #2 于 2026-08-04 合入 `main`，merge commit `bdf29108d8a650fedeefbab70db4f8c37cb12c25`；不改变审查绑定 head `1aa643a` 的事实
 
+## REV-012｜DEV-004A GitHub 项目负责人审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/dev004a-transcript-core`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/3`
+- 审查提交：最终 head `917f88827b80c88bba8515f0fe9aa0d92bb430c2`，GitHub 返回值与交接 SHA 一致且未漂移
+- 审查范围：DEV-004A 内部虚构数据的 final-only 转录证据核心、说话人映射、幂等/冲突、payload 隔离、权限/fixture 门禁及 PostgreSQL integration
+- 审查人：项目负责人（GitHub 人工审查）
+- 审查时间：2026-08-04
+- 当前结论：`PASS`；PR 非 Draft、可合并，未发现阻塞性 P0/P1
+- 自动证据：最终 GitHub CI `30887031030` 全门禁 PASS，覆盖 format/lint/typecheck/unit、migration deploy/status、PostgreSQL integration、auth、build、smoke、Chromium E2E 与 auth E2E
+- 通过依据：interim 门禁后零落库；final 以 `(session_id, ingest_key)` 幂等；不可变证据差异稳定冲突；原文/原角色快照不覆盖；mapping append-only 且部分唯一；payload 64 KiB 应用/数据库双限制并从 DTO 排除；assignment/restricted 门禁；fixture 只限 local/test 且 fake 未注册 production；无 controller 或公开写入口
+- 审查边界：只覆盖 DEV-004A；父 DEV-004、业务 WebSocket、实时 PCM、前端 interim/final 事件、校准/remap、真实供应商、故障区间、离线补录和真实试点均未通过
+- P2-1：后续增加完全相同 ingest key 的并发 PostgreSQL 写入测试，直接覆盖唯一约束与 P2002 恢复分支返回同一 ID 或稳定冲突
+- P2-2：补 provider payload 接近 64 KiB 的精确边界测试，验证 `JSON.stringify` 字节数与 PostgreSQL `jsonb::text` 二次约束在极限附近的组合行为
+- 允许进入的下一状态：DEV-004A 转 `DONE` 并合并；父 DEV-004 保持 `IN_PROGRESS`，DEV-004B 开工前先完成实时协议正式契约与任务卡
+- 合并记录：PR #3 于 2026-08-04 合入 `main`，merge commit `2098d9f41de92e61baa3079d7037e00022745899`；不改变审查绑定 head `917f888` 的事实
+
 ## 审查模板
 
 ```text
