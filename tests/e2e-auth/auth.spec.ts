@@ -82,12 +82,12 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   await page.goto(
     `/?audio_harness=1&project_id=${encodeURIComponent(projectId)}&session_id=${encodeURIComponent(bufferSessionId)}`,
   );
-  await page.getByRole('button', { name: '开始合成录音' }).click();
+  await page.getByTestId('start-recording').click();
   await expect
     .poll(async () => Number(await page.getByTestId('persisted-count').textContent()))
     .toBeGreaterThan(0);
-  await page.getByRole('button', { name: '停止并持久化' }).click();
-  await expect(page.getByTestId('capture-status')).toHaveText('idle');
+  await page.getByTestId('stop-recording').click();
+  await expect(page.getByTestId('capture-status')).toHaveText('stopped');
   await expect
     .poll(async () => {
       const value = await page.getByTestId('chunk-count').textContent();
@@ -95,7 +95,7 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
     })
     .toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: '上传并完成' }).click();
+  await page.getByTestId('upload-action').click();
   await expect(page.getByTestId('upload-status')).toHaveText('complete');
   await expect(page.getByTestId('chunk-count')).toHaveText('待上传分片：0');
   await expect(page.getByTestId('audio-object-id')).not.toHaveText('none');
