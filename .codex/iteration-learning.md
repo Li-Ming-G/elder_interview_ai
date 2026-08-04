@@ -44,6 +44,14 @@
 - Tradeoff: 任务在本地测试和 push 后仍保持 `REVIEW`，必须等待负责人意见，交付节奏增加一次外部往返。
 - Boundary: 实现者仍负责本地测试、迁移和交接；push/PR/CI 不等于通过；审查证据必须绑定 commit 与 PR。
 
+### D-006 — 浏览器可靠上传必须持久化完整作业而非只有 Blob
+
+- Status: adopted
+- Evidence: `05` §3.6、`06` §3.5、ADR-015/017、DEV-003C；iteration-coach 独立预审指出 init/complete 响应丢失的恢复缺口。
+- Reason: 服务端幂等只有客户端跨刷新复用稳定 request ID 才能闭合；ACK 会删除 Blob，因此 expected count 也不能从剩余队列推导。
+- Tradeoff: IndexedDB 增加 upload job store、状态机和严格响应校验；换取刷新/响应丢失后不重复建对象且可确定恢复。
+- Boundary: 一个 job 对应一个连续 audio object；内部虚构音频、有限重试，不引入 Service Worker、无限后台同步或多对象会话设计。
+
 ## Assumptions to Validate
 
 ### A-001 — “拾光长者传记项目”与正式文档中的“AI 辅助长者访谈系统”是同一项目

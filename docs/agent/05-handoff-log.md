@@ -256,6 +256,24 @@
 - 必须先读取：AGENTS、`00` 至 `06`、`08` 至 `10`、任务板、DEV-003A/B、ADR-016、REV-010、HO-012/013、CON-012
 - 运行或复现方式：以 `936fd04` 和 CI run `30872251081` 复核已通过候选；后续新代码使用虚构字节和隔离存储/数据库
 
+## HO-014｜DEV-003C 可靠上传编排启动
+
+- 任务编号：`DEV-003C`、ADR-017、REQ-002
+- 交出角色：总控 Agent / iteration-coach 独立只读预审
+- 接收角色：后端存储实现角色、音频前端上传实现角色
+- 时间：2026-08-04
+- 分支与提交：`codex/dev003c-reliable-upload`；启动契约提交待产生
+- 修改文件：`05`、`06`、ADR-017、任务板、追溯、DEV-003C 任务卡和本交接
+- 已完成：确认两项 P2 与自动上传同批但分提交推进；冻结跨刷新 `AudioUploadJob`、稳定阶段 request ID、严格 ACK、停止时 expected count 的正式边界
+- 未完成：后端 P2 修复、IndexedDB upload job、API uploader、Chromium 纵向 E2E 和 GitHub 审查
+- 数据库或接口变更：不改服务端 Prisma/REST Schema；仅补客户端重试与 ACK 使用约束，IndexedDB 使用前向版本升级
+- 执行测试与结果：本条为实现前任务/契约收敛；提交前执行 format、diff check；应用测试在实现后执行
+- 已知问题：本地 Docker 仍可能不可用，PostgreSQL 证据可由 GitHub CI 补齐；CON-012 只阻塞真实试点
+- 风险：只持久化 Blob 会在 init/complete 响应丢失后重复对象或错误完成；每阶段必须先持久化 request ID，再发网络请求
+- 下一步：先后端 P2，再前端上传作业，最后用虚构合成音频验证断网/刷新/响应丢失和 complete
+- 必须先读取：AGENTS、`00` 至 `06`、`08` 至 `10`、任务板、DEV-003C、ADR-015/016/017、REV-010、HO-013/014
+- 运行或复现方式：只用虚构数据；后端跑 audio unit/integration，前端跑 audio unit/Chromium，最终执行根 CI 门禁
+
 ## 交接模板
 
 ```text

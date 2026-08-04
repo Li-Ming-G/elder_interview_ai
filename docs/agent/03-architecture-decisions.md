@@ -129,3 +129,12 @@
 - 代价：增加一层 audio object 与初始化/完成生命周期，上传需同时维护对象和分片状态。
 - 边界：不引入照片、附件或通用媒体管理；purpose 仅两种。内部原型使用本地私有适配器和虚构音频，真实对象存储与签名上传留到试点门禁。
 - 重新评估条件：出现新媒体用途、直传云存储或跨服务上传任务时，重新评估 purpose、生命周期和 outbox/清理机制。
+
+## ADR-017｜浏览器上传以跨刷新持久化作业衔接本地分片与服务端幂等
+
+- 状态：Accepted
+- 决定：一个浏览器上传作业对应一个连续 `0..N-1` 的 audio object。IndexedDB 除不可变 Blob 和 seq/timeline 高水位外，还持久化 init/chunk/complete 的稳定 request ID、服务端 audio object ID、录制结束时冻结的 expected count 和作业状态。网络请求前先持久化 request ID；响应丢失或刷新后复用同一 ID；只有服务端 ACK 全字段匹配才删除本地 Blob。
+- 原因：只保存 Blob 无法在 init 或 complete 响应丢失后确定服务端状态，刷新时可能重复创建对象、错误重放或从已 ACK 删除的剩余 Blob 算错分片总数。服务端 ADR-015 幂等只有客户端复用稳定 request ID 才能形成端到端恢复协议。
+- 代价：IndexedDB 增加 upload job store 和前向版本迁移，客户端需要显式状态机、严格响应校验和有限重试；内部 harness/E2E 复杂度增加。
+- 边界：本批只用合成/虚构音频和显式内部验证入口；不实现完整访谈 UI、Service Worker、无限后台同步、真实麦克风、云存储或 ASR。CON-012 不阻塞本决策。
+- 重新评估条件：一个 session 需要多个 audio object、分片并行上传、跨设备续传或后台长期同步时，重新评估对象边界、租约和冲突合并。
