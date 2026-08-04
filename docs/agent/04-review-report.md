@@ -205,6 +205,20 @@ P2：
 - 允许进入的下一状态：DEV-003A/B 转 `DONE`；父 DEV-003 保持 `IN_PROGRESS`，两项 P2 在下一实现批次处理
 - 合并记录：PR #1 于 2026-08-04 合入 `main`，merge commit `fa7b3a2669321ecc3fda0e991e733b0f7b6fc0d9`；不改变本审查绑定实现 head `936fd0408023ba074d2670576626e226f859923e` 的事实
 
+## REV-011｜DEV-003C GitHub 项目负责人审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/dev003c-reliable-upload`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/2`
+- 候选实现提交：契约 `d47b56d`；存储恢复 `b3376d9`；上传作业 `d85311a`；E2E 状态修正 `2768ab1`；整数时间边界 `7d7785a`；最终审查对象以 PR 最新 head 为准
+- 审查范围：DEV-003C 任务卡声明的内部虚构/合成数据范围；两项 REV-010 P2、浏览器持久化上传作业、稳定幂等 ID、严格 ACK、响应丢失/刷新恢复和 complete
+- 审查人：项目负责人（GitHub 人工审查）
+- 当前结论：`PENDING`
+- 自动证据：本地 format/lint/typecheck/build、unit 56/56、Chromium 3/3；GitHub CI run `30875678125` 对实现 head `7d7785a` PASS，包含 migration deploy/status、PostgreSQL integration/auth、smoke 与两组 Chromium E2E
+- 已知失败与修正：首次 CI 发现认证 E2E 状态断言错误；第二次 CI 进一步发现浏览器小数毫秒不符合正式整数 API 契约，改为采集端连续整数边界并补回归测试；未放宽服务端契约
+- 审查边界：不包含真实麦克风、长时录音、崩溃进程恢复、多标签、真实配额、云存储、ASR、真实客户或生产部署；CON-012 仍在真实试点前决策
+- 允许进入的下一状态：项目负责人仅在确认 PR 最终 head 未漂移且结论 PASS 后，DEV-003C 与父 DEV-003 才可转 `DONE`；当前保持 `REVIEW`
+
 ## 审查模板
 
 ```text

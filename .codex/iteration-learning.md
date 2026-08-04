@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002、DEV-003A/B 内部原型已通过，父 DEV-003 继续自动上传/重试编排和存储 P2 加固。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002、DEV-003A/B 已通过，DEV-003C 可靠上传候选已推送 PR #2 并等待项目负责人审查。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -165,3 +165,14 @@
 - Closed scope: DEV-003A 原生浏览器录音/持久化内部原型与 DEV-003B 服务端可靠保存内部原型转 DONE；父 DEV-003 仍 IN_PROGRESS。
 - Non-blocking findings: 临时文件 write/sync 失败清理与存储缺失冲突恢复列入下一实现批次；授权音频跨 `consent_text_version` 复用登记 CON-012，真实试点前决策。
 - Lesson: 审查通过必须绑定不可漂移的 head，同时把“任务卡内通过”和“父链路/真实试点未通过”并列记录；非阻塞意见不能被 PASS 吞掉，也不能反向伪造为当前任务失败。
+
+### 2026-08-04 — DEV-003C 浏览器可靠上传纵向候选
+
+- User outcome: 合并已通过的两端音频基线后，继续打通最小可靠上传，开发完成先提交 GitHub 由项目负责人审查。
+- Review mode: Correction mode；独立只读预审指出只持久化 Blob 无法处理 init/complete 响应丢失，必须持久化完整 upload job。
+- Adopted decision: IndexedDB v3 保存稳定 create/chunk/complete request ID、audio object、冻结 count 与状态；先解决两项存储 P2，再接顺序上传、严格 ACK 和 complete，不引入 Service Worker 或生产基础设施。
+- Implementation evidence: `d47b56d`、`b3376d9`、`d85311a`、`2768ab1`、`7d7785a`；本地 unit 56/56、Chromium 3/3；PR #2 与 GitHub CI `30875678125` 全门禁 PASS。
+- Correction learned from CI: 原生 `performance.now()` 是小数，而正式 API/PostgreSQL 时间字段为整数；真实 API E2E 在 mock E2E 之后发现该契约缝隙。采集端现生成连续且严格递增的整数毫秒，不放宽服务端契约。
+- Boundary: 候选只覆盖内部虚构/合成音频；项目负责人未审查前 DEV-003C/父 DEV-003 不得 DONE；真实麦克风、长时、崩溃、多标签、云存储、ASR 和真实试点未覆盖。
+- Lesson: mock E2E 适合证明重试状态机，但不能替代真实 API 纵向测试；跨层数值类型（小数时钟到数据库整数）必须在真实契约边界验证。
+- Better future prompt: “请同时提供可控失败的 mock 浏览器 E2E 和连接正式 API/数据库的纵向 E2E；逐字段验证浏览器生成值是否满足服务端 DTO 与持久层类型。”

@@ -274,6 +274,24 @@
 - 必须先读取：AGENTS、`00` 至 `06`、`08` 至 `10`、任务板、DEV-003C、ADR-015/016/017、REV-010、HO-013/014
 - 运行或复现方式：只用虚构数据；后端跑 audio unit/integration，前端跑 audio unit/Chromium，最终执行根 CI 门禁
 
+## HO-015｜DEV-003C 可靠上传 GitHub 审查候选
+
+- 任务编号：`DEV-003C`、父 `DEV-003`、REQ-002、REV-011
+- 交出角色：总控 Agent、后端存储实现角色
+- 接收角色：项目负责人（GitHub 审查）
+- 时间：2026-08-04
+- 分支与提交：`codex/dev003c-reliable-upload`；`d47b56d`、`b3376d9`、`d85311a`、`2768ab1`、`7d7785a`；PR #2，最终 head 以 GitHub 为准
+- 修改文件：`apps/api/src/audio`、`apps/web/src/audio`、两个 Chromium E2E、audio integration、`05`/`06`、ADR-017、任务/追溯/审查/交接与迭代记录
+- 已完成：临时文件失败清理；数据库元数据优先的缺失存储恢复；IndexedDB v3 前向升级；持久化 upload job 和各阶段稳定 request ID；顺序上传、全字段 ACK、成功后删 Blob、complete；响应丢失与刷新恢复；真实 API Chromium 纵向链路
+- 未完成：项目负责人审查；真实麦克风、长时、进程崩溃、多标签、真实配额、云存储、ASR、生产部署与真实试点；CON-012 保持 OPEN
+- 数据库或接口变更：无服务端 Prisma/REST Schema 变更；IndexedDB 从 v2 前向升级至 v3 并新增 `upload-jobs`；采集时间边界归一为连续整数毫秒以遵守现有 API
+- 执行测试与结果：本地 format/lint/typecheck/build、unit 12 files/56 tests、Chromium 3/3；针对性 unit 5/5、Chromium 2/2；GitHub CI `30875678125` 全门禁 PASS，含 migration/status、PostgreSQL integration/auth、smoke、普通 E2E 3/3、认证 E2E 3/3
+- 已知问题：本机无 PostgreSQL/Docker，未本地执行 integration/auth；远端隔离环境已补证据。前两次 CI 的测试状态断言和小数时间契约问题均已修复，历史失败不改写
+- 风险：只有服务端 ACK 的 object/seq/time/size/checksum/MIME/status 全字段匹配才删本地 Blob；阶段 request ID 必须先落 IndexedDB 再发请求；PR/CI 通过不等于人工审查通过
+- 下一步：项目负责人按 PR #2 最终 head 审查并返回 PASS/意见；如 PASS，总控合并 PR、登记审查绑定 head，关闭 DEV-003C/父 DEV-003，并启动 DEV-004 的 ASR 最小纵向任务
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-003C、ADR-015/016/017、REV-010/011、HO-013 至 HO-015、CON-012
+- 运行或复现方式：本地执行根 format/lint/typecheck/unit/build/E2E；具备隔离 PostgreSQL 时追加 migration deploy/status、integration、auth 和 auth E2E；只用虚构或合成音频
+
 ## 交接模板
 
 ```text

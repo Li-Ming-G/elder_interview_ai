@@ -9,7 +9,7 @@
 | 追踪编号 | 需求或规则来源 | 需求摘要 | 代码模块 | 接口或事件 | 测试用例 | 审查结果 | 状态 |
 |---|---|---|---|---|---|---|---|
 | REQ-001 | `01` §6、§9；`03` §4-6；`04` §4.2-4.6、§4.23；`08` §4-5；ADR-014/015 | 项目、服务条款、捆绑授权与访问/start 门禁 | `apps/api/src/project-foundation`、Prisma migration `20260803153000_project_consent_session`、`f16b82a` | `05` §3.1-3.5、§4；snake_case contracts | project integration 5/5、根 integration 7/7、auth 13/13、unit 45/45；迁移 deploy/status 通过 | REV-009 PASS，P0/P1/P2=0；CON-010 只阻塞口头授权音频与真实试点 | DONE |
-| REQ-002 | `01` §6；`04` §4.8/§4.24；`06` §2-3；ADR-016/017 | 原始录音、授权/访谈用途隔离、分片幂等、连续性与恢复 | `apps/web/src/audio`；`apps/api/src/audio`；Prisma migration `20260804120000_audio_objects`；DEV-003C 上传作业待实现 | `05` §3.6、§4 的 audio object init/raw upload/complete/manifest | DEV-003A/B：unit 48/48、Chromium 2/2、CI PASS；DEV-003C 待补响应丢失/刷新/断网纵向证据 | REV-010 对 `936fd04` PASS，DEV-003A/B DONE；DEV-003C IN_PROGRESS | IN_PROGRESS |
+| REQ-002 | `01` §6；`04` §4.8/§4.24；`06` §2-3；ADR-016/017 | 原始录音、授权/访谈用途隔离、分片幂等、连续性与恢复 | `apps/web/src/audio`；`apps/api/src/audio`；Prisma migration `20260804120000_audio_objects`；持久化 `AudioUploadJob` | `05` §3.6、§4 的 audio object init/raw upload/complete/manifest | DEV-003C：unit 56/56、Chromium 3/3；响应丢失/刷新/ACK 严格匹配；CI `30875678125` migration/integration/auth/真实 API E2E 全通过 | REV-010 对 DEV-003A/B PASS；DEV-003C PR #2 / REV-011 等项目负责人结论 | REVIEW |
 | REQ-003 | `01` §6；`06` §4-10 | 实时 ASR、确定态转录与说话人映射 | `DEV-004`（未实现） | `05` §3.7、§5 | `09` §6 | 待执行 | 规划 |
 | REQ-004 | `01` §8；`03` §7-12、§18 | 访谈工作台、链路状态、标记和安全结束 | `DEV-005`（未实现） | `05` §3.5、§3.8、§5 | `09` 场景 A/C | 待执行 | 规划 |
 | REQ-005 | `01` §6、§9；`07` §3-5 | 项目级结构化记忆、证据回链与冲突处理 | `DEV-006`（未实现） | `05` §3.10 | `09` §4、§7、场景 B | 待执行 | 规划 |

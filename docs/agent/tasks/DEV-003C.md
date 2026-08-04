@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 负责人：总控 Agent（协调后端存储与音频前端实现）
 - 前置依赖：DEV-003A、DEV-003B、REV-010
 - 分支：`codex/dev003c-reliable-upload`
@@ -60,3 +60,12 @@
 - 服务端 ACK 任一字段不匹配时本地分片保留并进入 failed；
 - expected count 在录制停止时冻结，全部分片 ACK 后仍能正确 complete；
 - 完成后 push 新 GitHub PR，状态转 `REVIEW`；只有项目负责人按候选 head 明确通过后才可 `DONE`。
+
+## 实现与验证记录（2026-08-04）
+
+- 服务端：`b3376d9` 完成完整临时文件生命周期清理、原错误优先和已有数据库元数据优先恢复；错误内容不接触缺失存储，匹配内容可恢复，现存篡改对象返回冲突；
+- 浏览器：`d85311a` 完成 IndexedDB v3 upload job、稳定 create/chunk/complete request ID、严格 ACK、ACK 后删除和 complete；`7d7785a` 将原生录音小数时钟归一为连续整数毫秒边界以符合正式 API；
+- 本地：format、lint、typecheck、build、unit 12 files/56 tests、Chromium 3/3 通过；针对性上传/迁移 unit 5/5 与上传 Chromium 2/2 通过；
+- GitHub：PR #2，CI run `30875678125` 对实现 head `7d7785a` 全门禁通过，包含 migration deploy/status、PostgreSQL integration/auth、smoke、普通 Chromium 3/3 和认证真实 API Chromium 3/3；
+- 未在本地执行：PostgreSQL integration/auth（本机无可用 PostgreSQL/Docker）；由上述 GitHub CI 补齐；
+- 当前结论：交付物和自动验证已满足，进入 `REVIEW`；项目负责人尚未按最终 PR head 给出审查结论，因此不得标记 `DONE`。
