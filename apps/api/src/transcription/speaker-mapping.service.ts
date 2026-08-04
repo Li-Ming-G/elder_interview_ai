@@ -10,7 +10,7 @@ export class SpeakerMappingService {
   public async append(input: AppendSpeakerMappingInput): Promise<string> {
     this.validate(input);
     return this.prisma.$transaction(async (transaction) => {
-      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.sessionId}\u0000${input.speakerProviderId}`}, 0))`;
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.sessionId}:${input.speakerProviderId}`}, 0))`;
       const session = await transaction.interviewSession.findUnique({
         select: { id: true },
         where: { id: input.sessionId },
