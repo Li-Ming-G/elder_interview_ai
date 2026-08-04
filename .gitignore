@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+.npm-cache/
 
 # Build outputs
 dist/
@@ -10,6 +11,7 @@ coverage/
 .turbo/
 .vite/
 *.tsbuildinfo
+apps/api/src/generated/prisma/
 
 # Environment and secrets
 .env
@@ -31,6 +33,7 @@ logs/
 *.sqlite
 *.sqlite3
 .cache/
+.local/
 tmp/
 temp/
 

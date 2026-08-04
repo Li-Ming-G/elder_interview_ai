@@ -36,6 +36,20 @@ GET  /auth/me
 GET  /auth/csrf
 ```
 
+`POST /projects` 仅供 `interviewer` 创建自己负责的项目。请求和最小响应：
+
+```json
+{
+  "display_name": "虚构长者称呼",
+  "birth_year": null,
+  "approximate_age": null,
+  "native_place": null,
+  "current_city": null
+}
+```
+
+`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。列表和详情不返回未分配项目；不存在、软删除、隐私删除或未分配均不得泄露项目正文。
+
 登录请求：
 
 ```json
@@ -86,6 +100,20 @@ DELETE /projects/:id
 POST   /projects/:id/restore
 ```
 
+`POST /projects` 仅供 `interviewer` 创建自己负责的项目。请求和最小响应：
+
+```json
+{
+  "display_name": "虚构长者称呼",
+  "birth_year": null,
+  "approximate_age": null,
+  "native_place": null,
+  "current_city": null
+}
+```
+
+`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。列表和详情不返回未分配项目；不存在、软删除、隐私删除或未分配均不得泄露项目正文。
+
 `DELETE /projects/:id` 与 `/restore` 只用于普通、可恢复的软删除：前者设置 `deleted_at` 但不执行隐私物理清理，后者只清除该软删除标记。它们不得替代 deletion-request 流程；存在非终态删除申请或项目已因 completed project scope 请求进入 `status=deleted` 时，普通删除/恢复返回 409 `PROJECT_DELETION_LOCKED`，物理删除完成后的项目永远不得 restore。
 
 ### 3.2 项目分配
@@ -96,12 +124,29 @@ POST   /projects/:id/assignments
 DELETE /projects/:id/assignments/:assignmentId
 ```
 
+MVP 的 `assignment_role` 固定为 `interviewer`。`POST` 至少包含 `user_id`；创建、重复创建、撤销和审计必须使用持久化 assignment 判断，不接受客户端提供的 owner/assignment 布尔值。普通倾听员不能为其他用户分配项目。
+
 ### 3.3 服务信息
 
 ```http
 POST /projects/:id/service-terms
 GET  /projects/:id/service-terms
 ```
+
+`POST /projects/:id/service-terms` 请求：
+
+```json
+{
+  "included_minutes": 60,
+  "estimated_session_count": 2,
+  "expected_current_minutes": 30,
+  "overtime_unit_minutes": 30,
+  "overtime_price_minor": 0,
+  "currency": "CNY"
+}
+```
+
+分钟、次数和金额使用非负整数；`currency` 为三位大写 ISO 4217 代码。服务端写入 `explained_at`、`explained_by`、`effective_from`；新记录生效时把上一条当前记录写 `superseded_at`，不覆盖历史。只有被分配倾听员可提交和读取；内部虚构数据允许价格为 0。
 
 ### 3.4 授权
 
@@ -118,6 +163,28 @@ POST /deletion-requests/:id/start-processing
 POST /deletion-requests/:id/complete
 POST /deletion-requests/:id/withdraw
 ```
+
+MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建请求：
+
+```json
+{
+  "consent_type": "recording_transcription_ai",
+  "consent_text_version": "mvp-v1",
+  "consent_method": "electronic",
+  "consented_at": "2026-08-03T08:00:00.000Z",
+  "consent_audio_object_id": null
+}
+```
+
+创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
+
+撤回请求至少包含新的 `request_id`：
+
+```json
+{ "request_id": "uuid" }
+```
+
+撤回只允许本项目当前有效捆绑授权，必须在同一事务写 `status=revoked`、`revoked_at`、项目限制状态和审计；相同 `request_id` 重试返回首次结果。撤回后禁止启动新会话和继续 AI 分析。
 
 删除申请请求至少包含：
 
@@ -159,14 +226,61 @@ POST /sessions/:id/stop
 POST /sessions/:id/recover
 ```
 
+`POST /projects/:id/sessions` 只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+
+`POST /sessions/:id/device-check` 请求至少包含：
+
+```json
+{ "microphone_permission": "granted", "input_detected": true }
+```
+
+仅两项均满足时把 `created -> device_check`；失败保持 `created` 并返回可操作错误。
+
+`POST /sessions/:id/start` 至少包含新的 `request_id`。服务端在同一事务重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时转 `recording` 并写 `started_at`。不得信任客户端提供的 `can_record`、授权状态或项目归属。相同 `request_id` 重试返回首次结果；门禁失败不得创建录音或 ASR/AI 任务。
+
 ### 3.6 音频
 
 ```http
-POST /sessions/:id/audio-chunks/init
-PUT  /sessions/:id/audio-chunks/:sequenceNo
-POST /sessions/:id/audio-chunks/complete
-GET  /sessions/:id/audio-manifest
+POST /projects/:id/audio-objects
+PUT  /audio-objects/:id/chunks/:sequenceNo
+POST /audio-objects/:id/complete
+GET  /audio-objects/:id/manifest
 ```
+
+初始化请求：
+
+```json
+{
+  "request_id": "uuid",
+  "purpose": "consent",
+  "session_id": null,
+  "mime_type": "audio/webm;codecs=opus"
+}
+```
+
+`purpose=consent` 时 `session_id` 必须为空，只要求当前倾听员拥有有效 project assignment，不要求项目已经取得有效授权或 session 已 start。`purpose=interview` 时 `session_id` 必填、必须属于同一项目，且 session 必须为 `recording|reconnecting|stopping`；不得用 consent 对象冒充访谈录音。响应返回 audio object ID、project/session、purpose、status、mime type 和时间戳。
+
+分片上传使用原始二进制请求体，且至少包含以下 header：
+
+```text
+Content-Type: audio/webm;codecs=opus
+X-Request-Id: uuid
+X-Chunk-Start-Ms: 0
+X-Chunk-End-Ms: 5000
+X-Chunk-SHA256: 64-char-lowercase-hex
+```
+
+`sequenceNo` 为从 0 开始的非负整数。服务端先校验 body 大小、时间范围和 SHA-256，再写入私有存储与数据库。相同 request ID 按 §4 重放；不同 request ID 重试同一 `(audio_object_id, sequenceNo)` 时，只有二进制、checksum、时间、size 和 MIME 全部一致才返回原分片结果，任一不同返回 409 `AUDIO_CHUNK_CONFLICT`。对象已 complete 后上传返回 409 `AUDIO_OBJECT_COMPLETE`。存储失败返回 503 `AUDIO_STORAGE_UNAVAILABLE`，不得写成 uploaded 或 ACK；响应和日志不返回 `object_key`。
+
+complete 请求：
+
+```json
+{ "request_id": "uuid", "expected_chunk_count": 3 }
+```
+
+服务端按 audio object 资源串行，核对 `0..expected_chunk_count-1` 连续、全部为 uploaded，并重新读取私有存储中的 size/checksum。缺片或不一致返回 409 `AUDIO_MANIFEST_INCOMPLETE`，对象不进入 complete。成功时固化 chunk count、total bytes、canonical manifest SHA-256 和 completed time；相同请求重放返回首次快照。
+
+manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。只有有效 assignment 可以初始化、上传、完成和查询。
 
 ### 3.7 转录
 
@@ -254,6 +368,7 @@ GET  /exports/:id
 - 开始访谈；
 - 结束访谈；
 - 上传音频分片；
+- 初始化和完成音频对象；
 - 创建内容标记；
 - 保存建议操作；
 - 创建导出任务；
@@ -263,7 +378,9 @@ GET  /exports/:id
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
-重复请求必须返回同一业务结果，不得产生重复记录。
+`request_id` 在需要幂等的业务写操作间全局唯一。首次成功请求必须把 action、操作者、目标资源和最小响应快照持久化；相同 `request_id` 且绑定信息一致时返回首次响应快照，不得产生重复状态变化、业务记录或审计。相同 `request_id` 被不同 action、操作者或目标资源复用时返回 409 `IDEMPOTENCY_KEY_REUSED`，不得返回其他资源结果。
+
+幂等键锁只负责相同请求重放；开始访谈、撤回授权等状态变化还必须按 session、consent 或 project 业务资源串行化，或使用带前置状态的原子更新。不同 `request_id` 并发命中同一资源时只能有一个请求完成该次合法状态变化。
 
 删除申请处于非终态（`pending_verification`、`verified`、`processing`）时：
 

@@ -1,0 +1,41 @@
+{
+  "name": "@elder-interview/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:status": "prisma migrate status",
+    "start": "node dist/main.js",
+    "seed:test-identities": "node dist/cli/seed-test-users.js",
+    "user:create": "node dist/cli/user-cli.js user:create",
+    "user:set-password": "node dist/cli/user-cli.js user:set-password",
+    "user:disable": "node dist/cli/user-cli.js user:disable",
+    "user:enable": "node dist/cli/user-cli.js user:enable",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.config.json --noEmit"
+  },
+  "dependencies": {
+    "@elder-interview/config": "workspace:*",
+    "@elder-interview/contracts": "workspace:*",
+    "@elder-interview/shared": "workspace:*",
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/platform-express": "11.1.28",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "argon2": "0.44.0",
+    "pg": "8.22.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "11.1.28",
+    "@types/express": "5.0.6",
+    "@types/pg": "8.20.0",
+    "@types/supertest": "6.0.3",
+    "prisma": "7.9.1",
+    "supertest": "7.2.2"
+  }
+}

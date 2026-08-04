@@ -1,0 +1,2 @@
+-- DEV-001A establishes a reproducible Prisma migration history.
+-- Business tables are intentionally deferred to their approved implementation tasks.

@@ -1,0 +1,52 @@
+{
+  "name": "elder-interview-ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24.11.0 <25",
+    "pnpm": ">=11.15.1 <12"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.18.0",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "build": "pnpm --recursive --if-present run build",
+    "db:generate": "node scripts/generate-prisma.mjs",
+    "db:migrate:deploy": "pnpm --filter @elder-interview/api prisma:migrate:deploy",
+    "db:migrate:status": "pnpm --filter @elder-interview/api prisma:migrate:status",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint .",
+    "postinstall": "pnpm db:generate",
+    "test:integration": "vitest --config vitest.integration.config.ts",
+    "test:auth": "vitest --config vitest.auth.config.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:auth": "node scripts/run-auth-e2e.mjs",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:unit": "vitest --config vitest.unit.config.ts --coverage",
+    "typecheck": "pnpm --recursive --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@elder-interview/config": "workspace:*",
+    "@eslint/js": "10.0.1",
+    "@nestjs/common": "11.1.28",
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.10.13",
+    "@types/supertest": "6.0.3",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "10.8.0",
+    "globals": "17.4.0",
+    "prettier": "3.9.6",
+    "supertest": "7.2.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

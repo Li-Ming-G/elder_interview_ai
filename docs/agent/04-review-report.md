@@ -94,6 +94,116 @@ P2（不阻塞 `DEV-001A`，已登记为后续阻塞）：
 1. `DEV-008` 开工前补齐备份清理状态的完成、失败、重试与审计规则；
 2. `DEV-008` 开工前补齐删除范围摘要 pepper 的密钥版本、轮换和历史摘要验证策略。
 
+## REV-004｜DEV-001A 工程基线独立审查
+
+- 审查提交：未提交工作区，基线 `2ff795a`
+- 审查范围：DEV-001A 任务边界、工程配置、Web/API/DB smoke、Playwright、CI、日志与当前 diff
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`FAIL`
+- P0：0
+- P1：1（Playwright Chromium 根门禁未建立，Web smoke 未实际请求构建资产）
+- P2：2（logger 可原样输出消息/trace；缺少候选提交后的干净检出证据）
+- 验证证据：冻结安装、format/lint/typecheck、单元 4/4、独立空库首次/重复迁移、集成 2/2、build、原 smoke、依赖审计和敏感模式扫描通过；Chromium 因未启动 Web 服务报 `ERR_CONNECTION_REFUSED`。
+- 允许进入的下一状态：DEV-001A 保持 `REVIEW`；修复 P1 后复审，不解锁 DEV-001B。
+
+## REV-005｜DEV-001A REV-004 修复独立复审
+
+- 审查提交：未提交工作区，基线 `2ff795a`
+- 审查范围：REV-004 三项修复、根脚本、Playwright webServer、CI、真实静态资产 smoke、logger 脱敏及测试
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`PARTIAL`
+- P0：0
+- P1：0
+- P2：1（候选尚未提交，缺少全新检出的冻结安装、全部根门禁和空库迁移可重复证据）
+- 已关闭：Playwright 已接入根脚本和 CI；smoke 实际获取 2 个 JS/CSS 资产；logger 不再原样输出任意消息、`Error.message` 或 trace。
+- 验证证据：format/lint/typecheck 通过；单元 4 files/6 tests；build 通过；smoke 通过且 3100/4173 无残留；独立沙箱外 `pnpm.cmd test:e2e` 为 `1 passed (5.3s)`；`git diff --check` 通过。
+- 允许进入的下一状态：仅允许提交固定候选并执行干净检出复跑；DEV-001A 保持 `REVIEW`，DEV-001B 保持 `BLOCKED`。
+
+## REV-006｜DEV-001A 候选提交与干净检出最终复审
+
+- 审查提交：`fb99560d56988500c39ac996189e80313c173d9e`
+- 审查范围：候选提交、原工作区与全新 clone、REV-005 唯一 P2 关闭证据
+- 审查人：独立审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`PASS`
+- P0：0
+- P1：0
+- P2：0
+- 验证证据：两处 HEAD 精确一致且工作树干净；全新 clone 完成冻结安装、Prisma Client 生成、format/lint/typecheck、单元 6/6、空库首次/重复迁移、集成 2/2、build、真实资产 smoke、Chromium E2E 1/1；迁移后 public 仅 `_prisma_migrations`；3100/4173 无监听。
+- 允许进入的下一状态：DEV-001A 可 `DONE`；DEV-001B 可 `READY` 并启动；父 DEV-001 和其余业务任务继续阻塞。
+
+## REV-007｜DEV-001B 身份安全独立审查
+
+- 审查提交：未提交工作区，基线 `6001a82`
+- 审查范围：DEV-001B 身份、会话、登录限流、Web 会话、CLI、角色/资源授权、审计、迁移、测试和当前 diff
+- 审查人：独立安全/工程审查 Agent（Ohm）
+- 审查时间：2026-08-02
+- 结论：`FAIL`
+- P0：0
+- P1：3
+- P2：3
+- 允许进入的下一状态：DEV-001B 保持 `REVIEW`；只允许修复下列问题并重新独立审查。CON-008 继续 `OPEN`，父 DEV-001 与 DEV-002 保持阻塞。
+
+P1 阻塞：
+
+1. 登录阻断裁定与失败计数不是单一原子协议；已存在 4 次失败时，并发猜测可能出现正确密码 200。必须使用短事务 reservation/attempt 状态完成原子裁定，不得在持锁事务内运行 Argon2。
+2. Web 登出未检查响应，陈旧 CSRF、403 或网络错误时会错误清空本地已登录状态；必须安全轮换后重试或明确保留登录态。
+3. 已知账号错误密码、disabled 登录失败与权限拒绝没有写入合规 audit；必须补审计且不得引入账号枚举侧信道。未知账号审计继续由 CON-008 阻塞，不得伪称完成。
+
+P2：
+
+1. CLI 四命令的数据变化与审计必须在同一事务，并用真实 PostgreSQL 覆盖 operator 映射、会话撤销和 enable 不恢复旧会话。
+2. 需要实现并挂载最小 Nest 角色 Guard，以真实 403 路由证据证明角色门禁；不得创建 DEV-002 业务表。
+3. Web 应在初始化时通过 `/auth/me` 与 `/auth/csrf` 恢复已有会话，并覆盖 401 与网络错误；auth 测试 `afterAll` 在初始化失败时不得制造次生异常。
+
+修复后诊断补充：总控外部 Chromium 首轮发现正常登出后数据库会话已 `revoked_at` 且 reason=`logout`，但浏览器复用了 `/auth/me` 的旧 200。实现已为 `/auth/me` 补 `Cache-Control: no-store`，Web 身份 GET 显式使用 `cache: no-store`，API 测试断言 header，E2E 登出后用非缓存请求验证真实服务端 401；该修复仍须随 REV-007 其他项一起复审，不改变当前 FAIL 结论。
+
+## REV-008｜DEV-002 领域基础与 DEV-003A 音频候选独立审查
+
+- 审查基线：分支 `codex/mvp-v01-vertical-slice`；初审基线 `34d8b18` 的未提交实现；最终候选 `1085ae6`、`41d6104`
+- 审查人：独立纵向基础审查 Agent（vertical_slice_foundation_review）
+- 时间：2026-08-03
+- 初审：`FAIL`，P0=0、P1=3、P2=2。P1 为创建者被静默当 owner、并发双 start、ACK 后 seq 复用；相邻复审另发现 ACK 后时间轴归零。P2 为真实浏览器 IndexedDB/MediaRecorder 证据和 start 失败 stop 挂起。
+- 修复：访问上下文 `ownerUserId=null` 且只认 assignment；start 在首个 await 前同步加锁并双层禁用；IndexedDB v2 同事务持久化 session 序号与时间轴高水位；ACK 只删 chunk；start 失败清理停止 Promise；新增 fake-indexeddb 与回归测试。
+- 最终结论：`PASS`，仅适用于 DEV-002 合同中立策略检查点、DEV-003A 内部候选提交并进入 `REVIEW`；P0=0、P1=0。
+- 独立复跑：最终相关 4 个测试文件/20 tests 通过；未发现新增 P0/P1。
+- 未覆盖：真实 Chromium MediaRecorder、原生 IndexedDB 页面刷新/崩溃、真实配额、多标签、60/180 分钟、服务端上传与 manifest。该 P2 阻塞 DEV-003A `DONE` 和真实试点，不阻塞候选提交。
+- DEV-002 结论：CON-009 仍阻塞迁移/API；REV-008 不批准任何授权枚举、自动 assignment 或 DTO。
+- 后续状态：项目负责人随后选择方案 A，并在 ADR-014、CON-009 与 HO-009 中形成正式决定；不改写 REV-008 审查当时的事实。
+
+## REV-009｜DEV-002 项目、捆绑授权与会话链路独立审查
+
+- 审查基线：分支 `codex/mvp-v01-vertical-slice`；未提交实现树，随后固定为 `f16b82a`
+- 审查范围：DEV-002 数据模型/迁移、项目与 assignment 原子创建、assignment-only 隔离、服务/授权追加、撤回限制、session/device-check/start 状态机、幂等、审计和测试
+- 审查人：独立纵向基础审查 Agent（vertical_slice_foundation_review）
+- 审查时间：2026-08-03
+- 初审结论：`FAIL`，P0=0、P1=2、P2=2。P1 为不同 request ID 可并发重复 start/revoke，以及 request ID 未绑定 actor/target 导致跨项目返回实体且不能保留首次响应。
+- 修复：新增全局唯一 `idempotency_record`，绑定 action/actor/target 与首次最小响应快照；统一 `request → project → consent/session` 锁顺序；append/revoke 共用 project 锁；重放前重新检查当前 assignment；补并发、跨绑定、assignment 撤销、竞态、序号和回滚证据。
+- 最终结论：`PASS`，P0=0、P1=0、P2=0；允许 DEV-002 内部候选进入 VERIFY，经总控完整门禁复跑后关闭任务。
+- 独立执行：Prisma deploy 无待应用迁移；DEV-002 PostgreSQL integration 1 file/5 tests、unit 2 files/22 tests、format/lint/typecheck 全通过。
+- 总控执行：migration deploy/status、根 integration 2 files/7 tests、auth 3 files/13 tests、unit 10 files/45 tests、format/lint/typecheck/build、diff check 与 production dependency audit 全通过。
+- 边界：CON-010 保持 OPEN；`recorded_verbal` 失败关闭，只批准 electronic/written 虚构数据内部链路，不批准真实试点或公网使用。
+
+## REV-010｜DEV-003A/B GitHub 项目负责人审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/mvp-v01-vertical-slice`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/1`
+- 候选实现提交：`134be76`；认证 E2E 稳定性修复 `7e95bdf`；协作交接提交以 PR 最新 head 为准
+- 审查范围：DEV-003A 真实 Chromium MediaRecorder/IndexedDB 证据；DEV-003B audio object、不可变分片、manifest、授权音频存储复核和回归测试
+- 审查人：项目负责人（GitHub 人工审查）
+- 当前结论：`PASS`（2026-08-04）
+- 本地证据：typecheck、lint、unit 48/48、build、format、diff check、Chromium 2/2 通过；PostgreSQL migration/integration/auth 因本地 Docker/5433 不可用而未通过环境验证
+- GitHub 证据：CI run `30872251081` 对 PR 审查 head `936fd04` PASS，包含 migration deploy/status、PostgreSQL integration/auth、build/smoke、Chromium E2E 与 auth Chromium E2E
+- 人工证据：项目负责人确认审查对象为 PR #1 最新 head `936fd0408023ba074d2670576626e226f859923e`，提交未漂移；PR 声明范围、实现和 CI 一致；未发现阻塞性 P0/P1
+- 通过边界：仅代表 DEV-003A/B 任务卡声明的内部虚构数据原型；父 DEV-003、自动上传与重试、真实麦克风、长时录音、崩溃、多标签、真实配额、云存储和真实试点均未通过
+- P2-1：`putImmutable` 在 write/sync 失败时可能遗留临时文件；后续扩大完整临时文件生命周期的 `try/finally` 并增加失败注入测试
+- P2-2：数据库记录存在但存储文件缺失时，错误内容重试可能先留下冲突 orphan；后续先读取已有元数据，再决定是否恢复存储文件
+- 产品待确认：真实试点前明确同一 consent audio object 能否关联不同 `consent_text_version` 的多条授权记录，见 CON-012
+- 允许进入的下一状态：DEV-003A/B 转 `DONE`；父 DEV-003 保持 `IN_PROGRESS`，两项 P2 在下一实现批次处理
+
 ## 审查模板
 
 ```text
