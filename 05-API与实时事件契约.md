@@ -294,6 +294,8 @@ PATCH /transcripts/:id
 POST  /sessions/:id/speaker-remap
 ```
 
+DEV-004A 只建立服务端确定态转录存储与内部查询 seam，不开放上述 REST 路由，也不得新增公开“注入测试转录”接口。`GET` 的分页响应、`PATCH` 的并发修订语义以及 speaker-remap 的范围、幂等和审计契约，分别在对应子任务开工前补齐；未补齐前这些路径不得按占位描述实现。
+
 ### 3.8 标记
 
 ```http
@@ -401,6 +403,8 @@ GET  /exports/:id
 ```text
 /ws/interviews/:sessionId
 ```
+
+当前事件名称和公共信封为正式方向，但不足以直接实现业务 WebSocket。DEV-004B 开工前必须先正式补齐：Cookie/Origin 握手鉴权、当前 assignment 与 session 状态门禁、PCM 采样格式、帧序号与背压、服务端事件顺序、ACK/恢复游标与保留窗口、重复 final 处理，以及 close/error code。DEV-004A 不新增 WebSocket 依赖或入口。
 
 ### 5.1 公共事件结构
 

@@ -310,6 +310,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、REV-011、HO-016、CON-012/013，以及新建 DEV-004 任务卡
 - 运行或复现方式：以 PR #2、head `1aa643a` 和 CI `30875834803` 复核已通过候选；DEV-004 继续仅使用虚构/合成数据，不使用真实访谈资料
 
+## HO-017｜DEV-004 拆分与 DEV-004A 契约就绪
+
+- 任务编号：`DEV-004`、`DEV-004A`、REQ-003、ADR-018、CON-014/015/016
+- 交出角色：总控 Agent / iteration-coach 独立只读预审
+- 接收角色：后端转录实现 Agent
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；契约启动提交待产生
+- 修改文件：`04` 至 `06`、任务板、追溯、冲突、ADR、DEV-004/004A 任务卡、交接和迭代日志
+- 已完成：把路线级 DEV-004 拆为 A/B/C；固定 A 为 final-only 存储核心、供应商中立 adapter 和内部确定性 fake；解决原始/修正 speaker 角色与 interim 持久化歧义
+- 未完成：Prisma migration、transcription module、adapter、测试；业务 WebSocket、AudioWorklet、校准/remap、故障区间、补转录和真实供应商均不在 A 范围
+- 数据库或接口变更：正式候选要求新增 append-only speaker mapping、final-only transcript segment 和稳定 ingest key；DEV-004A 不开放 REST/WS 写入口
+- 执行测试与结果：本条为实现前契约/任务拆分；提交前执行 format、diff check 与引用检查；应用测试由实现提交执行
+- 已知问题：CON-014 校准 start 硬门禁仍 OPEN，只阻塞 DEV-004C；真实供应商和 WebSocket 详细协议未定，不阻塞 A
+- 风险：provider payload 含敏感正文，必须限 64 KiB、不进日志/普通响应；fixture 不得进入 production 组合根；父 DEV-004 不得在 A 后提前 DONE
+- 下一步：后端转录实现 Agent 严格按 DEV-004A 修改 Prisma/transcription module/tests；总控复核并推送 GitHub PR，等待项目负责人审查
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-002/006/013/018、HO-016/017、CON-014/015/016
+- 运行或复现方式：只用虚构文本与隔离 PostgreSQL；本地/CI 执行 migration、unit、integration、format/lint/typecheck/build
+
 ## 交接模板
 
 ```text

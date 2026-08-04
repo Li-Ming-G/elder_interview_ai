@@ -162,6 +162,37 @@
 - 临时处理：继续仅用于本地和 CI 的虚构/合成数据；生产或真实试点前不得按现状开放查询参数入口。
 - 需要谁决策：项目负责人 + 前端/安全角色；决定后同步构建配置、入口门禁、测试与发布检查。
 
+### CON-014｜说话人校准是否为 session start 硬门禁未定义
+
+- 状态：`OPEN`
+- 发现时间：2026-08-04
+- 发现者：iteration-coach 独立预审 / 总控 Agent
+- 涉及文件与章节：`03` §7-8、`04` interview_session 状态、`05` §3.5/§5、`06` §7、DEV-004C
+- 冲突内容：业务流程把说话人校准放在正式访谈前，但现有 session 状态和 start 门禁只要求 device check，没有 calibration 状态、完成凭据或重校准规则。直接实现会导致前后端各自解释是否可开始录音。
+- 受影响任务：DEV-004C 的校准 UI、映射写入和正式 start 门禁；不阻塞 DEV-004A final-only 存储核心，也不阻塞以 `unknown` 回退的内部虚构数据验证。
+- 临时处理：DEV-004A 不实现校准或修改 start；没有当前映射时持久化 `original_speaker_role=unknown`。
+- 需要谁决策：项目负责人 + 产品/后端/前端；DEV-004C 开工前同步 `03` 至 `06`、状态机、API 和测试。
+
+### CON-015｜原始与修正说话人角色缺少分离表达
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-04
+- 发现者：iteration-coach 独立预审 / 总控 Agent
+- 涉及文件与章节：`01` 原始资料原则、`04` §4.7/4.9、`06` §6-7、ADR-018
+- 冲突内容：正式要求说话人可修正且保留原角色，但原模型只有单一 `speaker_role`，实现 remap 会覆盖原始证据。
+- 最终决定：segment 分列保存不可变 `original_speaker_role` 与可选 `corrected_speaker_role`；展示使用修正值优先。speaker mapping 采用追加历史，变化不回写既有 segment 的原始角色。
+- 完成确认：`04`、`06`、ADR-018 与 DEV-004A 任务卡已同步；实现和迁移必须据此验收。
+
+### CON-016｜interim 枚举与“中间态不落正式库”边界含混
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-04
+- 发现者：iteration-coach 独立预审 / 总控 Agent
+- 涉及文件与章节：`04` §4.9、`05` §5、`06` §5、ADR-006/018
+- 冲突内容：原数据模型在 transcript finality 中列出 interim/final，容易被解释为 interim 可写 transcript 表；音频规范和测试又明确 interim 只展示、不得进入正式 AI 链路。
+- 最终决定：`transcript_segment` 只保存 final，数据库不保存 interim row；interim 仅能作为短暂实时事件存在。finality 在事件响应中保留，持久表无需用可变 finality 表达。
+- 完成确认：`04`、`05`、`06`、ADR-018 与 DEV-004A 验收已同步。
+
 ## 登记模板
 
 ```text

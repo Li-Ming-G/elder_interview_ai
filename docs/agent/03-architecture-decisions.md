@@ -138,3 +138,13 @@
 - 代价：IndexedDB 增加 upload job store 和前向版本迁移，客户端需要显式状态机、严格响应校验和有限重试；内部 harness/E2E 复杂度增加。
 - 边界：本批只用合成/虚构音频和显式内部验证入口；不实现完整访谈 UI、Service Worker、无限后台同步、真实麦克风、云存储或 ASR。CON-012 不阻塞本决策。
 - 重新评估条件：一个 session 需要多个 audio object、分片并行上传、跨设备续传或后台长期同步时，重新评估对象边界、租约和冲突合并。
+
+## ADR-018｜先以 final-only 证据核心隔离 ASR 供应商与实时传输
+
+- 状态：Accepted
+- 决定：DEV-004 先拆出 DEV-004A，只实现供应商中立标准化结果、确定性 local/test fake、final-only 幂等落库、追加式会话内 speaker mapping 与内部查询 seam。真实供应商、业务 WebSocket、AudioWorklet、校准/remap、故障区间和补转录分别在后续子任务补齐契约后实现。
+- 原因：当前最小纵向里程碑允许内部确定态测试转录，后续记忆首先需要稳定 segment ID 与不可覆盖证据；而供应商尚未选择，WebSocket 鉴权、PCM、背压、恢复和校准门禁契约均不完整。一次性实现会把供应商和传输细节固化进核心数据模型。
+- 数据不变量：interim 不落正式库；`(session_id, ingest_key)` 唯一；相同 final 可幂等重放，冲突失败关闭；original text 与 original speaker role 永不覆盖；修正字段分离；未映射角色为 `unknown`；provider payload 受限且不进日志/普通响应。
+- 代价：DEV-004A 完成后仍不能演示浏览器实时字幕，父 DEV-004 保持未完成；后续 WebSocket 与校准仍需独立契约和验证。
+- 边界：fixture 只在 local/test 组合根存在，不形成公开写 API；只用虚构文本和隔离数据库；不接真实供应商或密钥，不改变原始录音链路。
+- 重新评估条件：项目负责人明确真实供应商、数据地域/隐私、采样格式与预算，或下一核心验证必须是浏览器实时字幕时，启动 DEV-004B/后续 provider 任务。
