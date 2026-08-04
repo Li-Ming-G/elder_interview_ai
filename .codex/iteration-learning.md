@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003 已通过，DEV-004 已拆分并准备先启动 DEV-004A 确定态转录证据核心。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003 已通过；DEV-004A 确定态转录证据核心已形成 GitHub 审查候选，父 DEV-004 仍需实时传输与校准子任务。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -203,3 +203,14 @@
 - Implementation evidence: `04` 至 `06`、ADR-018、CON-014/015/016、DEV-004/004A 任务卡、任务板和 HO-017；代码与迁移尚未实现。
 - Lesson: 实时 ASR 最危险的首个决策不是选供应商，而是定义哪些结果能成为不可变业务证据；先稳定证据身份和原始/修正边界，才能让供应商与传输可替换。
 - Better future prompt: “请先实现供应商中立、final-only、幂等且保留原文/原角色的转录存储 seam；fixture 仅限测试，不开放写 API；WebSocket、AudioWorklet、校准和真实供应商另拆。”
+
+### 2026-08-04 — DEV-004A 确定态转录证据核心候选
+
+- User outcome: 继续 MVP 核心链路，在不引入真实供应商和实时协议的前提下，为后续记忆建立稳定、可追溯的 final segment。
+- Review mode: Correction mode；开工前唯一独立只读预审已把路线级 DEV-004 收敛为 DEV-004A。
+- Adopted implementation: 新增 append-only speaker mapping、final-only transcript segment、稳定 ingest key、供应商中立 result、local/test fake、受信 ingestion seam 和 assignment-aware 内部 query；不新增 REST/WS。
+- Corrections during implementation: provider payload 被纳入 canonical 幂等比较但从 DTO 排除；受限项目即使仍有 assignment 也对普通角色失败关闭；interim 在门禁通过后明确零落库。
+- Evidence: 实现提交 `f80c4c3`；format、ESLint、全仓 typecheck、Prisma generate/validate、全仓 build 通过；unit 14 files / 63 tests PASS。
+- Unverified: 本机 Docker daemon 未运行且 `TEST_DATABASE_URL` 未配置，migration deploy/status 与 PostgreSQL transcription integration 未在本地执行，必须由 GitHub CI 补齐。
+- Lesson: 供应商中立不仅是字段命名中立；重放等价性、原始 payload 私密性、映射快照时点和 restricted 读取门禁也必须在持久化 seam 中固定，否则稳定 segment ID 仍可能掩盖证据漂移或越权。
+- Boundary: 候选不代表 DEV-004 完成；真实 ASR、WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据与生产部署仍未覆盖。

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 负责人：后端转录实现 Agent（`dev004a_backend_impl`）
 - 前置依赖：DEV-003、ADR-018、CON-015/016
 - 分支：`codex/dev004a-transcript-core`

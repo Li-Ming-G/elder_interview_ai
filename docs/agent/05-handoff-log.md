@@ -346,6 +346,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-016/017、CON-014/015/016
 - 运行或复现方式：仅使用虚构文本和隔离 PostgreSQL；执行 format、lint、typecheck、build、unit 与 PostgreSQL integration
 
+## HO-019｜DEV-004A 实现候选交 GitHub 审查
+
+- 任务编号：`DEV-004A`、REQ-003、ADR-018
+- 交出角色：后端转录实现 Agent（`dev004a_backend_impl`）/ 总控 Agent
+- 接收角色：项目负责人（GitHub 审查）
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；实现提交 `f80c4c3`
+- 修改文件：Prisma schema 与单个前向 migration、`apps/api/src/transcription/**`、`apps/api/src/app.module.ts`、`tests/integration/transcription.test.ts`；总控同步任务板、追溯、任务卡、交接和迭代日志
+- 已完成：final-only 转录证据落库；稳定 ingest key 幂等与不可变冲突；canonical provider payload 比较与 64 KiB 双层限制；interim 零落库；说话人映射 append-only 与历史角色快照；local/test fake；assignment 和 restricted 内部查询门禁；无公开 REST/WS 写入口
+- 未完成：项目负责人 GitHub 审查；真实 ASR、业务 WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据和父 DEV-004
+- 数据库或接口变更：新增 `speaker_mapping`、`transcript_segment` 及 3 个枚举；当前仅导出内部 Nest service，不新增外部 API
+- 执行测试与结果：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、Prisma generate/validate 均通过；`pnpm test:unit` 为 14 files / 63 tests PASS；`git diff --check` 通过
+- 已知问题：本机 `TEST_DATABASE_URL` 未配置且 Docker daemon 未运行，未本地执行 migration deploy/status 与 PostgreSQL transcription integration；必须以 GitHub CI 结果为准
+- 风险：项目负责人 PASS 前不得标记 DEV-004A DONE；provider payload 仍是敏感业务数据，只能留在受限存储；CON-014 继续阻塞 DEV-004C 而不阻塞 A
+- 下一步：总控推送分支、创建非 Draft PR、等待 CI；CI 全通过后锁定最终 head 交项目负责人审查
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-017/018/019、CON-014/015/016
+- 运行或复现方式：配置隔离 `TEST_DATABASE_URL` 后执行 migration deploy/status 与 `pnpm test:integration`；其余命令见上
+
 ## 交接模板
 
 ```text
