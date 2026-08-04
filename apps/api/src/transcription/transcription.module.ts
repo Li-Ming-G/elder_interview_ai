@@ -1,5 +1,7 @@
+import type { ApiConfig } from '@elder-interview/config';
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { API_CONFIG } from '../api-config.js';
 import { ResourceAuthorizationService } from '../auth/resource-authorization.service.js';
 import { PrismaProjectAccessReader } from '../project-foundation/prisma-project-access.reader.js';
 import {
@@ -16,12 +18,16 @@ import { TranscriptQueryService } from './transcript-query.service.js';
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class TranscriptionModule {}
 
-export function createTranscriptionModule(authModule: DynamicModule): DynamicModule {
+export function createTranscriptionModule(
+  config: ApiConfig,
+  authModule: DynamicModule,
+): DynamicModule {
   return {
     exports: [SpeakerMappingService, TranscriptIngestionService, TranscriptQueryService],
     imports: [authModule],
     module: TranscriptionModule,
     providers: [
+      { provide: API_CONFIG, useValue: config },
       PrismaProjectAccessReader,
       { provide: ProjectAccessReader, useExisting: PrismaProjectAccessReader },
       { provide: ResourceAccessAuthorizer, useExisting: ResourceAuthorizationService },

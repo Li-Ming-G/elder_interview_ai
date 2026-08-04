@@ -29,7 +29,7 @@ export class AppModule implements NestModule {
         authModule,
         audioModule,
         createProjectFoundationModule(config, authModule, audioModule),
-        createTranscriptionModule(authModule),
+        createTranscriptionModule(config, authModule),
       ],
       module: AppModule,
       providers: [
