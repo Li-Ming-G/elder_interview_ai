@@ -20,19 +20,18 @@ test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecy
   const cookiesBeforeLogout = await context.cookies(page.url());
   expect(cookiesBeforeLogout.map((cookie) => cookie.name)).toEqual(['elder_interview_session']);
   const logoutStatuses: number[] = [];
-  let successfulLogoutClearsCookie = false;
   page.on('response', (response) => {
     if (!response.url().endsWith('/api/v1/auth/logout')) return;
     logoutStatuses.push(response.status());
-    if (response.status() === 200) {
-      successfulLogoutClearsCookie =
-        response.headers()['set-cookie']?.includes('Max-Age=0') === true;
-    }
   });
+  const successfulLogout = page.waitForResponse(
+    (response) => response.url().endsWith('/api/v1/auth/logout') && response.status() === 200,
+  );
   await page.getByRole('button', { name: '退出登录' }).click();
+  const successfulLogoutResponse = await successfulLogout;
   await expect(page.getByRole('button', { name: '登录' })).toBeVisible();
   await expect.poll(() => logoutStatuses).toEqual([403, 200]);
-  expect(successfulLogoutClearsCookie).toBe(true);
+  await expect(successfulLogoutResponse.headerValue('set-cookie')).resolves.toContain('Max-Age=0');
   const cookiesAfterLogout = await context.cookies(page.url());
   expect(
     cookiesAfterLogout.filter((cookie) => cookie.name === 'elder_interview_session'),
