@@ -90,6 +90,25 @@ enum AudioChunkUploadStatus {
   missing
 }
 
+enum SpeakerRole {
+  elder
+  interviewer
+  unknown
+}
+
+enum SpeakerMappingSource {
+  calibration
+  manual
+  provider
+  batch_remap
+}
+
+enum TranscriptSource {
+  realtime
+  backfill
+  fixture
+}
+
 model User {
   id                       String              @id @default(uuid()) @db.Uuid
   email                    String              @unique @db.VarChar(254)
@@ -109,6 +128,8 @@ model User {
   createdInterviewSessions InterviewSession[]  @relation("InterviewSessionCreator")
   idempotencyRecords       IdempotencyRecord[]
   createdAudioObjects      AudioObject[]       @relation("AudioObjectCreator")
+  createdSpeakerMappings   SpeakerMapping[]    @relation("SpeakerMappingCreator")
+  correctedTranscripts     TranscriptSegment[] @relation("TranscriptCorrector")
 
   @@map("user")
 }
@@ -239,22 +260,24 @@ model ConsentRecord {
 }
 
 model InterviewSession {
-  id              String                 @id @default(uuid()) @db.Uuid
-  projectId       String                 @map("project_id") @db.Uuid
-  sequenceNo      Int                    @map("sequence_no")
-  status          InterviewSessionStatus @default(created)
-  startedAt       DateTime?              @map("started_at") @db.Timestamptz(3)
-  endedAt         DateTime?              @map("ended_at") @db.Timestamptz(3)
-  durationSeconds Int?                   @map("duration_seconds")
-  asrProvider     String?                @map("asr_provider") @db.VarChar(100)
-  llmProvider     String?                @map("llm_provider") @db.VarChar(100)
-  promptVersion   String?                @map("prompt_version") @db.VarChar(100)
-  createdBy       String                 @map("created_by") @db.Uuid
-  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  project         ElderProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creator         User                   @relation("InterviewSessionCreator", fields: [createdBy], references: [id], onDelete: Restrict)
-  audioObjects    AudioObject[]
+  id                 String                 @id @default(uuid()) @db.Uuid
+  projectId          String                 @map("project_id") @db.Uuid
+  sequenceNo         Int                    @map("sequence_no")
+  status             InterviewSessionStatus @default(created)
+  startedAt          DateTime?              @map("started_at") @db.Timestamptz(3)
+  endedAt            DateTime?              @map("ended_at") @db.Timestamptz(3)
+  durationSeconds    Int?                   @map("duration_seconds")
+  asrProvider        String?                @map("asr_provider") @db.VarChar(100)
+  llmProvider        String?                @map("llm_provider") @db.VarChar(100)
+  promptVersion      String?                @map("prompt_version") @db.VarChar(100)
+  createdBy          String                 @map("created_by") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project            ElderProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator            User                   @relation("InterviewSessionCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  audioObjects       AudioObject[]
+  speakerMappings    SpeakerMapping[]
+  transcriptSegments TranscriptSegment[]
 
   @@unique([projectId, sequenceNo])
   @@map("interview_session")
@@ -302,6 +325,48 @@ model AudioChunk {
 
   @@unique([audioObjectId, sequenceNo])
   @@map("audio_chunk")
+}
+
+model SpeakerMapping {
+  id                String               @id @default(uuid()) @db.Uuid
+  sessionId         String               @map("session_id") @db.Uuid
+  speakerProviderId String               @map("speaker_provider_id") @db.VarChar(200)
+  speakerRole       SpeakerRole          @map("speaker_role")
+  source            SpeakerMappingSource
+  createdBy         String?              @map("created_by") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  supersededAt      DateTime?            @map("superseded_at") @db.Timestamptz(3)
+  session           InterviewSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  creator           User?                @relation("SpeakerMappingCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, speakerProviderId, supersededAt])
+  @@map("speaker_mapping")
+}
+
+model TranscriptSegment {
+  id                   String           @id @default(uuid()) @db.Uuid
+  sessionId            String           @map("session_id") @db.Uuid
+  ingestKey            String           @map("ingest_key") @db.VarChar(240)
+  providerSegmentId    String?          @map("provider_segment_id") @db.VarChar(200)
+  speakerProviderId    String?          @map("speaker_provider_id") @db.VarChar(200)
+  originalSpeakerRole  SpeakerRole      @default(unknown) @map("original_speaker_role")
+  correctedSpeakerRole SpeakerRole?     @map("corrected_speaker_role")
+  startMs              Int              @map("start_ms")
+  endMs                Int              @map("end_ms")
+  originalText         String           @map("original_text") @db.Text
+  correctedText        String?          @map("corrected_text") @db.Text
+  source               TranscriptSource
+  providerPayload      Json?            @map("provider_payload") @db.JsonB
+  correctedBy          String?          @map("corrected_by") @db.Uuid
+  correctedAt          DateTime?        @map("corrected_at") @db.Timestamptz(3)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  session              InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  corrector            User?            @relation("TranscriptCorrector", fields: [correctedBy], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, ingestKey])
+  @@index([sessionId, startMs])
+  @@index([sessionId, createdAt])
+  @@map("transcript_segment")
 }
 
 model IdempotencyRecord {
