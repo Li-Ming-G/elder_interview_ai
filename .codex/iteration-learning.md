@@ -140,3 +140,13 @@
 - Implementation evidence: `AGENTS.md`、`00`、`04`、`05`、`06`、`09`、`10`、CON-010/011、ADR-016、DEV-003B 与 HO-011；GitHub `Li-Ming-G/elder_interview_ai` / PR #1。
 - Lesson: “先 push 再审查”改变的是证据流和责任边界，不降低实现者的测试责任；授权前音频必须有独立于正式访谈 start 的对象生命周期。
 - Better future prompt: “完成本地测试后推送到指定 private GitHub PR，保持 REVIEW；我按 commit SHA 返回审查结论。下一步优先解决授权音频与访谈音频的对象归属，再实现可靠分片。”
+
+### 2026-08-04 — DEV-003A/B 两端可靠保存候选
+
+- User outcome: 先建立能保护原始音频的最小两端能力，并将高风险候选交 GitHub 项目负责人审查。
+- Review mode: Learning mode；只读预审建议先闭合授权音频对象和服务端可靠保存，再补真实 Chromium 证据。
+- Adopted decision: 本批次固定为服务端 audio object/不可变分片/manifest 与浏览器原生 MediaRecorder/IndexedDB 证据；浏览器自动上传编排作为父 DEV-003 的下一小步，不临时扩大候选边界。
+- Implementation evidence: `134be76`；Prisma audio migration、`apps/api/src/audio`、recorded_verbal 存储复核、48 个单元测试、Chromium 2/2；本地 PostgreSQL 因 Docker/5433 不可用未验，转由 GitHub CI 提供环境证据。
+- Boundary: 所有内容只使用合成或虚构字节；不代表真实麦克风、长时录音、云存储、真实试点或生产部署通过；DEV-003A/B 均保持 REVIEW。
+- Lesson: 原始数据可靠性需要两类独立证据：浏览器 ACK 后仍保留序号/时间轴高水位，以及服务端 ACK 前确实完成不可变存储与元数据提交；任一端单独通过都不等于上传纵向链路已完成。
+- Better future prompt: “请先把浏览器队列的失败保留/成功 ACK 语义接到已审查的 audio object API，并用稳定 request ID 或可安全采用 orphan 的协议验证响应丢失重试；不要扩展到 ASR。”

@@ -21,8 +21,8 @@
 | DEV-001B | 身份、会话与权限基础 | 身份安全实现 Agent（dev001b_identity_security） | REVIEW | DEV-001A | [任务卡](tasks/DEV-001B.md)、`ab9628b`、HO-006 | CON-008、增强 Chromium 与独立复审阻塞最终 DONE/真实部署；不阻塞虚构身份内部原型 |
 | DEV-002 | 最小项目、服务信息、授权与会话 | 后端业务 Agent（dev002_min_project_consent） | DONE | DEV-001A、DEV-001B 内部候选 seam | [任务卡](tasks/DEV-002.md)、`f16b82a`、ADR-014/015、REV-009 | 内部虚构数据范围验收通过；CON-010 仅阻塞口头授权音频集成和真实试点 |
 | DEV-003 | 原始录音与分片上传（父任务） | 总控 Agent | IN_PROGRESS | DEV-003A、DEV-003B | `06`、`09` | 先并行完成浏览器本地可靠暂存，再与会话 seam 集成服务端保存 |
-| DEV-003A | 浏览器采集与本地可靠分片暂存 | 音频前端 Agent（dev003a_browser_audio_buffer） | REVIEW | DEV-001A | [任务卡](tasks/DEV-003A.md)、`41d6104`、REV-008、GitHub PR #1 | 内部候选已推送；真实 Chromium MediaRecorder/IndexedDB 与服务端上传恢复并入首次音频集成验证 |
-| DEV-003B | 服务端原始分片、幂等与 manifest | 后端音频实现 Agent（dev003b_audio_backend） | IN_PROGRESS | DEV-002 会话 seam、DEV-003A 上传队列 seam | [任务卡](tasks/DEV-003B.md)、ADR-016、GitHub PR #1 | CON-010 已解决；正在实现，完成后 push GitHub 并等待项目负责人审查 |
+| DEV-003A | 浏览器采集与本地可靠分片暂存 | 音频前端 Agent（dev003a_browser_audio_buffer） | REVIEW | DEV-001A | [任务卡](tasks/DEV-003A.md)、`41d6104`、`134be76`、真实 Chromium E2E 2/2、GitHub PR #1 | 原生 MediaRecorder/IndexedDB 刷新与同源页面重开证据已补；真实麦克风、崩溃、多标签、配额、长时录音和服务端上传编排未验收 |
+| DEV-003B | 服务端原始分片、幂等与 manifest | 后端音频实现 Agent（dev003b_audio_backend） | REVIEW | DEV-002 会话 seam、DEV-003A 上传队列 seam | [任务卡](tasks/DEV-003B.md)、ADR-016、`134be76`、unit 48/48、GitHub PR #1 | 本地 PostgreSQL/Docker 不可用；等待 GitHub CI 数据库证据和项目负责人审查，不得标 DONE |
 | DEV-004 | 实时 ASR 与说话人映射 | 待分配 | BLOCKED | DEV-003 | `05`、`06`、`09` | 等待录音链路 |
 | DEV-005 | 访谈工作台 | 待分配 | BLOCKED | DEV-002、DEV-004 | `01`、`03`、`05`、`09` | 等待业务与转录链路 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |

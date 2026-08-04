@@ -52,3 +52,12 @@
 - 自动证据：音频 4 files/15 tests，根 10 files/45 tests；fake-indexeddb 覆盖事务、ACK 后重开和高水位；format/lint/typecheck/build/diff check 通过；
 - REV-008 最终结论仅对“内部候选提交并进入 REVIEW” PASS，P0/P1=0；
 - 未验证真实 Chromium 的 MediaRecorder、原生 IndexedDB、页面刷新/崩溃、多标签、真实配额、60/180 分钟；因此不得标 `DONE`、不得用于真实访谈。
+
+## 2026-08-04 GitHub 审查候选增量
+
+- 实现提交：`134be76`；
+- 新增仅由 `?audio_harness=1&session_id=...` 显式开启的内部 Chromium harness，使用 Web Audio 合成流，不采集真实麦克风或个人信息；正常 `/` 入口不变；
+- Playwright Chromium 2/2 通过：原生 `MediaRecorder` 生成非空 WebM；原生 IndexedDB 在刷新和同源新页面后恢复；ACK 删除 Blob 后仍保留 seq/timeline 高水位，后续录制不复用序号、不重置时间轴；
+- 总控复验：音频相关测试包含在根 unit 11 files/48 tests 中并通过；format、lint、typecheck、build、diff check 通过；
+- 未覆盖：真实麦克风、浏览器进程崩溃、多标签、真实配额、60/180 分钟以及浏览器队列到服务端的自动上传/重试编排；
+- 状态保持 `REVIEW`，候选随 GitHub PR #1 交项目负责人审查；push/CI 不等于通过。

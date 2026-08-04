@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 负责人：后端音频实现 Agent（dev003b_audio_backend）
 - 前置依赖：DEV-002 会话 seam、DEV-003A 上传队列 seam
 - 交接对象：总控 Agent、DEV-004 与 MVP-V01 集成 Agent
@@ -55,3 +55,14 @@
 - 分支：`codex/mvp-v01-vertical-slice`；
 - PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/1`；
 - 实现完成后记录 commit SHA、CI/本地结果和未解决意见，保持 `REVIEW` 等待项目负责人。
+
+## 2026-08-04 实现候选
+
+- 实现提交：`134be76`；
+- 已实现 `audio_object`/`audio_chunk` Prisma 模型和单一前向迁移、本地私有不可变存储 adapter、init/raw PUT/complete/manifest、assignment/session 门禁和 snake_case DTO；
+- 分片使用 temp + hard-link 原子创建，校验 SHA-256/size，不覆盖同 key；complete 重读存储并固化连续 manifest；普通响应不返回内部 object key；
+- `recorded_verbal` 在同一 project lock 内重新验证同项目 complete consent object、分片存储和 canonical manifest；
+- 已覆盖 request/actor/target 幂等绑定、同序号冲突、缺片/乱序、complete 后写入、assignment 撤销、存储失败不 ACK、匹配 orphan 恢复和篡改拒绝；
+- 总控本地通过：Prisma generate/静态校验、typecheck、lint、unit 11 files/48 tests、build、format、diff check；production audit 最终未发现已知漏洞；
+- 未完成本地 PostgreSQL migration deploy/status/重复 deploy、integration/auth/E2E-auth，原因是 Docker daemon 与 `127.0.0.1:5433` 不可用；已实际尝试，不声称通过；
+- 候选提交和 GitHub CI 结果见 PR #1；状态保持 `REVIEW`，等待项目负责人按 commit 返回意见。
