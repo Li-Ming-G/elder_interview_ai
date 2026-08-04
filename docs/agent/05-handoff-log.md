@@ -310,6 +310,60 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、REV-011、HO-016、CON-012/013，以及新建 DEV-004 任务卡
 - 运行或复现方式：以 PR #2、head `1aa643a` 和 CI `30875834803` 复核已通过候选；DEV-004 继续仅使用虚构/合成数据，不使用真实访谈资料
 
+## HO-017｜DEV-004 拆分与 DEV-004A 契约就绪
+
+- 任务编号：`DEV-004`、`DEV-004A`、REQ-003、ADR-018、CON-014/015/016
+- 交出角色：总控 Agent / iteration-coach 独立只读预审
+- 接收角色：后端转录实现 Agent
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；契约启动提交待产生
+- 修改文件：`04` 至 `06`、任务板、追溯、冲突、ADR、DEV-004/004A 任务卡、交接和迭代日志
+- 已完成：把路线级 DEV-004 拆为 A/B/C；固定 A 为 final-only 存储核心、供应商中立 adapter 和内部确定性 fake；解决原始/修正 speaker 角色与 interim 持久化歧义
+- 未完成：Prisma migration、transcription module、adapter、测试；业务 WebSocket、AudioWorklet、校准/remap、故障区间、补转录和真实供应商均不在 A 范围
+- 数据库或接口变更：正式候选要求新增 append-only speaker mapping、final-only transcript segment 和稳定 ingest key；DEV-004A 不开放 REST/WS 写入口
+- 执行测试与结果：本条为实现前契约/任务拆分；提交前执行 format、diff check 与引用检查；应用测试由实现提交执行
+- 已知问题：CON-014 校准 start 硬门禁仍 OPEN，只阻塞 DEV-004C；真实供应商和 WebSocket 详细协议未定，不阻塞 A
+- 风险：provider payload 含敏感正文，必须限 64 KiB、不进日志/普通响应；fixture 不得进入 production 组合根；父 DEV-004 不得在 A 后提前 DONE
+- 下一步：后端转录实现 Agent 严格按 DEV-004A 修改 Prisma/transcription module/tests；总控复核并推送 GitHub PR，等待项目负责人审查
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-002/006/013/018、HO-016/017、CON-014/015/016
+- 运行或复现方式：只用虚构文本与隔离 PostgreSQL；本地/CI 执行 migration、unit、integration、format/lint/typecheck/build
+
+## HO-018｜DEV-004A 实现启动
+
+- 任务编号：`DEV-004A`
+- 交出角色：总控 Agent
+- 接收角色：后端转录实现 Agent（`dev004a_backend_impl`）
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；契约基线 `b0b57fae75adc57c92587fa9dfaa90560fa159af`
+- 修改文件：实现 Agent 仅允许修改 Prisma schema、单个前向 migration、`apps/api/src/transcription/**`、API module 注册及直接相关测试；治理记录由总控维护
+- 已完成：正式依据、任务边界、数据契约、ADR-018、CON-014/015/016 已冻结；实现 Agent 已获得明确职责、决策权限与禁止范围
+- 未完成：Prisma migration、transcription module、provider-neutral adapter、内部 query seam、测试与 GitHub 审查
+- 数据库或接口变更：按 DEV-004A 新增 append-only speaker mapping 与 final-only transcript segment；不得新增 REST/WS 公共入口
+- 执行测试与结果：启动时确认分支干净且 HEAD 为 `b0b57fa`；应用测试待实现完成后执行
+- 已知问题：CON-014 继续只阻塞 DEV-004C；真实供应商与实时协议不属于本任务
+- 风险：必须防止 interim 落库、原始证据覆盖、fixture 进入 production 组合根、provider payload 泄露以及查询绕过 assignment
+- 下一步：`dev004a_backend_impl` 完成限定范围实现并向总控交接；总控复核、运行验证、提交并创建 GitHub PR
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-016/017、CON-014/015/016
+- 运行或复现方式：仅使用虚构文本和隔离 PostgreSQL；执行 format、lint、typecheck、build、unit 与 PostgreSQL integration
+
+## HO-019｜DEV-004A 实现候选交 GitHub 审查
+
+- 任务编号：`DEV-004A`、REQ-003、ADR-018
+- 交出角色：后端转录实现 Agent（`dev004a_backend_impl`）/ 总控 Agent
+- 接收角色：项目负责人（GitHub 审查）
+- 时间：2026-08-04
+- 分支与提交：`codex/dev004a-transcript-core`；实现与 CI 纠错提交截至 `b34205f`
+- 修改文件：Prisma schema 与单个前向 migration、`apps/api/src/transcription/**`、`apps/api/src/app.module.ts`、`tests/integration/transcription.test.ts`；总控同步任务板、追溯、任务卡、交接和迭代日志
+- 已完成：final-only 转录证据落库；稳定 ingest key 幂等与不可变冲突；canonical provider payload 比较与 64 KiB 双层限制；interim 零落库；说话人映射 append-only 与历史角色快照；local/test fake；assignment 和 restricted 内部查询门禁；无公开 REST/WS 写入口
+- 未完成：项目负责人 GitHub 审查；真实 ASR、业务 WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据和父 DEV-004
+- 数据库或接口变更：新增 `speaker_mapping`、`transcript_segment` 及 3 个枚举；当前仅导出内部 Nest service，不新增外部 API
+- 执行测试与结果：本地 `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`、Prisma generate/validate、`git diff --check` 均通过，unit 14 files / 63 tests PASS；GitHub CI `30886820301` 的 migration deploy/status、integration、auth、build、smoke、Chromium E2E 全门禁 PASS
+- 已知问题：首轮 CI 暴露动态模块缺少 `API_CONFIG`，次轮暴露 PostgreSQL 拒绝含 NUL 的 advisory lock key，均已修复并由第三轮 CI 覆盖；本机数据库仍因 Docker daemon 未运行而无法复跑
+- 风险：项目负责人 PASS 前不得标记 DEV-004A DONE；provider payload 仍是敏感业务数据，只能留在受限存储；CON-014 继续阻塞 DEV-004C 而不阻塞 A
+- 下一步：总控推送分支、创建非 Draft PR、等待 CI；CI 全通过后锁定最终 head 交项目负责人审查
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004A、ADR-018、HO-017/018/019、CON-014/015/016
+- 运行或复现方式：配置隔离 `TEST_DATABASE_URL` 后执行 migration deploy/status 与 `pnpm test:integration`；其余命令见上
+
 ## 交接模板
 
 ```text

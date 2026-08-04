@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002 与 DEV-003 原始录音可靠保存内部链路已通过，下一步准备 DEV-004 实时 ASR 与说话人映射。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003 已通过；DEV-004A 确定态转录证据核心已形成 GitHub 审查候选，父 DEV-004 仍需实时传输与校准子任务。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -51,6 +51,14 @@
 - Reason: 服务端幂等只有客户端跨刷新复用稳定 request ID 才能闭合；ACK 会删除 Blob，因此 expected count 也不能从剩余队列推导。
 - Tradeoff: IndexedDB 增加 upload job store、状态机和严格响应校验；换取刷新/响应丢失后不重复建对象且可确定恢复。
 - Boundary: 一个 job 对应一个连续 audio object；内部虚构音频、有限重试，不引入 Service Worker、无限后台同步或多对象会话设计。
+
+### D-007 — ASR 先锁定 final-only 证据核心再接实时传输与供应商
+
+- Status: adopted
+- Evidence: `00` 的 MVP-V01 允许内部确定态测试转录；`04` 至 `06`、ADR-018、DEV-004/004A；iteration-coach 独立预审指出 WebSocket、校准和供应商契约尚不足以并行实现。
+- Reason: 后续记忆首先需要稳定 segment ID、不可覆盖原文和原角色；供应商、实时传输、校准与重连同时开工会把未决协议固化进核心模型。
+- Tradeoff: DEV-004A 能解锁后端证据消费但不能演示浏览器实时字幕，父 DEV-004 仍需 B/C。
+- Boundary: 只用虚构文本与 local/test fake；interim 不落库；不开放注入写 API，不接真实供应商、WebSocket、AudioWorklet 或校准/remap。
 
 ## Assumptions to Validate
 
@@ -184,3 +192,26 @@
 - Boundary: 真实麦克风、长时、浏览器进程崩溃、多标签、真实配额、云存储、ASR 和真实试点仍未通过；CON-012/013 保持真实试点门禁。
 - Non-blocking finding: 查询参数启用的内部 audio harness 在生产或真实试点前必须移除或严格限制；登记 CON-013，不阻塞 DEV-004 内部开发。
 - Lesson: 审查后先合并锁定 head，再在 main 做收口文档，可以同时保持审查对象不可漂移和项目状态可追溯。
+
+### 2026-08-04 — DEV-004 拆分与确定态证据优先
+
+- User outcome: 在录音可靠链路通过后继续进入实时 ASR 与说话人阶段。
+- Review mode: Correction mode。
+- Review finding: DEV-004 是路线级工作包；当前 WebSocket 鉴权/PCM/恢复、校准 start 门禁、speaker 修正模型和真实供应商均未完整定义，不能一次性开工。
+- Options considered: A）先 final-only 后端证据核心；B）同时加入业务 WebSocket 与 fake ASR；C）立即接真实供应商。
+- Adopted decision: 采用 A，建立 DEV-004A；用供应商中立 adapter 与内部 fake 验证 final 幂等落库、interim 不落库、原文/原角色保留和故障隔离，再按 B/C 推进实时传输与校准。
+- Implementation evidence: `04` 至 `06`、ADR-018、CON-014/015/016、DEV-004/004A 任务卡、任务板和 HO-017；代码与迁移尚未实现。
+- Lesson: 实时 ASR 最危险的首个决策不是选供应商，而是定义哪些结果能成为不可变业务证据；先稳定证据身份和原始/修正边界，才能让供应商与传输可替换。
+- Better future prompt: “请先实现供应商中立、final-only、幂等且保留原文/原角色的转录存储 seam；fixture 仅限测试，不开放写 API；WebSocket、AudioWorklet、校准和真实供应商另拆。”
+
+### 2026-08-04 — DEV-004A 确定态转录证据核心候选
+
+- User outcome: 继续 MVP 核心链路，在不引入真实供应商和实时协议的前提下，为后续记忆建立稳定、可追溯的 final segment。
+- Review mode: Correction mode；开工前唯一独立只读预审已把路线级 DEV-004 收敛为 DEV-004A。
+- Adopted implementation: 新增 append-only speaker mapping、final-only transcript segment、稳定 ingest key、供应商中立 result、local/test fake、受信 ingestion seam 和 assignment-aware 内部 query；不新增 REST/WS。
+- Corrections during implementation: provider payload 被纳入 canonical 幂等比较但从 DTO 排除；受限项目即使仍有 assignment 也对普通角色失败关闭；interim 在门禁通过后明确零落库。
+- Evidence: 实现与 CI 纠错提交截至 `b34205f`；format、ESLint、全仓 typecheck、Prisma generate/validate、全仓 build 通过；unit 14 files / 63 tests PASS；GitHub CI `30886820301` 的 migration、integration、auth、smoke 与 E2E 全部 PASS。
+- CI corrections: 首轮发现动态 TranscriptionModule 未在自身作用域注册 `API_CONFIG`；次轮发现 PostgreSQL text 不接受 advisory lock key 中的 NUL。分别改为显式复用应用配置，以及固定 UUID 前缀加冒号的 PostgreSQL-safe lock key。
+- Local limitation: 本机 Docker daemon 未运行且 `TEST_DATABASE_URL` 未配置，因此数据库验证证据来自 GitHub 隔离 PostgreSQL，而不是本机复跑。
+- Lesson: 供应商中立不仅是字段命名中立；重放等价性、原始 payload 私密性、映射快照时点和 restricted 读取门禁也必须在持久化 seam 中固定，否则稳定 segment ID 仍可能掩盖证据漂移或越权。
+- Boundary: 候选不代表 DEV-004 完成；真实 ASR、WebSocket、AudioWorklet、校准/remap、故障区间、补转录、真实数据与生产部署仍未覆盖。
