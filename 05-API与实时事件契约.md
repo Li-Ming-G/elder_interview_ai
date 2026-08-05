@@ -398,19 +398,45 @@ GET  /exports/:id
 
 ## 5. WebSocket
 
-地址：
+DEV-004B1 服务端协议入口：
 
 ```text
-/ws/interviews/:sessionId
+/ws/interviews
 ```
 
-当前事件名称和公共信封为正式方向，但不足以直接实现业务 WebSocket。DEV-004B 开工前必须先正式补齐：Cookie/Origin 握手鉴权、当前 assignment 与 session 状态门禁、PCM 采样格式、帧序号与背压、服务端事件顺序、ACK/恢复游标与保留窗口、重复 final 处理，以及 close/error code。DEV-004A 不新增 WebSocket 依赖或入口。
+会话 ID 不放在 upgrade 路径中，也不得仅凭 URL 参数授权。浏览器 upgrade 成功后必须在 5 秒内发送唯一的首个 `session.join`，由该消息携带 `session_id`、内存中的 CSRF token、音频流 ID 和可选恢复游标。静态路径允许直接使用 Nest 官方原生 WebSocket adapter；不为内部 MVP 自建动态 upgrade router。
 
-### 5.1 公共事件结构
+DEV-004B 拆为：
+
+- DEV-004B1：服务端 WebSocket 协议核心、合成 PCM、确定性 streaming fake、短时进程内事件恢复；
+- DEV-004B2：真实 Chromium 客户端、合成 PCM、interim/final 展示、背压与短时重连纵向验证。
+
+B1 契约与共享类型提交前不得并行实现 B2。AudioWorklet、真实麦克风、真实 ASR 供应商、持久 outbox、故障区间和离线补录均不在 B1/B2 当前范围。
+
+### 5.1 客户端上行信封
 
 ```json
 {
+  "type": "session.join",
   "event_id": "uuid",
+  "session_id": "uuid",
+  "schema_version": "1.0",
+  "payload": {}
+}
+```
+
+客户端 `event_id` 只用于连接内诊断和去重，不得代替业务幂等键。`session.join` 前不得发送其他业务消息。
+
+B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不得超过 8192 bytes；只接受契约声明的字段，未知字段、重复 JSON key、非文本帧和无法解析的 JSON 均按 `INVALID_WS_MESSAGE` 拒绝。服务端时间戳统一使用带时区的 RFC 3339/ISO 8601 字符串。
+
+### 5.2 服务端下行信封
+
+```json
+{
+  "type": "asr.final",
+  "event_id": "uuid",
+  "event_stream_id": "uuid",
+  "server_sequence": 12,
   "session_id": "uuid",
   "timestamp": "2026-08-01T13:22:00+08:00",
   "schema_version": "1.0",
@@ -418,32 +444,130 @@ GET  /exports/:id
 }
 ```
 
-### 5.2 客户端上行事件
+同一 `event_stream_id` 内 `server_sequence` 从 0 开始严格递增。`event_id` 全局唯一。客户端按 `(event_stream_id, server_sequence)` 恢复顺序，并始终按稳定 `segment_id` 幂等展示 final。
+
+### 5.3 DEV-004B1 客户端上行事件
 
 - `session.join`
 - `audio.frame`
-- `speaker.calibration`
-- `suggestion.request`
-- `marker.create`
-- `session.stop`
+- `event.ack`
 - `heartbeat`
 
-### 5.3 服务端下行事件
+`speaker.calibration`、`suggestion.request`、`marker.create` 和 `session.stop` 保留为后续方向，B1 不实现。
+
+### 5.4 DEV-004B1 服务端下行事件
 
 - `session.ready`
+- `audio.ack`
 - `asr.interim`
 - `asr.final`
 - `asr.status`
-- `speaker.mapping`
-- `ai.analysis_started`
-- `suggestion.created`
-- `suggestion.failed`
-- `timer.updated`
-- `upload.status`
-- `session.completed`
+- `heartbeat.ack`
 - `error`
 
-### 5.4 `asr.final` 示例
+其他下行事件保留为后续方向，B1 不实现。
+
+### 5.5 握手、join 与权限
+
+1. upgrade 必须携带允许列表内的 `Origin` 和有效不透明 session Cookie；缺失或错误时在 upgrade 前以 HTTP 401/403 拒绝，不返回 Cookie、token、Origin 白名单或业务正文；
+2. 浏览器 WebSocket API 不能设置任意请求头，因此 CSRF token 由首个 `session.join.payload.csrf_token` 携带；该 token 只能停留在内存，日志和错误不得记录；
+3. `session.join.payload` 必须包含 `audio_stream_id`；首次加入不带恢复字段，重连可带 `event_stream_id` 与 `resume_after_server_sequence`，二者必须同时出现；
+4. join 时验证 CSRF 与当前 auth session 绑定、当前有效 assignment、项目为 `active`、最新捆绑授权有效、会话存在且未删除；
+5. `recording|reconnecting` 可成为主动 PCM producer；`stopping|processing` 只允许恢复已有下行事件，不接受新帧；其他状态返回 `SESSION_NOT_STREAMABLE`；
+6. 同一 session 同时只允许一个主动 PCM producer；第二条生产连接返回 `SESSION_STREAM_ALREADY_ACTIVE`；断线后相同 `audio_stream_id` 可在事件保留窗口内恢复；
+7. join 前不得创建 ASR stream、接收 PCM 或返回转录正文。
+
+首次 join payload：
+
+```json
+{
+  "csrf_token": "opaque-in-memory-token",
+  "audio_stream_id": "uuid"
+}
+```
+
+恢复 join payload：
+
+```json
+{
+  "csrf_token": "opaque-in-memory-token",
+  "audio_stream_id": "uuid",
+  "event_stream_id": "uuid",
+  "resume_after_server_sequence": 11
+}
+```
+
+连接建立后客户端每 15 秒发送一次 `heartbeat`；服务端返回 `heartbeat.ack`。连续 45 秒未收到任何有效客户端消息时，服务端以 `JOIN_TIMEOUT`（尚未 join）或 `HEARTBEAT_TIMEOUT` 关闭连接。首个 `session.join` 的 5 秒限制优先适用。
+
+`session.ready.payload` 至少包含：
+
+```json
+{
+  "audio_stream_id": "uuid",
+  "resumed": false,
+  "highest_audio_sequence_acked": -1,
+  "resume_window_seconds": 300,
+  "resume_window_events": 512
+}
+```
+
+### 5.6 PCM 帧与背压
+
+B1/B2 内部原型使用 JSON + base64 PCM，不提前冻结二进制 header：
+
+- 编码：`pcm_s16le`；采样率：16000 Hz；声道：1；
+- 每帧 100 ms、1600 samples、3200 raw bytes；
+- `sequence_no` 从 0 连续递增；`start_ms = sequence_no * 100`，`end_ms = start_ms + 100`；
+- `pcm_sha256` 为 raw bytes 的小写 64 位 SHA-256；`pcm_base64` 解码后必须正好 3200 bytes；
+- `audio_stream_id` 必须等于 join 时绑定的值。
+
+`audio.frame.payload`：
+
+```json
+{
+  "audio_stream_id": "uuid",
+  "sequence_no": 0,
+  "start_ms": 0,
+  "end_ms": 100,
+  "encoding": "pcm_s16le",
+  "sample_rate_hz": 16000,
+  "channels": 1,
+  "sample_count": 1600,
+  "pcm_sha256": "64-char-lowercase-hex",
+  "pcm_base64": "..."
+}
+```
+
+相同期望帧首次有效接收后返回 `audio.ack`。相同 sequence/checksum/时间/格式重放返回原最高连续 ACK；任一不可变字段不同返回 `AUDIO_FRAME_CONFLICT`；跳号返回 `AUDIO_FRAME_GAP`。客户端最多保留 20 个未 ACK 帧或 64000 raw bytes；达到任一阈值后停止发送 ASR 帧但不得停止 MediaRecorder 原始录音。服务端同样强制该上限，忽略背压的客户端返回 `BACKPRESSURE_LIMIT`。
+
+### 5.7 事件 ACK、短时恢复与重复 final
+
+- 客户端 `event.ack.payload.server_sequence` 确认已连续处理的最高服务端序号，只能单调增加；
+- B1 每个 session 只提供进程内短时事件缓存：最近 512 个事件或 5 分钟，先到者淘汰；不承诺跨进程恢复；
+- 有效恢复游标按原 `server_sequence` 顺序 replay，随后发送新的 `session.ready`；
+- stream ID 不匹配、服务重启或游标过期返回 `RESUME_WINDOW_EXPIRED` 和 `reset_required=true`，不得伪装恢复；
+- `asr.interim` 使用稳定 `hypothesis_id` 和递增 `revision`，只替换临时显示且不落库；
+- final 必须先经 DEV-004A 成功落库，再发布 `asr.final`；adapter 重复 final 返回同一稳定 `segment_id`，同一 runtime event stream 不发布第二个相同 final；
+- 持久 outbox、跨进程事件恢复和 transcript REST snapshot 另行立项，不阻塞内部原型。
+
+### 5.8 错误与关闭
+
+upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，再使用私有 close code：
+
+| close code | error code | 说明 |
+|---:|---|---|
+| 4400 | `INVALID_WS_MESSAGE` / `INVALID_PCM_FRAME` | 消息或 PCM 不符合契约 |
+| 4401 | `AUTH_REQUIRED` / `INVALID_CSRF_TOKEN` | 身份或 CSRF 无效 |
+| 4403 | `FORBIDDEN` / `INVALID_ORIGIN` | assignment、限制或 Origin 拒绝 |
+| 4408 | `JOIN_TIMEOUT` / `HEARTBEAT_TIMEOUT` / `SESSION_NOT_STREAMABLE` / `SESSION_STREAM_ALREADY_ACTIVE` | 超时、会话或单生产者门禁 |
+| 4409 | `AUDIO_FRAME_GAP` / `AUDIO_FRAME_CONFLICT` | 帧序号冲突 |
+| 4429 | `BACKPRESSURE_LIMIT` | 客户端忽略背压 |
+| 4450 | `RESUME_WINDOW_EXPIRED` | 短时恢复不可用 |
+| 4503 | `ASR_UNAVAILABLE` | streaming adapter 不可用 |
+
+日志不得包含 PCM/base64、转录正文、Cookie、CSRF、provider payload 或完整消息信封。
+
+### 5.9 `asr.final` 示例
 
 ```json
 {
@@ -463,7 +587,7 @@ GET  /exports/:id
 }
 ```
 
-### 5.5 `suggestion.created` 示例
+### 5.10 `suggestion.created` 示例
 
 ```json
 {

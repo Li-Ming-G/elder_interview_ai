@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A 已通过；父 DEV-004 仍需实时传输与校准子任务。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A 已通过；DEV-004B 已拆为 B1/B2，B1 服务端实时协议已就绪待实现。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -223,3 +223,16 @@
 - Boundary: 父 DEV-004 保持 `IN_PROGRESS`；实时 WebSocket/PCM、前端事件、校准/remap、真实供应商、故障区间、离线补录和真实试点仍未通过。
 - Follow-up hardening: 后续补同 ingest key 并发 PostgreSQL 测试，以及 provider payload 接近 64 KiB 时应用序列化与 `jsonb::text` 数据库约束的精确边界测试。
 - Lesson: 数据核心通过后可以为实时链路提供稳定落点，但不能反向证明传输顺序、恢复、背压和用户体验；父任务状态必须按未验证的纵向链路继续保持开放。
+
+### 2026-08-05 — DEV-004B 拆分与实时协议核心优先
+
+- User outcome: 在 final-only 证据核心通过后继续打通实时 ASR 最小纵向链路。
+- Review mode: Correction mode；唯一独立只读预审首次受平台额度中断，恢复同一 Agent 后完成，不另开第二个预审角色。
+- Review finding: 同时实现服务端协议、浏览器 PCM、重连 UI、AudioWorklet 和真实供应商仍过大；现有 HTTP middleware 不自动保护 upgrade，动态 `:sessionId` path 也不能直接获得 HTTP controller 路由语义。
+- Options considered: 动态 path + 自定义 upgrade router；静态 path + 强制 join；一次性交付前后端。采纳静态 `/ws/interviews` + join，并拆 B1 服务端/B2 浏览器。
+- Adopted decision: B1 使用 Cookie/Origin upgrade、join 内存 CSRF、assignment/project/consent/session/单 producer 门禁；JSON/base64 16 kHz mono PCM s16le 100 ms 固定帧；20 帧背压；服务端事件严格序号；512 事件或 5 分钟进程内恢复；final 先经 DEV-004A 落库再发布。
+- Tradeoff: base64 有约三分之一传输开销且 B1 不能演示浏览器字幕，但避免在核心业务语义未验证前固化二进制 header、自建动态 router 或引入持久 outbox。
+- Boundary: B1 不改 Web UI/Prisma，不接真实供应商、麦克风、AudioWorklet、校准/remap、故障区间或离线补录；B2 在 B1 contracts 提交前不得并行。
+- Evidence: `05` §5、`06` §4/§9/§11、ADR-019、DEV-004B1 任务卡、任务板与 HO-021。
+- Lesson: WebSocket 的握手、join 和流内消息属于三个不同授权时点；沿用 HTTP 登录并不自动意味着 upgrade 与长连接内持续操作安全，必须显式定义每层门禁和撤销语义。
+- Better future prompt: “请先实现静态 WebSocket 服务端协议核心，用合成 PCM 证明 join 鉴权、帧序/背压、final 落库后发布与短时恢复；共享 contracts 提交后再实现 Chromium 客户端，不接真实麦克风或供应商。”

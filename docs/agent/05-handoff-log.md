@@ -382,6 +382,24 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004、REV-012、HO-020、CON-014，以及后续 DEV-004B 任务卡
 - 运行或复现方式：以 PR #3、head `917f888`、CI `30887031030` 复核 DEV-004A；后续只用合成 PCM/虚构文本，不使用真实访谈数据
 
+## HO-021｜DEV-004B 拆分与 DEV-004B1 协议就绪
+
+- 任务编号：父 `DEV-004`、`DEV-004B1`、`DEV-004B2`、REQ-003、ADR-019
+- 交出角色：总控 Agent / iteration-coach 独立只读预审
+- 接收角色：后端实时转录实现 Agent
+- 时间：2026-08-05
+- 分支与提交：`codex/dev004b1-realtime-server`；协议启动提交待产生
+- 修改文件：`05`、`06`、ADR、任务板、追溯、DEV-004/DEV-004B1 任务卡、交接与迭代日志
+- 已完成：把过大的 DEV-004B 拆为 B1 服务端协议核心与 B2 浏览器纵向链路；冻结静态 WS path、join 鉴权、JSON/base64 PCM、帧 ACK/背压、服务端事件序、短时恢复、final 落库后发布和错误/关闭语义
+- 未完成：共享 TypeScript contracts、Nest/`ws` 依赖、服务端 runtime、streaming fake、WS/PostgreSQL 测试；B2 浏览器实现不得提前并行
+- 数据库或接口变更：无 Prisma 变更；正式 WS 地址从未可实现的动态方向收敛为静态 `/ws/interviews`，session 在强制首个 join 中绑定
+- 执行测试与结果：本条为实现前契约/任务拆分；执行文档 format、diff、引用与 Git 检查；应用测试由实现提交执行
+- 已知问题：CON-014 只阻塞 DEV-004C；REV-012 两项转录 P2 已记录但不作为 B1 开工阻塞；真实 provider 未选择不阻塞 fake 链路
+- 风险：HTTP Origin/CSRF middleware 不覆盖 WS upgrade；实现必须显式复用 Cookie/Origin/CSRF/assignment seam。fake 输出不得由客户端文本控制
+- 下一步：后端 Agent 按 DEV-004B1 先提交共享 contracts 和服务端实现；contracts 稳定后才为 B2 建完整任务卡并决定前后端并行
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004B1、ADR-018/019、REV-012、HO-020/021、CON-014 至 CON-016
+- 运行或复现方式：只用虚构 PCM/文本、隔离 PostgreSQL 和真实 native WebSocket client；禁止真实录音/供应商数据
+
 ## 交接模板
 
 ```text
