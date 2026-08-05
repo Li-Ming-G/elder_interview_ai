@@ -23,18 +23,22 @@
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
+    "@nestjs/platform-ws": "11.1.28",
+    "@nestjs/websockets": "11.1.28",
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",
     "argon2": "0.44.0",
     "pg": "8.22.0",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "ws": "8.21.2"
   },
   "devDependencies": {
     "@nestjs/testing": "11.1.28",
     "@types/express": "5.0.6",
     "@types/pg": "8.20.0",
     "@types/supertest": "6.0.3",
+    "@types/ws": "8.18.1",
     "prisma": "7.9.1",
     "supertest": "7.2.2"
   }

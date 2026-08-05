@@ -1,0 +1,394 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { describe, expect, it } from 'vitest';
+import type { WebSocket } from 'ws';
+
+import type { AuthPrincipal } from '../auth/auth.types.js';
+import { RealtimeAccessService, type RealtimeSessionMode } from './realtime-access.service.js';
+import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
+import { RealtimeRuntimeService } from './realtime-runtime.service.js';
+import { RealtimeTranscriptionGateway } from './realtime.gateway.js';
+import { DeterministicStreamingAsrFake, StreamingAsrAdapter } from './streaming-asr.js';
+
+const actor: AuthPrincipal = {
+  displayName: '虚构测试倾听员',
+  id: randomUUID(),
+  role: 'interviewer',
+  sessionId: randomUUID(),
+  sessionTokenHash: 'test-only-hash',
+  status: 'active',
+};
+
+describe('RealtimeTranscriptionGateway serialization', () => {
+  it('returns after resume-only join without a cursor', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'resume-only');
+    const client = new FakeSocket();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(randomUUID(), randomUUID()));
+    await client.waitClosed();
+    expect(client.sent.map((message) => message.type)).toEqual(['error']);
+    expect(client.sent[0]?.payload).toEqual({ code: 'SESSION_NOT_STREAMABLE' });
+    expect(adapter.calls).toBe(0);
+  });
+
+  it('serializes concurrent frames on one connection', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'produce');
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    client.receive(frame(sessionId, audioStreamId, 1));
+    await waitFor(() => client.sent.filter(({ type }) => type === 'audio.ack').length === 2);
+    expect(adapter.calls).toBe(2);
+    expect(adapter.maximumConcurrent).toBe(1);
+    expect(
+      client.sent
+        .filter(({ type }) => type === 'audio.ack')
+        .map(({ payload }) => payload.highest_audio_sequence_acked),
+    ).toEqual([0, 1]);
+    client.close(1000);
+  });
+
+  it('does not call the adapter for queued frames after close', async () => {
+    const adapter = new CountingAdapter(30);
+    const gateway = createGateway(adapter, 'produce');
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    client.receive(frame(sessionId, audioStreamId, 1));
+    await waitFor(() => adapter.calls === 1);
+    client.close(1000);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(adapter.calls).toBe(1);
+  });
+
+  it('serializes same-sequence conflict and never calls the adapter twice', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'produce');
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0, 1));
+    client.receive(frame(sessionId, audioStreamId, 0, 9));
+    await client.waitClosed();
+    expect(adapter.calls).toBe(1);
+    expect(client.closeCode).toBe(4409);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'AUDIO_FRAME_CONFLICT' });
+  });
+
+  it('rejects the twenty-first queued frame and never invokes its adapter call', async () => {
+    const adapter = new CountingAdapter(5);
+    const gateway = createGateway(adapter, 'produce');
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    for (let sequence = 0; sequence <= 20; sequence += 1) {
+      client.receive(frame(sessionId, audioStreamId, sequence));
+    }
+    await client.waitClosed();
+    expect(client.closeCode).toBe(4429);
+    expect(adapter.calls).toBe(20);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'BACKPRESSURE_LIMIT' });
+  });
+
+  it('rejects a sequence gap without invoking the adapter', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'produce');
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 1));
+    await client.waitClosed();
+    expect(client.closeCode).toBe(4409);
+    expect(adapter.calls).toBe(0);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'AUDIO_FRAME_GAP' });
+  });
+
+  it('rejects regressing and future event acknowledgements', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'produce');
+    const first = new FakeSocket();
+    const firstSession = randomUUID();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(firstSession, randomUUID()));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+    first.receive(eventAck(firstSession, 0));
+    first.receive(heartbeat(firstSession));
+    await waitFor(() => first.sent.some(({ type }) => type === 'heartbeat.ack'));
+    first.receive(eventAck(firstSession, 1));
+    first.receive(eventAck(firstSession, 0));
+    await first.waitClosed();
+    expect(first.closeCode).toBe(4400);
+
+    const second = new FakeSocket();
+    const secondSession = randomUUID();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(secondSession, randomUUID()));
+    await waitFor(() => second.sent.some(({ type }) => type === 'session.ready'));
+    second.receive(eventAck(secondSession, 99));
+    await second.waitClosed();
+    expect(second.closeCode).toBe(4400);
+  });
+
+  it('returns reset-required for a mismatched recovery stream', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    const gateway = createGateway(new CountingAdapter(), 'produce', runtimes);
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    const first = new FakeSocket();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(sessionId, audioStreamId));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+    first.close(1000);
+    await waitFor(() => runtimes.find(sessionId)?.producer === null);
+
+    const second = new FakeSocket();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(sessionId, audioStreamId, randomUUID(), 0));
+    await second.waitClosed();
+    expect(second.closeCode).toBe(4450);
+    expect(second.sent.at(-1)?.payload).toEqual({
+      code: 'RESUME_WINDOW_EXPIRED',
+      reset_required: true,
+    });
+  });
+
+  it('returns reset-required when the recovery cursor has been evicted', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    const gateway = createGateway(new CountingAdapter(), 'produce', runtimes);
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    const first = new FakeSocket();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(sessionId, audioStreamId));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+    const runtime = runtimes.find(sessionId);
+    if (runtime === null) throw new Error('Expected session runtime');
+    for (let index = 0; index < 513; index += 1) {
+      runtimes.append(runtime, 'heartbeat.ack', {});
+    }
+    first.close(1000);
+    await waitFor(() => runtime.producer === null);
+
+    const second = new FakeSocket();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(sessionId, audioStreamId, runtime.eventStreamId, 0));
+    await second.waitClosed();
+    expect(second.closeCode).toBe(4450);
+    expect(second.sent.at(-1)?.payload).toEqual({
+      code: 'RESUME_WINDOW_EXPIRED',
+      reset_required: true,
+    });
+  });
+
+  it('enforces one active producer per session', async () => {
+    const gateway = createGateway(new CountingAdapter(), 'produce');
+    const sessionId = randomUUID();
+    const first = new FakeSocket();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(sessionId, randomUUID()));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+
+    const second = new FakeSocket();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(sessionId, randomUUID()));
+    await second.waitClosed();
+    expect(second.closeCode).toBe(4408);
+    expect(second.sent.at(-1)?.payload).toEqual({ code: 'SESSION_STREAM_ALREADY_ACTIVE' });
+    first.close(1000);
+  });
+
+  it('publishes unavailable without ACK or ingestion when the local fake faults', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    let ingestionCalls = 0;
+    const gateway = createGateway(new DeterministicStreamingAsrFake(), 'produce', runtimes, () => {
+      ingestionCalls += 1;
+      return Promise.resolve({ kind: 'interim', persisted: false });
+    });
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    client.receive(frame(sessionId, audioStreamId, 1));
+    await waitFor(() => client.sent.filter(({ type }) => type === 'audio.ack').length === 2);
+    expect(ingestionCalls).toBe(2);
+    expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
+
+    client.receive(frame(sessionId, audioStreamId, 2));
+    await client.waitClosed();
+    expect(client.closeCode).toBe(4503);
+    expect(ingestionCalls).toBe(2);
+    expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
+    expect(client.sent.filter(({ type }) => type === 'audio.ack')).toHaveLength(2);
+    expect(client.sent.slice(-2).map(({ type }) => type)).toEqual(['asr.status', 'error']);
+  });
+});
+
+function createGateway(
+  adapter: StreamingAsrAdapter,
+  mode: RealtimeSessionMode,
+  runtimes = new RealtimeRuntimeService(),
+  ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
+): RealtimeTranscriptionGateway {
+  const access = {
+    assertFrame: () => Promise.resolve('produce' as const),
+    assertJoin: () => Promise.resolve(mode),
+    authenticate: () => Promise.resolve(actor),
+  } as unknown as RealtimeAccessService;
+  const ingestion = {
+    ingest,
+  };
+  return new RealtimeTranscriptionGateway(access, runtimes, adapter, ingestion as never);
+}
+
+class CountingAdapter extends StreamingAsrAdapter {
+  public calls = 0;
+  public maximumConcurrent = 0;
+  private concurrent = 0;
+
+  public constructor(private readonly delayMs = 10) {
+    super();
+  }
+
+  public async accept(): Promise<readonly []> {
+    this.calls += 1;
+    this.concurrent += 1;
+    this.maximumConcurrent = Math.max(this.maximumConcurrent, this.concurrent);
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    this.concurrent -= 1;
+    return [];
+  }
+}
+
+class FakeSocket extends EventEmitter {
+  public readonly OPEN = 1;
+  public readyState = this.OPEN;
+  public readonly sent: Array<{ payload: Record<string, unknown>; type: string }> = [];
+  public closeCode = 0;
+
+  public send(value: string): void {
+    this.sent.push(JSON.parse(value) as { payload: Record<string, unknown>; type: string });
+  }
+
+  public receive(value: Record<string, unknown>): void {
+    this.emit('message', Buffer.from(JSON.stringify(value)), false);
+  }
+
+  public close(code: number): void {
+    if (this.readyState !== this.OPEN) return;
+    this.readyState = 3;
+    this.closeCode = code;
+    this.emit('close', code);
+  }
+
+  public async waitClosed(): Promise<number> {
+    if (this.readyState !== this.OPEN) return this.closeCode;
+    return new Promise((resolve) => this.once('close', resolve));
+  }
+}
+
+function request(): AuthenticatedUpgradeRequest {
+  return {
+    [WS_AUTH]: { principal: actor, sessionToken: 'test-token' },
+  } as AuthenticatedUpgradeRequest;
+}
+
+function join(
+  sessionId: string,
+  audioStreamId: string,
+  eventStreamId?: string,
+  resumeAfterServerSequence?: number,
+): Record<string, unknown> {
+  return {
+    event_id: randomUUID(),
+    payload: {
+      audio_stream_id: audioStreamId,
+      csrf_token: 'test-csrf',
+      ...(eventStreamId === undefined
+        ? {}
+        : {
+            event_stream_id: eventStreamId,
+            resume_after_server_sequence: resumeAfterServerSequence,
+          }),
+    },
+    schema_version: '1.0',
+    session_id: sessionId,
+    type: 'session.join',
+  };
+}
+
+function eventAck(sessionId: string, sequence: number): Record<string, unknown> {
+  return {
+    event_id: randomUUID(),
+    payload: { server_sequence: sequence },
+    schema_version: '1.0',
+    session_id: sessionId,
+    type: 'event.ack',
+  };
+}
+
+function heartbeat(sessionId: string): Record<string, unknown> {
+  return {
+    event_id: randomUUID(),
+    payload: {},
+    schema_version: '1.0',
+    session_id: sessionId,
+    type: 'heartbeat',
+  };
+}
+
+function frame(
+  sessionId: string,
+  audioStreamId: string,
+  sequence: number,
+  fill = sequence + 1,
+): Record<string, unknown> {
+  const pcm = Buffer.alloc(3200, fill);
+  return {
+    event_id: randomUUID(),
+    payload: {
+      audio_stream_id: audioStreamId,
+      channels: 1,
+      encoding: 'pcm_s16le',
+      end_ms: sequence * 100 + 100,
+      pcm_base64: pcm.toString('base64'),
+      pcm_sha256: createHash('sha256').update(pcm).digest('hex'),
+      sample_count: 1600,
+      sample_rate_hz: 16000,
+      sequence_no: sequence,
+      start_ms: sequence * 100,
+    },
+    schema_version: '1.0',
+    session_id: sessionId,
+    type: 'audio.frame',
+  };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('Timed out waiting for gateway state');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
