@@ -400,6 +400,20 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004B1、ADR-018/019、REV-012、HO-020/021、CON-014 至 CON-016
 - 运行或复现方式：只用虚构 PCM/文本、隔离 PostgreSQL 和真实 native WebSocket client；禁止真实录音/供应商数据
 
+## HO-022｜DEV-004B1 实现启动
+
+- 任务编号：`DEV-004B1`、REQ-003、ADR-019
+- 交出角色：总控 Agent
+- 接收角色：后端实时转录实现 Agent（`dev004b1_backend_impl`）
+- 时间：2026-08-05
+- 分支与提交：`codex/dev004b1-realtime-server`；协议基线 `146bfde`
+- 允许修改：`packages/contracts` 的 WS contracts/codec；API 必要 WS 依赖与 lockfile；`apps/api/src/realtime-transcription/**`；必要 bootstrap/module 注册；直接相关 unit/integration/PostgreSQL/smoke 测试
+- 禁止修改：治理文档、Web UI、Prisma schema/migration、公开 transcript 写 API、真实供应商/密钥/数据、音频上传/AI/记忆语义、校准/remap、stop/completion、持久 outbox和跨进程恢复
+- 决策权限：可在 DEV-004B1 已冻结边界内选择局部实现；静态 path、信封/PCM、恢复窗口、权限/状态门禁或依赖策略变化必须先报告总控
+- 验证责任：执行 format/lint/typecheck/build/unit、真实 native WebSocket 与 PostgreSQL integration；只使用虚构 PCM/文本；记录真实结果和未验证项
+- Git 责任：实现 Agent 不 commit、不 push、不创建 PR；总控检查、收口并管理 Git/GitHub
+- 下一步：实现 Agent 完成代码与测试；总控独立复核 diff、运行门禁、补治理交接后提交 PR 给项目负责人审查
+
 ## 交接模板
 
 ```text
