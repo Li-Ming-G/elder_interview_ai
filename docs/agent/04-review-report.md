@@ -243,7 +243,7 @@ P2：
 
 - 审查仓库：private `Li-Ming-G/elder_interview_ai`
 - 审查分支：`codex/dev004b1-realtime-server`
-- 审查 PR / 最终 head / CI：实现提交 `293070e`；治理收口、PR、最终 head 与 CI 待总控产生并锁定
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/4`；实现提交 `293070e`；最终 head 与 CI 待锁定
 - 审查范围：DEV-004B1 内部虚构 PCM 的服务端 WebSocket 协议核心；pre-101 鉴权、join/逐帧门禁、严格 codec、帧序/背压、事件 ACK/短时恢复、deterministic fake、final 落库后发布及故障隔离
 - 审查人：项目负责人（GitHub 人工审查，待执行）
 - 当前结论：`PENDING`；CI 通过不等于人工 PASS，项目负责人结论前任务保持 `REVIEW`

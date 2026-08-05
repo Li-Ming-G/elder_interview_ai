@@ -26,7 +26,7 @@
 | DEV-003C | 浏览器可靠上传编排与存储恢复加固 | 总控 Agent（协调前后端实现） | DONE | DEV-003A、DEV-003B、REV-010 | [任务卡](tasks/DEV-003C.md)、ADR-017、PR #2、head `1aa643a`、CI `30875834803` PASS、REV-011 PASS | 仅限虚构/合成音频内部链路；CON-013 在生产或真实试点前处理 |
 | DEV-004 | 实时 ASR 与说话人映射（父任务） | 总控 Agent | IN_PROGRESS | DEV-003 | [父任务卡](tasks/DEV-004.md)、ADR-018/019 | DEV-004A 已通过，B1 候选进入 REVIEW、B2 待 B1 共享契约审查；父任务不提前关闭 |
 | DEV-004A | 确定态转录证据核心与供应商中立适配器 | 后端转录实现 Agent（`dev004a_backend_impl`） | DONE | DEV-003、ADR-018、CON-015/016 | [任务卡](tasks/DEV-004A.md)、PR #3、head `917f888`、CI `30887031030` PASS、REV-012 | 仅覆盖内部虚构数据证据核心；两项非阻塞 P2 随后续转录加固处理 |
-| DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | REVIEW | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、`05` §5、`06` §4/§9/§11、实现 `293070e`、REV-013 | 本地非数据库门禁通过；真实 WS/PostgreSQL、smoke 与完整 CI 待 GitHub，项目负责人 PASS 前不得 DONE |
+| DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | REVIEW | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、实现 `293070e`、REV-013 | 本地非数据库门禁通过；真实 WS/PostgreSQL、smoke 与完整 CI 待 GitHub，项目负责人 PASS 前不得 DONE |
 | DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 待分配 | TODO | DEV-004B1 共享契约提交 | DEV-004 父任务卡、ADR-019 | B1 contracts 提交前不得并行；开工前补完整任务卡 |
 | DEV-005 | 访谈工作台 | 待分配 | BLOCKED | DEV-002、DEV-004 | `01`、`03`、`05`、`09` | 等待业务与转录链路 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |

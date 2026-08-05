@@ -420,7 +420,7 @@
 - 交出角色：后端实时转录实现 Agent（`dev004b1_backend_impl`）/ 总控 Agent
 - 接收角色：项目负责人（GitHub 审查）
 - 时间：2026-08-05
-- 分支与提交：`codex/dev004b1-realtime-server`；协议基线 `146bfde`；实现候选 `293070e`；治理收口 commit/PR/CI 待产生后补记
+- 分支与提交：`codex/dev004b1-realtime-server`；协议基线 `146bfde`；实现候选 `293070e`；PR #4；最终 head/CI 待锁定
 - 修改文件：`packages/contracts/src/index.ts`；API/root 依赖与 lockfile；API bootstrap/module；`apps/api/src/realtime-transcription/**`；`tests/integration/realtime-transcription.test.ts`；任务板、追溯、审查、任务卡、交接与迭代日志
 - 已完成：pre-101 Origin/Cookie；5 秒 join 与 CSRF/assignment/project/consent/session/单 producer；严格 8 KiB JSON/PCM codec；串行帧队列、gap/conflict/背压；有序事件/ACK/512 或 5 分钟 replay；local/test fake interim/final/fault；production unavailable；final 经 DEV-004A 持久化后发布
 - 未完成：GitHub commit/PR/CI 与项目负责人审查；DEV-004B2 浏览器合成 PCM；真实 ASR/麦克风、AudioWorklet、校准/remap、持久恢复、离线补录与父 DEV-004
@@ -429,7 +429,7 @@
 - 未验证与失败：本机无 Docker daemon/5433 PostgreSQL，真实 WS/PostgreSQL integration 未执行；`pnpm test:smoke` 在 API/database readiness 失败；须由 GitHub CI 执行 migration/integration/auth/smoke/E2E
 - 已知问题：进程内恢复不跨实例；JSON/base64 有传输开销；断线时当前串行帧完成后才释放 producer，立即重连可能需要短暂重试；均在已批准内部 MVP 边界内
 - 风险：项目负责人 PASS 前不得 DONE；不得将 B1 候选外推为浏览器实时字幕、真实供应商或生产能力
-- 下一步：总控提交/push、创建非 Draft PR，等待 CI；锁定最终 head/CI 后交项目负责人审查并回填 REV-013/HO-023
+- 下一步：等待 PR #4 CI；锁定最终 head/CI 后交项目负责人审查并回填 REV-013/HO-023
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004B1、ADR-018/019、REV-012/013、HO-020 至 HO-023、CON-014 至 CON-016
 - 运行或复现方式：配置隔离 PostgreSQL 后执行 migration deploy/status、`pnpm test:integration --run`、auth、smoke；其余门禁按 CI workflow
 
