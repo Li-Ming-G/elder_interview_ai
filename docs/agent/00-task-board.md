@@ -24,8 +24,10 @@
 | DEV-003A | 浏览器采集与本地可靠分片暂存 | 音频前端 Agent（dev003a_browser_audio_buffer） | DONE | DEV-001A | [任务卡](tasks/DEV-003A.md)、`41d6104`、`134be76`、真实 Chromium E2E 2/2、REV-010 PASS | 内部虚构数据原型完成；真实麦克风、崩溃、多标签、配额、长时录音和服务端上传编排不在本任务验收范围 |
 | DEV-003B | 服务端原始分片、幂等与 manifest | 后端音频实现 Agent（dev003b_audio_backend） | DONE | DEV-002 会话 seam、DEV-003A 上传队列 seam | [任务卡](tasks/DEV-003B.md)、ADR-016、`134be76`、CI run `30872251081` PASS、REV-010 PASS | 内部虚构数据原型完成；REV-010 两项存储 P2 已由 DEV-003C 修复并经 REV-011 通过 |
 | DEV-003C | 浏览器可靠上传编排与存储恢复加固 | 总控 Agent（协调前后端实现） | DONE | DEV-003A、DEV-003B、REV-010 | [任务卡](tasks/DEV-003C.md)、ADR-017、PR #2、head `1aa643a`、CI `30875834803` PASS、REV-011 PASS | 仅限虚构/合成音频内部链路；CON-013 在生产或真实试点前处理 |
-| DEV-004 | 实时 ASR 与说话人映射（父任务） | 总控 Agent | IN_PROGRESS | DEV-003 | [父任务卡](tasks/DEV-004.md)、ADR-018 | DEV-004A 已通过；下一步先建立 DEV-004B 业务 WebSocket/合成 PCM 正式契约与任务卡，父任务不提前关闭 |
+| DEV-004 | 实时 ASR 与说话人映射（父任务） | 总控 Agent | IN_PROGRESS | DEV-003 | [父任务卡](tasks/DEV-004.md)、ADR-018/019 | DEV-004A 已通过，B1 候选进入 REVIEW、B2 待 B1 共享契约审查；父任务不提前关闭 |
 | DEV-004A | 确定态转录证据核心与供应商中立适配器 | 后端转录实现 Agent（`dev004a_backend_impl`） | DONE | DEV-003、ADR-018、CON-015/016 | [任务卡](tasks/DEV-004A.md)、PR #3、head `917f888`、CI `30887031030` PASS、REV-012 | 仅覆盖内部虚构数据证据核心；两项非阻塞 P2 随后续转录加固处理 |
+| DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | REVIEW | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、实现 `293070e`、CI `30969251197` PASS、REV-013 | 自动门禁通过；项目负责人按最终 head 明确 PASS 前不得 DONE |
+| DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 待分配 | TODO | DEV-004B1 共享契约提交 | DEV-004 父任务卡、ADR-019 | B1 contracts 提交前不得并行；开工前补完整任务卡 |
 | DEV-005 | 访谈工作台 | 待分配 | BLOCKED | DEV-002、DEV-004 | `01`、`03`、`05`、`09` | 等待业务与转录链路 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
 | DEV-007 | AI 追问引擎 | 待分配 | BLOCKED | DEV-006 | `05`、`07`、`09` | 等待长期记忆 |

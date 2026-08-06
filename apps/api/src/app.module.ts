@@ -15,6 +15,7 @@ import { OriginMiddleware } from './auth/origin.middleware.js';
 import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
 import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
+import { createRealtimeTranscriptionModule } from './realtime-transcription/realtime-transcription.module.js';
 import { createTranscriptionModule } from './transcription/transcription.module.js';
 
 @Module({})
@@ -22,6 +23,7 @@ export class AppModule implements NestModule {
   public static register(config: ApiConfig): DynamicModule {
     const authModule = createAuthModule(config);
     const audioModule = createAudioModule(config, authModule);
+    const transcriptionModule = createTranscriptionModule(config, authModule);
     return {
       controllers: [HealthController],
       global: true,
@@ -29,7 +31,8 @@ export class AppModule implements NestModule {
         authModule,
         audioModule,
         createProjectFoundationModule(config, authModule, audioModule),
-        createTranscriptionModule(config, authModule),
+        transcriptionModule,
+        createRealtimeTranscriptionModule(config, authModule, transcriptionModule),
       ],
       module: AppModule,
       providers: [

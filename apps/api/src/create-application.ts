@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { ApiExceptionFilter } from './http/api-exception.filter.js';
 import { JsonLogger } from './logging/json.logger.js';
+import { InterviewWsAdapter } from './realtime-transcription/interview-ws.adapter.js';
 
 export async function createApplication(config: ApiConfig): Promise<INestApplication> {
   const application = await NestFactory.create(AppModule.register(config), {
@@ -12,6 +13,7 @@ export async function createApplication(config: ApiConfig): Promise<INestApplica
     bufferLogs: true,
     logger: new JsonLogger(),
   });
+  application.useWebSocketAdapter(new InterviewWsAdapter(application, config));
   application.useGlobalFilters(new ApiExceptionFilter());
   application.setGlobalPrefix('api/v1');
   return application;

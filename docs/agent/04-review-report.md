@@ -239,6 +239,19 @@ P2：
 - 允许进入的下一状态：DEV-004A 转 `DONE` 并合并；父 DEV-004 保持 `IN_PROGRESS`，DEV-004B 开工前先完成实时协议正式契约与任务卡
 - 合并记录：PR #3 于 2026-08-04 合入 `main`，merge commit `2098d9f41de92e61baa3079d7037e00022745899`；不改变审查绑定 head `917f888` 的事实
 
+## REV-013｜DEV-004B1 GitHub 项目负责人审查（待执行）
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/dev004b1-realtime-server`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/4`；实现提交 `293070e`；代码候选 head `367573e0fca42ad8ceb9d5907ceb2bd2b065d72b`；CI `30969251197` PASS；最终文档收口 head 待锁定
+- 审查范围：DEV-004B1 内部虚构 PCM 的服务端 WebSocket 协议核心；pre-101 鉴权、join/逐帧门禁、严格 codec、帧序/背压、事件 ACK/短时恢复、deterministic fake、final 落库后发布及故障隔离
+- 审查人：项目负责人（GitHub 人工审查，待执行）
+- 当前结论：`PENDING`；CI 通过不等于人工 PASS，项目负责人结论前任务保持 `REVIEW`
+- 本地证据：总控复跑 format/lint/typecheck/build、unit `18 files / 87 tests`、production dependency audit 与 diff check 均通过；Node `24.18.0`、pnpm `11.15.1`
+- 本地未验证：无 Docker daemon/`127.0.0.1:5433` PostgreSQL，真实 WS + PostgreSQL integration 未执行；smoke 因 API/database readiness 失败。GitHub CI `30969251197` 已补齐 migration、真实 integration、auth、smoke 与 Chromium E2E 并全部通过
+- 审查边界：不包含 Web UI、真实浏览器 PCM、AudioWorklet、真实麦克风/ASR、校准/remap、stop/completion、持久 outbox、跨进程恢复、故障区间、离线补录、真实数据或生产部署
+- 允许进入的下一状态：候选可提交 GitHub 并等待 CI/人工审查；不得转 `DONE`，父 DEV-004 保持 `IN_PROGRESS`
+
 ## 审查模板
 
 ```text

@@ -148,3 +148,13 @@
 - 代价：DEV-004A 完成后仍不能演示浏览器实时字幕，父 DEV-004 保持未完成；后续 WebSocket 与校准仍需独立契约和验证。
 - 边界：fixture 只在 local/test 组合根存在，不形成公开写 API；只用虚构文本和隔离数据库；不接真实供应商或密钥，不改变原始录音链路。
 - 重新评估条件：项目负责人明确真实供应商、数据地域/隐私、采样格式与预算，或下一核心验证必须是浏览器实时字幕时，启动 DEV-004B/后续 provider 任务。
+
+## ADR-019｜实时链路先用静态 WebSocket join 与 JSON/base64 PCM 验证协议核心
+
+- 状态：Accepted
+- 决定：DEV-004B 拆为 B1 服务端协议核心和 B2 浏览器合成 PCM 纵向链路。使用静态 `/ws/interviews`，5 秒内首个 `session.join` 绑定 session、CSRF、assignment、授权、状态与单 producer；内部原型以 16 kHz/mono/PCM s16le、100 ms 固定帧的 JSON/base64 信封验证帧序、背压和 final 落库后发布。
+- 原因：Nest 官方原生 WebSocket adapter 使用静态 path，动态 `:sessionId` 不具备 HTTP controller 路由语义；session ID 也不是授权依据。静态入口加 join 能复用现有 Cookie/CSRF/assignment seam，避免为内部原型自建 upgrade router。JSON/base64 虽有开销，但能先验证业务顺序、幂等和故障隔离，不提前固化二进制 header。
+- 恢复边界：同一进程内每 session 保留最近 512 个事件或 5 分钟；以 `event_stream_id + server_sequence` ACK/恢复。跨进程持久 outbox、长时字幕恢复和 transcript snapshot 不在 B1/B2。
+- 安全边界：Origin/Cookie 在 upgrade 前校验；CSRF 仅在 join 消息内存传递且不进日志；join 前不创建 adapter 或接收 PCM；项目 restricted、授权撤回、assignment 失效或非流式 session 失败关闭；fake 只由 local/test 服务端组合根注入，客户端不能指定输出文本。
+- 代价：base64 增加约三分之一传输体积，且 B1 完成后仍没有真实浏览器展示；B2 必须在共享协议提交后再实现。AudioWorklet、真实麦克风、真实供应商、二进制帧和跨进程恢复后续重评估。
+- 重新评估条件：内部纵向链路通过且真实麦克风/长时负载成为下一核心假设，或多实例部署要求跨进程恢复时，分别评估二进制帧、AudioWorklet 和持久事件存储。
