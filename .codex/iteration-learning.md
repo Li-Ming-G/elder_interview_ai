@@ -252,3 +252,12 @@
 - Boundary: 父 DEV-004 仍 `IN_PROGRESS`；B2、浏览器字幕、真实麦克风/ASR、AudioWorklet、校准/remap、持久/跨进程恢复、长时性能和生产部署未通过。
 - Follow-up hardening: 长时前清理 runtime frame/final-ID 集合；B2/长连接前 heartbeat/ACK 重验 assignment；B2 错误展示前区分不泄密的内部/持久化失败。
 - Lesson: 短时 replay 的事件窗口不自动约束所有运行时集合；权限撤销也必须覆盖不携带业务数据但会维持资源占用的心跳路径。错误分类应同时满足不泄密与可运维，不能把所有内部失败伪装成权限拒绝。
+
+### 2026-08-06 — 协作文档当前态与历史态分离
+
+- User outcome: 降低 Agent 接手时的阅读成本，同时保留审查和交接的完整追溯证据。
+- Review mode: 机械治理整理；未改变产品或技术契约。
+- Adopted decision: 保留原文件名作为当前索引；原审查/交接正文整体迁移到 `docs/agent/reviews/` 和 `docs/agent/handoffs/`；新增协作入口和 OPEN 冲突快速索引。
+- Implementation evidence: `docs/agent/README.md`、`docs/agent/04-review-report.md`、`docs/agent/05-handoff-log.md`、`docs/agent/02-open-conflicts.md`、`docs/agent/handoffs/DOC-002.md`。
+- Tradeoff: 暂不把历史卷拆成大量单篇文件，避免当前引用迁移和编码风险；后续可按任务逐步拆分。
+- Lesson: 协作记录的关键不是删除历史，而是把动态状态、当前入口和审计证据分成不同层级。
