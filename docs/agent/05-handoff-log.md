@@ -433,6 +433,23 @@
 - 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004/004B1、ADR-018/019、REV-012/013、HO-020 至 HO-023、CON-014 至 CON-016
 - 运行或复现方式：配置隔离 PostgreSQL 后执行 migration deploy/status、`pnpm test:integration --run`、auth、smoke；其余门禁按 CI workflow
 
+## HO-024｜REV-013 PASS、PR #4 合并与 DEV-004B1 关闭
+
+- 任务编号：`DEV-004B1`、父 `DEV-004`、REQ-003、REV-013
+- 交出角色：项目负责人（GitHub 审查）/ 总控 Agent
+- 接收角色：DEV-004B2 后续任务负责人
+- 时间：2026-08-06
+- 分支与提交：审查分支 `codex/dev004b1-realtime-server`；锁定 head `80ff1c7294ad984e6173967705dde4b422eac474`；PR #4；merge `13350a487c3754272f01b67a9b060db54a27184b`
+- 已完成：项目负责人确认 PR/head 未漂移、非 Draft、可合并；pre-101 鉴权、join/逐帧门禁、严格 PCM、串行帧泵、背压、单 producer、短时 replay、final 落库后发布和 fake 隔离均通过；DEV-004B1 转 `DONE`
+- 自动证据：GitHub CI `30969408276` 对最终 head 通过 frozen install、format、lint、typecheck、unit 87、migration、PostgreSQL integration、auth、build、smoke 与两组 Chromium E2E
+- 未完成：父 DEV-004；DEV-004B2 浏览器合成 PCM/字幕；真实麦克风/ASR、AudioWorklet、校准/remap、持久 outbox、跨进程恢复、长时性能与生产部署
+- P2：长时前清理 runtime frames/final ID；B2/长连接前 heartbeat/ACK 重验 assignment；B2 错误展示前增加不泄密的内部/持久化失败分类
+- 数据库或接口变更：沿用已审查静态 `/ws/interviews` 与共享 contracts；无 Prisma 变更、无公开 transcript 写 API
+- 风险：不得把 B1 PASS 外推为浏览器实时字幕或真实试点；三项 P2 不阻塞当前内部服务端原型，但各自触发时点前必须处理
+- 下一步：先按 iteration-coach 为 DEV-004B2 补完整任务卡，消费 B1 contracts，用真实 Chromium 合成 PCM 验证字幕、背压与短时重连；不接真实麦克风/供应商
+- 必须先读取：AGENTS、`00` 至 `10`、任务板、DEV-004、ADR-019、REV-013、HO-024、CON-014 至 CON-016，以及待创建 DEV-004B2 任务卡
+- 运行或复现方式：以 PR #4、head `80ff1c7`、CI `30969408276` 复核 B1；B2 继续只使用虚构 PCM/文本
+
 ## 交接模板
 
 ```text

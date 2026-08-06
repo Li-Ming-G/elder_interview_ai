@@ -239,18 +239,23 @@ P2：
 - 允许进入的下一状态：DEV-004A 转 `DONE` 并合并；父 DEV-004 保持 `IN_PROGRESS`，DEV-004B 开工前先完成实时协议正式契约与任务卡
 - 合并记录：PR #3 于 2026-08-04 合入 `main`，merge commit `2098d9f41de92e61baa3079d7037e00022745899`；不改变审查绑定 head `917f888` 的事实
 
-## REV-013｜DEV-004B1 GitHub 项目负责人审查（待执行）
+## REV-013｜DEV-004B1 GitHub 项目负责人审查
 
 - 审查仓库：private `Li-Ming-G/elder_interview_ai`
 - 审查分支：`codex/dev004b1-realtime-server`
-- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/4`；实现提交 `293070e`；代码候选 head `367573e0fca42ad8ceb9d5907ceb2bd2b065d72b`；CI `30969251197` PASS；最终文档收口 head 待锁定
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/4`；最终 head `80ff1c7294ad984e6173967705dde4b422eac474`；merge `13350a487c3754272f01b67a9b060db54a27184b`
 - 审查范围：DEV-004B1 内部虚构 PCM 的服务端 WebSocket 协议核心；pre-101 鉴权、join/逐帧门禁、严格 codec、帧序/背压、事件 ACK/短时恢复、deterministic fake、final 落库后发布及故障隔离
-- 审查人：项目负责人（GitHub 人工审查，待执行）
-- 当前结论：`PENDING`；CI 通过不等于人工 PASS，项目负责人结论前任务保持 `REVIEW`
+- 审查人：项目负责人
+- 审查时间：2026-08-06
+- 当前结论：`PASS`；P0/P1=0，PR 非 Draft、可合并且 head 未漂移
 - 本地证据：总控复跑 format/lint/typecheck/build、unit `18 files / 87 tests`、production dependency audit 与 diff check 均通过；Node `24.18.0`、pnpm `11.15.1`
-- 本地未验证：无 Docker daemon/`127.0.0.1:5433` PostgreSQL，真实 WS + PostgreSQL integration 未执行；smoke 因 API/database readiness 失败。GitHub CI `30969251197` 已补齐 migration、真实 integration、auth、smoke 与 Chromium E2E 并全部通过
-- 审查边界：不包含 Web UI、真实浏览器 PCM、AudioWorklet、真实麦克风/ASR、校准/remap、stop/completion、持久 outbox、跨进程恢复、故障区间、离线补录、真实数据或生产部署
-- 允许进入的下一状态：候选可提交 GitHub 并等待 CI/人工审查；不得转 `DONE`，父 DEV-004 保持 `IN_PROGRESS`
+- 自动证据：GitHub CI `30969408276` 对最终 head 全门禁通过 frozen install、format、lint、typecheck、unit 87、migration、PostgreSQL integration、auth、build、smoke、两组 Chromium E2E
+- 本地未验证：无 Docker daemon/`127.0.0.1:5433` PostgreSQL，真实 WS + PostgreSQL integration 未在本机执行；GitHub CI 已补齐该证据
+- P2-1：runtime `frames` 与 `publishedFinalSegmentIds` 未随 5 分钟/512 事件窗口清理；长时访谈前处理
+- P2-2：heartbeat/event ACK 只重验登录 session，未重验 assignment；撤权旧连接可能继续占用 producer；B2/长连接加固前处理
+- P2-3：未识别数据库/内部异常统一映射 `FORBIDDEN`；B2 错误状态展示前补不泄密的内部失败分类
+- 审查边界：仅覆盖 DEV-004B1 服务端内部合成 PCM；不覆盖 DEV-004B2、浏览器字幕、真实麦克风/ASR、AudioWorklet、校准/remap、持久 outbox、跨进程恢复、长时性能或生产部署
+- 允许进入的下一状态：DEV-004B1 转 `DONE` 并合入 main；父 DEV-004 保持 `IN_PROGRESS`，DEV-004B2 开工前补任务卡和迭代预审
 
 ## 审查模板
 

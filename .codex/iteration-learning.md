@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A 已通过；DEV-004B1 服务端实时协议候选进入 GitHub REVIEW，B2 尚未启动。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1 已通过；下一步为 DEV-004B2 浏览器合成 PCM 实时纵向链路。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -244,3 +244,11 @@
 - Evidence correction: 初版单测未覆盖 fake 故障、21 帧背压、ACK 回退/未来、错误/淘汰游标和无 assignment join；补齐后本地 unit 为 18 files / 87 tests。
 - Verification boundary: 本地 format/lint/typecheck/build/unit/audit/diff PASS；无 Docker/5433，真实 WS/PostgreSQL 与 smoke 不能声称通过，转交 GitHub CI。
 - Lesson: WebSocket 顺序契约不能仅依赖 JavaScript 单线程；每个 `message` 回调启动的 Promise 仍会并发，必须显式串行化并定义关闭时队列语义。恢复窗口也需要同时验证 stream identity 与游标保留范围。
+
+### 2026-08-06 — REV-013 通过并合并 DEV-004B1
+
+- Review evidence: 项目负责人锁定 PR #4 head `80ff1c7294ad984e6173967705dde4b422eac474`，确认非 Draft、可合并且未漂移；最终 CI `30969408276` 全门禁 PASS；P0/P1 为 0。
+- Closed scope: DEV-004B1 在服务端内部合成 PCM 协议核心范围转 `DONE`，PR #4 以 merge commit `13350a487c3754272f01b67a9b060db54a27184b` 合入 `main`。
+- Boundary: 父 DEV-004 仍 `IN_PROGRESS`；B2、浏览器字幕、真实麦克风/ASR、AudioWorklet、校准/remap、持久/跨进程恢复、长时性能和生产部署未通过。
+- Follow-up hardening: 长时前清理 runtime frame/final-ID 集合；B2/长连接前 heartbeat/ACK 重验 assignment；B2 错误展示前区分不泄密的内部/持久化失败。
+- Lesson: 短时 replay 的事件窗口不自动约束所有运行时集合；权限撤销也必须覆盖不携带业务数据但会维持资源占用的心跳路径。错误分类应同时满足不泄密与可运维，不能把所有内部失败伪装成权限拒绝。
