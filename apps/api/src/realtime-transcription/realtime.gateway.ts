@@ -213,8 +213,12 @@ export class RealtimeTranscriptionGateway {
     }
     if (mode === 'produce') {
       if (runtime.producer !== null && runtime.producer !== client) {
-        this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
-        return;
+        const previousProducer = runtime.producer as WebSocket;
+        if (previousProducer.readyState === previousProducer.OPEN) {
+          this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
+          return;
+        }
+        this.runtimes.release(runtime, previousProducer);
       }
       runtime.producer = client;
     }

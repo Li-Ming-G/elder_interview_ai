@@ -217,6 +217,30 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     first.close(1000);
   });
 
+  it('allows recovery to replace a producer socket that is already closed', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    const gateway = createGateway(new CountingAdapter(), 'produce', runtimes);
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    const first = new FakeSocket();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(sessionId, audioStreamId));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+    const runtime = runtimes.find(sessionId);
+    if (runtime === null) throw new Error('Expected session runtime');
+    first.close(4001);
+    runtime.producer = first;
+
+    const second = new FakeSocket();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(sessionId, audioStreamId, runtime.eventStreamId, 0));
+    await waitFor(() => second.sent.some(({ type }) => type === 'session.ready'));
+
+    expect(second.closeCode).toBe(0);
+    expect(runtime.producer).toBe(second);
+    second.close(1000);
+  });
+
   it('publishes unavailable without ACK or ingestion when the local fake faults', async () => {
     const runtimes = new RealtimeRuntimeService();
     let ingestionCalls = 0;
