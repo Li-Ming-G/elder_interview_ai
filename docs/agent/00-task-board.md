@@ -18,6 +18,7 @@
 | DEC-001 | 确认工程技术基线与跨规范冲突 | 总控 Agent | DONE | BASE-001 | `02` 至 `10`、ADR、冲突日志 | REV-003 PASS；P0/P1 为 0 |
 | SPEC-FE-001 | 首次访谈页面与内容规划收敛 | 总控 Agent | REVIEW | 前端页面规划对话、ADR-020 | [任务卡](tasks/SPEC-FE-001.md)、正式文档同步、HO-030 | 等待项目负责人按 GitHub 最终 head 审查；无代码实现 |
 | SPEC-AI-QUESTION-001 | 单问题建议与替换契约 | 待分配 | READY | SPEC-FE-001 产品决定 | [任务卡](tasks/SPEC-AI-QUESTION-001.md) | DEV-007A 开工硬前置；只冻结契约，不实现代码 |
+| SPEC-SESSION-END-001 | 会话安全结束与恢复契约 | 待创建的会话编排契约任务对话 | READY | SPEC-FE-001 产品决定、DEV-003/004B2 seam | [任务卡](tasks/SPEC-SESSION-END-001.md)、ADR-021、CON-019 | DEV-005C 开工硬前置；当前 stop/recover 只是路径占位，不能作为已有能力调用 |
 | MVP-V01 | 最小纵向核心假设链路 | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B 内部候选 seam | [里程碑卡](tasks/MVP-V01.md) | 仅限虚构/脱敏数据和非公网内部验证；逐段集成 |
 | DEV-001 | 初始化工程与环境（父任务） | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B | [父任务卡](tasks/DEV-001.md) | DEV-001B 最终加固/复审未完成，但不阻塞内部原型 |
 | DEV-001A | 工程骨架与可重复工具链 | 工程基础实现 Agent（Archimedes） | DONE | DEC-001 | [任务卡](tasks/DEV-001A.md)、`fb99560`、REV-006 | REV-006 PASS；P0/P1/P2 均为 0 |
@@ -31,9 +32,11 @@
 | DEV-004A | 确定态转录证据核心与供应商中立适配器 | 后端转录实现 Agent（`dev004a_backend_impl`） | DONE | DEV-003、ADR-018、CON-015/016 | [任务卡](tasks/DEV-004A.md)、PR #3、head `917f888`、CI `30887031030` PASS、REV-012 | 仅覆盖内部虚构数据证据核心；两项非阻塞 P2 随后续转录加固处理 |
 | DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | DONE | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、head `80ff1c7`、merge `13350a4`、CI `30969408276` PASS、REV-013 PASS | 仅覆盖服务端内部合成 PCM 协议核心；三项 P2 转后续加固，B2/真实 ASR/长时性能不在本任务 |
 | DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 浏览器实时转录实现 Agent（`dev004b2_browser_realtime_impl`） | DONE | DEV-004B1、ADR-019、REV-013 | [任务卡](tasks/DEV-004B2.md)、PR #5 head `73a07cb`、CI `31143035668` PASS、REV-014 PASS、merge `49949fc`、HO-031 | 内部虚构/合成 PCM 浏览器链路完成；真实麦克风/ASR、长时和正式工作台未覆盖 |
-| DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001 | [父任务卡](tasks/DEV-005.md) | DEV-004B2 已合并；等待页面规划审查，不等待项目列表、回顾或导出 UI |
-| DEV-005A | 首次访谈准备页与安全结束页 | 待创建的前端实现任务对话 | BLOCKED | DEV-002、DEV-003、SPEC-FE-001 审查通过 | [任务卡](tasks/DEV-005A.md) | 等待本规划 GitHub PASS；使用预创建虚构项目，不依赖项目列表 |
-| DEV-005B | 转录优先访谈工作台 | 待创建的前端实现任务对话 | BLOCKED | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md) | DEV-004B2 seam 已通过；等待 DEV-005A 页面外壳，真实 AI 建议接入归 DEV-007A |
+| DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001、SPEC-SESSION-END-001 | [父任务卡](tasks/DEV-005.md) | 页面规划审查后可分段推进；完整闭环仍等待安全结束契约与 DEV-005C/D，不等待项目列表、回顾或导出 UI |
+| DEV-005A | 首次访谈准备页与正式路由外壳 | 待创建的前端实现任务对话 | BLOCKED | DEV-002、DEV-003、SPEC-FE-001 审查通过 | [任务卡](tasks/DEV-005A.md) | 等待本规划 GitHub PASS；不包含安全结束，不依赖 stop/recover |
+| DEV-005B | 转录优先访谈工作台 | 待创建的前端实现任务对话 | BLOCKED | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md) | 等待 DEV-005A 页面外壳；只预留结束挂载位置，真实 AI 建议接入归 DEV-007A |
+| DEV-005C | 服务端会话安全结束编排 | 待创建的后端会话编排实现任务对话 | BLOCKED | SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2 | [任务卡](tasks/DEV-005C.md)、ADR-021、CON-019 | 等待结束契约通过；不得让实现 Agent 自行猜 stop/recover 和完成条件 |
+| DEV-005D | 安全结束页薄集成 | 待创建的前端安全结束实现任务对话 | BLOCKED | DEV-005A、DEV-005B、DEV-005C PASS | [任务卡](tasks/DEV-005D.md) | 等待真实服务端结束事实；不得用前端状态或固定延时模拟完成 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
 | DEV-007 | AI 追问引擎 | 待分配 | BLOCKED | DEV-006、SPEC-AI-QUESTION-001 | `05`、`07`、`09` | 等待长期记忆及单问题替换契约；旧采用/已问/忽略生命周期不得实现 |
 | DEV-008 | 回顾、导出与删除 | 待分配 | BLOCKED | DEV-002、DEV-003、DEV-004、DEV-005、DEV-006、DEV-007、CON-006、CON-007 | `03`、`05`、`08`、`09` | 未拆分任务包含回顾 UI；开工前拆分并解决备份清理状态、删除摘要密钥轮换 |

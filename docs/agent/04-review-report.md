@@ -12,6 +12,7 @@
 | DEV-004A | REV-012 | PR #3 / `917f888` | DONE | 仅确定态转录证据核心；真实 ASR、实时事件和真实试点未覆盖 |
 | DEV-004B1 | REV-013 | PR #4 / `80ff1c7` | DONE | 仅服务端合成 PCM 协议；三个 P2 和 B2/真实 ASR/长时性能未覆盖 |
 | DEV-004B2 | REV-014 | PR #5 / `73a07cb` / CI `31143035668` PASS | DONE | 定向复审 PASS；仅内部虚构/合成 PCM 浏览器纵向链路，父 DEV-004 继续开放 |
+| SPEC-FE-001 | REV-015 | PR #6 / `e93db16` / CI `31151615335` PASS | NEEDS_CHANGES | P1：原 DEV-005A 要求安全结束但服务端无 stop/completion 实现或可执行契约；按 ADR-021/CON-019 拆分后定向复审 |
 
 ## 阅读规则
 
@@ -21,4 +22,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-014`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-015`。
