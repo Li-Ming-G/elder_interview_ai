@@ -108,8 +108,12 @@ function WorkbenchView({
   const previousFinalCount = useRef(0);
 
   useEffect(() => {
-    const timer = globalThis.setInterval(() => setNow(Date.now()), 1000);
-    return () => globalThis.clearInterval(timer);
+    const timer = globalThis.setInterval((): void => {
+      setNow(Date.now());
+    }, 1000);
+    return (): void => {
+      globalThis.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {

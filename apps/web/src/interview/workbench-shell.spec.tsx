@@ -66,6 +66,7 @@ function api(result: PreparationData): InterviewApi {
 
 function transportHarness(): {
   emit: (state: RealtimeState) => void;
+  isSubscribed: () => boolean;
   factory: () => {
     connect: () => void;
     disconnect: () => void;
@@ -75,6 +76,7 @@ function transportHarness(): {
   let listener: ((state: RealtimeState) => void) | null = null;
   return {
     emit: (state) => listener?.(state),
+    isSubscribed: () => listener !== null,
     factory: () => ({
       connect: vi.fn(),
       disconnect: vi.fn(),
@@ -116,6 +118,9 @@ describe('WorkbenchShell', () => {
       />,
     );
     await screen.findByText('当前对话');
+    await waitFor(() => {
+      expect(transport.isSubscribed()).toBe(true);
+    });
     act(() => {
       transport.emit({
         connection: 'unavailable',
@@ -162,6 +167,9 @@ describe('WorkbenchShell', () => {
       />,
     );
     const viewport = await screen.findByTestId('transcript-viewport');
+    await waitFor(() => {
+      expect(transport.isSubscribed()).toBe(true);
+    });
     Object.defineProperties(viewport, {
       clientHeight: { configurable: true, value: 200 },
       scrollHeight: { configurable: true, value: 1000 },
