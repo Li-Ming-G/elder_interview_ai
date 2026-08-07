@@ -273,6 +273,11 @@ P2：
 - 修复 CI 证据：head `656933b` 的 GitHub CI `31142873253` 全部 PASS，覆盖 frozen install、format、lint、typecheck、109 项 unit、migration deploy/status、PostgreSQL integration、auth、build、smoke、普通 Chromium 和 auth Chromium。
 - 审查边界：不覆盖真实麦克风/ASR、AudioWorklet、校准/remap、长时、浏览器刷新/进程/跨进程恢复、持久 outbox、正式工作台或生产部署
 - 允许进入的下一状态：推送含 `6fd228f` 的新 head、全 CI PASS 后交项目负责人定向复审；明确 PASS 前 DEV-004B2 保持 REVIEW，父 DEV-004 继续 IN_PROGRESS
+- 定向复审提交：`73a07cb676a9787ca0fa25d1b1c3297c44cffa0a`
+- 定向复审 CI：`31143035668` 全部门禁 PASS
+- 最终结论：`PASS`
+- 通过依据：join 错误信封绑定已校验请求 session，错误信封丢失时按 close code 后备分类并停止重连；事件只在成功 apply 后推进 cursor/ACK/重发；跨 stream ready/ACK、event gap 和 error 均真正失败关闭；terminal/reset 清理 socket、heartbeat、reconnect 并拒绝后续帧；完整 transport 回归覆盖所有上述副作用。
+- 未发现新的 P0/P1；DEV-004B2 可转 DONE 并合并。范围仍不含真实麦克风/ASR、AudioWorklet、校准/remap、持久/跨进程恢复、长时、正式工作台和生产部署；父 DEV-004 保持 IN_PROGRESS。
 
 ## 审查模板
 

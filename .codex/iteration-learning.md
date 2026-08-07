@@ -293,3 +293,10 @@
 - Evidence: 修复 `6fd228f`；定向 33 tests、全仓 109 unit、format/lint/typecheck/build、Chromium 4/4 和 diff check 本地 PASS；新 head 数据库门禁仍交 GitHub CI。
 - Lesson: “检测到协议错误”不等于“失败关闭”。顺序型客户端必须让验证、状态应用、游标提交和副作用形成明确提交点；错误信封也必须在 join 尚未成功时具备可关联的请求身份。
 - Better future prompt: “请用完整 transport 流程验证 join 错误和协议违例：失败后不得推进 cursor、ACK、重发、心跳、重连或新增帧；不要只测试分类函数或 UI error 字段。”
+
+### 2026-08-07 — REV-014 定向复审 PASS 并合并 DEV-004B2
+
+- Review evidence: 项目负责人锁定 PR #5 final head `73a07cb676a9787ca0fa25d1b1c3297c44cffa0a`，确认非 Draft、可合并且两项 P1 均闭环；CI `31143035668` 全部门禁 PASS；未发现新增 P0/P1。
+- Closed scope: DEV-004B2 在内部虚构/合成 PCM 浏览器纵向链路范围转 `DONE`，PR #5 以 merge commit `49949fc51eedbada51b76a51090da8b665c206bc` 合入 `main`。
+- Boundary: 父 DEV-004 保持 `IN_PROGRESS`；真实麦克风/ASR、AudioWorklet、校准/remap、长时、跨进程恢复、正式工作台和生产部署仍未通过。
+- Lesson: 定向复审应锁定最终 head 并验证失败后的负副作用确实消失；CI 全绿不能代替协议终止语义审查，但能在修复后补齐数据库和浏览器组合证据。
