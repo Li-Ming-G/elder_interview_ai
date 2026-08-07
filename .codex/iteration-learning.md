@@ -440,3 +440,11 @@
 - Idempotency lesson: 资源终态与请求响应是两个不同事实。终态不可重写或复活；每个 request ID 必须保存其首次可见 snapshot，即使后台状态随后推进也只能重放原响应。
 - Evidence: PostgreSQL barrier 覆盖 stop/revoke 双顺序与 stop/upload 扩集；ASR 成功、不可用、超时、final-first、runtime loss 和 completed/failed/replay 回归；完整本地门禁通过。
 - Boundary: 不接真实 ASR、云存储、队列或前端；REV-019 三项 P2 保持登记，DEV-005C 仍为 REVIEW，DEV-005D 仍为 BLOCKED。
+
+### 2026-08-07 — REV-019 第二轮发现 ASR drain runner 重入
+
+- Review evidence: 项目负责人锁定 PR #10 head `33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063` 与 CI `31172641955`；首轮四项 P1 全部关闭，但结论仍为 REQUEST_CHANGES。
+- New finding: 持久 `draining` 允许崩溃恢复，但同一进程中没有 single-flight 时，并发 recover/reconcile/stop 会重复调用外部 `drainAndClose()`；数据库最终状态保护无法约束供应商副作用。
+- Adopted correction: 按 finalization ID 复用一个进程内 advance Promise，完成后清理；进程重启后 Map 丢失，由持久状态重新驱动。补阻塞 fake 和并发 barrier 测试。
+- Boundary: 仅修 single-runner，不改数据库、不引队列、不处理三个 P2、不接真实 ASR。DEV-005C REVIEW、DEV-005D BLOCKED。
+- Lesson: “状态为 draining”既是持久恢复信号，又不能单独承担同进程互斥；可恢复状态和进程内 single-flight 是两个互补层次。

@@ -79,3 +79,11 @@
 - `completed|failed` 终态稳定，`completed_at` 不重写且 failed 不可复活；每个新 stop request ID 持久自己的首次响应并稳定重放。
 - PostgreSQL integration 增加真实 barrier 竞态、ASR ending、重启事实与终态/幂等回归；本地 format、lint、typecheck、unit 127/127、integration 29/29、auth 13/13、migration deploy/status、build、smoke 均通过。
 - 三项 REV-019 P2 仅保留登记，未扩大实现；状态保持 `REVIEW`，等待新 final head CI 与项目负责人定向复审。
+
+## REV-019 第二轮定向复审
+
+- 复审绑定 PR #10 head `33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063`，CI `31172641955` PASS；旧四项 P1 已全部关闭。
+- 新增唯一 P1：`advance()` 在事务外执行 ASR `drainAndClose()` 时，另一个并发 recover、reconcile 或匹配同一 snapshot 的 stop 看见 `draining` 后仍会启动第二个外部 runner；同一 request ID 在首次响应持久化前也可能重复触发。
+- 定向修复：在 `SessionFinalizationService` 内按 `finalizationId` 建立进程内 `Map<id, Promise<void>>` single-flight。已有 Promise 时等待同一 Promise；没有时创建 `advanceOnce()`，完成后在 `finally` 删除。进程重启后 Map 为空，持久 `draining` 仍允许重新驱动。
+- 必测：阻塞 fake adapter 的第一次 drain；同时发起相同 request ID recover、不同 request ID recover/reconcile，以及匹配同一 frozen snapshot 的 stop，断言外部 `drainAndClose` 调用数始终为 1；释放后所有响应稳定、session completed、transcript drained、幂等响应不漂移。
+- 本轮不得修改数据库模型或 migration，不引入 Redis/BullMQ/队列，不接真实 ASR；三个既有 P2 继续不处理。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。

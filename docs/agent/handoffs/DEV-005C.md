@@ -30,3 +30,10 @@
 - 自动化：真实 PostgreSQL barrier 覆盖 stop/revoke 两种排队次序和 stop/upload 扩集竞态；覆盖 ASR drained/unavailable/timeout/final-first/runtime-loss，以及 completed/failed/stop request replay。
 - 本地门禁：`git diff --check`、format、lint、typecheck、unit 127/127、migration deploy/status、PostgreSQL integration 29/29、auth 13/13、build、smoke 全部通过；未新增 migration 或依赖。
 - 保留风险：最小 ending seam 仍是进程内 adapter、1 秒 drain 上限，不含真实 ASR/持久队列；REV-019 三项 P2 本轮未修。等待新 final head 的 GitHub CI 与项目负责人定向复审，不宣告 PASS/DONE。
+
+## REV-019 第二轮定向复审
+
+- 审查 head：`33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063`；CI `31172641955` PASS；旧四项 P1 4/4 关闭。
+- 唯一新增 P1：`transcript_status=draining` 期间的并发 recover/reconcile/stop 仍可重复调用外部 `drainAndClose()`；数据库终态保护不能替代供应商 runner single-flight。
+- 只允许新增按 `finalizationId` 的进程内 single-flight Promise 和对应阻塞 fake/barrier 测试；崩溃后依赖持久 `draining` 重新驱动，不新增持久队列或 migration。
+- 三个 P2 继续延期；修复后提交新 final head 与完整 CI，供项目负责人再次定向复审。
