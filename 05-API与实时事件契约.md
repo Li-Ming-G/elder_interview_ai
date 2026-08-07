@@ -312,7 +312,8 @@ POST /sessions/:id/recover
 
 规则：
 
-- `recording|reconnecting` 是首次 stop 的合法前置状态；服务端按 session 串行，重新验证当前 auth session、actor、有效 assignment 和资源归属；
+- `recording|reconnecting` 是首次 stop 的合法前置状态；服务端按 session 串行，重新验证当前 auth session、actor、有效 assignment、资源归属、最新捆绑授权仍有效，并确认项目未处于 `restricted|deleted`；这些门禁必须与创建 finalization/commitments 在同一资源锁内判定；
+- 若授权已撤回或项目已受限，而服务端此前尚未接受 stop snapshot，首次 stop 返回 403 `FORBIDDEN`，不得创建 `session_finalization`、chunk commitments 或 evidence-finalization 例外，不得扩大证据边界；服务端只保留此前已经可靠收到的分片，并将/保持 session 为 `interrupted` 供后续有权人工处置；
 - audio object 必须是该 session 唯一的 `purpose=interview` 对象；`expected_chunk_count` 为正整数，`chunks.length` 与其相等，sequence 连续为 `0..N-1`，时间不重叠且递增，所有字段通过与 audio API 相同的边界校验；
 - 首次接受时，服务端以 `started_at + 最后一片 end_ms` 推导/校验 `ended_at`，以 `ceil(last end_ms/1000)` 计算时长，并固化 stop snapshot、chunk commitments、幂等记录后原子转为 `stopping`。从该提交点起拒绝新 PCM、新 interview audio object、扩大 count 和 commitment 外上传；
 - 成功接受返回 202 和公共 snapshot。若提交时所有分片/manifest 已完整，服务端可在同一请求内推进到 `processing` 或 `completed`，响应始终返回提交完成时的真实 snapshot；
@@ -346,7 +347,7 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
 
 - `reconcile`：适用于 `stopping|processing|completed|failed`，重新读取持久 finalization、audio manifest 和 ASR 终态，安全重驱进程内 runner并返回公共 snapshot；
 - `resume_capture`：只适用于尚无 finalization 的 `interrupted`，且当前 assignment、项目、授权、auth session 和账号全部有效；原子转为 `reconnecting`；
-- `finalize_interrupted`：只适用于尚无 finalization 的 `interrupted`，请求除 `action` 外必须携带与 stop 相同的 `audio_object_id/expected_chunk_count/chunks`，按 stop 规则冻结已有证据并进入 `stopping`。
+- `finalize_interrupted`：只适用于尚无 finalization 的 `interrupted`，请求除 `action` 外必须携带与 stop 相同的 `audio_object_id/expected_chunk_count/chunks`；它与首次 stop 使用相同的当前 assignment、最新授权、项目限制和资源归属门禁，全部通过后才可冻结已有证据并进入 `stopping`。授权已撤回或项目已受限时返回 403 `FORBIDDEN`，不得新建 finalization 或 commitments；
 
 规则：
 
@@ -354,7 +355,7 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
 - `reconcile` 不依赖 `event_stream_id/server_sequence`，不承诺恢复 interim 或 WebSocket 历史，也不把 5 分钟/512 事件 replay 当成 session recover；
 - `recording|reconnecting` 的 reconcile 返回 409 `SESSION_RECOVERY_NOT_REQUIRED`；无 finalization 的 `created|device_check` 返回 409 `SESSION_NOT_RECOVERABLE`；
 - `completed|failed` 的 reconcile 返回 200 终态 snapshot，不改变终态；进程重启后的 `stopping|processing` 必须能仅凭持久事实重驱；
-- recover 的普通授权与受限 evidence-finalization 授权遵循上一节。失去 assignment 后不能 `resume_capture`，但原操作者重新认证后可以 reconcile/补传冻结证据。
+- recover 的普通授权与受限 evidence-finalization 授权遵循上一节。只有撤权前已成功冻结 stop snapshot，原操作者重新认证后才可 reconcile/补传 commitment 范围内证据；尚无 finalization 时，失去 assignment、授权失效或项目受限均不能 `resume_capture|finalize_interrupted`。
 
 #### 3.5.5 状态推进与错误
 

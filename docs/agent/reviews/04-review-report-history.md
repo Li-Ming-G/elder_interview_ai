@@ -317,6 +317,21 @@ P2：
 - 审查边界：仅代表内部虚构数据的准备页和正式路由外壳；不覆盖完整工作台、安全结束、真实麦克风、真实授权资料、真实 ASR/LLM、真实试点或生产部署。
 - 合并记录：PR #7 以 merge commit `066c424113c76da8ec15654a7216ac57aac2affe` 合入 `main`；DEV-005A 转 `DONE`，DEV-005B 页面外壳前置成立并转 `READY`；父 DEV-005 继续 `BLOCKED`。
 
+## REV-017｜SPEC-SESSION-END-001 GitHub 项目负责人首轮审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/spec-session-end-001`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/8`
+- 首审提交：`e8fa20f39903aaf9f84a4dc4672d10ff25058933`；GitHub head 已核对一致
+- 自动证据：CI `31162831225` 全部门禁 PASS，覆盖 migration、integration、auth、build、smoke 和 Chromium E2E
+- 审查人：项目负责人（GitHub 人工审查）
+- 审查时间：2026-08-07
+- 首轮结论：`REQUEST_CHANGES`；P0=0、P1=1；其余重点均通过
+- P1：`08` 已规定授权在 stop snapshot 前撤回后不能由客户端新建补传例外，但 `05` 首次 stop 只复核 auth、actor、assignment 和资源归属，未明确复核最新授权和项目 restricted；`finalize_interrupted` 继承同一歧义。
+- 影响：录制中撤回授权但 assignment 仍有效时，DEV-005C 可能接受首次 stop 并事后创建 finalization/commitments，与安全治理契约相反。
+- 修正要求：首次 stop 与尚无 finalization 的 `finalize_interrupted` 必须复核最新授权有效且项目未受限；撤权后不得新建 finalization/commitments，只保留服务端已可靠接收分片并进入/保持 `interrupted`；只有撤权前已经冻结的 snapshot 才允许受限补传。
+- 定向复审条件：`05` 与 `08` 一致，并在 `09` §10.1 覆盖“授权在首次 snapshot 前撤回且 assignment 仍有效”的负向场景；CON-019 保持 OPEN、SPEC 保持 REVIEW、DEV-005C/D 保持 BLOCKED。
+
 ## 审查模板
 
 ```text

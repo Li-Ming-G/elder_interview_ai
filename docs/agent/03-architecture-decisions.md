@@ -188,7 +188,7 @@
 - 决定：一次 session 只允许一个 interview audio object。客户端先停止 PCM 和 MediaRecorder、收取最终分片，再以稳定 stop request ID 提交 expected count 与逐片不可变 commitment。服务端原子冻结采集截止、时长和 `session_finalization` 后进入 `stopping`；只允许承诺范围内补传。manifest 完整后进入 `processing`；ASR 终结为 `drained|degraded|not_started` 后进入 `completed`，AI 不参与门禁。
 - 原因：现有 session 总状态无法证明缺片、manifest、ASR drain 或进程故障恢复；所有上传都要求当前 assignment，又与撤权后保存已产生证据冲突。冻结 commitment 使撤权后的补传成为字节级受限能力，而不是普通资源权限旁路。
 - 恢复边界：`interrupted` 是尚无完整 stop snapshot 的可恢复采集中断；`stopping|processing` 只依赖持久 finalization 重驱，WebSocket 512 事件/5 分钟 replay 不参与判断；`completed|failed` 为终态。
-- 权限边界：stop 后原操作者账号仍 active 且重新认证时，即使 assignment/授权变化，也只能补传冻结 object/sequence/metadata 并读取最小 snapshot；不得匿名上传、下载正文、继续 PCM/AI 或扩大范围。授权撤回不等于物理删除。
+- 权限边界：首次 stop/`finalize_interrupted` 创建冻结边界时必须同时满足当前 assignment、最新授权有效且项目未受限；撤权前已成功冻结后，原操作者账号仍 active 且重新认证时，即使 assignment/授权随后变化，也只能补传冻结 object/sequence/metadata 并读取最小 snapshot。撤权发生在首次 snapshot 前时不得事后新建 commitments；任何阶段均不得匿名上传、下载正文、继续 PCM/AI 或扩大范围。授权撤回不等于物理删除。
 - 内部 MVP 与未来 seam：DEV-005C 可用有界进程内 runner 和启动扫描；未来队列/outbox 只替换触发、租约和重试，不改变聚合、状态、幂等、完成门禁或公共响应。生产基础设施不是内部验证前置。
 - 代价：需要一个前向 migration、finalization/chunk commitment 持久模型、公共 snapshot 和更严格的补传授权；stop payload 随分片数增长。换取进程重启可恢复、撤权不丢证据、页面不猜状态。
 - 重新评估条件：产品需要一次 session 多个录音对象、跨设备续传或 stop payload 超出可接受限制时，改为 session-level manifest aggregate/分批 commitment 协议；不得静默移除冻结边界。

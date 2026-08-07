@@ -37,7 +37,7 @@
 
 - `pnpm format:check`：PASS；
 - 修改 Markdown 本地链接检查：17 个文件，PASS；
-- 安全结束矩阵关键场景检查：18/18，PASS；
+- 安全结束矩阵关键场景检查：首轮 18/18；REV-017 修正后新增撤权竞态，复核目标 19/19；
 - 允许路径检查：PASS，无 `apps/**`、`packages/contracts/**`、Prisma、测试或 CI 改动；
 - 状态检查：SPEC `REVIEW`、DEV-005C/D `BLOCKED`、CON-019 `OPEN`，PASS；
 - `git diff --check`：PASS；
@@ -49,3 +49,11 @@
 2. 等待 CI 后由项目负责人锁定最终 GitHub head 审查；
 3. PASS 后总控关闭 CON-019、把 SPEC 标记 DONE 并解锁 DEV-005C；
 4. DEV-005C 按 `04`/`05` 实现 migration/contracts/service/tests，DEV-005D 只消费公共 snapshot。
+
+## REV-017 首审与定向修正
+
+- 首审绑定 head：`e8fa20f39903aaf9f84a4dc4672d10ff25058933`；CI `31162831225` 全部门禁 PASS；结论 `REQUEST_CHANGES`，P0=0、P1=1。
+- P1：授权在首次 snapshot 前撤回时，`08` 禁止客户端事后建立补传例外，但 `05` 首次 stop 门禁未明确复核最新授权/项目限制，DEV-005C 会得到冲突指令。
+- 修正：首次 stop 和无 finalization 的 `finalize_interrupted` 都在同一 session 锁内复核最新授权有效、项目未受限；失败返回 403，不创建 finalization/commitments，只保留已可靠接收分片并进入/保持 `interrupted`。
+- 只有撤权前已经冻结的 snapshot 才能启用原 actor 重认证后的 commitment 范围补传。
+- `09` §10.1 已增加“assignment 仍有效但授权在首次 snapshot 前撤回”的明确负向矩阵；等待修复后最终 head 定向复审。

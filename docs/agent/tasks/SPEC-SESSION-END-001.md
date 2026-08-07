@@ -63,3 +63,10 @@
 - 未完成 manifest 或服务端事实未知时不能返回 `completed`；
 - 属于状态机与跨模块契约，项目负责人或独立审查明确 PASS 后才能 `DONE`。
 - 当前只进入 GitHub `REVIEW` 候选；不得自行宣布 PASS、关闭 CON-019 或解锁 DEV-005C。
+
+## REV-017 P1 定向修正
+
+- 首次 stop 与尚无 finalization 的 `finalize_interrupted` 必须在创建 snapshot/commitments 前重新验证最新授权仍有效且项目未受限；assignment 仍有效不能替代授权门禁。
+- 若授权已撤回且此前没有 stop snapshot，返回 403 `FORBIDDEN`，不创建 finalization、commitments 或受限补传例外，只保留服务端已经可靠收到的分片并将/保持 session 为 `interrupted`。
+- 只有撤权前已经成功冻结的 stop snapshot 才允许原 actor 重新认证后在 commitment 范围内补传。
+- SPEC 继续为 `REVIEW`，CON-019 继续 `OPEN`，DEV-005C/D 继续 `BLOCKED`，等待项目负责人按修复后最终 head 定向复审。

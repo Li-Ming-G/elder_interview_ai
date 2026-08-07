@@ -14,7 +14,7 @@
 | DEV-004B2 | REV-014 | PR #5 / `73a07cb` / CI `31143035668` PASS | DONE | 定向复审 PASS；仅内部虚构/合成 PCM 浏览器纵向链路，父 DEV-004 继续开放 |
 | SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY，SPEC-SESSION-END-001 READY；CON-019 与 DEV-005C/D 仍开放/阻塞 |
 | DEV-005A | REV-016 | PR #7 / `ea6c20f` / CI `31161076538` PASS / merge `066c424` | DONE | P0/P1=0；工作台状态改由服务端事实驱动、授权显示统一最新记录两项 P2 转 DEV-005B |
-| SPEC-SESSION-END-001 | 待项目负责人审查 | PR #8 / 契约提交 `3cf41a8` / 最终 head 与 CI 待绑定 | REVIEW | ADR-022 与正式契约候选已形成；CON-019 保持 OPEN，DEV-005C/D 仍 BLOCKED |
+| SPEC-SESSION-END-001 | REV-017 | PR #8 / 首审 head `e8fa20f` / CI `31162831225` PASS | REQUEST_CHANGES | P1：撤权发生在首次 snapshot 前时，`05` 未明确阻止 stop/finalize_interrupted 新建 commitments；定向修正后复审，CON-019 OPEN、DEV-005C/D BLOCKED |
 
 ## 阅读规则
 
@@ -24,4 +24,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-016`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-017`。

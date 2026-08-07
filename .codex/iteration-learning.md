@@ -388,3 +388,12 @@
 - Follow-up: DEV-005B 必须以真实 session/WebSocket 服务端事实替换 URL 占位状态，并按最新授权记录展示授权状态；两项均为不阻塞 A 的 P2。
 - Boundary: 父 DEV-005、安全结束、完整工作台、真实麦克风/授权资料、真实 ASR/LLM、真实试点与生产部署仍未完成。
 - Lesson: 占位路由可以先稳定页面边界，但不能成为业务事实来源；状态展示和权限提示必须最终与服务端采用同一条事实选择规则。
+
+### 2026-08-07 — REV-017 首审发现撤权前后冻结边界冲突
+
+- Review evidence: 项目负责人锁定 PR #8 head `e8fa20f39903aaf9f84a4dc4672d10ff25058933`，CI `31162831225` 全部门禁 PASS，结论 `REQUEST_CHANGES`，P0=0、P1=1。
+- Review finding: `08` 禁止授权在首次 snapshot 前撤回后由客户端新建补传例外，但 `05` 首次 stop 未明确复核最新授权和项目限制；assignment 仍有效时可能事后创建 commitments。
+- Adopted correction: 首次 stop 与无 finalization 的 `finalize_interrupted` 在同一 session 锁内复核最新授权有效、项目未受限；失败不创建 finalization/commitments，只保留服务端已可靠接收分片并进入/保持 `interrupted`。只有撤权前已经冻结的 snapshot 才启用受限补传。
+- Implementation evidence: 定向修改 `05` §3.5.2/3.5.4、`08` §4.5、`09` §10.1 及 REV-017/CON-019/任务/交接记录；业务代码仍未实现。
+- Lesson: assignment 证明“谁原本能操作项目”，授权证明“此刻是否还能建立新的处理边界”；两者不能互相替代。撤权后的证据保全必须依赖撤权前已冻结的允许列表。
+- Better future prompt: “首次 finalization 与后续受限补传分开鉴权：前者要求当前 assignment、最新授权有效且项目未受限；后者只允许撤权前已冻结 commitments 内的原 actor 补传。”
