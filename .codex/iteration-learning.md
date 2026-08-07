@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B/C 和安全结束契约已通过；DEV-005D READY，父 DEV-005 仍 BLOCKED。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B/C 和安全结束契约已通过；DISC-005D READY，DEV-005D 等待讨论验收，父 DEV-005 仍 BLOCKED。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -75,6 +75,14 @@
 - Reason: 原始分片是否完整、final 转录是否收束和 session 何时完成不能由浏览器可靠决定；必须先有服务端状态机和跨链路事实，再由页面展示。
 - Tradeoff: DEV-005 从 A/B 增加为 A/B/C/D，并新增一个契约任务；准备页仍可先行，但完整三页闭环需要等待服务端结束编排。
 - Boundary: 当前只冻结任务责任和占位状态，不在页面规划 PR 中猜测 stop/recover 的精确字段；SPEC-SESSION-END-001 通过前不得实现或模拟完成。
+
+### D-010 — 产品讨论门槛先于实现任务
+
+- Status: adopted
+- Evidence: 项目负责人明确要求从 DEV-005 起由总控设计和发放问题讨论提示词，在新的项目任务中讨论，完成后交回总控验收；`DISC-005D` 为首个门槛。
+- Reason: 产品行为、失败处置和用户可观察验收不能由实现 Agent 静默决定，但纯工程细节也不应重复进入产品讨论。
+- Tradeoff: 每个重大阶段多一次讨论与验收，但减少返工、口头结论漂移和实现者代替用户决策的风险。
+- Boundary: 讨论窗口只提交候选决定包，不修改正式依据或开发；总控验收通过并写回后才下发实现。锁、索引、组件拆分等可回退实现细节不默认进入讨论。
 
 ## Assumptions to Validate
 
@@ -470,7 +478,18 @@
 - Review mode: Correction mode；独立只读复核认为“每个 DEV 都讨论”过于机械，真正需要的是覆盖用户价值、业务行为、风险边界和可观察验收的阶段决策门槛。
 - Review finding: DEV-005D 和 DEV-005 整体验收后，还需要分别讨论 DEV-004C 说话人流程、内容边界与标记、DEV-006 长期记忆、DEV-007 单问题建议、项目入口/回顾、工作记录/多次访谈、导出、删除/撤回、内部验收和真实试点前加固；DEV-008 必须拆分，不能作为一个讨论或实现包。
 - Options considered: 每个子任务强制讨论；只在用户临时想到时讨论；按阶段设置讨论门槛。推荐第三种，避免纯工程事项重复讨论，同时不遗漏横跨多个 DEV 的产品决定。
-- Adopted decision: pending user choice；候选流程为“讨论窗口 → 总控验收候选决定 → 写回正式依据/拆任务 → 实现窗口 → GitHub 审查”。
+- Adopted decision: 用户已确认采用“总控设计并发放讨论提示词 → 用户在新项目任务讨论 → 总控验收候选决定 → 写回正式依据/拆任务 → 实现窗口 → GitHub 审查”；首个讨论任务为 DISC-005D。
 - Implementation evidence: 本轮只读核对 `00`、`01`、`03`、`06`、`07`、`09`、`10`、任务板、追溯矩阵、OPEN 冲突、MVP-V01、DEV-004/005D 与 SPEC-AI-QUESTION-001；未改业务代码或任务状态。
 - Lesson: 需要人决定的是“产品要呈现什么、失败时怎么办、什么算通过”；锁顺序、索引和组件拆分等可回退实现细节由专业任务在冻结边界内决定。
 - Better future prompt: “请为下一个产品阶段准备讨论提纲：只列需要我决定的用户行为、风险边界和验收场景，不讨论可回退的纯实现细节；讨论完成后由总控验收，通过后再写回正式文档并拆实现任务。”
+
+### 2026-08-07 — DISC-005D 安全结束页讨论提示词
+
+- User outcome: 由总控先设计安全结束体验的讨论提示词，用户在新项目任务中逐项讨论并提交候选结论，再由总控验收后解锁 DEV-005D 实现。
+- Review mode: Correction mode；独立只读复核发现现有契约没有冻结 `processing` 时能否离开，以及“查看本次记录/完成并离开”的真实目标，直接实现会迫使前端 Agent 猜产品行为。
+- Review finding: 讨论必须先回答录音是否安全、转录是否完整、用户现在要做什么；不得把录音成功但转录降级压成单一成功/失败，也不得借死按钮提前扩完整回顾页。
+- Options considered: 直接下发现有 DEV-005D；让实现 Agent 临场决定；新增 DISC-005D 候选决定门槛。采用第三种。
+- Adopted decision: DISC-005D 转 READY，DEV-005D 暂转 BLOCKED；讨论窗口不写项目，只在用户定稿时输出候选决定包交总控验收。
+- Implementation evidence: 新增 `docs/agent/tasks/DISC-005D.md` 与 `docs/agent/prompts/DISC-005D.md`，同步任务板、追踪、提示词入口和 DEV-005D 前置；顺手修正 `05` 中 DEV-005C 尚未实现的过期说明。未修改业务代码。
+- Lesson: 服务端状态机可以已经正确，但页面仍可能缺少“现在能否离开”和“下一步去哪里”这类产品语义；技术完成不自动等于交互闭环。
+- Better future prompt: “请一次只和我讨论安全结束页的一个产品决定；先说明对应服务端事实，再给最多三个方案。定稿时只输出候选决定包，不改文件、不开发，交回总控验收。”

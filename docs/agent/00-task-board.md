@@ -32,11 +32,12 @@
 | DEV-004A | 确定态转录证据核心与供应商中立适配器 | 后端转录实现 Agent（`dev004a_backend_impl`） | DONE | DEV-003、ADR-018、CON-015/016 | [任务卡](tasks/DEV-004A.md)、PR #3、head `917f888`、CI `30887031030` PASS、REV-012 | 仅覆盖内部虚构数据证据核心；两项非阻塞 P2 随后续转录加固处理 |
 | DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | DONE | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、head `80ff1c7`、merge `13350a4`、CI `30969408276` PASS、REV-013 PASS | 仅覆盖服务端内部合成 PCM 协议核心；三项 P2 转后续加固，B2/真实 ASR/长时性能不在本任务 |
 | DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 浏览器实时转录实现 Agent（`dev004b2_browser_realtime_impl`） | DONE | DEV-004B1、ADR-019、REV-013 | [任务卡](tasks/DEV-004B2.md)、PR #5 head `73a07cb`、CI `31143035668` PASS、REV-014 PASS、merge `49949fc`、HO-031 | 内部虚构/合成 PCM 浏览器链路完成；真实麦克风/ASR、长时和正式工作台未覆盖 |
-| DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001、SPEC-SESSION-END-001 | [父任务卡](tasks/DEV-005.md) | 准备页、工作台和服务端安全结束已通过；完整闭环只剩 DEV-005D 薄集成，不等待项目列表、回顾或导出 UI |
+| DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001、SPEC-SESSION-END-001 | [父任务卡](tasks/DEV-005.md) | 准备页、工作台和服务端安全结束已通过；完整闭环只剩 DISC-005D 验收后的 DEV-005D 薄集成，不等待项目列表、回顾或导出 UI |
 | DEV-005A | 首次访谈准备页与正式路由外壳 | 前端实现任务对话 | DONE | DEV-002、DEV-003、SPEC-FE-001 | [任务卡](tasks/DEV-005A.md)、PR #7 head `ea6c20f`、CI `31161076538` PASS、REV-016 PASS、merge `066c424`、HO-033 | 内部虚构数据准备页和路由外壳完成；两个 P2 转 DEV-005B，不代表完整工作台或安全结束完成 |
 | DEV-005B | 转录优先访谈工作台 | 前端工作台实现任务对话 | DONE | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md)、PR #9 head `c73e7ad`、CI `31166457093` PASS、REV-018 PASS、merge `647a6b4`、HO-035 | 工作台范围已通过；不含 stop/recover、真实 AI、真实麦克风或父 DEV-005 完成 |
 | DEV-005C | 服务端会话安全结束编排 | 后端会话编排实现任务对话 | DONE | SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2 | [任务卡](tasks/DEV-005C.md)、PR #10 head `36f534a`、CI `31174226564` PASS、REV-019 PASS、merge `9691dad`、HO-034 | 三轮审查后 P0/P1=0；三个已登记 P2 不阻塞当前内部 MVP 范围 |
-| DEV-005D | 安全结束页薄集成 | 待创建的前端安全结束实现任务对话 | READY | DEV-005A、DEV-005B、DEV-005C PASS | [任务卡](tasks/DEV-005D.md)、[启动提示词](prompts/DEV-005D.md)、REV-019 PASS、HO-034 | 可消费统一 session snapshot 实现薄集成；不得拼接本地事实、修改后端或提前关闭父 DEV-005 |
+| DISC-005D | 安全结束页产品体验讨论 | 项目负责人 + 讨论任务对话 | READY | DEV-005A、DEV-005B、DEV-005C PASS | [讨论任务卡](tasks/DISC-005D.md)、[讨论提示词](prompts/DISC-005D.md) | 先冻结等待/离开、状态文案、失败动作和终态去向；讨论窗口只提交候选决定包，由总控验收 |
+| DEV-005D | 安全结束页薄集成 | 待创建的前端安全结束实现任务对话 | BLOCKED | DEV-005A、DEV-005B、DEV-005C PASS、DISC-005D 总控验收 | [任务卡](tasks/DEV-005D.md)、[实现提示词](prompts/DEV-005D.md)、REV-019 PASS、HO-034 | 等待 DISC-005D 候选决定包通过总控验收并写回正式依据；不得由实现 Agent 猜测产品行为 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
 | DEV-007 | AI 追问引擎 | 待分配 | BLOCKED | DEV-006、SPEC-AI-QUESTION-001 | `05`、`07`、`09` | 等待长期记忆及单问题替换契约；旧采用/已问/忽略生命周期不得实现 |
 | DEV-008 | 回顾、导出与删除 | 待分配 | BLOCKED | DEV-002、DEV-003、DEV-004、DEV-005、DEV-006、DEV-007、CON-006、CON-007 | `03`、`05`、`08`、`09` | 未拆分任务包含回顾 UI；开工前拆分并解决备份清理状态、删除摘要密钥轮换 |

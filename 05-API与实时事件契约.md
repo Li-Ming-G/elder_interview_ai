@@ -366,7 +366,7 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
 - 只有 audio commitment 冲突、manifest 已确认不可恢复或重复内部收束失败达到配置上限并需人工处置时进入 `failed`；`failed` 不覆盖已保存音频、manifest、final 转录或授权记录；
 - 未识别内部错误返回 503 `SESSION_FINALIZATION_UNAVAILABLE`，响应只含公共 error envelope。校验失败 422 `INVALID_SESSION_FINALIZATION`；前置/并发冲突使用上述 409；401/403 继续遵循统一认证语义。
 
-本节是经 SPEC-SESSION-END-001 形成的正式候选契约；当前分支不代表服务端已经实现。只有项目负责人绑定最终 GitHub head 审查通过后，DEV-005C 才可据此修改 machine-readable contract、migration 和代码。
+本节是经 SPEC-SESSION-END-001 冻结并由 DEV-005C 实现的正式契约。DEV-005C 已由项目负责人绑定 PR #10 final head `36f534a45367eb19d19d19d05f0edcda317dbde9`、CI `31174226564` 给出 REV-019 PASS；前端 DEV-005D 只能消费公共 snapshot，不得重新解释或本地推算完成状态。
 
 ### 3.6 音频
 

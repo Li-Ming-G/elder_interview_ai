@@ -8,7 +8,8 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| DEV-005D | [HO-034](handoffs/DEV-005C.md) | 新的前端安全结束薄集成任务对话 | DEV-005C 已 REV-019 PASS/DONE；只消费统一 snapshot，三个服务端 P2 不阻塞页面当前范围 |
+| DISC-005D | [HO-036](handoffs/DISC-005D.md) | 项目负责人 + 新的安全结束体验讨论任务 | 使用讨论提示词逐项决定停留/离开、状态文案、失败动作和终态去向；只提交候选决定包 |
+| DEV-005D | [HO-036](handoffs/DISC-005D.md) | 总控 / 后续前端实现任务 | 等待 DISC-005D 候选决定包通过总控验收并写回正式依据 |
 
 ## 最近已完成交接
 
@@ -22,7 +23,7 @@
 | DEV-005A | [HO-033](handoffs/DEV-005A.md) | PR #7 合并，REV-016 PASS，准备页与正式路由外壳 DONE；DEV-005B READY |
 | SPEC-SESSION-END-001 | [HO-032](handoffs/SPEC-SESSION-END-001.md) | PR #8 合并，REV-017 最终 PASS，契约 DONE；CON-019 RESOLVED，DEV-005C READY |
 | DEV-005B | [HO-035](handoffs/DEV-005B.md) | PR #9 合并，REV-018 PASS，转录优先工作台 DONE；父 DEV-005 继续 BLOCKED |
-| DEV-005C | [HO-034](handoffs/DEV-005C.md) | PR #10 合并，REV-019 第三次定向复审 PASS，服务端安全结束 DONE；DEV-005D READY |
+| DEV-005C | [HO-034](handoffs/DEV-005C.md) | PR #10 合并，REV-019 第三次定向复审 PASS，服务端安全结束 DONE；实现前新增 DISC-005D 产品讨论门槛 |
 | DOC-002 | HO-025 | 协作文档当前态与历史归档分离完成 |
 
 ## 使用规则
