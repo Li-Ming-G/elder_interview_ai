@@ -176,7 +176,14 @@ export function App(): React.JSX.Element {
     );
   }
   if (route?.kind === 'workbench') {
-    return <WorkbenchShell projectId={route.projectId} sessionId={route.sessionId} />;
+    return (
+      <WorkbenchShell
+        api={interviewApi}
+        csrfToken={csrfToken}
+        projectId={route.projectId}
+        sessionId={route.sessionId}
+      />
+    );
   }
 
   return (
