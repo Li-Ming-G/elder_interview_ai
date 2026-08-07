@@ -279,6 +279,22 @@ P2：
 - 通过依据：join 错误信封绑定已校验请求 session，错误信封丢失时按 close code 后备分类并停止重连；事件只在成功 apply 后推进 cursor/ACK/重发；跨 stream ready/ACK、event gap 和 error 均真正失败关闭；terminal/reset 清理 socket、heartbeat、reconnect 并拒绝后续帧；完整 transport 回归覆盖所有上述副作用。
 - 未发现新的 P0/P1；DEV-004B2 可转 DONE 并合并。范围仍不含真实麦克风/ASR、AudioWorklet、校准/remap、持久/跨进程恢复、长时、正式工作台和生产部署；父 DEV-004 保持 IN_PROGRESS。
 
+## REV-015｜SPEC-FE-001 GitHub 项目负责人首轮审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/frontend-mvp-plan`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/6`
+- 被审提交：`e93db161cc7d922fee6333bea29f6d255c86c3a8`；CI `31151615335` 全部门禁 PASS
+- 审查范围：首次访谈页面与内容规划、DEV-005A/B 可执行性、单问题建议与后置范围
+- 审查人：项目负责人（GitHub 人工审查）
+- 审查时间：2026-08-07
+- 当前结论：`NEEDS_CHANGES`
+- 已认可范围：准备页 → 转录优先工作台 → 安全结束页、单问题建议、项目列表/完整回顾后置，以及“换一个”交由 SPEC-AI-QUESTION-001 的路线成立。
+- P1：原 DEV-005A 只允许修改 `apps/web`，却要求安全结束页显示与服务端事实一致的 `stopping/processing/failed/completed`；实际 ProjectFoundation controller/service 只有 create/get/device-check/start，没有 stop/recover 或 finalization。`05` 只列 stop/recover 路径，未冻结请求响应、状态转换、幂等、失败或完成条件。
+- 影响：当前任务卡不可执行，不能在 PR 合并后把原 DEV-005A 整体解锁为 READY；否则前端只能猜测或模拟完成事实。
+- 修复方向：明确 stop/recover 当前为占位；新增 SPEC-SESSION-END-001 与服务端 DEV-005C；DEV-005A 缩为准备页/路由外壳，DEV-005B 保持工作台，新增 DEV-005D 消费真实服务端事实实现结束页；更新契约、依赖、冲突、ADR、追踪和交接。
+- 定向复审条件：锁定新 head，确认上述拆分和依赖一致、无前端模拟完成入口、所有引用和 CI 通过；无需推翻已认可的页面内容方向。
+
 ## 审查模板
 
 ```text

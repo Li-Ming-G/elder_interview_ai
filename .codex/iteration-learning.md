@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1 已通过；下一步为 DEV-004B2 浏览器合成 PCM 实时纵向链路。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；产品优先切片已收敛为“首次访谈最小纵向闭环”，页面规划处于 SPEC-FE-001 REVIEW。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/019；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -59,6 +59,22 @@
 - Reason: 后续记忆首先需要稳定 segment ID、不可覆盖原文和原角色；供应商、实时传输、校准与重连同时开工会把未决协议固化进核心模型。
 - Tradeoff: DEV-004A 能解锁后端证据消费但不能演示浏览器实时字幕，父 DEV-004 仍需 B/C。
 - Boundary: 只用虚构文本与 local/test fake；interim 不落库；不开放注入写 API，不接真实供应商、WebSocket、AudioWorklet 或校准/remap。
+
+### D-008 — 首轮页面以转录优先的单问题三页闭环验证核心假设
+
+- Status: adopted
+- Evidence: 项目负责人在“前端页面与内容规划”对话中确认准备页、工作台、结束页及单问题/换一个方向，并要求总控写入未来规划；ADR-020、SPEC-FE-001。
+- Reason: 核心学习是倾听员能否依靠实时对话上下文和一个最佳下一问完成更深入访谈，而不是先验证多项目管理、复杂编辑或建议操作统计。
+- Tradeoff: 首轮不验证项目导航、完整回顾/导出 UI 和采用率；建议价值改用替换率、人工观察/访谈后评价、重复率和高风险问题率。
+- Boundary: 页面不得弱化正式授权、原始数据可靠保存和安全结束；项目管理、回顾、导出/删除 UI 与多次访谈只是后置；替换的精确数据/API 契约由 SPEC-AI-QUESTION-001 冻结。
+
+### D-009 — 安全结束由服务端事实驱动并分层实现
+
+- Status: adopted
+- Evidence: 项目负责人对 PR #6 head `e93db16` 的 REV-015；现有 `ProjectFoundationController/Service` 只到 start，`05` 的 stop/recover 只有路径占位，公共 session response 不含结束时间/时长；ADR-021、CON-019。
+- Reason: 原始分片是否完整、final 转录是否收束和 session 何时完成不能由浏览器可靠决定；必须先有服务端状态机和跨链路事实，再由页面展示。
+- Tradeoff: DEV-005 从 A/B 增加为 A/B/C/D，并新增一个契约任务；准备页仍可先行，但完整三页闭环需要等待服务端结束编排。
+- Boundary: 当前只冻结任务责任和占位状态，不在页面规划 PR 中猜测 stop/recover 的精确字段；SPEC-SESSION-END-001 通过前不得实现或模拟完成。
 
 ## Assumptions to Validate
 
@@ -300,3 +316,26 @@
 - Closed scope: DEV-004B2 在内部虚构/合成 PCM 浏览器纵向链路范围转 `DONE`，PR #5 以 merge commit `49949fc51eedbada51b76a51090da8b665c206bc` 合入 `main`。
 - Boundary: 父 DEV-004 保持 `IN_PROGRESS`；真实麦克风/ASR、AudioWorklet、校准/remap、长时、跨进程恢复、正式工作台和生产部署仍未通过。
 - Lesson: 定向复审应锁定最终 head 并验证失败后的负副作用确实消失；CI 全绿不能代替协议终止语义审查，但能在修复后补齐数据库和浏览器组合证据。
+
+### 2026-08-07 — 首次访谈页面与内容规划收敛
+
+- User outcome: 先审阅独立对话“前端页面与内容规划”，再把已批准结论写入或修订未来规划。
+- Review mode: Correction mode；iteration-coach 要求的唯一独立只读审阅确认不能只改一篇页面说明，必须阻止 DEV-005/007 继续消费旧三栏和采用生命周期。
+- Options considered: 只新增一篇 UI 规划；直接在页面规划中重写数据库/API；分层同步产品路线并另设追问契约任务。采用第三种。
+- Adopted decision: 当前优先切片为准备页、转录优先工作台和安全结束页；单次只显示一个问题及一句原因，或继续倾听；唯一操作是“没用，换一个”；项目管理、完整回顾、导出/删除 UI 和多次访谈后置。
+- Contract handling: 本轮同步 `00/01/03/09/10/MVP-V01`，冻结 `04/05/07` 中旧动作作为实现依据；建立 SPEC-AI-QUESTION-001 关闭幂等、相似度和持久化细节，硬阻塞 DEV-007A。
+- Task split: DEV-005A 准备/结束，DEV-005B 转录工作台，DEV-007A 后续接单问题建议；内部从预创建且已分配的虚构项目深链进入。
+- Safety boundary: 页面确认不替代正式授权和服务端门禁；结束处理中不提前报成功；AI/ASR 故障不影响原始录音。
+- Lesson: UI 决策一旦改变用户需要表达的状态，就会影响指标、数据和 API；应先冻结产品行为，再用独立契约任务解决实现细节，不能让页面 Agent 猜数据库。
+- Better future prompt: “请按 SPEC-AI-QUESTION-001 只冻结一个当前最佳问题、继续倾听和幂等替换契约；真实已问问题从 final 转录识别，不恢复采用/已问按钮，不实现代码。”
+
+### 2026-08-07 — REV-015 安全结束任务可执行性修正
+
+- User outcome: 接受 PR #6 的页面方向，但要求任务卡不能让前端撞上未实现的 stop/recover；授权按审查意见修正。
+- Review mode: Correction mode；iteration-coach 的独立只读预审确认安全结束是跨录音、上传、转录和 session 状态的服务端编排，不属于纯前端或 DEV-004 ASR 子任务。
+- Review finding: controller/service 只实现到 start；数据模型虽有结束字段和状态，公共响应未暴露结束时间/时长；`05` 只有 stop/recover 路径占位，原 DEV-005A 的范围与验收互相矛盾。
+- Options considered: 让 DEV-005A 模拟结束；把结束实现塞进 DEV-004；分为契约、服务端编排和前端薄集成。采用第三种。
+- Adopted decision: 新增 SPEC-SESSION-END-001、DEV-005C、DEV-005D；DEV-005A 缩为准备页/路由外壳，DEV-005B 只保留结束挂载位置；stop/recover 在契约通过前明确不可调用。
+- Implementation evidence: `05` 的占位警示、ADR-021、CON-019、DEV-005A/B/C/D 与 SPEC-SESSION-END-001 任务卡、任务板/追踪/审查/交接同步；本轮没有实现代码。
+- Lesson: 状态枚举和路由名字不等于业务能力。只有服务端能够证明跨链路完成条件时，前端才有资格显示“完成”。
+- Better future prompt: “请先核对安全结束是否已有可执行服务端契约和实现；若没有，将准备页、结束契约、后端收束和结束页分别拆卡，前端不得推算 completed。”

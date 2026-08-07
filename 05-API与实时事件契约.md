@@ -238,6 +238,8 @@ POST /sessions/:id/recover
 
 `POST /sessions/:id/start` 至少包含新的 `request_id`。服务端在同一事务重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时转 `recording` 并写 `started_at`。不得信任客户端提供的 `can_record`、授权状态或项目归属。相同 `request_id` 重试返回首次结果；门禁失败不得创建录音或 ASR/AI 任务。
 
+`POST /sessions/:id/stop` 与 `POST /sessions/:id/recover` 当前只有路径占位，不是正式可执行契约，现有服务端也未实现。`SPEC-SESSION-END-001` 必须先冻结请求与响应、合法状态、幂等与并发、assignment/授权变化下的安全收束、音频 manifest 与 final 转录等待、失败事实、完成条件和查询方式；在其通过前，任何 DEV 任务不得模拟 stop 成功、从计时器推算 `completed`，也不得把上述路径作为已存在能力调用。
+
 ### 3.6 音频
 
 ```http
@@ -317,11 +319,14 @@ POST   /sessions/:id/boundary-candidates/:candidate_id/actions
 
 ### 3.9 AI 建议
 
+首次访谈最小纵向闭环只需要“获取/生成一个当前建议或继续倾听”和“没用，换一个”。替换必须幂等，并在当前会话排除当前及高度相似问题。精确请求、响应、节流和持久化契约由 `SPEC-AI-QUESTION-001` 冻结后才成为正式实现依据。
+
 ```http
 GET  /sessions/:id/suggestions
 POST /sessions/:id/suggestions/request
-POST /suggestions/:id/actions
 ```
+
+原规划的通用 `POST /suggestions/:id/actions` 已冻结，不属于首轮实现范围；DEV-007 不得据此实现采用、已问、忽略、稍后或改写动作。
 
 ### 3.10 记忆
 
@@ -372,7 +377,7 @@ GET  /exports/:id
 以下写操作必须接受 `request_id`：
 
 - 开始访谈；
-- 结束访谈；
+- 结束访谈（待 `SPEC-SESSION-END-001` 冻结具体动作绑定和响应快照）；
 - 上传音频分片；
 - 初始化和完成音频对象；
 - 创建内容标记；
@@ -593,6 +598,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 ```
 
 ### 5.10 `suggestion.created` 示例
+
+首轮事件同时只允许一个 `primary`，`alternatives` 必须为空；后续 `SPEC-AI-QUESTION-001` 可在不改变该产品行为的前提下收敛字段。
 
 ```json
 {
