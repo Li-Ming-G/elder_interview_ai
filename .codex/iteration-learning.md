@@ -358,3 +358,14 @@
 - Implementation evidence: 本轮只读核对 `main@322d2a0`、任务板、DEV-005A/B/C/D、ADR-021、CON-019 和 Codex 独立 worktree；未启动第二个项目任务、未改变任务状态或业务代码。
 - Lesson: 是否并行不取决于任务名字不同，而取决于前置事实是否稳定、修改范围是否重叠，以及是否同时改变同一份契约。
 - Better future prompt: “请检查当前任务板和 worktree，选择一个与正在开发任务文件边界独立、能缩短 MVP 关键路径的 READY 任务；先给并行建议，不要自动创建新对话。”
+
+### 2026-08-07 — DEV-005A 首次访谈准备页与正式路由外壳
+
+- User outcome: 倾听员从已分配虚构项目深链进入准备页，明确看到服务、授权和设备状态，只有服务端最终门禁允许时才能进入可供 DEV-005B 接续的工作台外壳。
+- Review mode: Learning mode；唯一独立只读预审确认方向符合 ADR-020/021 与 CON-019，无需暂停。
+- Review finding: 准备页必须采用客户端预判与服务端 start 最终判定的两级门禁；设备预检不能复用正式录音器，组件挂载不能自动创建 session。
+- Options considered: 挂载即创建 session；复用 BrowserAudioRecorder 做设备检测；用户动作中短时检测并惰性创建 session。采用第三种，避免刷新堆积 draft session、start 前写录音分片或以页面状态替代授权事实。
+- Adopted decision: 使用无新依赖的 pathname/history 薄路由；project 深链在成功设备预检后惰性创建 session 并替换为可恢复的 session 深链；短时 Web Audio analyser 检测结束立即释放 tracks；start request ID 在当前重试流程稳定复用。
+- Implementation evidence: `apps/web/src/interview/`、`apps/web/src/app.tsx`、`apps/web/src/styles.css`、`tests/e2e/preparation.spec.ts`；unit 21 files/121 tests、build 与 Chromium 虚构主链路通过，最终完整门禁以 DEV-005A 任务卡和 PR 为准。
+- Lesson: 准备页的核心不是把三个绿色状态相加，而是让客户端降低误操作、服务端在最后一刻重读 assignment/授权/session 并生成事实；浏览器设备可用也不等于业务获准开始。
+- Better future prompt: “设备预检只短时持有 MediaStream、不创建录音分片；客户端状态仅预判，POST start 失败不得导航；session 在用户动作中惰性创建并在同页复用。”

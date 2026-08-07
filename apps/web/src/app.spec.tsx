@@ -9,16 +9,17 @@ describe('App', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    globalThis.history.replaceState(null, '', '/');
   });
 
   it('shows login after an unauthenticated session check', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
     render(<App />);
     expect(await screen.findByRole('button', { name: '登录' })).toBeTruthy();
-    expect(screen.getByText(/不包含长者项目或访谈业务/)).toBeTruthy();
+    expect(screen.getByText(/登录后继续已分配的访谈准备/)).toBeTruthy();
   });
 
-  it('restores an authenticated session and rotates CSRF in memory', async () => {
+  it('restores an authenticated session and keeps the root as a deep-link entry', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -38,6 +39,7 @@ describe('App', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
     expect(await screen.findByRole('heading', { name: '已登录' })).toBeTruthy();
+    expect(screen.getByText(/正式访谈深链/)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

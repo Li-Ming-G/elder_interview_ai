@@ -127,7 +127,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
   await page.locator('form button[type="submit"]').click();
-  await expect(page.locator('section h2')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
   const sessionId = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
