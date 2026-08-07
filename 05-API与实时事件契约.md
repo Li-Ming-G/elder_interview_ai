@@ -222,6 +222,9 @@ POST /projects/:id/sessions
 GET  /sessions/:id
 POST /sessions/:id/device-check
 POST /sessions/:id/start
+POST /sessions/:id/capture/confirm-active
+POST /sessions/:id/capture/interrupted
+POST /sessions/:id/capture/abandon-empty
 POST /sessions/:id/stop
 POST /sessions/:id/recover
 ```
@@ -236,7 +239,13 @@ POST /sessions/:id/recover
 
 仅两项均满足时把 `created -> device_check`；失败保持 `created` 并返回可操作错误。
 
-`POST /sessions/:id/start` 至少包含新的 `request_id`。服务端在同一事务重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时转 `recording` 并写 `started_at`。不得信任客户端提供的 `can_record`、授权状态或项目归属。相同 `request_id` 重试返回首次结果；门禁失败不得创建录音或 ASR/AI 任务。
+`POST /sessions/:id/start` 请求为 `{ "request_id": "uuid", "mime_type": "audio/webm;codecs=opus", "audio_stream_id": "uuid" }`。服务端在固定资源锁内重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时，才在同一事务创建并绑定该 session 唯一 `purpose=interview` audio object、创建 generation 0 `preparing`、转为 `recording` 并写 `started_at`，然后返回统一 snapshot。不得另行调用 audio init 创建 interview object。相同 `request_id`、actor、session 和 payload 返回首次结果；同 key 不同 MIME/stream 返回 `IDEMPOTENCY_PAYLOAD_MISMATCH`。门禁失败不得创建对象、generation、ASR 或 AI 任务。
+
+`POST /sessions/:id/capture/confirm-active` 请求为 `{ "request_id", "generation_no", "audio_stream_id" }`。仅当前 generation `preparing`、session `recording|reconnecting` 且完整门禁仍有效时幂等转为 `active`。页面必须在 MediaRecorder 已 recording、本地 active checkpoint 已持久化后调用；成功响应前不得宣布正在采集。
+
+`POST /sessions/:id/capture/interrupted` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "reason" }`。它是减权动作：当前 generation 为 `preparing|active` 且尚无 finalization 时，幂等写 `interrupted`、使 session 进入/保持 `interrupted` 并释放 producer。重新认证的原 actor 在 assignment 已失效后仍可报告；账号 disabled 不可。stop 已冻结或 session 已终态时只返回当前稳定 snapshot，不允许回退。普通网络/WS 故障不得调用本动作。
+
+`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、无已接受 PCM，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed` 并返回 `failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
 
 #### 3.5.1 公共会话结束 snapshot
 
@@ -254,6 +263,16 @@ POST /sessions/:id/recover
   "created_by": "uuid",
   "created_at": "2026-08-07T08:00:00.000Z",
   "updated_at": "2026-08-07T08:30:12.000Z",
+  "capture": {
+    "audio_object_id": "uuid",
+    "generation_no": 0,
+    "audio_stream_id": "uuid",
+    "status": "active",
+    "timeline_offset_ms": 0,
+    "uploaded_chunk_count": 3,
+    "interruption_reason": null,
+    "interrupted_at": null
+  },
   "finalization": {
     "audio_object_id": "uuid",
     "expected_chunk_count": 363,
@@ -276,7 +295,9 @@ POST /sessions/:id/recover
 - `upload_status`: `awaiting_upload|verifying|complete|unrecoverable`；
 - `transcript_status`: `pending|draining|drained|degraded|not_started`；
 - `transcript_error_code`: `null|ASR_UNAVAILABLE|ASR_DRAIN_TIMEOUT|ASR_DRAIN_INCOMPLETE`；
-- `failure_code`: `null|AUDIO_COMMITMENT_CONFLICT|AUDIO_MANIFEST_UNRECOVERABLE|FINALIZATION_INTERNAL_FAILURE`。
+- `failure_code`: `null|NO_AUDIO_CAPTURED|AUDIO_COMMITMENT_CONFLICT|AUDIO_MANIFEST_UNRECOVERABLE|FINALIZATION_INTERNAL_FAILURE`。
+
+`capture.status` 为 `preparing|active|interrupted|stopped|abandoned_empty`。capture snapshot 只返回 audio object ID、generation、stream ID、status、timeline offset、服务端已上传分片数、中断原因/时间；不返回 local job ID、commitment、对象键、下载地址、正文或内部错误。尚未 start 时 `capture=null`。
 
 响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
 
@@ -346,7 +367,7 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
 `action`：
 
 - `reconcile`：适用于 `stopping|processing|completed|failed`，重新读取持久 finalization、audio manifest 和 ASR 终态，安全重驱进程内 runner并返回公共 snapshot；
-- `resume_capture`：只适用于尚无 finalization 的 `interrupted`，且当前 assignment、项目、授权、auth session 和账号全部有效；原子转为 `reconnecting`；
+- `resume_capture`：只适用于尚无 finalization、当前 capture 与 session 均为 `interrupted`，且当前 assignment、项目、授权、auth session 和账号全部有效；请求必须携带新的 `audio_stream_id` 和客户端已核验的同一 local job archive high-water。服务端确认与现有对象/分片不冲突后，原子创建下一 generation `preparing`、返回服务端确定的 `timeline_offset_ms` 并转为 `reconnecting`；不得创建第二个 audio object。客户端重新建立 MediaRecorder/active checkpoint 后仍须调用 `confirm_capture_active`；
 - `finalize_interrupted`：只适用于尚无 finalization 的 `interrupted`，请求除 `action` 外必须携带与 stop 相同的 `audio_object_id/expected_chunk_count/chunks`；它与首次 stop 使用相同的当前 assignment、最新授权、项目限制和资源归属门禁，全部通过后才可冻结已有证据并进入 `stopping`。授权已撤回或项目已受限时返回 403 `FORBIDDEN`，不得新建 finalization 或 commitments；
 
 规则：
@@ -363,10 +384,11 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
 - `processing -> completed`：transcript 进入 `drained|degraded|not_started`；AI/记忆/建议/工作记录不是条件；
 - stop 接受时服务端持久化当时最高已接受 ASR audio sequence；`drained` 必须来自 adapter 对该 stream 的明确 drain 终止并写完成时间，不得从最后一条 final 或 WebSocket close 推断；stream 不存在、进程重启丢失或无法确认时只能进入 `not_started|degraded`；
 - 意外断线且尚无 stop snapshot 可进入 `interrupted`；缺片或 runner 进程故障保持 `stopping|processing` 可 recover；
+- start/confirm/report/resume/stop 共享 `request -> project -> session -> audio` 锁序。stop 先提交时晚到 interrupted report 不得回退；report 先提交时正常 stop 必须改走 `finalize_interrupted`；revoke 先提交时 resume/finalize 拒绝；resume 后 revoke 时新 generation 被置为 interrupted；任何竞态不得产生第二个 object、current generation 或 finalization；
 - 只有 audio commitment 冲突、manifest 已确认不可恢复或重复内部收束失败达到配置上限并需人工处置时进入 `failed`；`failed` 不覆盖已保存音频、manifest、final 转录或授权记录；
 - 未识别内部错误返回 503 `SESSION_FINALIZATION_UNAVAILABLE`，响应只含公共 error envelope。校验失败 422 `INVALID_SESSION_FINALIZATION`；前置/并发冲突使用上述 409；401/403 继续遵循统一认证语义。
 
-本节是经 SPEC-SESSION-END-001 冻结并由 DEV-005C 实现的正式契约。DEV-005C 已由项目负责人绑定 PR #10 final head `36f534a45367eb19d19d19d05f0edcda317dbde9`、CI `31174226564` 给出 REV-019 PASS；前端 DEV-005D 只能消费公共 snapshot，不得重新解释或本地推算完成状态。
+本节结束编排由 SPEC-SESSION-END-001 冻结并经 DEV-005C 实现；项目负责人已绑定 PR #10 final head `36f534a45367eb19d19d19d05f0edcda317dbde9`、CI `31174226564` 给出 REV-019 PASS。DEV-005R 新增的 capture snapshot/actions 仍是待 GitHub 审查与实现的正式候选；后续 R2/R3 只能消费公共 snapshot，不得重新解释或本地推算完成状态。
 
 ### 3.6 音频
 

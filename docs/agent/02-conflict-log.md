@@ -243,6 +243,7 @@
 - 临时处理：不修改旧 A/B/C 代码或任务历史，不依赖 query harness/E2E 预置伪造结束输入；先执行 DISC-005-R0，再由 B-R 重点冻结真实/合成音频等级、单一作业生命周期、刷新恢复和 stop handoff。
 - 需要谁决策：项目负责人在 DISC-005-R0 与后续 B-R 中决定产品验证等级和用户可观察恢复行为；总控在全部阶段讨论后统一收敛正式产品与技术规范。
 - 关闭条件：新的跨阶段方案明确正式工作台从 start 到 stop 如何持有/恢复唯一录音上传作业，能产出与 DEV-005C 匹配的不可变 stop 输入，并形成真实浏览器纵向验收；对应实现与项目负责人审查另行关闭，不以讨论通过冒充代码完成。
+- 设计收口进展（2026-08-07）：项目负责人批准 R0 与 A-R/B-R/C-R/D-R；`SPEC-DEV-005R` 已把 session-scoped controller、atomic start、唯一 object、capture generation、archive/delivery 分离、显式恢复和同页结束体验写成正式候选。冲突继续 `OPEN`；只有 DEV-005R4 证明正式路由从 start 到同一对象 stop/manifest 且获得 GitHub PASS 后才关闭。
 
 ## 登记模板
 

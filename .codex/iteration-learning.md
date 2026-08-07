@@ -2,8 +2,8 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；旧 DEV-005A/B/C 在声明范围内已通过并保留历史证据；项目负责人要求先以 DISC-005-R0 重新定义完整首次访谈链路，再依次讨论 A-R/B-R/C-R/D-R，原 DEV-005D 暂停。
-- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
+- Current stage: 探索期 MVP 核心纵向链路验证；旧 DEV-005A/B/C 历史范围已通过；DISC-005-R0 与 A-R/B-R/C-R/D-R 已获批准，SPEC-DEV-005R 正在 GitHub 审查候选阶段，后续按 R1/R2C/R2/R3/R4 实现。
+- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
@@ -83,6 +83,14 @@
 - Reason: 产品行为、失败处置和用户可观察验收不能由实现 Agent 静默决定，但纯工程细节也不应重复进入产品讨论。
 - Tradeoff: 每个重大阶段多一次讨论与验收，但减少返工、口头结论漂移和实现者代替用户决策的风险。
 - Boundary: 讨论窗口只提交候选决定包，不修改正式依据或开发；总控验收通过并写回后才下发实现。锁、索引、组件拆分等可回退实现细节不默认进入讨论。
+
+### D-011 — 正式访谈由单流控制器和采集代贯穿 start 到 stop
+
+- Status: adopted
+- Evidence: 项目负责人批准 DISC-005-R0 与 A-R/B-R/C-R/D-R；现有正式准备页、audio harness、实时工作台和 DEV-005C finalization 各自通过但没有同一录音作业所有权；CON-020、SPEC-DEV-005R、ADR-023。
+- Reason: 原始录音、上传和实时 PCM 若由不同页面/流临时拥有，就无法证明 stop 使用 start 创建的同一对象，也无法在刷新或意外中断后恢复一致时间轴。
+- Tradeoff: 新增 capture generation、浏览器 archive 驻留、路由上层 controller 和分阶段实现；换取唯一对象、原始证据优先、显式中断与可审查纵向链路。
+- Boundary: 当前仅内部虚构数据、单浏览器单标签、进程内服务；不承诺跨设备、永久本地备份、云存储、真实 ASR 或真实试点。CON-020 在真实 Chromium 实现 PASS 前保持 OPEN。
 
 ## Assumptions to Validate
 
@@ -504,3 +512,14 @@
 - Implementation evidence: `docs/agent/tasks/DISC-005-R0.md`、`docs/agent/prompts/DISC-005-R0.md`、HO-037、CON-020、任务板和追踪入口；未修改旧 DEV-005A/B/C/D 任务卡或业务代码。
 - Lesson: 模块分别 PASS 只能证明各自边界，不能证明纵向链路已有唯一责任人把开始阶段产生的证据一直交到结束阶段；重构先冻结端到端所有权，再划分子任务。
 - Better future prompt: “请先讨论一次首次访谈从开始到结束必须由谁持续持有 session、麦克风、录音上传作业和实时流，以及发生刷新/断网时哪些事实必须恢复；总纲通过后再拆阶段，不改写旧任务历史。”
+
+### 2026-08-07 — DEV-005R 讨论收口与实施基线
+
+- User outcome: A-R/B-R/C-R/D-R 全部无异议后开始开发；UI 统一使用 impeccable；总控设定最终目标并持续推进，新任务完成后主动通知总控复核。
+- Review mode: Correction mode；唯一独立只读复核确认可以继续开发，但必须先把聊天决定写回正式契约，且未经项目负责人 PASS 不得夜间自行合并 main 或标 DONE。
+- Review finding: 共享 API、Prisma、工作台入口和中央治理文档不能由多个 worktree 同时拥有；后端 R1 与严格限界、不改共享 DTO/路由的 R2C 可以并行，其余必须按 R1/R2C→R2→R3→R4 推进。
+- Options considered: 所有功能一个大 PR；多 Agent 同时改共享契约；短暂 SPEC 基线后有限并行和 stacked candidates。采用第三种。
+- Adopted decision: SPEC-DEV-005R/ADR-023 正式承接批准决定；旧 DEV-005A/B/C 历史保持；旧未实施 DEV-005D 由 R3 取代；CON-020 等 R4 真实 Chromium PASS 后关闭。实现任务必须主动通知总控，提供 final head/PR/CI/命令/风险。
+- Implementation evidence: `03/04/05/06/08/09/10`、SPEC-DEV-005R、DEV-005R1/R2C/R2/R3/R4 任务卡、提示词、任务板、追踪、CON-020、ADR-023、HO-038；当前为契约候选，业务代码尚未实现。
+- Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
+- Better future prompt: “先把已批准的端到端决定写成正式契约，再按单一事实拥有者拆 worktree；允许纯核心模块并行，但共享 DTO、路由和中央文档只能由指定任务修改，所有任务交付到 GitHub REVIEW 后主动通知总控。”

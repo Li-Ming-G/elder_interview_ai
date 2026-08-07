@@ -8,9 +8,8 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| DISC-005-R0 | [HO-037](handoffs/DISC-005-R0.md) | 项目负责人 + 新的总体讨论任务 | 先冻结完整纵向链路、验证等级、录音作业归属和 A-R/B-R/C-R/D-R 讨论边界；只提交候选决定包 |
-| DISC-005D | [HO-037](handoffs/DISC-005-R0.md) | 总控 / 未来 DISC-005D-R | 已完成的结束体验结论仅作候选输入，等待新的 A/B/C 技术事实后重新验收 |
-| DEV-005D | [HO-037](handoffs/DISC-005-R0.md) | 总控 / 未来 DEV-005R 实现任务 | CON-020 与总体重构讨论链未完成；原实现提示词暂停使用 |
+| SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) | 项目负责人 GitHub 审查 / 后续 DEV-005R 实现任务 | A-R/B-R/C-R/D-R 已写回正式候选；CON-020 等实现与 Chromium 证据，不得提前关闭 |
+| DEV-005R1/2C/2/3/4 | [HO-038](handoffs/SPEC-DEV-005R.md) | 后续独立项目任务 | R1 与 R2C 可有限并行，随后 R2→R3→R4；R2C 不得改共享 DTO/路由/中央治理文档 |
 
 ## 最近已完成交接
 
