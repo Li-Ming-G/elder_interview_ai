@@ -248,15 +248,27 @@ export class RealtimeTranscriptionTransport {
   private apply(message: InterviewWsServerEnvelope<InterviewWsServerType, unknown>): void {
     if (message.type === 'session.ready') {
       const payload = message.payload as {
+        audio_stream_id: string;
         highest_audio_sequence_acked: number;
         resumed: boolean;
       };
+      if (payload.audio_stream_id !== this.audioStreamId) {
+        this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
+        return;
+      }
       this.acceptAudioAck(payload.highest_audio_sequence_acked);
       this.reconnectAttempt = 0;
       this.patch({ connection: 'connected', resumed: payload.resumed });
     } else if (message.type === 'audio.ack') {
-      const highest = (message.payload as { highest_audio_sequence_acked: number })
-        .highest_audio_sequence_acked;
+      const payload = message.payload as {
+        audio_stream_id: string;
+        highest_audio_sequence_acked: number;
+      };
+      if (payload.audio_stream_id !== this.audioStreamId) {
+        this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
+        return;
+      }
+      const highest = payload.highest_audio_sequence_acked;
       this.acceptAudioAck(highest);
     } else if (message.type === 'asr.interim') {
       const payload = message.payload as {

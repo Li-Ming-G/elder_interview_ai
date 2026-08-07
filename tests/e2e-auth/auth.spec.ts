@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+
 test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecycle', async ({
   context,
   page,
@@ -159,6 +161,16 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await expect(page.getByTestId('realtime-interim')).not.toHaveText('暂无中间态');
   await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  const segmentId = await page
+    .getByTestId('realtime-finals')
+    .locator('li')
+    .first()
+    .getAttribute('data-segment-id');
+  expect(segmentId).not.toBeNull();
+  await expect
+    .poll(async () => (await realtimeDatabaseSnapshot(sessionId, segmentId)).segmentExists)
+    .toBe(true);
+  const beforeAsrFailure = await realtimeDatabaseSnapshot(sessionId, segmentId);
 
   await page.getByRole('button', { name: '模拟短时断线' }).click();
   await expect(page.getByTestId('realtime-connection')).toHaveText('reconnecting');
@@ -170,4 +182,37 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await expect(page.getByRole('alert')).toContainText('实时转录暂不可用，原始录音不受影响');
   await expect(page.getByRole('alert')).toContainText('ASR_UNAVAILABLE');
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  expect(await realtimeDatabaseSnapshot(sessionId, segmentId)).toEqual(beforeAsrFailure);
 });
+
+async function realtimeDatabaseSnapshot(
+  sessionId: string,
+  segmentId: string | null,
+): Promise<{
+  audioChunks: number;
+  audioObjects: number;
+  segmentCount: number;
+  segmentExists: boolean;
+}> {
+  const databaseUrl = process.env.TEST_DATABASE_URL;
+  if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
+  const prisma = new PrismaService({ databaseUrl } as never);
+  try {
+    const [audioObjects, audioChunks, segmentCount, segment] = await Promise.all([
+      prisma.audioObject.count({ where: { sessionId } }),
+      prisma.audioChunk.count({ where: { audioObject: { sessionId } } }),
+      prisma.transcriptSegment.count({ where: { sessionId } }),
+      segmentId === null
+        ? Promise.resolve(null)
+        : prisma.transcriptSegment.findUnique({ where: { id: segmentId } }),
+    ]);
+    return {
+      audioChunks,
+      audioObjects,
+      segmentCount,
+      segmentExists: segment?.sessionId === sessionId,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

@@ -28,7 +28,11 @@ test('mock WebSocket stops at twenty unacknowledged PCM frames', async ({ page }
 
       public send(value: string): void {
         sent.push(value);
-        const message = JSON.parse(value) as { session_id: string; type: string };
+        const message = JSON.parse(value) as {
+          payload: { audio_stream_id?: string };
+          session_id: string;
+          type: string;
+        };
         if (message.type !== 'session.join') return;
         setTimeout(
           () =>
@@ -38,7 +42,7 @@ test('mock WebSocket stops at twenty unacknowledged PCM frames', async ({ page }
                   event_id: '40000000-0000-4000-8000-000000000004',
                   event_stream_id: '30000000-0000-4000-8000-000000000003',
                   payload: {
-                    audio_stream_id: 'ignored-by-browser-assertion',
+                    audio_stream_id: message.payload.audio_stream_id,
                     highest_audio_sequence_acked: -1,
                     resume_window_events: 512,
                     resume_window_seconds: 300,

@@ -51,7 +51,12 @@ describe('RealtimeTranscriptionTransport', () => {
     );
     expect(latest(states)).toMatchObject({ pendingBytes: 64_000, pendingFrames: 20 });
 
-    socket.message(server('audio.ack', 1, { highest_audio_sequence_acked: 9 }));
+    socket.message(
+      server('audio.ack', 1, {
+        audio_stream_id: AUDIO_STREAM_ID,
+        highest_audio_sequence_acked: 9,
+      }),
+    );
     expect(latest(states)).toMatchObject({ pendingBytes: 32_000, pendingFrames: 10 });
     expect(await transport.sendSyntheticFrame(21)).toBe(true);
     const lastFrame = messages(socket)
@@ -172,6 +177,39 @@ describe('RealtimeTranscriptionTransport', () => {
       resetRequired: true,
     });
   });
+
+  it.each(['session.ready', 'audio.ack'] as const)(
+    'does not accept %s for a different audio stream',
+    (type) => {
+      const socket = new FakeSocket();
+      const { transport, states } = harness([socket]);
+      transport.connect();
+      socket.open();
+      if (type === 'session.ready') {
+        socket.message(
+          server(type, 0, {
+            audio_stream_id: 'wrong-audio-stream',
+            highest_audio_sequence_acked: -1,
+            resumed: false,
+          }),
+        );
+      } else {
+        socket.message(server('session.ready', 0, { resumed: false }));
+        socket.message(
+          server(type, 1, {
+            audio_stream_id: 'wrong-audio-stream',
+            highest_audio_sequence_acked: 10,
+          }),
+        );
+      }
+      expect(latest(states)).toMatchObject({
+        errorCode: 'INVALID_WS_MESSAGE',
+        failureKind: 'session',
+        pendingFrames: 0,
+      });
+      transport.disconnect();
+    },
+  );
 });
 
 function harness(sockets: FakeSocket[]): {
@@ -209,7 +247,11 @@ function messages(socket: FakeSocket): Array<Record<string, unknown>> {
 function server(type: string, sequence: number, payload: unknown): string {
   const normalizedPayload =
     type === 'session.ready'
-      ? { highest_audio_sequence_acked: -1, ...(payload as Record<string, unknown>) }
+      ? {
+          audio_stream_id: AUDIO_STREAM_ID,
+          highest_audio_sequence_acked: -1,
+          ...(payload as Record<string, unknown>),
+        }
       : payload;
   return JSON.stringify({
     event_id: `40000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`,
