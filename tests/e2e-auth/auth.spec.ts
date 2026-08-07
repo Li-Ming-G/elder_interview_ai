@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import { createTestPrismaClient } from '../../apps/api/test-support/prisma-client.js';
 
 test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecycle', async ({
   context,
@@ -196,7 +196,7 @@ async function realtimeDatabaseSnapshot(
 }> {
   const databaseUrl = process.env.TEST_DATABASE_URL;
   if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
-  const prisma = new PrismaService({ databaseUrl } as never);
+  const prisma = createTestPrismaClient(databaseUrl);
   try {
     const [audioObjects, audioChunks, segmentCount, segment] = await Promise.all([
       prisma.audioObject.count({ where: { sessionId } }),
