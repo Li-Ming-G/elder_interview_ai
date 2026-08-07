@@ -109,6 +109,21 @@ enum TranscriptSource {
   fixture
 }
 
+enum FinalizationAudioStatus {
+  awaiting_upload
+  verifying
+  complete
+  unrecoverable
+}
+
+enum FinalizationTranscriptStatus {
+  pending
+  draining
+  drained
+  degraded
+  not_started
+}
+
 model User {
   id                       String              @id @default(uuid()) @db.Uuid
   email                    String              @unique @db.VarChar(254)
@@ -278,6 +293,7 @@ model InterviewSession {
   audioObjects       AudioObject[]
   speakerMappings    SpeakerMapping[]
   transcriptSegments TranscriptSegment[]
+  finalization       SessionFinalization?
 
   @@unique([projectId, sequenceNo])
   @@map("interview_session")
@@ -301,6 +317,7 @@ model AudioObject {
   creator          User              @relation("AudioObjectCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   chunks           AudioChunk[]
   consentRecords   ConsentRecord[]   @relation("ConsentAudioObject")
+  finalization     SessionFinalization?
 
   @@index([projectId, purpose, createdAt(sort: Desc)])
   @@index([sessionId, purpose])
@@ -381,4 +398,46 @@ model IdempotencyRecord {
   actor           User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@map("idempotency_record")
+}
+
+model SessionFinalization {
+  id                           String                       @id @default(uuid()) @db.Uuid
+  sessionId                    String                       @unique @map("session_id") @db.Uuid
+  audioObjectId                String                       @unique @map("audio_object_id") @db.Uuid
+  stopRequestId                String                       @unique @map("stop_request_id") @db.Uuid
+  expectedChunkCount           Int                          @map("expected_chunk_count")
+  commitmentsChecksum          String                       @map("commitments_checksum") @db.Char(64)
+  captureEndedAt               DateTime                     @map("capture_ended_at") @db.Timestamptz(3)
+  processingStartedAt          DateTime?                    @map("processing_started_at") @db.Timestamptz(3)
+  completedAt                  DateTime?                    @map("completed_at") @db.Timestamptz(3)
+  audioStatus                  FinalizationAudioStatus      @default(awaiting_upload) @map("audio_status")
+  transcriptStatus             FinalizationTranscriptStatus @default(pending) @map("transcript_status")
+  transcriptErrorCode          String?                      @map("transcript_error_code") @db.VarChar(40)
+  asrLastAudioSequenceAccepted Int?                         @map("asr_last_audio_sequence_accepted")
+  asrDrainCompletedAt          DateTime?                    @map("asr_drain_completed_at") @db.Timestamptz(3)
+  failureCode                  String?                      @map("failure_code") @db.VarChar(50)
+  createdBy                    String                       @map("created_by") @db.Uuid
+  createdAt                    DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session                      InterviewSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  audioObject                  AudioObject                  @relation(fields: [audioObjectId], references: [id], onDelete: Restrict)
+  chunks                       SessionFinalizationChunk[]
+
+  @@map("session_finalization")
+}
+
+model SessionFinalizationChunk {
+  id                    String              @id @default(uuid()) @db.Uuid
+  sessionFinalizationId String              @map("session_finalization_id") @db.Uuid
+  sequenceNo            Int                 @map("sequence_no")
+  startMs               Int                 @map("start_ms")
+  endMs                 Int                 @map("end_ms")
+  sizeBytes             Int                 @map("size_bytes")
+  checksum              String              @db.Char(64)
+  mimeType              String              @map("mime_type") @db.VarChar(160)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  finalization          SessionFinalization @relation(fields: [sessionFinalizationId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionFinalizationId, sequenceNo])
+  @@map("session_finalization_chunk")
 }

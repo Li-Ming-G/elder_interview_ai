@@ -71,6 +71,15 @@
 - P2：stop 的 202/200、malformed finalization 的 422 `INVALID_SESSION_FINALIZATION`、非原 actor complete 的权限错误语义已登记为非阻塞偏差，不纳入本轮四项 P1 定向修复，避免扩大范围。
 - DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`；只需修复上述四项 P1 后提交新 final head 定向复审。
 
+## REV-019 定向修复候选（2026-08-07）
+
+- 结束相关写路径统一使用 `project → session → audio` 资源锁序并在锁内重读；audio complete 全量核对实际 manifest 与冻结 commitments。
+- 新增最小 `drainAndClose` ASR ending seam；final 通过 DEV-004A ingestion 落库后 adapter 才能结束，成功记 `drained`，不可用/超时记 `degraded`。
+- runtime 丢失时使用持久 `asr_last_audio_sequence_accepted`：无接收证据为 `not_started`，存在接收证据但无法证明完整 drain 为 `degraded`。
+- `completed|failed` 终态稳定，`completed_at` 不重写且 failed 不可复活；每个新 stop request ID 持久自己的首次响应并稳定重放。
+- PostgreSQL integration 增加真实 barrier 竞态、ASR ending、重启事实与终态/幂等回归；本地 format、lint、typecheck、unit 127/127、integration 29/29、auth 13/13、migration deploy/status、build、smoke 均通过。
+- 三项 REV-019 P2 仅保留登记，未扩大实现；状态保持 `REVIEW`，等待新 final head CI 与项目负责人定向复审。
+
 ## REV-019 第二轮定向复审
 
 - 复审绑定 PR #10 head `33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063`，CI `31172641955` PASS；旧四项 P1 已全部关闭。
@@ -78,3 +87,11 @@
 - 定向修复：在 `SessionFinalizationService` 内按 `finalizationId` 建立进程内 `Map<id, Promise<void>>` single-flight。已有 Promise 时等待同一 Promise；没有时创建 `advanceOnce()`，完成后在 `finally` 删除。进程重启后 Map 为空，持久 `draining` 仍允许重新驱动。
 - 必测：阻塞 fake adapter 的第一次 drain；同时发起相同 request ID recover、不同 request ID recover/reconcile，以及匹配同一 frozen snapshot 的 stop，断言外部 `drainAndClose` 调用数始终为 1；释放后所有响应稳定、session completed、transcript drained、幂等响应不漂移。
 - 本轮不得修改数据库模型或 migration，不引入 Redis/BullMQ/队列，不接真实 ASR；三个既有 P2 继续不处理。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
+
+## REV-019 第二轮定向修复候选（2026-08-07）
+
+- `SessionFinalizationService.advance()` 以 `Map<finalizationId, Promise<void>>` 复用同进程 runner，实际状态推进收敛到 `advanceOnce()`；`finally` 仅删除仍指向当前 Promise 的登记。
+- Map 不是持久事实源；新进程 Map 为空时，持久 `draining` 仍会重新驱动。
+- 阻塞 fake 同时覆盖相同 request recover、不同 request reconcile 和匹配 frozen snapshot 的 stop，barrier 释放前 `drainAndClose()` 始终只调用一次；释放后终态、响应与逐 request 重放稳定。
+- 拒绝路径验证 single-flight 登记清理后，相同 finalization ID 可合法重新驱动。
+- 本地 format、lint、typecheck、unit 127/127、migration deploy/status、PostgreSQL integration 30/30、auth 13/13、build、smoke 与 diff check 通过；无 migration、依赖或三个 P2 变更。

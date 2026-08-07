@@ -406,6 +406,17 @@
 - Boundary: 契约 PASS 不代表 stop/recover、页面结束状态或父 DEV-005 已完成；真实麦克风/ASR/LLM、云队列和生产部署仍不在当前实现前置。
 - Lesson: 冲突可以在契约明确后关闭，但实现任务仍需独立测试与审查；“冲突已解决”和“功能已完成”必须保持两条状态线。
 
+### 2026-08-07 — DEV-005C 服务端会话安全结束编排
+
+- User outcome: 让 stop/recover、实际时长、raw manifest 与 ASR 降级成为持久、可查询、可重驱且不扩大撤权前证据边界的服务端事实。
+- Review mode: Learning mode；恰好一次独立只读预审确认正式契约无需修改，migration 为确定交付物。
+- Review finding: 权限判定时刻与允许写入的字节集合必须在同一 session 锁提交点冻结；普通 assignment 与冻结后的 evidence-finalization 是两套权限。
+- Options considered: 复用普通 assignment 上传；依赖 WebSocket runtime；持久 finalization + commitments + 精确补传。采用第三种。
+- Adopted decision: 单 migration 增加数据库唯一性与聚合；stop/finalize_interrupted 同锁复核最新授权；recover 只读持久事实，runtime 无法证明 drain 时明确降级。
+- Implementation evidence: `session-finalization.service.ts`、audio/realtime seam、migration `20260807190000_session_finalization`、unit 123/123、PostgreSQL integration、auth 13/13、build/smoke；任务进入 REVIEW 等待 GitHub 审查。
+- Lesson: 撤权后的证据保全不是继续授予项目访问，而是只完成撤权前冻结的不可变字节集合。
+- Better future prompt: “请分别测试首次建立 finalization 与已有 snapshot 后补传：前者同锁复核最新授权，后者仅允许 active 原 actor 对 frozen commitment 做最小写入。”
+
 ### 2026-08-07 — DEV-005B 与 DEV-005C 并行启动
 
 - User outcome: 在服务端安全结束编排开发期间同步推进转录优先工作台，并明确要求前端使用 impeccable。
@@ -422,6 +433,14 @@
 - Lesson: 状态机的顺序不能由“每个操作各自有锁”推导，只有共享资源锁和锁内重读才能建立跨模块线性化点；CI 覆盖已有路径，不代表未建模的并发窗口不存在。
 - Boundary: DEV-005D 继续 BLOCKED，父 DEV-005 不因工作台通过而完成。
 
+### 2026-08-07 — DEV-005C REV-019 定向修复
+
+- Review correction: 跨模块事务只有共享 `project → session → audio` 锁序并在锁后重读，才能把撤权、冻结和补传变成线性化事实；每条路径“各自有锁”仍会留下授权与字节集合竞态。
+- Adopted implementation: stop/recover、revoke、upload/complete 统一资源锁序；manifest 与 commitments 逐片全量比对；ASR ending 通过回调强制 final 先经 DEV-004A ingestion，再完成 adapter close；runtime 丢失依持久接收序号降级。
+- Idempotency lesson: 资源终态与请求响应是两个不同事实。终态不可重写或复活；每个 request ID 必须保存其首次可见 snapshot，即使后台状态随后推进也只能重放原响应。
+- Evidence: PostgreSQL barrier 覆盖 stop/revoke 双顺序与 stop/upload 扩集；ASR 成功、不可用、超时、final-first、runtime loss 和 completed/failed/replay 回归；完整本地门禁通过。
+- Boundary: 不接真实 ASR、云存储、队列或前端；REV-019 三项 P2 保持登记，DEV-005C 仍为 REVIEW，DEV-005D 仍为 BLOCKED。
+
 ### 2026-08-07 — REV-019 第二轮发现 ASR drain runner 重入
 
 - Review evidence: 项目负责人锁定 PR #10 head `33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063` 与 CI `31172641955`；首轮四项 P1 全部关闭，但结论仍为 REQUEST_CHANGES。
@@ -429,3 +448,10 @@
 - Adopted correction: 按 finalization ID 复用一个进程内 advance Promise，完成后清理；进程重启后 Map 丢失，由持久状态重新驱动。补阻塞 fake 和并发 barrier 测试。
 - Boundary: 仅修 single-runner，不改数据库、不引队列、不处理三个 P2、不接真实 ASR。DEV-005C REVIEW、DEV-005D BLOCKED。
 - Lesson: “状态为 draining”既是持久恢复信号，又不能单独承担同进程互斥；可恢复状态和进程内 single-flight 是两个互补层次。
+
+### 2026-08-07 — DEV-005C ASR runner single-flight
+
+- Adopted implementation: `advance()` 按 finalization ID 返回同一个进程内 Promise，`advanceOnce()` 保持持久重驱逻辑；清理只删除仍指向当前 Promise 的 Map 项，避免旧 runner 删除后继登记。
+- Evidence: 阻塞 adapter 下，相同 ID recover、不同 ID reconcile 与匹配 stop 并发只调用一次外部 drain；释放后响应重放稳定且终态 drained/completed。首次推进拒绝后相同 finalization ID 可重新驱动。
+- Lesson: 持久状态解决崩溃恢复，single-flight 解决同进程外部副作用互斥；两者不能互相替代。
+- Boundary: Map 不承载业务事实；未增加数据库、migration、队列、依赖、真实 ASR 或三个 P2。

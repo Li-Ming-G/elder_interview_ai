@@ -12,6 +12,7 @@ import {
 import { ProjectFoundationController } from './project-foundation.controller.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { SessionFinalizationService } from './session-finalization.service.js';
 
 @Module({})
 // Nest requires a module token for the dynamic module returned below.
@@ -22,10 +23,12 @@ export function createProjectFoundationModule(
   config: ApiConfig,
   authModule: DynamicModule,
   audioModule: DynamicModule,
+  realtimeModule: DynamicModule,
+  transcriptionModule: DynamicModule,
 ): DynamicModule {
   return {
     controllers: [ProjectFoundationController],
-    imports: [authModule, audioModule],
+    imports: [authModule, audioModule, realtimeModule, transcriptionModule],
     module: ProjectFoundationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },
@@ -35,6 +38,7 @@ export function createProjectFoundationModule(
       ProjectAccessService,
       ProjectFoundationService,
       ProjectRequestActorService,
+      SessionFinalizationService,
     ],
   };
 }

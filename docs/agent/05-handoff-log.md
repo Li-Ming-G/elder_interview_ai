@@ -9,6 +9,7 @@
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
 | DEV-005C | [HO-034](handoffs/DEV-005C.md) | 原后端会话编排实现任务对话（第二次定向修复） | REV-019 对 head `33c9a33` 再次 REQUEST_CHANGES；旧四项 P1 已关闭，只补进程内 single-flight 与并发 barrier 测试；DEV-005D 仍阻塞 |
+| DEV-005C | [HO-034](handoffs/DEV-005C.md) | 总控 / 项目负责人第三次定向复审 | single-flight 唯一 P1 修复候选与本地完整门禁完成；等待新 final head CI，状态仍为 REVIEW，DEV-005D 仍阻塞 |
 
 ## 最近已完成交接
 
