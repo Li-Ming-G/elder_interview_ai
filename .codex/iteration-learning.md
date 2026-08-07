@@ -261,3 +261,35 @@
 - Implementation evidence: `AGENTS.md`、`00-项目说明与执行入口.md`、`docs/agent/README.md`、`docs/agent/04-review-report.md`、`docs/agent/05-handoff-log.md`、`docs/agent/02-open-conflicts.md`、`docs/agent/handoffs/DOC-002.md`。
 - Tradeoff: 暂不把历史卷拆成大量单篇文件，避免当前引用迁移和编码风险；后续可按任务逐步拆分。
 - Lesson: 协作记录的关键不是删除历史，而是把动态状态、当前入口和审计证据分成不同层级。
+
+### 2026-08-07 — DEV-004B2 浏览器实时纵向链路预审
+
+- User outcome: 每个明确 DEV 阶段由新的实现 Agent 承接，总控冻结提示词、边界、验证与 Git，使历史留在任务卡、提交和交接中。
+- Review mode: Correction mode；唯一独立只读预审确认 B2 适合启动，但不能只做字幕演示。
+- Review finding: heartbeat/event ACK 撤权复核与内部错误分类已到触发时点，必须随 B2 关闭；runtime 集合清理只在长时访谈前成为门禁。
+- Options considered: 单独后端加固后再启前端 Agent；或由一个 B2 纵向实现 Agent完成两项小型服务端加固与浏览器客户端。采用后者，避免额外任务卡/分支/PR，同时保持一张冻结任务卡对应一个实现 Agent。
+- Adopted decision: B2 使用真实 Chromium、合成 PCM、独立 transport/state machine 和薄 harness，验证 interim/final、ACK、20 帧背压和同页面短时恢复；新增 `REALTIME_UNAVAILABLE/4500`，长连接非音频消息重验资源权限；不接真实麦克风、AudioWorklet、真实供应商或正式工作台。
+- Implementation evidence: 当前仅有正式契约、任务卡、ADR-019 补充和 HO-026；代码实现与测试证据待实现 Agent 交付后补充。
+- Lesson: 新 Agent 能隔离执行上下文，但不能自动保存历史；稳定历史来自冻结任务卡、唯一责任人、commit/PR 和结构化交接。
+- Better future prompt: “请按已冻结的 DEV-004B2 任务卡启动一个新的纵向实现 Agent；只做真实 Chromium 合成 PCM、字幕、背压和短时恢复，并关闭已到触发点的撤权复核与内部错误分类，完成后交总控验证和 GitHub 审查。”
+
+### 2026-08-07 — DEV-004B2 实现候选与总控收口
+
+- User outcome: 独立项目任务对话完成 B2 后，由总控锁定实现、补齐证据并准备 GitHub 审查。
+- Review mode: Review-and-fix，主模式 integration；执行者结果不代替项目负责人独立 PASS。
+- Review finding: 实现范围与任务卡一致；总控发现客户端未严格核对 ready/audio ACK 的 `audio_stream_id`，且真实 Chromium 场景未直接查询 final 持久化和 ASR 故障前后音频数据快照。
+- Adopted decision: 拒绝跨 stream ACK；auth Chromium 直接读取隔离 PostgreSQL 形成最终落库与数据不变证据；保持无公开注入、无真实麦克风/ASR边界。
+- Implementation evidence: 独立实现 `b3d1678`，纯 B2 分支等价实现 `87dd225`，总控补强 `ce67549`；本地 format/lint/typecheck/build、unit 103、普通 Chromium 4/4 PASS。
+- Verification boundary: 无 TEST_DATABASE_URL/PostgreSQL/Docker；smoke 因 API/database 未 ready 失败，migration/integration/auth/auth Chromium/smoke 交 GitHub CI，REV-014 保持 PENDING。
+- Lesson: ACK 不只是“序号够不够大”，还必须与当前 stream identity 绑定；否则重连或服务端串流错误可能让客户端错误丢弃仍未确认的数据。
+- Better future prompt: “请在浏览器实时链路中分别验证 audio/event cursor，并要求所有 ready/ACK 同时匹配 stream identity；真实 E2E 必须直接证明 final 已持久化且故障不改原始音频数据。”
+
+### 2026-08-07 — REV-014 首轮 NEEDS_CHANGES 与协议终止语义修复
+
+- Review evidence: 项目负责人锁定 PR #5 head `70b8f2d` 和 CI `31140269703`，确认整体链路接近通过，但两项 P1 违反明确验收标准。
+- Failure 1: join 鉴权失败前没有绑定请求 session，错误信封使用 NIL UUID而被客户端忽略；随后 close 被当作可重连网络故障，最终误报 internal。
+- Failure 2: 客户端先推进 event cursor 再应用事件；跨 stream ready/ACK 或 sequence gap 虽标记失败，仍会 ACK、重发 PCM 并维持 socket/timer。
+- Adopted fix: 已通过格式校验的 join 立即绑定 session 仅用于安全错误信封；事件必须成功 apply 才推进 cursor/ACK/重发；terminal/reset 成为不可继续的本地状态，关闭 socket、清理 timer 并拒绝后续 frame；close code 作为错误信封丢失时的分类后备。
+- Evidence: 修复 `6fd228f`；定向 33 tests、全仓 109 unit、format/lint/typecheck/build、Chromium 4/4 和 diff check 本地 PASS；新 head 数据库门禁仍交 GitHub CI。
+- Lesson: “检测到协议错误”不等于“失败关闭”。顺序型客户端必须让验证、状态应用、游标提交和副作用形成明确提交点；错误信封也必须在 join 尚未成功时具备可关联的请求身份。
+- Better future prompt: “请用完整 transport 流程验证 join 错误和协议违例：失败后不得推进 cursor、ACK、重发、心跳、重连或新增帧；不要只测试分类函数或 UI error 字段。”

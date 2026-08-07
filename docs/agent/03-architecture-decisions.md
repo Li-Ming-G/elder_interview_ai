@@ -158,3 +158,4 @@
 - 安全边界：Origin/Cookie 在 upgrade 前校验；CSRF 仅在 join 消息内存传递且不进日志；join 前不创建 adapter 或接收 PCM；项目 restricted、授权撤回、assignment 失效或非流式 session 失败关闭；fake 只由 local/test 服务端组合根注入，客户端不能指定输出文本。
 - 代价：base64 增加约三分之一传输体积，且 B1 完成后仍没有真实浏览器展示；B2 必须在共享协议提交后再实现。AudioWorklet、真实麦克风、真实供应商、二进制帧和跨进程恢复后续重评估。
 - 重新评估条件：内部纵向链路通过且真实麦克风/长时负载成为下一核心假设，或多实例部署要求跨进程恢复时，分别评估二进制帧、AudioWorklet 和持久事件存储。
+- B2 加固补充（2026-08-07）：heartbeat/event ACK 在流内重新验证资源权限；未知内部或持久化故障使用 `REALTIME_UNAVAILABLE/4500`，不再伪装为 `FORBIDDEN`。这两项在浏览器状态展示前成为门禁；runtime 集合清理仍留到长时访谈前。

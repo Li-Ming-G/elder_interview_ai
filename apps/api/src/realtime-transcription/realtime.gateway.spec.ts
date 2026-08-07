@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { WebSocket } from 'ws';
 
@@ -30,6 +31,29 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(client.sent.map((message) => message.type)).toEqual(['error']);
     expect(client.sent[0]?.payload).toEqual({ code: 'SESSION_NOT_STREAMABLE' });
     expect(adapter.calls).toBe(0);
+  });
+
+  it('binds the requested session to an error raised during join authorization', async () => {
+    const sessionId = randomUUID();
+    const gateway = createGateway(
+      new CountingAdapter(),
+      'produce',
+      undefined,
+      undefined,
+      undefined,
+      () => Promise.reject(new ForbiddenException({ code: 'FORBIDDEN' })),
+    );
+    const client = new FakeSocket();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, randomUUID()));
+    await client.waitClosed();
+
+    expect(client.closeCode).toBe(4403);
+    expect(client.sent[0]).toMatchObject({
+      payload: { code: 'FORBIDDEN' },
+      session_id: sessionId,
+      type: 'error',
+    });
   });
 
   it('serializes concurrent frames on one connection', async () => {
@@ -216,6 +240,30 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     first.close(1000);
   });
 
+  it('allows recovery to replace a producer socket that is already closed', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    const gateway = createGateway(new CountingAdapter(), 'produce', runtimes);
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    const first = new FakeSocket();
+    gateway.handleConnection(first as unknown as WebSocket, request());
+    first.receive(join(sessionId, audioStreamId));
+    await waitFor(() => first.sent.some(({ type }) => type === 'session.ready'));
+    const runtime = runtimes.find(sessionId);
+    if (runtime === null) throw new Error('Expected session runtime');
+    first.close(4001);
+    runtime.producer = first;
+
+    const second = new FakeSocket();
+    gateway.handleConnection(second as unknown as WebSocket, request());
+    second.receive(join(sessionId, audioStreamId, runtime.eventStreamId, 0));
+    await waitFor(() => second.sent.some(({ type }) => type === 'session.ready'));
+
+    expect(second.closeCode).toBe(0);
+    expect(runtime.producer).toBe(second);
+    second.close(1000);
+  });
+
   it('publishes unavailable without ACK or ingestion when the local fake faults', async () => {
     const runtimes = new RealtimeRuntimeService();
     let ingestionCalls = 0;
@@ -243,6 +291,49 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(client.sent.filter(({ type }) => type === 'audio.ack')).toHaveLength(2);
     expect(client.sent.slice(-2).map(({ type }) => type)).toEqual(['asr.status', 'error']);
   });
+
+  it.each(['heartbeat', 'event.ack'] as const)(
+    'rechecks resources for %s and releases a revoked producer',
+    async (messageType) => {
+      const runtimes = new RealtimeRuntimeService();
+      let allowed = true;
+      const gateway = createGateway(new CountingAdapter(), 'produce', runtimes, undefined, () =>
+        allowed
+          ? Promise.resolve('produce')
+          : Promise.reject(
+              new ForbiddenException({ code: 'FORBIDDEN', details: {}, message: 'denied' }),
+            ),
+      );
+      const client = new FakeSocket();
+      const sessionId = randomUUID();
+      gateway.handleConnection(client as unknown as WebSocket, request());
+      client.receive(join(sessionId, randomUUID()));
+      await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+      allowed = false;
+      client.receive(messageType === 'heartbeat' ? heartbeat(sessionId) : eventAck(sessionId, 0));
+      await client.waitClosed();
+      expect(client.closeCode).toBe(4403);
+      expect(client.sent.at(-1)?.payload).toEqual({ code: 'FORBIDDEN' });
+      await waitFor(() => runtimes.find(sessionId)?.producer === null);
+    },
+  );
+
+  it('maps unknown internal failures to a non-sensitive 4500 error', async () => {
+    const gateway = createGateway(new CountingAdapter(), 'produce', undefined, undefined, () =>
+      Promise.reject(new Error('database-name SQL secret stack')),
+    );
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, randomUUID()));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(heartbeat(sessionId));
+    await client.waitClosed();
+    expect(client.closeCode).toBe(4500);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'REALTIME_UNAVAILABLE' });
+    expect(JSON.stringify(client.sent)).not.toContain('database-name');
+    expect(JSON.stringify(client.sent)).not.toContain('SQL');
+  });
 });
 
 function createGateway(
@@ -250,10 +341,13 @@ function createGateway(
   mode: RealtimeSessionMode,
   runtimes = new RealtimeRuntimeService(),
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
+  assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
+  assertJoin: () => Promise<RealtimeSessionMode> = () => Promise.resolve(mode),
 ): RealtimeTranscriptionGateway {
   const access = {
+    assertActiveConnection,
     assertFrame: () => Promise.resolve('produce' as const),
-    assertJoin: () => Promise.resolve(mode),
+    assertJoin,
     authenticate: () => Promise.resolve(actor),
   } as unknown as RealtimeAccessService;
   const ingestion = {
@@ -284,11 +378,21 @@ class CountingAdapter extends StreamingAsrAdapter {
 class FakeSocket extends EventEmitter {
   public readonly OPEN = 1;
   public readyState = this.OPEN;
-  public readonly sent: Array<{ payload: Record<string, unknown>; type: string }> = [];
+  public readonly sent: Array<{
+    payload: Record<string, unknown>;
+    session_id: string;
+    type: string;
+  }> = [];
   public closeCode = 0;
 
   public send(value: string): void {
-    this.sent.push(JSON.parse(value) as { payload: Record<string, unknown>; type: string });
+    this.sent.push(
+      JSON.parse(value) as {
+        payload: Record<string, unknown>;
+        session_id: string;
+        type: string;
+      },
+    );
   }
 
   public receive(value: Record<string, unknown>): void {

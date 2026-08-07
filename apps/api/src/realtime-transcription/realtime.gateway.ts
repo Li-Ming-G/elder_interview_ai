@@ -152,9 +152,13 @@ export class RealtimeTranscriptionGateway {
       throw new RealtimeCodecError('INVALID_WS_MESSAGE');
     }
     state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
-    if (message.type === 'audio.frame') await this.frame(client, state, message.payload);
-    else if (message.type === 'event.ack')
-      this.eventAck(state.runtime, message.payload.server_sequence);
+    if (message.type === 'audio.frame') {
+      await this.frame(client, state, message.payload);
+      return;
+    }
+    const mode = await this.access.assertActiveConnection(state.actor, state.runtime.sessionId);
+    if (mode === 'resume-only') this.runtimes.release(state.runtime, client);
+    if (message.type === 'event.ack') this.eventAck(state.runtime, message.payload.server_sequence);
     else this.sendStored(client, this.runtimes.append(state.runtime, 'heartbeat.ack', {}));
   }
 
@@ -163,6 +167,7 @@ export class RealtimeTranscriptionGateway {
     state: ConnectionState,
     message: Extract<InterviewWsClientMessage, { type: 'session.join' }>,
   ): Promise<void> {
+    state.sessionId = message.session_id;
     state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
     const mode = await this.access.assertJoin(
       state.actor,
@@ -209,14 +214,17 @@ export class RealtimeTranscriptionGateway {
     }
     if (mode === 'produce') {
       if (runtime.producer !== null && runtime.producer !== client) {
-        this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
-        return;
+        const previousProducer = runtime.producer as WebSocket;
+        if (previousProducer.readyState === previousProducer.OPEN) {
+          this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
+          return;
+        }
+        this.runtimes.release(runtime, previousProducer);
       }
       runtime.producer = client;
     }
     state.joined = true;
     state.runtime = runtime;
-    state.sessionId = message.session_id;
     for (const stored of replay) this.sendStored(client, stored.envelope);
     this.sendStored(
       client,
@@ -344,7 +352,9 @@ export class RealtimeTranscriptionGateway {
     if (code === 'INVALID_CSRF_TOKEN' || code === 'AUTH_REQUIRED')
       this.fail(client, state, code, 4401);
     else if (code === 'SESSION_NOT_STREAMABLE') this.fail(client, state, code, 4408);
-    else this.fail(client, state, 'FORBIDDEN', 4403);
+    else if (code === 'FORBIDDEN' || code === 'NOT_FOUND')
+      this.fail(client, state, 'FORBIDDEN', 4403);
+    else this.fail(client, state, 'REALTIME_UNAVAILABLE', 4500);
   }
 
   private fail(
@@ -404,9 +414,9 @@ function toBuffer(data: RawData): Buffer {
   return Buffer.from(data);
 }
 
-function httpErrorCode(error: unknown): string {
-  if (!(error instanceof HttpException)) return 'FORBIDDEN';
+function httpErrorCode(error: unknown): string | null {
+  if (!(error instanceof HttpException)) return null;
   const response = error.getResponse();
-  if (typeof response !== 'object' || !('code' in response)) return 'FORBIDDEN';
+  if (typeof response !== 'object' || !('code' in response)) return null;
   return String(response.code);
 }

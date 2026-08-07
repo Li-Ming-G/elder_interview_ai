@@ -26,3 +26,43 @@ h1 {
   font-size: clamp(2.25rem, 6vw, 4.5rem);
   line-height: 1;
 }
+
+.realtime-harness {
+  padding-top: 4rem;
+}
+
+.realtime-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.realtime-status div,
+.realtime-harness section {
+  padding: 1rem;
+  border: 1px solid #cad3cd;
+  border-radius: 0.75rem;
+  background: #fffdf7;
+}
+
+.realtime-status dt {
+  color: #557064;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.realtime-status dd {
+  margin: 0.25rem 0 0;
+}
+
+.realtime-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+
+.transcript-interim {
+  color: #6b746f;
+  font-style: italic;
+}

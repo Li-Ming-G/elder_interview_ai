@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { createTestPrismaClient } from '../../apps/api/test-support/prisma-client.js';
+
 test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecycle', async ({
   context,
   page,
@@ -105,3 +107,140 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   await expect(page.getByTestId('chunk-count')).toHaveText('待上传分片：0');
   await expect(page.getByTestId('next-sequence')).not.toHaveText('0');
 });
+
+test('real Chromium streams synthetic PCM, renders interim/final, reconnects, and classifies ASR failure', async ({
+  page,
+}) => {
+  const webSocketEvents: string[] = [];
+  page.on('websocket', (socket) => {
+    webSocketEvents.push(`opened:${socket.url()}`);
+    socket.on('framesent', ({ payload }) => {
+      webSocketEvents.push(`sent:${webSocketMessageType(payload)}`);
+    });
+    socket.on('framereceived', ({ payload }) => {
+      webSocketEvents.push(`received:${webSocketMessageType(payload)}`);
+    });
+    socket.on('socketerror', (error) => webSocketEvents.push(`error:${error}`));
+    socket.on('close', () => webSocketEvents.push('closed'));
+  });
+  await page.goto('/');
+  await page.locator('input[name="email"]').fill('listener-a@example.test');
+  await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
+  await page.locator('form button[type="submit"]').click();
+  await expect(page.locator('section h2')).toBeVisible();
+  const sessionId = await page.evaluate(async () => {
+    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
+    const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
+    async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
+      const response = await fetch(`/api/v1${path}`, {
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error(`${path} failed: ${String(response.status)}`);
+      return (await response.json()) as Record<string, unknown>;
+    }
+    const project = await write('/projects', { display_name: '虚构 Chromium 实时转录项目' });
+    const projectId = String(project.id);
+    await write(`/projects/${projectId}/service-terms`, {
+      currency: 'CNY',
+      estimated_session_count: 1,
+      expected_current_minutes: 10,
+      included_minutes: 60,
+      overtime_price_minor: 0,
+      overtime_unit_minutes: 30,
+    });
+    await write(`/projects/${projectId}/consents`, {
+      consent_audio_object_id: null,
+      consent_method: 'electronic',
+      consent_text_version: 'test-v1',
+      consent_type: 'recording_transcription_ai',
+      consented_at: new Date().toISOString(),
+    });
+    const session = await write(`/projects/${projectId}/sessions`);
+    const id = String(session.id);
+    await write(`/sessions/${id}/device-check`, {
+      input_detected: true,
+      microphone_permission: 'granted',
+    });
+    await write(`/sessions/${id}/start`, { request_id: crypto.randomUUID() });
+    return id;
+  });
+
+  await page.goto(`/?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`);
+  await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByTestId('realtime-interim')).not.toHaveText('暂无中间态');
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  const segmentId = await page
+    .getByTestId('realtime-finals')
+    .locator('li')
+    .first()
+    .getAttribute('data-segment-id');
+  expect(segmentId).not.toBeNull();
+  await expect
+    .poll(async () => (await realtimeDatabaseSnapshot(sessionId, segmentId)).segmentExists)
+    .toBe(true);
+  const beforeAsrFailure = await realtimeDatabaseSnapshot(sessionId, segmentId);
+
+  await page.getByRole('button', { name: '模拟短时断线' }).click();
+  await expect(page.getByTestId('realtime-connection')).toHaveText('reconnecting');
+  try {
+    await expect(page.getByTestId('realtime-connection')).toHaveText('connected', {
+      timeout: 15_000,
+    });
+  } catch (error) {
+    throw new Error(`realtime recovery failed: ${webSocketEvents.join(',')}`, { cause: error });
+  }
+  await expect(page.getByText('已在窗口内恢复')).toBeVisible();
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByRole('alert')).toContainText('实时转录暂不可用，原始录音不受影响');
+  await expect(page.getByRole('alert')).toContainText('ASR_UNAVAILABLE');
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  expect(await realtimeDatabaseSnapshot(sessionId, segmentId)).toEqual(beforeAsrFailure);
+});
+
+function webSocketMessageType(payload: string | Buffer): string {
+  if (typeof payload !== 'string') return 'binary';
+  try {
+    const parsed = JSON.parse(payload) as { type?: unknown };
+    return typeof parsed.type === 'string' ? parsed.type : 'unknown';
+  } catch {
+    return 'invalid-json';
+  }
+}
+
+async function realtimeDatabaseSnapshot(
+  sessionId: string,
+  segmentId: string | null,
+): Promise<{
+  audioChunks: number;
+  audioObjects: number;
+  segmentCount: number;
+  segmentExists: boolean;
+}> {
+  const databaseUrl = process.env.TEST_DATABASE_URL;
+  if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
+  const prisma = createTestPrismaClient(databaseUrl);
+  try {
+    const [audioObjects, audioChunks, segmentCount, segment] = await Promise.all([
+      prisma.audioObject.count({ where: { sessionId } }),
+      prisma.audioChunk.count({ where: { audioObject: { sessionId } } }),
+      prisma.transcriptSegment.count({ where: { sessionId } }),
+      segmentId === null
+        ? Promise.resolve(null)
+        : prisma.transcriptSegment.findUnique({ where: { id: segmentId } }),
+    ]);
+    return {
+      audioChunks,
+      audioObjects,
+      segmentCount,
+      segmentExists: segment?.sessionId === sessionId,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

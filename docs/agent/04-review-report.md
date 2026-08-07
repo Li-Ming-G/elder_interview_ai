@@ -11,6 +11,7 @@
 | DEV-003 | REV-011 | PR #2 / `1aa643a` | DONE | 仅内部合成音频；真实麦克风、长时、云存储、真实试点未覆盖 |
 | DEV-004A | REV-012 | PR #3 / `917f888` | DONE | 仅确定态转录证据核心；真实 ASR、实时事件和真实试点未覆盖 |
 | DEV-004B1 | REV-013 | PR #4 / `80ff1c7` | DONE | 仅服务端合成 PCM 协议；三个 P2 和 B2/真实 ASR/长时性能未覆盖 |
+| DEV-004B2 | REV-014 | PR #5 / 修复 head `656933b` / CI `31142873253` PASS | NEEDS_CHANGES | 两项 P1 已修且完整 CI 通过；等待项目负责人按最终 head 定向复审 |
 
 ## 阅读规则
 
@@ -20,4 +21,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-013`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-014`。
