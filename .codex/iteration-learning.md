@@ -258,6 +258,6 @@
 - User outcome: 降低 Agent 接手时的阅读成本，同时保留审查和交接的完整追溯证据。
 - Review mode: 机械治理整理；未改变产品或技术契约。
 - Adopted decision: 保留原文件名作为当前索引；原审查/交接正文整体迁移到 `docs/agent/reviews/` 和 `docs/agent/handoffs/`；新增协作入口和 OPEN 冲突快速索引。
-- Implementation evidence: `docs/agent/README.md`、`docs/agent/04-review-report.md`、`docs/agent/05-handoff-log.md`、`docs/agent/02-open-conflicts.md`、`docs/agent/handoffs/DOC-002.md`。
+- Implementation evidence: `AGENTS.md`、`00-项目说明与执行入口.md`、`docs/agent/README.md`、`docs/agent/04-review-report.md`、`docs/agent/05-handoff-log.md`、`docs/agent/02-open-conflicts.md`、`docs/agent/handoffs/DOC-002.md`。
 - Tradeoff: 暂不把历史卷拆成大量单篇文件，避免当前引用迁移和编码风险；后续可按任务逐步拆分。
 - Lesson: 协作记录的关键不是删除历史，而是把动态状态、当前入口和审计证据分成不同层级。

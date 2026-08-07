@@ -10,7 +10,8 @@
 2. `00-项目说明与执行入口.md`
 3. `01-产品需求文档.md`
 4. `02-项目开发规范.md`
-5. `docs/agent/00-task-board.md`
+5. `docs/agent/README.md`
+6. `docs/agent/00-task-board.md`
 
 随后根据任务类型继续读取：
 
