@@ -174,7 +174,9 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
 
   await page.getByRole('button', { name: '模拟短时断线' }).click();
   await expect(page.getByTestId('realtime-connection')).toHaveText('reconnecting');
-  await expect(page.getByTestId('realtime-connection')).toHaveText('connected', { timeout: 15_000 });
+  await expect(page.getByTestId('realtime-connection')).toHaveText('connected', {
+    timeout: 15_000,
+  });
   await expect(page.getByText('已在窗口内恢复')).toBeVisible();
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
 
