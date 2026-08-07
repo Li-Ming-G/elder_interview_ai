@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；产品优先切片已收敛为“首次访谈最小纵向闭环”，页面规划处于 SPEC-FE-001 REVIEW。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001 已通过并合并，DEV-005A 准备页/路由外壳 READY；安全结束契约 READY，DEV-005C/D 与父 DEV-005 仍 BLOCKED。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/019；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -339,3 +339,11 @@
 - Implementation evidence: `05` 的占位警示、ADR-021、CON-019、DEV-005A/B/C/D 与 SPEC-SESSION-END-001 任务卡、任务板/追踪/审查/交接同步；本轮没有实现代码。
 - Lesson: 状态枚举和路由名字不等于业务能力。只有服务端能够证明跨链路完成条件时，前端才有资格显示“完成”。
 - Better future prompt: “请先核对安全结束是否已有可执行服务端契约和实现；若没有，将准备页、结束契约、后端收束和结束页分别拆卡，前端不得推算 completed。”
+
+### 2026-08-07 — REV-015 定向复审 PASS 与前端实现解锁
+
+- Review evidence: 项目负责人锁定 PR #6 final head `47f7b35b71a1621dd731c5e79384752b20c5121e`，确认非 Draft、可合并且 REV-015 P1 闭环；CI `31153878655` 全部门禁 PASS。
+- Closed scope: PR #6 以 merge commit `474c647307b1ed3e949da31c4e490ee0b0b192c7` 合入 `main`；SPEC-FE-001 在页面规划和任务可执行性范围转 `DONE`。
+- Next execution: DEV-005A 转 `READY`，启动提示词保存在 `docs/agent/prompts/DEV-005A.md`；SPEC-SESSION-END-001 保持 `READY`，可作为独立契约任务推进。
+- Boundary: CON-019 保持 OPEN；DEV-005C/D 与父 DEV-005 保持 `BLOCKED`；页面规划 PASS 不代表 stop/recover、完整工作台或三页纵向闭环已经实现。
+- Lesson: 解锁应发生在最小可独立验收的叶子任务，而不是为了表现进度把父任务或后续依赖一起改成 READY。

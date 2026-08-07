@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：总控 Agent
 - 输入来源：项目负责人已批准的“前端页面与内容规划”对话、正式 `00` 至 `10`、MVP-V01、ADR-020
 - 分支：`codex/frontend-mvp-plan`
-- 交接对象：项目负责人（GitHub 审查）、DEV-005/DEV-007 后续任务对话
+- 交接对象：DEV-005A/B/C/D、SPEC-AI-QUESTION-001、SPEC-SESSION-END-001 后续任务对话
 
 ## 目标
 
@@ -40,3 +40,10 @@
 - stop/recover 未实现事实被明确标记，准备页、服务端结束编排和安全结束页依赖不再混入同一前端任务；
 - 所有新增引用可解析，`git diff --check` 通过；
 - 项目负责人绑定 GitHub head 明确 PASS 后转 `DONE`。
+
+## 最终验收与合并
+
+- 项目负责人定向复审锁定最终 head `47f7b35b71a1621dd731c5e79384752b20c5121e`，确认 REV-015 P1 已闭环并给出 `PASS`；
+- 最终 GitHub CI `31153878655` 全部门禁通过；
+- PR #6 以 merge commit `474c647307b1ed3e949da31c4e490ee0b0b192c7` 合入 `main`；
+- SPEC-FE-001 在页面规划与任务可执行性范围转 `DONE`；DEV-005A 解锁为 `READY`；SPEC-SESSION-END-001 保持 `READY`，DEV-005C/D 与父 DEV-005 保持 `BLOCKED`。

@@ -11,6 +11,7 @@
 5. `03-architecture-decisions.md`：涉及架构、数据或接口时读取相关 ADR。
 6. `04-review-report.md`：当前审查索引；历史正文见 `reviews/`。
 7. `05-handoff-log.md`：当前交接索引；历史正文见 `handoffs/`。
+8. `prompts/`：总控冻结的新任务对话启动提示词；只用于启动，不替代任务卡和正式规范。
 
 ## 文件职责
 
@@ -24,5 +25,6 @@
 - `reviews/`：历史审查正文。
 - `handoffs/`：历史交接正文。
 - `tasks/`：当前仍保留原路径，待引用检查工具就绪后再区分 active/archive。
+- `prompts/`：可复制到项目新任务对话的实现提示词；过期内容由总控更新。
 
 本入口不替代根目录 `AGENTS.md` 及正式产品、技术规范；它只说明协作文档从哪里开始读。

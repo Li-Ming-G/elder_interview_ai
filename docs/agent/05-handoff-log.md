@@ -8,7 +8,7 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| SPEC-FE-001 | [HO-030](handoffs/HO-030.md) | 项目负责人（GitHub 定向复审） / DEV-005 后续任务对话 | REV-015 P1 已按 ADR-021 拆分；CON-018/019 分别由两个 SPEC 任务关闭 |
+| DEV-005A | [HO-030](handoffs/HO-030.md) / [启动提示词](prompts/DEV-005A.md) | 新的前端实现任务对话 | 只实现准备页与正式路由外壳；不得调用 stop/recover 或模拟完成 |
 
 ## 最近已完成交接
 
@@ -18,6 +18,7 @@
 | DEV-004A | HO-020 | PR #3 合并，确定态证据核心 DONE |
 | DEV-004B1 | HO-024 | PR #4 合并，服务端合成 PCM 协议核心 DONE |
 | DEV-004B2 | HO-031 | PR #5 合并，浏览器合成 PCM 实时纵向链路 DONE |
+| SPEC-FE-001 | [HO-030](handoffs/HO-030.md) | PR #6 合并，REV-015 PASS，页面规划与可执行拆分 DONE |
 | DOC-002 | HO-025 | 协作文档当前态与历史归档分离完成 |
 
 ## 使用规则
