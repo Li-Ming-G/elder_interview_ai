@@ -240,6 +240,24 @@ export class ProjectFoundationService {
       );
       if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${existing.projectId}`);
+      const endingSessions = await transaction.interviewSession.findMany({
+        orderBy: { id: 'asc' },
+        select: { id: true },
+        where: {
+          projectId: existing.projectId,
+          status: { in: ['recording', 'reconnecting', 'stopping', 'processing', 'interrupted'] },
+        },
+      });
+      for (const session of endingSessions) await this.lock(transaction, `session:${session.id}`);
+      const endingAudio = await transaction.audioObject.findMany({
+        orderBy: { id: 'asc' },
+        select: { id: true },
+        where: {
+          projectId: existing.projectId,
+          sessionId: { in: endingSessions.map(({ id }) => id) },
+        },
+      });
+      for (const audio of endingAudio) await this.lock(transaction, `audio:${audio.id}`);
       await this.lock(transaction, `consent:${consentId}`);
       const consent = await transaction.consentRecord.findUnique({ where: { id: consentId } });
       if (consent === null) throw this.notFound();

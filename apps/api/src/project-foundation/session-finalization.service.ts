@@ -14,10 +14,18 @@ import {
 } from '@nestjs/common';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
+import { canonicalAudioManifestChecksum } from '../audio/audio-manifest.js';
 import { ResourceAuthorizationService } from '../auth/resource-authorization.service.js';
 import { PrismaService } from '../database/prisma.service.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import type {
+  AudioChunk,
+  AudioObject,
+  Prisma,
+  SessionFinalizationChunk,
+} from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
+import { StreamingAsrAdapter } from '../realtime-transcription/streaming-asr.js';
+import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
 import { mapInterviewSessionSnapshot } from './project.mapper.js';
 
 @Injectable()
@@ -26,6 +34,8 @@ export class SessionFinalizationService {
     private readonly prisma: PrismaService,
     private readonly authorization: ResourceAuthorizationService,
     private readonly runtime: RealtimeRuntimeService,
+    private readonly adapter: StreamingAsrAdapter,
+    private readonly ingestion: TranscriptIngestionService,
   ) {}
 
   public async stop(
@@ -45,7 +55,9 @@ export class SessionFinalizationService {
     await this.authorization.assertRole(actor, ['interviewer']);
     const result = await this.prisma.$transaction(async (tx) => {
       await this.lock(tx, `request:${input.request_id}`);
-      await this.lock(tx, `session:${sessionId}`);
+      const location = await tx.interviewSession.findUnique({ where: { id: sessionId } });
+      if (location === null) throw this.notFound();
+      await this.lockResources(tx, location.projectId, sessionId);
       const replay = await tx.idempotencyRecord.findUnique({
         where: { requestId: input.request_id },
       });
@@ -58,7 +70,7 @@ export class SessionFinalizationService {
           replay.targetType !== 'interview_session'
         )
           throw this.conflict('IDEMPOTENCY_KEY_REUSED');
-        return replay.responsePayload as unknown as InterviewSessionResponse;
+        return { snapshot: replay.responsePayload as unknown as InterviewSessionResponse };
       }
       const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
       if (session === null) throw this.notFound();
@@ -80,25 +92,33 @@ export class SessionFinalizationService {
           sessionId,
           snapshot,
         );
-        return snapshot;
+        return { snapshot };
       }
       if (['recording', 'reconnecting'].includes(session.status))
         throw this.conflict('SESSION_RECOVERY_NOT_REQUIRED');
       if (finalization === null) throw this.conflict('SESSION_NOT_RECOVERABLE');
       this.assertFinalizationActor(actor, finalization.createdBy);
-      await this.advance(tx, finalization.id);
+      return { action, finalizationId: finalization.id };
+    });
+    if (!('finalizationId' in result)) return result.snapshot;
+    await this.advance(result.finalizationId);
+    return this.prisma.$transaction(async (tx) => {
+      await this.lock(tx, `request:${input.request_id}`);
+      const replay = await tx.idempotencyRecord.findUnique({
+        where: { requestId: input.request_id },
+      });
+      if (replay !== null) return replay.responsePayload as unknown as InterviewSessionResponse;
       const snapshot = await this.snapshot(tx, sessionId);
       await this.writeRecoveryIdempotency(
         tx,
         input.request_id,
-        action,
+        `interview_session.recover:${input.action}`,
         actor.id,
         sessionId,
         snapshot,
       );
       return snapshot;
     });
-    return result;
   }
 
   public async get(actor: AuthPrincipal, sessionId: string): Promise<InterviewSessionResponse> {
@@ -123,7 +143,9 @@ export class SessionFinalizationService {
     this.validateCommitments(input);
     const outcome = await this.prisma.$transaction(async (tx) => {
       await this.lock(tx, `request:${input.request_id}`);
-      await this.lock(tx, `session:${sessionId}`);
+      const location = await tx.interviewSession.findUnique({ where: { id: sessionId } });
+      if (location === null) throw this.notFound();
+      await this.lockResources(tx, location.projectId, sessionId, input.audio_object_id);
       const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
       if (session === null) throw this.notFound();
       const existing = await tx.sessionFinalization.findUnique({
@@ -164,8 +186,16 @@ export class SessionFinalizationService {
           input,
         );
         this.assertFinalizationActor(actor, existing.createdBy);
-        await this.advance(tx, existing.id);
-        return { denied: false as const, snapshot: await this.snapshot(tx, sessionId) };
+        const snapshot = await this.snapshot(tx, sessionId);
+        await this.writeStopIdempotency(
+          tx,
+          input.request_id,
+          interrupted,
+          actor.id,
+          sessionId,
+          snapshot,
+        );
+        return { denied: false as const, finalizationId: existing.id, snapshot };
       }
       const legal = interrupted
         ? session.status === 'interrupted'
@@ -244,54 +274,124 @@ export class SessionFinalizationService {
           requestId: input.request_id,
         },
       });
-      await this.advance(tx, finalization.id);
       const snapshot = await this.snapshot(tx, sessionId);
-      await tx.idempotencyRecord.create({
-        data: {
-          action: interrupted ? 'interview_session.finalize_interrupted' : 'interview_session.stop',
-          actorId: actor.id,
-          requestId: input.request_id,
-          responsePayload: snapshot as unknown as Prisma.InputJsonValue,
-          targetId: sessionId,
-          targetType: 'interview_session',
-        },
-      });
-      return { denied: false as const, snapshot };
+      await this.writeStopIdempotency(
+        tx,
+        input.request_id,
+        interrupted,
+        actor.id,
+        sessionId,
+        snapshot,
+      );
+      return { denied: false as const, finalizationId: finalization.id, snapshot };
     });
     if (outcome.denied) throw this.forbidden();
+    if ('finalizationId' in outcome) await this.advance(outcome.finalizationId);
     return outcome.snapshot;
   }
 
-  private async advance(tx: Prisma.TransactionClient, finalizationId: string): Promise<void> {
-    const f = await tx.sessionFinalization.findUniqueOrThrow({ where: { id: finalizationId } });
-    const object = await tx.audioObject.findUniqueOrThrow({ where: { id: f.audioObjectId } });
-    if (
-      object.status !== 'complete' ||
-      object.chunkCount !== f.expectedChunkCount ||
-      object.manifestChecksum === null
-    )
-      return;
-    const now = new Date();
-    const activeRuntime = this.runtime.find(f.sessionId);
-    const transcriptStatus =
-      f.transcriptStatus === 'pending'
-        ? activeRuntime === null
-          ? 'not_started'
-          : 'degraded'
-        : f.transcriptStatus;
-    await tx.sessionFinalization.update({
-      data: {
-        audioStatus: 'complete',
-        completedAt: now,
-        processingStartedAt: f.processingStartedAt ?? now,
-        transcriptErrorCode: activeRuntime === null ? null : 'ASR_DRAIN_INCOMPLETE',
-        asrLastAudioSequenceAccepted:
-          activeRuntime?.highestAudioSequenceAcked ?? f.asrLastAudioSequenceAccepted,
-        transcriptStatus,
-      },
-      where: { id: f.id },
+  private async advance(finalizationId: string): Promise<void> {
+    const prepared = await this.prisma.$transaction(async (tx) => {
+      const initial = await tx.sessionFinalization.findUniqueOrThrow({
+        where: { id: finalizationId },
+      });
+      const session = await tx.interviewSession.findUniqueOrThrow({
+        where: { id: initial.sessionId },
+      });
+      await this.lockResources(tx, session.projectId, session.id, initial.audioObjectId);
+      const f = await tx.sessionFinalization.findUniqueOrThrow({ where: { id: finalizationId } });
+      const currentSession = await tx.interviewSession.findUniqueOrThrow({
+        where: { id: f.sessionId },
+      });
+      if (currentSession.status === 'completed' || currentSession.status === 'failed') return null;
+      const object = await tx.audioObject.findUniqueOrThrow({ where: { id: f.audioObjectId } });
+      const [chunks, commitments] = await Promise.all([
+        tx.audioChunk.findMany({
+          orderBy: { sequenceNo: 'asc' },
+          where: { audioObjectId: object.id },
+        }),
+        tx.sessionFinalizationChunk.findMany({
+          orderBy: { sequenceNo: 'asc' },
+          where: { sessionFinalizationId: f.id },
+        }),
+      ]);
+      if (!this.completeManifestMatches(object, chunks, commitments, f.expectedChunkCount))
+        return null;
+      const now = new Date();
+      const activeRuntime = this.runtime.find(f.sessionId);
+      const runtimeAccepted = activeRuntime?.highestAudioSequenceAcked ?? null;
+      const accepted = Math.max(runtimeAccepted ?? -1, f.asrLastAudioSequenceAccepted ?? -1);
+      if (f.transcriptStatus !== 'pending' && f.transcriptStatus !== 'draining') {
+        await this.completeTerminal(tx, f.id, f.sessionId, now);
+        return null;
+      }
+      if (activeRuntime === null || runtimeAccepted === null || runtimeAccepted < 0) {
+        await tx.sessionFinalization.update({
+          data: {
+            audioStatus: 'complete',
+            asrLastAudioSequenceAccepted: accepted < 0 ? null : accepted,
+            processingStartedAt: f.processingStartedAt ?? now,
+            transcriptErrorCode: accepted < 0 ? null : 'ASR_DRAIN_INCOMPLETE',
+            transcriptStatus: accepted < 0 ? 'not_started' : 'degraded',
+          },
+          where: { id: f.id },
+        });
+        await this.completeTerminal(tx, f.id, f.sessionId, now);
+        return null;
+      }
+      await tx.sessionFinalization.update({
+        data: {
+          audioStatus: 'complete',
+          asrLastAudioSequenceAccepted: accepted,
+          processingStartedAt: f.processingStartedAt ?? now,
+          transcriptErrorCode: null,
+          transcriptStatus: 'draining',
+        },
+        where: { id: f.id },
+      });
+      await tx.interviewSession.update({
+        data: { status: 'processing' },
+        where: { id: f.sessionId },
+      });
+      return { accepted, sessionId: f.sessionId };
     });
-    await tx.interviewSession.update({ data: { status: 'completed' }, where: { id: f.sessionId } });
+    if (prepared === null) return;
+
+    let drained = false;
+    try {
+      await withTimeout(
+        this.adapter.drainAndClose({
+          ingestFinal: async (result) => {
+            if (result.kind !== 'final' || result.sessionId !== prepared.sessionId)
+              throw new Error('ASR_DRAIN_INVALID_FINAL');
+            await this.ingestion.ingest(result);
+          },
+          lastAudioSequenceAccepted: prepared.accepted,
+          sessionId: prepared.sessionId,
+        }),
+        1_000,
+      );
+      drained = true;
+    } catch {
+      drained = false;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const f = await tx.sessionFinalization.findUniqueOrThrow({ where: { id: finalizationId } });
+      const session = await tx.interviewSession.findUniqueOrThrow({ where: { id: f.sessionId } });
+      await this.lockResources(tx, session.projectId, session.id, f.audioObjectId);
+      const current = await tx.interviewSession.findUniqueOrThrow({ where: { id: f.sessionId } });
+      if (current.status === 'completed' || current.status === 'failed') return;
+      const now = new Date();
+      await tx.sessionFinalization.update({
+        data: {
+          asrDrainCompletedAt: drained ? now : null,
+          transcriptErrorCode: drained ? null : 'ASR_DRAIN_INCOMPLETE',
+          transcriptStatus: drained ? 'drained' : 'degraded',
+        },
+        where: { id: f.id },
+      });
+      await this.completeTerminal(tx, f.id, f.sessionId, now);
+    });
   }
 
   private async snapshot(
@@ -380,6 +480,77 @@ export class SessionFinalizationService {
   private async lock(tx: Prisma.TransactionClient, value: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${value}, 0))`;
   }
+  private async lockResources(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+    sessionId?: string,
+    audioObjectId?: string,
+  ): Promise<void> {
+    await this.lock(tx, `project:${projectId}`);
+    if (sessionId !== undefined) await this.lock(tx, `session:${sessionId}`);
+    if (audioObjectId !== undefined) await this.lock(tx, `audio:${audioObjectId}`);
+  }
+  private completeManifestMatches(
+    object: AudioObject,
+    chunks: AudioChunk[],
+    commitments: SessionFinalizationChunk[],
+    expectedCount: number,
+  ): boolean {
+    return (
+      object.status === 'complete' &&
+      object.chunkCount === expectedCount &&
+      object.manifestChecksum === canonicalAudioManifestChecksum(chunks) &&
+      chunks.length === expectedCount &&
+      commitments.length === expectedCount &&
+      chunks.every(
+        (chunk, index) =>
+          chunk.uploadStatus === 'uploaded' &&
+          commitments[index] !== undefined &&
+          sameChunk(chunk, {
+            checksum: commitments[index].checksum,
+            end_ms: commitments[index].endMs,
+            mime_type: commitments[index].mimeType,
+            sequence_no: commitments[index].sequenceNo,
+            size_bytes: commitments[index].sizeBytes,
+            start_ms: commitments[index].startMs,
+          }),
+      )
+    );
+  }
+  private async completeTerminal(
+    tx: Prisma.TransactionClient,
+    finalizationId: string,
+    sessionId: string,
+    now: Date,
+  ): Promise<void> {
+    await tx.sessionFinalization.updateMany({
+      data: { completedAt: now },
+      where: { completedAt: null, id: finalizationId },
+    });
+    await tx.interviewSession.updateMany({
+      data: { status: 'completed' },
+      where: { id: sessionId, status: { notIn: ['completed', 'failed'] } },
+    });
+  }
+  private async writeStopIdempotency(
+    tx: Prisma.TransactionClient,
+    requestId: string,
+    interrupted: boolean,
+    actorId: string,
+    sessionId: string,
+    snapshot: InterviewSessionResponse,
+  ): Promise<void> {
+    await tx.idempotencyRecord.create({
+      data: {
+        action: interrupted ? 'interview_session.finalize_interrupted' : 'interview_session.stop',
+        actorId,
+        requestId,
+        responsePayload: snapshot as unknown as Prisma.InputJsonValue,
+        targetId: sessionId,
+        targetType: 'interview_session',
+      },
+    });
+  }
   private async writeRecoveryIdempotency(
     tx: Prisma.TransactionClient,
     requestId: string,
@@ -410,6 +581,22 @@ export class SessionFinalizationService {
   }
   private validationConflict(): ConflictException {
     return this.conflict('AUDIO_COMMITMENT_CONFLICT');
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('ASR_DRAIN_TIMEOUT'));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

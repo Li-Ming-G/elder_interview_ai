@@ -70,3 +70,12 @@
 - P1-4：`completed|failed` 终态没有稳定返回，且新 stop request ID 的首次响应未持久化，导致响应丢失后的同 ID 重试结果漂移；终态不得被 reconcile 改写，每个 request ID 必须重放自己的首次响应。
 - P2：stop 的 202/200、malformed finalization 的 422 `INVALID_SESSION_FINALIZATION`、非原 actor complete 的权限错误语义已登记为非阻塞偏差，不纳入本轮四项 P1 定向修复，避免扩大范围。
 - DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`；只需修复上述四项 P1 后提交新 final head 定向复审。
+
+## REV-019 定向修复候选（2026-08-07）
+
+- 结束相关写路径统一使用 `project → session → audio` 资源锁序并在锁内重读；audio complete 全量核对实际 manifest 与冻结 commitments。
+- 新增最小 `drainAndClose` ASR ending seam；final 通过 DEV-004A ingestion 落库后 adapter 才能结束，成功记 `drained`，不可用/超时记 `degraded`。
+- runtime 丢失时使用持久 `asr_last_audio_sequence_accepted`：无接收证据为 `not_started`，存在接收证据但无法证明完整 drain 为 `degraded`。
+- `completed|failed` 终态稳定，`completed_at` 不重写且 failed 不可复活；每个新 stop request ID 持久自己的首次响应并稳定重放。
+- PostgreSQL integration 增加真实 barrier 竞态、ASR ending、重启事实与终态/幂等回归；本地 format、lint、typecheck、unit 127/127、integration 29/29、auth 13/13、migration deploy/status、build、smoke 均通过。
+- 三项 REV-019 P2 仅保留登记，未扩大实现；状态保持 `REVIEW`，等待新 final head CI 与项目负责人定向复审。

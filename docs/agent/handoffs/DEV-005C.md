@@ -22,3 +22,11 @@
 - 本轮只修四项 P1并补对应自动化，不接真实 ASR、云存储、队列或前端，不处理 REV-019 的三个非阻塞 P2。
 - 修复后推送新的 final head，等待 GitHub 完整 CI，再由项目负责人定向复审。
 - DEV-005C 保持 `REVIEW`；DEV-005D 和父 DEV-005 保持 `BLOCKED`。
+
+## REV-019 定向修复候选
+
+- 合并基线：普通 merge `origin/main@3eb375b`，保留 DEV-005B DONE、REV-019 与 HO-034；未改动 DEV-005B 业务代码。
+- P1 修复：统一 `project → session → audio` 锁序与锁内重读；complete 全量核对 manifest/commitments；新增 ASR `drainAndClose`、final-first ingestion、不可用/超时降级；runtime 丢失读取持久接收序号；终态与逐 request 首次响应稳定。
+- 自动化：真实 PostgreSQL barrier 覆盖 stop/revoke 两种排队次序和 stop/upload 扩集竞态；覆盖 ASR drained/unavailable/timeout/final-first/runtime-loss，以及 completed/failed/stop request replay。
+- 本地门禁：`git diff --check`、format、lint、typecheck、unit 127/127、migration deploy/status、PostgreSQL integration 29/29、auth 13/13、build、smoke 全部通过；未新增 migration 或依赖。
+- 保留风险：最小 ending seam 仍是进程内 adapter、1 秒 drain 上限，不含真实 ASR/持久队列；REV-019 三项 P2 本轮未修。等待新 final head 的 GitHub CI 与项目负责人定向复审，不宣告 PASS/DONE。

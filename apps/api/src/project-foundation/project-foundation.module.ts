@@ -24,10 +24,11 @@ export function createProjectFoundationModule(
   authModule: DynamicModule,
   audioModule: DynamicModule,
   realtimeModule: DynamicModule,
+  transcriptionModule: DynamicModule,
 ): DynamicModule {
   return {
     controllers: [ProjectFoundationController],
-    imports: [authModule, audioModule, realtimeModule],
+    imports: [authModule, audioModule, realtimeModule, transcriptionModule],
     module: ProjectFoundationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },

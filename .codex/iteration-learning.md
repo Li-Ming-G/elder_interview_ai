@@ -432,3 +432,11 @@
 - Adopted correction: DEV-005C 保持 REVIEW，只做统一锁与 barrier 测试、最小 ASR ending seam、持久接收证据判定、终态和首次响应稳定重放；不扩真实供应商、队列或前端。
 - Lesson: 状态机的顺序不能由“每个操作各自有锁”推导，只有共享资源锁和锁内重读才能建立跨模块线性化点；CI 覆盖已有路径，不代表未建模的并发窗口不存在。
 - Boundary: DEV-005D 继续 BLOCKED，父 DEV-005 不因工作台通过而完成。
+
+### 2026-08-07 — DEV-005C REV-019 定向修复
+
+- Review correction: 跨模块事务只有共享 `project → session → audio` 锁序并在锁后重读，才能把撤权、冻结和补传变成线性化事实；每条路径“各自有锁”仍会留下授权与字节集合竞态。
+- Adopted implementation: stop/recover、revoke、upload/complete 统一资源锁序；manifest 与 commitments 逐片全量比对；ASR ending 通过回调强制 final 先经 DEV-004A ingestion，再完成 adapter close；runtime 丢失依持久接收序号降级。
+- Idempotency lesson: 资源终态与请求响应是两个不同事实。终态不可重写或复活；每个 request ID 必须保存其首次可见 snapshot，即使后台状态随后推进也只能重放原响应。
+- Evidence: PostgreSQL barrier 覆盖 stop/revoke 双顺序与 stop/upload 扩集；ASR 成功、不可用、超时、final-first、runtime loss 和 completed/failed/replay 回归；完整本地门禁通过。
+- Boundary: 不接真实 ASR、云存储、队列或前端；REV-019 三项 P2 保持登记，DEV-005C 仍为 REVIEW，DEV-005D 仍为 BLOCKED。

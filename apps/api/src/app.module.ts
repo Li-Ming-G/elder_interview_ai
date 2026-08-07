@@ -35,7 +35,13 @@ export class AppModule implements NestModule {
       imports: [
         authModule,
         audioModule,
-        createProjectFoundationModule(config, authModule, audioModule, realtimeModule),
+        createProjectFoundationModule(
+          config,
+          authModule,
+          audioModule,
+          realtimeModule,
+          transcriptionModule,
+        ),
         transcriptionModule,
         realtimeModule,
       ],

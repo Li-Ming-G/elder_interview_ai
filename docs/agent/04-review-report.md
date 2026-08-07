@@ -17,6 +17,7 @@
 | SPEC-SESSION-END-001 | REV-017 | PR #8 / final head `9c471d8` / CI `31163777417` PASS / merge `9af96c1` | DONE | 定向复审 PASS；首次 snapshot 前撤权 P1 已闭环，CON-019 RESOLVED，DEV-005C READY；DEV-005D 继续等待 C PASS |
 | DEV-005B | REV-018 | PR #9 / final head `c73e7ad` / CI `31166457093` PASS / merge `647a6b4` | DONE | P0/P1=0；真实 session/WS 事实、最新授权、final 去重、回看滚动与链路分离通过；父 DEV-005 仍开放 |
 | DEV-005C | REV-019 | PR #10 / reviewed head `738898a` / CI `31167044756` PASS | REQUEST_CHANGES | P1=4：结束边界锁串行、ASR final drain、重启后 ASR 事实、终态与 stop 幂等；DEV-005D 继续 BLOCKED |
+| DEV-005C 定向修复候选 | 待项目负责人复审 | PR #10 / 新 final head 待推送 | REVIEW | 四项 P1 已修并通过本地完整门禁；REV-019 三项 P2 未扩修，最终结论仍由项目负责人绑定新 head 给出 |
 
 ## 阅读规则
 

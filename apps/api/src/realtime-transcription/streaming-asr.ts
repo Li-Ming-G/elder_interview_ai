@@ -8,12 +8,24 @@ export interface StreamingFrameContext {
   sessionId: string;
 }
 
+export interface StreamingEndContext {
+  ingestFinal: (result: NormalizedAsrResult) => Promise<void>;
+  lastAudioSequenceAccepted: number;
+  sessionId: string;
+}
+
 export abstract class StreamingAsrAdapter {
   public abstract accept(context: StreamingFrameContext): Promise<readonly NormalizedAsrResult[]>;
+
+  public abstract drainAndClose(context: StreamingEndContext): Promise<void>;
 }
 
 @Injectable()
 export class DeterministicStreamingAsrFake extends StreamingAsrAdapter {
+  public drainAndClose(): Promise<void> {
+    return Promise.resolve();
+  }
+
   public accept({
     frame,
     sessionId,
@@ -57,6 +69,10 @@ export class DeterministicStreamingAsrFake extends StreamingAsrAdapter {
 @Injectable()
 export class UnavailableStreamingAsrAdapter extends StreamingAsrAdapter {
   public accept(): Promise<never> {
+    return Promise.reject(new StreamingAsrUnavailableError());
+  }
+
+  public drainAndClose(): Promise<never> {
     return Promise.reject(new StreamingAsrUnavailableError());
   }
 }

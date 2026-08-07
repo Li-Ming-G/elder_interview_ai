@@ -108,6 +108,7 @@ export class AudioService {
       );
       if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${object.projectId}`);
+      if (object.sessionId !== null) await this.lock(transaction, `session:${object.sessionId}`);
       await this.lock(transaction, `audio:${audioObjectId}`);
       const current = await transaction.audioObject.findUnique({ where: { id: audioObjectId } });
       if (current === null) throw this.notFound();
@@ -200,6 +201,7 @@ export class AudioService {
       );
       if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${object.projectId}`);
+      if (object.sessionId !== null) await this.lock(transaction, `session:${object.sessionId}`);
       await this.lock(transaction, `audio:${audioObjectId}`);
       const current = await transaction.audioObject.findUnique({ where: { id: audioObjectId } });
       if (current === null) throw this.notFound();
@@ -209,8 +211,31 @@ export class AudioService {
         orderBy: { sequenceNo: 'asc' },
         where: { audioObjectId },
       });
+      const finalization = await transaction.sessionFinalization.findUnique({
+        include: { chunks: { orderBy: { sequenceNo: 'asc' } } },
+        where: { audioObjectId },
+      });
       try {
         this.integrity.assertContinuous(chunks, input.expected_chunk_count);
+        if (
+          finalization !== null &&
+          (finalization.expectedChunkCount !== input.expected_chunk_count ||
+            finalization.chunks.length !== chunks.length ||
+            chunks.some((chunk, index) => {
+              const commitment = finalization.chunks[index];
+              return (
+                commitment === undefined ||
+                commitment.sequenceNo !== chunk.sequenceNo ||
+                commitment.startMs !== chunk.startMs ||
+                commitment.endMs !== chunk.endMs ||
+                commitment.sizeBytes !== chunk.sizeBytes ||
+                commitment.checksum !== chunk.checksum ||
+                commitment.mimeType !== chunk.mimeType
+              );
+            }))
+        ) {
+          throw new Error('Frozen commitment mismatch');
+        }
         for (const chunk of chunks) {
           if (chunk.uploadStatus !== 'uploaded' || chunk.uploadedAt === null) {
             throw new Error('Chunk is not uploaded');
