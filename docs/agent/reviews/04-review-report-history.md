@@ -262,14 +262,17 @@ P2：
 - 审查仓库：private `Li-Ming-G/elder_interview_ai`
 - 审查分支：`codex/dev004b2-browser-realtime`
 - 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/5`
-- 候选提交：任务基线 `ea12a8f`；实现 `87dd225`；总控补强 `ce67549`；最终 PR head 待 GitHub CI 前锁定
+- 被审提交：`70b8f2dc764a992f9760e308a6b24fd1aa6c12e9`；CI `31140269703` 全部门禁 PASS
 - 审查范围：DEV-004B2 内部虚构/合成 PCM 浏览器纵向链路；heartbeat/event ACK 撤权复核、内部错误分类、独立 transport/state machine、薄 harness、背压、interim/final、短时重连和真实 API Chromium 证据
-- 审查人：项目负责人（待 GitHub 人工审查）
-- 当前结论：`PENDING`
-- 本地证据：format/lint/typecheck/build、unit `19 files / 103 tests`、普通 Chromium `4/4`、diff check PASS；总控补充跨 audio stream ready/ACK 拒绝测试
-- 环境缺口：本地无 TEST_DATABASE_URL/PostgreSQL/Docker；migration、PostgreSQL integration、auth、auth Chromium 与 smoke 尚未通过，必须由 GitHub CI 补齐
+- 审查人：项目负责人
+- 当前结论：`NEEDS_CHANGES`
+- P1-1：join 权限/状态错误发生时服务端尚未绑定请求 session，错误信封使用 NIL UUID；客户端忽略后按普通断线重连，最终误报 `REALTIME_UNAVAILABLE/internal`，违反 4401/4403/4408 分类和失败关闭要求。
+- P1-2：跨 audio stream ready/ACK 或 event sequence gap 触发 terminal failure 后，客户端仍推进 event cursor、发送 ACK、重发 PCM，socket/heartbeat 也未终止。
+- 修复提交：`6fd228f`。服务端在格式有效的 join 进入鉴权前绑定请求 session；客户端只有事件成功应用后才推进游标/ACK/重发，terminal/reset 会关闭 socket、停止 heartbeat/reconnect 并拒绝后续帧；close code 在错误信封丢失时仍按 4401/4403/4408/4450/4500/4503 分类。
+- 修复本地证据：定向 API/Web transport `2 files / 33 tests` PASS；format、lint、typecheck、build PASS；全仓 unit `19 files / 109 tests` PASS；普通 Chromium `4/4` PASS；`git diff --check` PASS。
+- 环境缺口：修复后 PostgreSQL/migration/auth/smoke/auth Chromium 仍须由新 head GitHub CI 重跑；旧 CI 不能替代新 head 证据。
 - 审查边界：不覆盖真实麦克风/ASR、AudioWorklet、校准/remap、长时、浏览器刷新/进程/跨进程恢复、持久 outbox、正式工作台或生产部署
-- 允许进入的下一状态：只有项目负责人锁定最终 PR head、确认 CI 并明确 PASS 后，DEV-004B2 才可转 DONE；父 DEV-004 继续 IN_PROGRESS
+- 允许进入的下一状态：推送含 `6fd228f` 的新 head、全 CI PASS 后交项目负责人定向复审；明确 PASS 前 DEV-004B2 保持 REVIEW，父 DEV-004 继续 IN_PROGRESS
 
 ## 审查模板
 

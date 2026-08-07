@@ -28,7 +28,7 @@
 | DEV-004 | 实时 ASR 与说话人映射（父任务） | 总控 Agent | IN_PROGRESS | DEV-003 | [父任务卡](tasks/DEV-004.md)、ADR-018/019 | DEV-004A/B1 已通过；下一步 B2 浏览器合成 PCM，C 仍受 CON-014；父任务不提前关闭 |
 | DEV-004A | 确定态转录证据核心与供应商中立适配器 | 后端转录实现 Agent（`dev004a_backend_impl`） | DONE | DEV-003、ADR-018、CON-015/016 | [任务卡](tasks/DEV-004A.md)、PR #3、head `917f888`、CI `30887031030` PASS、REV-012 | 仅覆盖内部虚构数据证据核心；两项非阻塞 P2 随后续转录加固处理 |
 | DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | DONE | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、head `80ff1c7`、merge `13350a4`、CI `30969408276` PASS、REV-013 PASS | 仅覆盖服务端内部合成 PCM 协议核心；三项 P2 转后续加固，B2/真实 ASR/长时性能不在本任务 |
-| DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 浏览器实时转录实现 Agent（`dev004b2_browser_realtime_impl`） | REVIEW | DEV-004B1、ADR-019、REV-013 | [任务卡](tasks/DEV-004B2.md)、实现 `87dd225`、补强 `ce67549`、HO-028、REV-014 PENDING | 本地非数据库门禁通过；PostgreSQL/migration/auth/smoke/真实 API Chromium 待 GitHub CI 与项目负责人审查 |
+| DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 浏览器实时转录实现 Agent（`dev004b2_browser_realtime_impl`） | REVIEW | DEV-004B1、ADR-019、REV-013 | [任务卡](tasks/DEV-004B2.md)、PR #5、修复 `6fd228f`、HO-029、REV-014 NEEDS_CHANGES | 两项 P1 已本地修复；等待新 head GitHub CI 与项目负责人定向复审 |
 | DEV-005 | 访谈工作台 | 待分配 | BLOCKED | DEV-002、DEV-004 | `01`、`03`、`05`、`09` | 等待业务与转录链路 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
 | DEV-007 | AI 追问引擎 | 待分配 | BLOCKED | DEV-006 | `05`、`07`、`09` | 等待长期记忆 |

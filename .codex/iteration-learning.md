@@ -283,3 +283,13 @@
 - Verification boundary: 无 TEST_DATABASE_URL/PostgreSQL/Docker；smoke 因 API/database 未 ready 失败，migration/integration/auth/auth Chromium/smoke 交 GitHub CI，REV-014 保持 PENDING。
 - Lesson: ACK 不只是“序号够不够大”，还必须与当前 stream identity 绑定；否则重连或服务端串流错误可能让客户端错误丢弃仍未确认的数据。
 - Better future prompt: “请在浏览器实时链路中分别验证 audio/event cursor，并要求所有 ready/ACK 同时匹配 stream identity；真实 E2E 必须直接证明 final 已持久化且故障不改原始音频数据。”
+
+### 2026-08-07 — REV-014 首轮 NEEDS_CHANGES 与协议终止语义修复
+
+- Review evidence: 项目负责人锁定 PR #5 head `70b8f2d` 和 CI `31140269703`，确认整体链路接近通过，但两项 P1 违反明确验收标准。
+- Failure 1: join 鉴权失败前没有绑定请求 session，错误信封使用 NIL UUID而被客户端忽略；随后 close 被当作可重连网络故障，最终误报 internal。
+- Failure 2: 客户端先推进 event cursor 再应用事件；跨 stream ready/ACK 或 sequence gap 虽标记失败，仍会 ACK、重发 PCM 并维持 socket/timer。
+- Adopted fix: 已通过格式校验的 join 立即绑定 session 仅用于安全错误信封；事件必须成功 apply 才推进 cursor/ACK/重发；terminal/reset 成为不可继续的本地状态，关闭 socket、清理 timer 并拒绝后续 frame；close code 作为错误信封丢失时的分类后备。
+- Evidence: 修复 `6fd228f`；定向 33 tests、全仓 109 unit、format/lint/typecheck/build、Chromium 4/4 和 diff check 本地 PASS；新 head 数据库门禁仍交 GitHub CI。
+- Lesson: “检测到协议错误”不等于“失败关闭”。顺序型客户端必须让验证、状态应用、游标提交和副作用形成明确提交点；错误信封也必须在 join 尚未成功时具备可关联的请求身份。
+- Better future prompt: “请用完整 transport 流程验证 join 错误和协议违例：失败后不得推进 cursor、ACK、重发、心跳、重连或新增帧；不要只测试分类函数或 UI error 字段。”
