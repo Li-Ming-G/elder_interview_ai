@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  ConsentResponse,
-  InterviewSessionResponse,
-  ServiceTermResponse,
-} from '@elder-interview/contracts';
+import type { InterviewSessionResponse, ServiceTermResponse } from '@elder-interview/contracts';
 
 import type { InterviewApi, PreparationData } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import type { MicrophoneChecker } from './microphone-check.js';
+import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
 import { preparationPath, workbenchPath } from './routes.js';
 
 interface PreparationPageProps {
@@ -164,7 +161,7 @@ export function PreparationPage({
 
   const { project, serviceTerms, consents, session } = loadState.data;
   const currentTerm = currentServiceTerm(serviceTerms);
-  const currentConsent = currentValidConsent(consents);
+  const currentConsent = latestConsent(consents);
   const canStart =
     readiness?.projectReady === true &&
     readiness.serviceReady &&
@@ -238,7 +235,9 @@ export function PreparationPage({
             detail={
               currentConsent === null
                 ? '没有有效的正式授权记录，页面确认不能替代授权。'
-                : `正式授权有效 · 文本版本 ${currentConsent.consent_text_version}`
+                : currentConsent.status === 'valid' && currentConsent.revoked_at === null
+                  ? `正式授权有效 · 文本版本 ${currentConsent.consent_text_version}`
+                  : '没有有效的正式授权记录；最新记录当前无效，页面确认不能替代授权。'
             }
             label="录音、转录与 AI 分析授权"
             state={readiness?.consentReady === true ? 'ready' : 'blocked'}
@@ -362,7 +361,7 @@ function deriveReadiness(data: PreparationData): {
   serviceReady: boolean;
 } {
   return {
-    consentReady: currentValidConsent(data.consents) !== null,
+    consentReady: hasCurrentValidConsent(data.consents),
     projectReady: data.project.status === 'ready' || data.project.status === 'active',
     serviceReady: currentServiceTerm(data.serviceTerms) !== null,
   };
@@ -370,10 +369,6 @@ function deriveReadiness(data: PreparationData): {
 
 function currentServiceTerm(terms: ServiceTermResponse[]): ServiceTermResponse | null {
   return terms.find((term) => term.superseded_at === null) ?? null;
-}
-
-function currentValidConsent(consents: ConsentResponse[]): ConsentResponse | null {
-  return consents.find((consent) => consent.status === 'valid') ?? null;
 }
 
 function sessionStatusText(session: InterviewSessionResponse): string {
