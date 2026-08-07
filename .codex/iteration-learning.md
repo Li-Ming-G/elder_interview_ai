@@ -405,3 +405,11 @@
 - Next execution: DEV-005C 转 `READY`，按正式 stop/recover、持久 finalization、逐片 commitment 和撤权前后两类门禁实现服务端结束编排；DEV-005D 继续等待 C 的最终 PASS。
 - Boundary: 契约 PASS 不代表 stop/recover、页面结束状态或父 DEV-005 已完成；真实麦克风/ASR/LLM、云队列和生产部署仍不在当前实现前置。
 - Lesson: 冲突可以在契约明确后关闭，但实现任务仍需独立测试与审查；“冲突已解决”和“功能已完成”必须保持两条状态线。
+
+### 2026-08-07 — DEV-005B 与 DEV-005C 并行启动
+
+- User outcome: 在服务端安全结束编排开发期间同步推进转录优先工作台，并明确要求前端使用 impeccable。
+- Parallel boundary: DEV-005B 只修改 `apps/web/**` 并消费现有 session/WS seam；DEV-005C 负责后端 stop/recover、finalization 和 migration。两者使用独立 worktree，B 不依赖 C 的未合并代码，DEV-005D 仍等待 C PASS。
+- Impeccable context: `apps/web` 已有绿色 OKLCH 令牌、准备页和工作台壳；项目没有 PRODUCT.md。当前属于已有代码上的明确范围任务，因此不以 init 阻塞，采用 product register 并继承现有设计系统。
+- Required quality: 转录是视觉中心；长内容回看不能被自动滚动打断；桌面/窄屏、键盘焦点、对比度、live-region、错误/重连/空状态和 reduced-motion 必须经真实浏览器验证。
+- Boundary: impeccable 只提高信息层级、可用性和视觉完成度，不得恢复三栏、多建议、真实 AI、stop/recover 或其他后置功能。
