@@ -300,6 +300,23 @@ P2：
 - 通过依据：DEV-005A 已缩为准备页/路由外壳并禁止 stop/recover 与完成模拟；SPEC-SESSION-END-001 冻结状态机前置；DEV-005C/D 按真实服务端事实串联；DEV-005B 只保留挂载位置；`05` 明确路径占位；CON-019 保持 OPEN，父 DEV-005 与 C/D 不提前解锁。
 - 合并记录：PR #6 以 merge commit `474c647307b1ed3e949da31c4e490ee0b0b192c7` 合入 `main`；SPEC-FE-001 可转 DONE，DEV-005A 可转 READY，其他安全结束边界保持不变。
 
+## REV-016｜DEV-005A GitHub 项目负责人审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/dev005a-prep-shell`
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/7`
+- 最终审查提交：`ea6c20f5cf88de6ab017ef2262217dd3eb423a1e`；GitHub head 与提交信息一致且未漂移
+- 自动证据：CI `31161076538` 全部门禁 PASS，覆盖 unit、migration、integration、auth、build、smoke、普通 Chromium 和 auth Chromium E2E
+- 审查范围：DEV-005A 正式 project/session 深链、准备页、服务/授权/设备状态、惰性 session 创建、device-check/start 门禁、防重复提交及 DEV-005B 工作台占位壳
+- 审查人：项目负责人（GitHub 人工审查）
+- 审查时间：2026-08-07
+- 最终结论：`PASS`；P0=0、P1=0、P2=2
+- 通过依据：页面挂载不创建 session；设备检测不创建 MediaRecorder、分片或上传作业；create/device-check/start 有本地 in-flight 防重复且 start request ID 稳定；客户端只作预判，服务端 start 最终裁决；session 深链校验项目归属；未混入 stop/recover、安全结束、AI 或完整工作台。
+- P2-1：当前工作台占位壳仅凭合法 URL 显示“访谈已开始/录音会话已启动”；DEV-005B 必须改为真实 session/WebSocket 服务端事实驱动，不得信任 pathname。
+- P2-2：准备页当前从任意历史 `valid` 授权记录显示有效，而服务端 start 使用最新授权记录；DEV-005B 接续前端时统一为“最新记录有效”，避免撤回后历史记录造成误导。服务端仍会拒绝 start，因此当前不存在授权绕过。
+- 审查边界：仅代表内部虚构数据的准备页和正式路由外壳；不覆盖完整工作台、安全结束、真实麦克风、真实授权资料、真实 ASR/LLM、真实试点或生产部署。
+- 合并记录：PR #7 以 merge commit `066c424113c76da8ec15654a7216ac57aac2affe` 合入 `main`；DEV-005A 转 `DONE`，DEV-005B 页面外壳前置成立并转 `READY`；父 DEV-005 继续 `BLOCKED`。
+
 ## 审查模板
 
 ```text

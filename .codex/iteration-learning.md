@@ -369,3 +369,11 @@
 - Implementation evidence: `apps/web/src/interview/`、`apps/web/src/app.tsx`、`apps/web/src/styles.css`、`tests/e2e/preparation.spec.ts`；unit 21 files/121 tests、build 与 Chromium 虚构主链路通过，最终完整门禁以 DEV-005A 任务卡和 PR 为准。
 - Lesson: 准备页的核心不是把三个绿色状态相加，而是让客户端降低误操作、服务端在最后一刻重读 assignment/授权/session 并生成事实；浏览器设备可用也不等于业务获准开始。
 - Better future prompt: “设备预检只短时持有 MediaStream、不创建录音分片；客户端状态仅预判，POST start 失败不得导航；session 在用户动作中惰性创建并在同页复用。”
+
+### 2026-08-07 — REV-016 通过并合并 DEV-005A
+
+- Review evidence: 项目负责人锁定 PR #7 final head `ea6c20f5cf88de6ab017ef2262217dd3eb423a1e`，确认非 Draft、可合并且未漂移；CI `31161076538` 全部门禁 PASS；P0/P1 为 0。
+- Closed scope: PR #7 以 merge commit `066c424113c76da8ec15654a7216ac57aac2affe` 合入 `main`；DEV-005A 在内部虚构数据准备页和正式路由外壳范围转 `DONE`，DEV-005B 转 `READY`。
+- Follow-up: DEV-005B 必须以真实 session/WebSocket 服务端事实替换 URL 占位状态，并按最新授权记录展示授权状态；两项均为不阻塞 A 的 P2。
+- Boundary: 父 DEV-005、安全结束、完整工作台、真实麦克风/授权资料、真实 ASR/LLM、真实试点与生产部署仍未完成。
+- Lesson: 占位路由可以先稳定页面边界，但不能成为业务事实来源；状态展示和权限提示必须最终与服务端采用同一条事实选择规则。

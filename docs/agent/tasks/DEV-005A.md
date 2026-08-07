@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待创建的前端实现任务对话
+- 状态：`DONE`
+- 负责人：前端实现任务对话
 - 前置依赖：DEV-002、DEV-003、SPEC-FE-001 审查通过
 - 交接对象：总控 Agent、DEV-005B、DEV-005D
 
@@ -66,3 +66,10 @@
 
 - `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm test:unit`（21 files / 121 tests）、`pnpm build`、`pnpm test:e2e --project=chromium`（5/5）和 `git diff --check` 全部通过。
 - Chromium 运行时仅出现 baseline 场景刻意不启动 API 时的预期代理 `ECONNREFUSED` 日志；该场景仍验证未登录入口并通过，不影响准备页 mock API 纵向场景。
+
+### REV-016 收口
+
+- 项目负责人锁定 PR #7 final head `ea6c20f5cf88de6ab017ef2262217dd3eb423a1e`，核对 CI `31161076538` 全部门禁 PASS，结论 `PASS`，P0/P1 为 0。
+- PR #7 以 merge commit `066c424113c76da8ec15654a7216ac57aac2affe` 合入 `main`；本任务在内部虚构数据准备页/路由外壳范围转 `DONE`。
+- P2 转 DEV-005B：工作台状态必须由真实 session/WebSocket 事实驱动；准备页/工作台授权显示应与服务端一致地读取最新授权记录，不得由任意历史 `valid` 记录推断。
+- 范围仍不含完整工作台、安全结束、真实麦克风、真实授权资料、真实 ASR/LLM、真实试点或生产部署。

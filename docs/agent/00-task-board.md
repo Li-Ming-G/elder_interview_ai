@@ -33,8 +33,8 @@
 | DEV-004B1 | 业务 WebSocket 服务端协议核心 | 后端实时转录实现 Agent（`dev004b1_backend_impl`） | DONE | DEV-004A、ADR-019 | [任务卡](tasks/DEV-004B1.md)、PR #4、head `80ff1c7`、merge `13350a4`、CI `30969408276` PASS、REV-013 PASS | 仅覆盖服务端内部合成 PCM 协议核心；三项 P2 转后续加固，B2/真实 ASR/长时性能不在本任务 |
 | DEV-004B2 | 浏览器合成 PCM 实时纵向链路 | 浏览器实时转录实现 Agent（`dev004b2_browser_realtime_impl`） | DONE | DEV-004B1、ADR-019、REV-013 | [任务卡](tasks/DEV-004B2.md)、PR #5 head `73a07cb`、CI `31143035668` PASS、REV-014 PASS、merge `49949fc`、HO-031 | 内部虚构/合成 PCM 浏览器链路完成；真实麦克风/ASR、长时和正式工作台未覆盖 |
 | DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001、SPEC-SESSION-END-001 | [父任务卡](tasks/DEV-005.md) | 页面规划审查后可分段推进；完整闭环仍等待安全结束契约与 DEV-005C/D，不等待项目列表、回顾或导出 UI |
-| DEV-005A | 首次访谈准备页与正式路由外壳 | 待创建的前端实现任务对话 | READY | DEV-002、DEV-003、SPEC-FE-001 | [任务卡](tasks/DEV-005A.md)、[启动提示词](prompts/DEV-005A.md) | 可创建独立前端实现任务；不包含安全结束，不依赖或调用 stop/recover |
-| DEV-005B | 转录优先访谈工作台 | 待创建的前端实现任务对话 | BLOCKED | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md) | 等待 DEV-005A 页面外壳；只预留结束挂载位置，真实 AI 建议接入归 DEV-007A |
+| DEV-005A | 首次访谈准备页与正式路由外壳 | 前端实现任务对话 | DONE | DEV-002、DEV-003、SPEC-FE-001 | [任务卡](tasks/DEV-005A.md)、PR #7 head `ea6c20f`、CI `31161076538` PASS、REV-016 PASS、merge `066c424`、HO-033 | 内部虚构数据准备页和路由外壳完成；两个 P2 转 DEV-005B，不代表完整工作台或安全结束完成 |
+| DEV-005B | 转录优先访谈工作台 | 待创建的前端实现任务对话 | READY | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md)、REV-016 P2 | 可独立实现正式工作台；必须由服务端 session/WS 事实驱动状态，并统一最新授权显示；真实 AI 建议归 DEV-007A |
 | DEV-005C | 服务端会话安全结束编排 | 待创建的后端会话编排实现任务对话 | BLOCKED | SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2 | [任务卡](tasks/DEV-005C.md)、ADR-021、CON-019 | 等待结束契约通过；不得让实现 Agent 自行猜 stop/recover 和完成条件 |
 | DEV-005D | 安全结束页薄集成 | 待创建的前端安全结束实现任务对话 | BLOCKED | DEV-005A、DEV-005B、DEV-005C PASS | [任务卡](tasks/DEV-005D.md) | 等待真实服务端结束事实；不得用前端状态或固定延时模拟完成 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
