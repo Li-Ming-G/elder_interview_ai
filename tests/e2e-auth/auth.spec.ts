@@ -111,6 +111,18 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
 test('real Chromium streams synthetic PCM, renders interim/final, reconnects, and classifies ASR failure', async ({
   page,
 }) => {
+  const webSocketEvents: string[] = [];
+  page.on('websocket', (socket) => {
+    webSocketEvents.push(`opened:${socket.url()}`);
+    socket.on('framesent', ({ payload }) => {
+      webSocketEvents.push(`sent:${webSocketMessageType(payload)}`);
+    });
+    socket.on('framereceived', ({ payload }) => {
+      webSocketEvents.push(`received:${webSocketMessageType(payload)}`);
+    });
+    socket.on('socketerror', (error) => webSocketEvents.push(`error:${error}`));
+    socket.on('close', () => webSocketEvents.push('closed'));
+  });
   await page.goto('/');
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
@@ -174,9 +186,13 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
 
   await page.getByRole('button', { name: '模拟短时断线' }).click();
   await expect(page.getByTestId('realtime-connection')).toHaveText('reconnecting');
-  await expect(page.getByTestId('realtime-connection')).toHaveText('connected', {
-    timeout: 15_000,
-  });
+  try {
+    await expect(page.getByTestId('realtime-connection')).toHaveText('connected', {
+      timeout: 15_000,
+    });
+  } catch (error) {
+    throw new Error(`realtime recovery failed: ${webSocketEvents.join(',')}`, { cause: error });
+  }
   await expect(page.getByText('已在窗口内恢复')).toBeVisible();
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
 
@@ -186,6 +202,16 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
   expect(await realtimeDatabaseSnapshot(sessionId, segmentId)).toEqual(beforeAsrFailure);
 });
+
+function webSocketMessageType(payload: string | Buffer): string {
+  if (typeof payload !== 'string') return 'binary';
+  try {
+    const parsed = JSON.parse(payload) as { type?: unknown };
+    return typeof parsed.type === 'string' ? parsed.type : 'unknown';
+  } catch {
+    return 'invalid-json';
+  }
+}
 
 async function realtimeDatabaseSnapshot(
   sessionId: string,
