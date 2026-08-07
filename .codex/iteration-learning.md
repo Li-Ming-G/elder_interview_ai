@@ -347,3 +347,14 @@
 - Next execution: DEV-005A 转 `READY`，启动提示词保存在 `docs/agent/prompts/DEV-005A.md`；SPEC-SESSION-END-001 保持 `READY`，可作为独立契约任务推进。
 - Boundary: CON-019 保持 OPEN；DEV-005C/D 与父 DEV-005 保持 `BLOCKED`；页面规划 PASS 不代表 stop/recover、完整工作台或三页纵向闭环已经实现。
 - Lesson: 解锁应发生在最小可独立验收的叶子任务，而不是为了表现进度把父任务或后续依赖一起改成 READY。
+
+### 2026-08-07 — DEV-005A 开发期间的并行路线判断
+
+- User outcome: 判断准备页开发期间是否应等待，或并行推进另一条能够缩短首次访谈纵向闭环的任务。
+- Review mode: Learning mode；唯一独立只读预审核对任务板、任务卡、工作树和共享契约修改范围。
+- Review finding: DEV-005A 已在独立 worktree 开工并集中修改 `apps/web`；`SPEC-SESSION-END-001` 已为 `READY`，只冻结服务端结束契约，二者前置事实稳定且主要文件边界不重叠。两个契约任务同时推进会共同修改 `04/05/08/09`，不适合并行。
+- Options considered: 等待 DEV-005A；并行结束契约；改为并行单问题建议契约或续跑旧 DEV-006A 分支。
+- Adopted decision: pending user choice；推荐 DEV-005A 与 `SPEC-SESSION-END-001` 两线并行。A 通过后启动 DEV-005B，结束契约通过后启动 DEV-005C，B/C 届时可前后端并行，最后由 DEV-005D 薄集成。
+- Implementation evidence: 本轮只读核对 `main@322d2a0`、任务板、DEV-005A/B/C/D、ADR-021、CON-019 和 Codex 独立 worktree；未启动第二个项目任务、未改变任务状态或业务代码。
+- Lesson: 是否并行不取决于任务名字不同，而取决于前置事实是否稳定、修改范围是否重叠，以及是否同时改变同一份契约。
+- Better future prompt: “请检查当前任务板和 worktree，选择一个与正在开发任务文件边界独立、能缩短 MVP 关键路径的 READY 任务；先给并行建议，不要自动创建新对话。”
