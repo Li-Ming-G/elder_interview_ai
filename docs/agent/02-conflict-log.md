@@ -232,6 +232,18 @@
 - 最终决定：采用 ADR-022 的持久 `session_finalization` 与逐片 commitment；首次 stop/无 finalization 的 `finalize_interrupted` 必须在同一资源锁内重新验证有效 assignment、资源归属、最新授权仍有效且项目未受限。只有撤权前已冻结的 snapshot 才允许原 actor 重新认证后在 commitment 范围内补传。
 - 完成确认（2026-08-07）：项目负责人对 PR #8 final head `9c471d81d783c902ae389c50500cafac0b187202` 给出 REV-017 定向复审 `PASS`，CI `31163777417` 全绿；PR 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`。契约缺口已关闭并解锁 DEV-005C；stop/recover 代码实现及 DEV-005D 页面仍分别等待后续任务验收。
 
+### CON-020｜正式工作台缺少访谈录音作业所有权与 stop 输入
+
+- 状态：`OPEN`
+- 发现时间：2026-08-07
+- 发现者：DISC-005D 总控验收 / iteration-coach 独立只读复核
+- 涉及文件与章节：`00` §4/§9、`01` §8/§11、`03` §9/§12、`05` §3.5.2/§3.6、`06` §2/§3.5/§10、`09` 场景 A、DEV-005A/B/C/D
+- 冲突内容：DEV-005C stop 要求唯一 interview audio object、录制停止时冻结的 expected count 和逐片 commitments；现有正式准备页不创建录音作业，正式工作台只接合成 PCM 实时转录，可靠 MediaRecorder/IndexedDB 上传作业仍由内部 audio harness 组装。正式路由因此无法合法构造 stop payload，也不能按 session 恢复同一作业。
+- 受影响任务：阻塞原 DEV-005D 薄集成和完整 DEV-005 纵向闭环；不撤销 DEV-005A/B/C 在各自已审查范围内的 DONE，也不阻塞其他边界清晰的后端原型。
+- 临时处理：不修改旧 A/B/C 代码或任务历史，不依赖 query harness/E2E 预置伪造结束输入；先执行 DISC-005-R0，再由 B-R 重点冻结真实/合成音频等级、单一作业生命周期、刷新恢复和 stop handoff。
+- 需要谁决策：项目负责人在 DISC-005-R0 与后续 B-R 中决定产品验证等级和用户可观察恢复行为；总控在全部阶段讨论后统一收敛正式产品与技术规范。
+- 关闭条件：新的跨阶段方案明确正式工作台从 start 到 stop 如何持有/恢复唯一录音上传作业，能产出与 DEV-005C 匹配的不可变 stop 输入，并形成真实浏览器纵向验收；对应实现与项目负责人审查另行关闭，不以讨论通过冒充代码完成。
+
 ## 登记模板
 
 ```text

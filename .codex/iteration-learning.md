@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B/C 和安全结束契约已通过；DISC-005D READY，DEV-005D 等待讨论验收，父 DEV-005 仍 BLOCKED。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；旧 DEV-005A/B/C 在声明范围内已通过并保留历史证据；项目负责人要求先以 DISC-005-R0 重新定义完整首次访谈链路，再依次讨论 A-R/B-R/C-R/D-R，原 DEV-005D 暂停。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -493,3 +493,14 @@
 - Implementation evidence: 新增 `docs/agent/tasks/DISC-005D.md` 与 `docs/agent/prompts/DISC-005D.md`，同步任务板、追踪、提示词入口和 DEV-005D 前置；顺手修正 `05` 中 DEV-005C 尚未实现的过期说明。未修改业务代码。
 - Lesson: 服务端状态机可以已经正确，但页面仍可能缺少“现在能否离开”和“下一步去哪里”这类产品语义；技术完成不自动等于交互闭环。
 - Better future prompt: “请一次只和我讨论安全结束页的一个产品决定；先说明对应服务端事实，再给最多三个方案。定稿时只输出候选决定包，不改文件、不开发，交回总控验收。”
+
+### 2026-08-07 — DISC-005-R0 首次访谈纵向链路重构总纲
+
+- User outcome: DEV-005 及 A/B/C/D 不再按既有局部切片直接继续开发；先逐阶段讨论并形成一致结果，全部讨论完成后再按最终技术标准统一重构，同时保留旧 PR/CI/PASS 历史。
+- Review mode: Correction mode；唯一独立只读复核要求从完整“准备→录音/转录→安全收束→结果”链路出发，而不是分别重写旧 A/B/C。
+- Review finding: 正式准备页不会创建访谈录音作业，正式工作台只消费合成 PCM 实时转录，而 DEV-005C stop 必须收到唯一 audio object、expected count 和逐片 commitments；当前组合缺少从 start 到 stop 持有/恢复同一录音上传作业的责任，登记为 CON-020。
+- Options considered: 直接修改旧 A/B/C；先分别讨论 A/B/C；先做 R0 总纲再串行讨论 A-R/B-R/C-R/D-R。采用第三种，避免再次出现局部通过但组合不闭合。
+- Adopted decision: 旧 DEV-005A/B/C 保持 DONE 和原审查证据；新增 DISC-005-R0，只形成候选总纲，不改业务代码或正式产品/技术规范；旧 DISC-005D 结论保留为未来 D-R 输入，原 DEV-005D 暂停。
+- Implementation evidence: `docs/agent/tasks/DISC-005-R0.md`、`docs/agent/prompts/DISC-005-R0.md`、HO-037、CON-020、任务板和追踪入口；未修改旧 DEV-005A/B/C/D 任务卡或业务代码。
+- Lesson: 模块分别 PASS 只能证明各自边界，不能证明纵向链路已有唯一责任人把开始阶段产生的证据一直交到结束阶段；重构先冻结端到端所有权，再划分子任务。
+- Better future prompt: “请先讨论一次首次访谈从开始到结束必须由谁持续持有 session、麦克风、录音上传作业和实时流，以及发生刷新/断网时哪些事实必须恢复；总纲通过后再拆阶段，不改写旧任务历史。”
