@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { WebSocket } from 'ws';
 
@@ -243,6 +244,49 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(client.sent.filter(({ type }) => type === 'audio.ack')).toHaveLength(2);
     expect(client.sent.slice(-2).map(({ type }) => type)).toEqual(['asr.status', 'error']);
   });
+
+  it.each(['heartbeat', 'event.ack'] as const)(
+    'rechecks resources for %s and releases a revoked producer',
+    async (messageType) => {
+      const runtimes = new RealtimeRuntimeService();
+      let allowed = true;
+      const gateway = createGateway(new CountingAdapter(), 'produce', runtimes, undefined, () =>
+        allowed
+          ? Promise.resolve('produce')
+          : Promise.reject(
+              new ForbiddenException({ code: 'FORBIDDEN', details: {}, message: 'denied' }),
+            ),
+      );
+      const client = new FakeSocket();
+      const sessionId = randomUUID();
+      gateway.handleConnection(client as unknown as WebSocket, request());
+      client.receive(join(sessionId, randomUUID()));
+      await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+      allowed = false;
+      client.receive(messageType === 'heartbeat' ? heartbeat(sessionId) : eventAck(sessionId, 0));
+      await client.waitClosed();
+      expect(client.closeCode).toBe(4403);
+      expect(client.sent.at(-1)?.payload).toEqual({ code: 'FORBIDDEN' });
+      await waitFor(() => runtimes.find(sessionId)?.producer === null);
+    },
+  );
+
+  it('maps unknown internal failures to a non-sensitive 4500 error', async () => {
+    const gateway = createGateway(new CountingAdapter(), 'produce', undefined, undefined, () =>
+      Promise.reject(new Error('database-name SQL secret stack')),
+    );
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, randomUUID()));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(heartbeat(sessionId));
+    await client.waitClosed();
+    expect(client.closeCode).toBe(4500);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'REALTIME_UNAVAILABLE' });
+    expect(JSON.stringify(client.sent)).not.toContain('database-name');
+    expect(JSON.stringify(client.sent)).not.toContain('SQL');
+  });
 });
 
 function createGateway(
@@ -250,8 +294,10 @@ function createGateway(
   mode: RealtimeSessionMode,
   runtimes = new RealtimeRuntimeService(),
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
+  assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
 ): RealtimeTranscriptionGateway {
   const access = {
+    assertActiveConnection,
     assertFrame: () => Promise.resolve('produce' as const),
     assertJoin: () => Promise.resolve(mode),
     authenticate: () => Promise.resolve(actor),

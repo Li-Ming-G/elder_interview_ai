@@ -80,6 +80,13 @@ export class RealtimeAccessService {
     });
   }
 
+  public assertActiveConnection(
+    actor: AuthPrincipal,
+    sessionId: string,
+  ): Promise<RealtimeSessionMode> {
+    return this.assertFrame(actor, sessionId, true);
+  }
+
   private forbidden(): ForbiddenException {
     return new ForbiddenException({ code: 'FORBIDDEN', details: {}, message: 'Access denied' });
   }

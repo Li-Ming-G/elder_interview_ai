@@ -105,3 +105,69 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   await expect(page.getByTestId('chunk-count')).toHaveText('待上传分片：0');
   await expect(page.getByTestId('next-sequence')).not.toHaveText('0');
 });
+
+test('real Chromium streams synthetic PCM, renders interim/final, reconnects, and classifies ASR failure', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('input[name="email"]').fill('listener-a@example.test');
+  await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
+  await page.locator('form button[type="submit"]').click();
+  await expect(page.locator('section h2')).toBeVisible();
+  const sessionId = await page.evaluate(async () => {
+    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
+    const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
+    async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
+      const response = await fetch(`/api/v1${path}`, {
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error(`${path} failed: ${String(response.status)}`);
+      return (await response.json()) as Record<string, unknown>;
+    }
+    const project = await write('/projects', { display_name: '虚构 Chromium 实时转录项目' });
+    const projectId = String(project.id);
+    await write(`/projects/${projectId}/service-terms`, {
+      currency: 'CNY',
+      estimated_session_count: 1,
+      expected_current_minutes: 10,
+      included_minutes: 60,
+      overtime_price_minor: 0,
+      overtime_unit_minutes: 30,
+    });
+    await write(`/projects/${projectId}/consents`, {
+      consent_audio_object_id: null,
+      consent_method: 'electronic',
+      consent_text_version: 'test-v1',
+      consent_type: 'recording_transcription_ai',
+      consented_at: new Date().toISOString(),
+    });
+    const session = await write(`/projects/${projectId}/sessions`);
+    const id = String(session.id);
+    await write(`/sessions/${id}/device-check`, {
+      input_detected: true,
+      microphone_permission: 'granted',
+    });
+    await write(`/sessions/${id}/start`, { request_id: crypto.randomUUID() });
+    return id;
+  });
+
+  await page.goto(`/?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`);
+  await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByTestId('realtime-interim')).not.toHaveText('暂无中间态');
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+
+  await page.getByRole('button', { name: '模拟短时断线' }).click();
+  await expect(page.getByTestId('realtime-connection')).toHaveText('reconnecting');
+  await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
+  await expect(page.getByText('已在窗口内恢复')).toBeVisible();
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByRole('alert')).toContainText('实时转录暂不可用，原始录音不受影响');
+  await expect(page.getByRole('alert')).toContainText('ASR_UNAVAILABLE');
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+});

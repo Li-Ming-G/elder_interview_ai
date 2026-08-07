@@ -152,9 +152,13 @@ export class RealtimeTranscriptionGateway {
       throw new RealtimeCodecError('INVALID_WS_MESSAGE');
     }
     state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
-    if (message.type === 'audio.frame') await this.frame(client, state, message.payload);
-    else if (message.type === 'event.ack')
-      this.eventAck(state.runtime, message.payload.server_sequence);
+    if (message.type === 'audio.frame') {
+      await this.frame(client, state, message.payload);
+      return;
+    }
+    const mode = await this.access.assertActiveConnection(state.actor, state.runtime.sessionId);
+    if (mode === 'resume-only') this.runtimes.release(state.runtime, client);
+    if (message.type === 'event.ack') this.eventAck(state.runtime, message.payload.server_sequence);
     else this.sendStored(client, this.runtimes.append(state.runtime, 'heartbeat.ack', {}));
   }
 
@@ -344,7 +348,9 @@ export class RealtimeTranscriptionGateway {
     if (code === 'INVALID_CSRF_TOKEN' || code === 'AUTH_REQUIRED')
       this.fail(client, state, code, 4401);
     else if (code === 'SESSION_NOT_STREAMABLE') this.fail(client, state, code, 4408);
-    else this.fail(client, state, 'FORBIDDEN', 4403);
+    else if (code === 'FORBIDDEN' || code === 'NOT_FOUND')
+      this.fail(client, state, 'FORBIDDEN', 4403);
+    else this.fail(client, state, 'REALTIME_UNAVAILABLE', 4500);
   }
 
   private fail(
@@ -404,9 +410,9 @@ function toBuffer(data: RawData): Buffer {
   return Buffer.from(data);
 }
 
-function httpErrorCode(error: unknown): string {
-  if (!(error instanceof HttpException)) return 'FORBIDDEN';
+function httpErrorCode(error: unknown): string | null {
+  if (!(error instanceof HttpException)) return null;
   const response = error.getResponse();
-  if (typeof response !== 'object' || !('code' in response)) return 'FORBIDDEN';
+  if (typeof response !== 'object' || !('code' in response)) return null;
   return String(response.code);
 }

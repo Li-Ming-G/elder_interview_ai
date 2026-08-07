@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { loadApiConfig } from '@elder-interview/config';
 import type { INestApplication } from '@nestjs/common';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import WebSocket, { type ClientOptions, type RawData } from 'ws';
 
 import { SessionService } from '../../apps/api/src/auth/session.service.js';
@@ -139,6 +139,51 @@ describe('authenticated realtime transcription WebSocket', () => {
     });
   });
 
+  it.each(['heartbeat', 'event.ack'] as const)(
+    'rechecks assignment for %s and releases the active producer',
+    async (messageType) => {
+      const audioStreamId = randomUUID();
+      const client = await connect(url, cookie);
+      const inbox = new Inbox(client);
+      client.send(JSON.stringify(join(csrf, audioStreamId)));
+      const ready = await inbox.next();
+      await prisma.projectAssignment.updateMany({
+        data: { revokedAt: new Date() },
+        where: { projectId, userId, revokedAt: null },
+      });
+      client.send(
+        JSON.stringify(
+          messageType === 'heartbeat'
+            ? heartbeat()
+            : eventAck((ready as { server_sequence: number }).server_sequence),
+        ),
+      );
+      expect(await inbox.next()).toMatchObject({ type: 'error', payload: { code: 'FORBIDDEN' } });
+      expect(await inbox.closed()).toBe(4403);
+      await prisma.projectAssignment.updateMany({
+        data: { revokedAt: null },
+        where: { projectId, userId },
+      });
+    },
+  );
+
+  it('maps an unexpected persistence failure to REALTIME_UNAVAILABLE without details', async () => {
+    const client = await connect(url, cookie);
+    const inbox = new Inbox(client);
+    client.send(JSON.stringify(join(csrf, randomUUID())));
+    await inbox.next();
+    const failure = vi
+      .spyOn(prisma.interviewSession, 'findUnique')
+      .mockRejectedValueOnce(new Error('database-name SQL private detail'));
+    client.send(JSON.stringify(heartbeat()));
+    const error = await inbox.next();
+    expect(error).toMatchObject({ type: 'error', payload: { code: 'REALTIME_UNAVAILABLE' } });
+    expect(JSON.stringify(error)).not.toContain('database-name');
+    expect(JSON.stringify(error)).not.toContain('SQL');
+    expect(await inbox.closed()).toBe(4500);
+    failure.mockRestore();
+  });
+
   it('orders interim/final, persists before publish, replays, and rechecks assignment per frame', async () => {
     const audioStreamId = randomUUID();
     let client = await connect(url, cookie);
@@ -258,6 +303,26 @@ function frame(sequence: number, audioStreamId: string): Record<string, unknown>
     schema_version: '1.0',
     session_id: sessionIdValue(),
     type: 'audio.frame',
+  };
+}
+
+function heartbeat(): Record<string, unknown> {
+  return {
+    event_id: randomUUID(),
+    payload: {},
+    schema_version: '1.0',
+    session_id: sessionIdValue(),
+    type: 'heartbeat',
+  };
+}
+
+function eventAck(serverSequence: number): Record<string, unknown> {
+  return {
+    event_id: randomUUID(),
+    payload: { server_sequence: serverSequence },
+    schema_version: '1.0',
+    session_id: sessionIdValue(),
+    type: 'event.ack',
   };
 }
 
