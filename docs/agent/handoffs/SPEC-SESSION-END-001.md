@@ -5,7 +5,9 @@
 - 任务：`SPEC-SESSION-END-001`、REQ-004、ADR-022、CON-019
 - 分支：`codex/spec-session-end-001`
 - 基线：`origin/main@b61db7d`
-- 状态：`REVIEW` 候选；commit、PR 和 CI 在推送后回填
+- 候选提交：`3cf41a8`
+- PR：[#8](https://github.com/Li-Ming-G/elder_interview_ai/pull/8)（非 Draft）
+- 状态：`REVIEW`；最终审查 head 与 CI 等待项目负责人审查时绑定
 - 接收对象：项目负责人（GitHub 审查）、后续 DEV-005C/005D
 
 ## 已完成

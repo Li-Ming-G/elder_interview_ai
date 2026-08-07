@@ -18,7 +18,7 @@
 | DEC-001 | 确认工程技术基线与跨规范冲突 | 总控 Agent | DONE | BASE-001 | `02` 至 `10`、ADR、冲突日志 | REV-003 PASS；P0/P1 为 0 |
 | SPEC-FE-001 | 首次访谈页面与内容规划收敛 | 总控 Agent | DONE | 前端页面规划对话、ADR-020 | [任务卡](tasks/SPEC-FE-001.md)、PR #6 head `47f7b35`、CI `31153878655` PASS、REV-015 PASS、merge `474c647`、HO-030 | 页面规划和可执行任务拆分已通过；不代表 DEV-005 或安全结束能力已实现 |
 | SPEC-AI-QUESTION-001 | 单问题建议与替换契约 | 待分配 | READY | SPEC-FE-001 产品决定 | [任务卡](tasks/SPEC-AI-QUESTION-001.md) | DEV-007A 开工硬前置；只冻结契约，不实现代码 |
-| SPEC-SESSION-END-001 | 会话安全结束与恢复契约 | 会话编排契约 Agent | REVIEW | SPEC-FE-001 产品决定、DEV-003/004B2 seam | [任务卡](tasks/SPEC-SESSION-END-001.md)、ADR-022、CON-019、HO-032、GitHub PR 待回填 | 正式候选已冻结；等待项目负责人绑定最终 GitHub head 审查，不能自行 PASS/DONE；DEV-005C 仍 BLOCKED |
+| SPEC-SESSION-END-001 | 会话安全结束与恢复契约 | 会话编排契约 Agent | REVIEW | SPEC-FE-001 产品决定、DEV-003/004B2 seam | [任务卡](tasks/SPEC-SESSION-END-001.md)、ADR-022、CON-019、HO-032、PR #8 / `3cf41a8` | 正式候选已冻结；等待项目负责人绑定最终 GitHub head 审查，不能自行 PASS/DONE；DEV-005C 仍 BLOCKED |
 | MVP-V01 | 最小纵向核心假设链路 | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B 内部候选 seam | [里程碑卡](tasks/MVP-V01.md) | 仅限虚构/脱敏数据和非公网内部验证；逐段集成 |
 | DEV-001 | 初始化工程与环境（父任务） | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B | [父任务卡](tasks/DEV-001.md) | DEV-001B 最终加固/复审未完成，但不阻塞内部原型 |
 | DEV-001A | 工程骨架与可重复工具链 | 工程基础实现 Agent（Archimedes） | DONE | DEC-001 | [任务卡](tasks/DEV-001A.md)、`fb99560`、REV-006 | REV-006 PASS；P0/P1/P2 均为 0 |
