@@ -37,3 +37,10 @@
 - 唯一新增 P1：`transcript_status=draining` 期间的并发 recover/reconcile/stop 仍可重复调用外部 `drainAndClose()`；数据库终态保护不能替代供应商 runner single-flight。
 - 只允许新增按 `finalizationId` 的进程内 single-flight Promise 和对应阻塞 fake/barrier 测试；崩溃后依赖持久 `draining` 重新驱动，不新增持久队列或 migration。
 - 三个 P2 继续延期；修复后提交新 final head 与完整 CI，供项目负责人再次定向复审。
+
+## 第二轮修复候选证据
+
+- 仅修改 `SessionFinalizationService` single-flight 与 PostgreSQL 定向测试；没有数据库、migration、依赖、队列、真实 ASR 或 P2 变更。
+- 阻塞 adapter 证明并发同 ID recover、不同 ID reconcile 与匹配 stop 共用一个 runner；失败清理后相同 finalization ID 可重驱。
+- 本地门禁：format、lint、typecheck、unit 127/127、migration deploy/status、integration 30/30、auth 13/13、build、smoke、diff check 全部通过。
+- DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`；等待 PR #10 新 final head CI 与第三次定向复审。

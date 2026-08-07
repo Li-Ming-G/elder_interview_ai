@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { loadApiConfig } from '@elder-interview/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -446,6 +446,85 @@ describe('session finalization PostgreSQL orchestration', () => {
     ).toBe('failed');
   });
 
+  it('single-flights concurrent recover and matching stop runners and clears failed entries', async () => {
+    const runtime = new RealtimeRuntimeService();
+    const runtimeSession = runtime.create(randomUUID(), randomUUID());
+    runtimeSession.highestAudioSequenceAcked = 0;
+    const ready = await createReadyFinalization(runtimeSession.sessionId, 30);
+    const adapter = new BlockingEndingAdapter();
+    const singleFlightService = createService(runtime, adapter);
+    const sameRequestId = randomUUID();
+    const firstRecover = singleFlightService.recover(actor, ready.sessionId, {
+      action: 'reconcile',
+      request_id: sameRequestId,
+    });
+    await adapter.entered;
+
+    const sameRecover = singleFlightService.recover(actor, ready.sessionId, {
+      action: 'reconcile',
+      request_id: sameRequestId,
+    });
+    const differentRequest = {
+      action: 'reconcile' as const,
+      request_id: randomUUID(),
+    };
+    const differentRecover = singleFlightService.recover(actor, ready.sessionId, differentRequest);
+    const stopRequest = {
+      audio_object_id: ready.audioObjectId,
+      chunks: [
+        {
+          checksum: 'e'.repeat(64),
+          end_ms: 1000,
+          mime_type: 'audio/webm;codecs=opus',
+          sequence_no: 0,
+          size_bytes: 10,
+          start_ms: 0,
+        },
+      ],
+      expected_chunk_count: 1,
+      request_id: randomUUID(),
+    };
+    const matchingStop = singleFlightService.stop(actor, ready.sessionId, stopRequest);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(adapter.calls).toBe(1);
+
+    adapter.release();
+    const [first, same, different, stopped] = await Promise.all([
+      firstRecover,
+      sameRecover,
+      differentRecover,
+      matchingStop,
+    ]);
+    expect(same).toEqual(first);
+    expect(await singleFlightService.recover(actor, ready.sessionId, differentRequest)).toEqual(
+      different,
+    );
+    expect(await singleFlightService.stop(actor, ready.sessionId, stopRequest)).toEqual(stopped);
+    expect(adapter.calls).toBe(1);
+    expect(await singleFlightService.get(actor, ready.sessionId)).toMatchObject({
+      finalization: { transcript_status: 'drained' },
+      status: 'completed',
+    });
+
+    const retryableId = randomUUID();
+    await expect(singleFlightService.advance(retryableId)).rejects.toBeDefined();
+    const retryRuntime = runtime.create(randomUUID(), randomUUID());
+    retryRuntime.highestAudioSequenceAcked = 0;
+    const retryable = await createReadyFinalization(
+      retryRuntime.sessionId,
+      31,
+      0,
+      'stopping',
+      retryableId,
+    );
+    await singleFlightService.advance(retryable.finalizationId);
+    expect(adapter.calls).toBe(2);
+    expect(await singleFlightService.get(actor, retryable.sessionId)).toMatchObject({
+      finalization: { transcript_status: 'drained' },
+      status: 'completed',
+    });
+  });
+
   function createService(
     runtime: RealtimeRuntimeService,
     adapter: StreamingAsrAdapter,
@@ -464,7 +543,8 @@ describe('session finalization PostgreSQL orchestration', () => {
     sequenceNo: number,
     accepted: number | null = 0,
     status: 'completed' | 'failed' | 'stopping' = 'stopping',
-  ): Promise<{ sessionId: string }> {
+    finalizationId: string = randomUUID(),
+  ): Promise<{ audioObjectId: string; finalizationId: string; sessionId: string }> {
     const session = await prisma.interviewSession.create({
       data: {
         createdBy: actorId,
@@ -507,9 +587,10 @@ describe('session finalization PostgreSQL orchestration', () => {
         asrLastAudioSequenceAccepted: accepted,
         audioObjectId: audio.id,
         captureEndedAt: new Date(),
-        commitmentsChecksum: 'd'.repeat(64),
+        commitmentsChecksum: fixtureCommitmentChecksum(),
         createdBy: actorId,
         expectedChunkCount: 1,
+        id: finalizationId,
         sessionId,
         stopRequestId: randomUUID(),
         chunks: {
@@ -529,7 +610,7 @@ describe('session finalization PostgreSQL orchestration', () => {
       data: { manifestChecksum: canonicalAudioManifestChecksum(chunks) },
       where: { id: audio.id },
     });
-    return { sessionId: session.id };
+    return { audioObjectId: audio.id, finalizationId, sessionId: session.id };
   }
 
   function holdProjectLock(): {
@@ -686,6 +767,38 @@ class TimeoutEndingAdapter extends EndingAdapter {
   }
 }
 
+class BlockingEndingAdapter extends StreamingAsrAdapter {
+  public calls = 0;
+  public readonly entered: Promise<void>;
+  private signalEntered: (() => void) | undefined;
+  private signalRelease: (() => void) | undefined;
+  private readonly released: Promise<void>;
+
+  public constructor() {
+    super();
+    this.entered = new Promise<void>((resolve) => {
+      this.signalEntered = resolve;
+    });
+    this.released = new Promise<void>((resolve) => {
+      this.signalRelease = resolve;
+    });
+  }
+
+  public accept(): Promise<readonly NormalizedAsrResult[]> {
+    return Promise.resolve([]);
+  }
+
+  public async drainAndClose(): Promise<void> {
+    this.calls += 1;
+    this.signalEntered?.();
+    await this.released;
+  }
+
+  public release(): void {
+    this.signalRelease?.();
+  }
+}
+
 function finalResult(sessionId: string): NormalizedAsrResult {
   return {
     endMs: 1000,
@@ -697,4 +810,21 @@ function finalResult(sessionId: string): NormalizedAsrResult {
     startMs: 0,
     text: '虚构的结束确定态转录',
   };
+}
+
+function fixtureCommitmentChecksum(): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        {
+          checksum: 'e'.repeat(64),
+          end_ms: 1000,
+          mime_type: 'audio/webm;codecs=opus',
+          sequence_no: 0,
+          size_bytes: 10,
+          start_ms: 0,
+        },
+      ]),
+    )
+    .digest('hex');
 }

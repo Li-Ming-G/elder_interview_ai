@@ -448,3 +448,10 @@
 - Adopted correction: 按 finalization ID 复用一个进程内 advance Promise，完成后清理；进程重启后 Map 丢失，由持久状态重新驱动。补阻塞 fake 和并发 barrier 测试。
 - Boundary: 仅修 single-runner，不改数据库、不引队列、不处理三个 P2、不接真实 ASR。DEV-005C REVIEW、DEV-005D BLOCKED。
 - Lesson: “状态为 draining”既是持久恢复信号，又不能单独承担同进程互斥；可恢复状态和进程内 single-flight 是两个互补层次。
+
+### 2026-08-07 — DEV-005C ASR runner single-flight
+
+- Adopted implementation: `advance()` 按 finalization ID 返回同一个进程内 Promise，`advanceOnce()` 保持持久重驱逻辑；清理只删除仍指向当前 Promise 的 Map 项，避免旧 runner 删除后继登记。
+- Evidence: 阻塞 adapter 下，相同 ID recover、不同 ID reconcile 与匹配 stop 并发只调用一次外部 drain；释放后响应重放稳定且终态 drained/completed。首次推进拒绝后相同 finalization ID 可重新驱动。
+- Lesson: 持久状态解决崩溃恢复，single-flight 解决同进程外部副作用互斥；两者不能互相替代。
+- Boundary: Map 不承载业务事实；未增加数据库、migration、队列、依赖、真实 ASR 或三个 P2。

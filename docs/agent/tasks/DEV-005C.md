@@ -87,3 +87,11 @@
 - 定向修复：在 `SessionFinalizationService` 内按 `finalizationId` 建立进程内 `Map<id, Promise<void>>` single-flight。已有 Promise 时等待同一 Promise；没有时创建 `advanceOnce()`，完成后在 `finally` 删除。进程重启后 Map 为空，持久 `draining` 仍允许重新驱动。
 - 必测：阻塞 fake adapter 的第一次 drain；同时发起相同 request ID recover、不同 request ID recover/reconcile，以及匹配同一 frozen snapshot 的 stop，断言外部 `drainAndClose` 调用数始终为 1；释放后所有响应稳定、session completed、transcript drained、幂等响应不漂移。
 - 本轮不得修改数据库模型或 migration，不引入 Redis/BullMQ/队列，不接真实 ASR；三个既有 P2 继续不处理。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
+
+## REV-019 第二轮定向修复候选（2026-08-07）
+
+- `SessionFinalizationService.advance()` 以 `Map<finalizationId, Promise<void>>` 复用同进程 runner，实际状态推进收敛到 `advanceOnce()`；`finally` 仅删除仍指向当前 Promise 的登记。
+- Map 不是持久事实源；新进程 Map 为空时，持久 `draining` 仍会重新驱动。
+- 阻塞 fake 同时覆盖相同 request recover、不同 request reconcile 和匹配 frozen snapshot 的 stop，barrier 释放前 `drainAndClose()` 始终只调用一次；释放后终态、响应与逐 request 重放稳定。
+- 拒绝路径验证 single-flight 登记清理后，相同 finalization ID 可合法重新驱动。
+- 本地 format、lint、typecheck、unit 127/127、migration deploy/status、PostgreSQL integration 30/30、auth 13/13、build、smoke 与 diff check 通过；无 migration、依赖或三个 P2 变更。

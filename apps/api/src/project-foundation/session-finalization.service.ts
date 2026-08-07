@@ -30,6 +30,8 @@ import { mapInterviewSessionSnapshot } from './project.mapper.js';
 
 @Injectable()
 export class SessionFinalizationService {
+  private readonly advances = new Map<string, Promise<void>>();
+
   public constructor(
     private readonly prisma: PrismaService,
     private readonly authorization: ResourceAuthorizationService,
@@ -290,7 +292,20 @@ export class SessionFinalizationService {
     return outcome.snapshot;
   }
 
-  private async advance(finalizationId: string): Promise<void> {
+  public advance(finalizationId: string): Promise<void> {
+    const existing = this.advances.get(finalizationId);
+    if (existing !== undefined) return existing;
+    const running = this.advanceOnce(finalizationId);
+    this.advances.set(finalizationId, running);
+    void running
+      .finally(() => {
+        if (this.advances.get(finalizationId) === running) this.advances.delete(finalizationId);
+      })
+      .catch(() => undefined);
+    return running;
+  }
+
+  private async advanceOnce(finalizationId: string): Promise<void> {
     const prepared = await this.prisma.$transaction(async (tx) => {
       const initial = await tx.sessionFinalization.findUniqueOrThrow({
         where: { id: finalizationId },
