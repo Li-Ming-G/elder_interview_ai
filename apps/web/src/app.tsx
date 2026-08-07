@@ -1,5 +1,11 @@
-import { useEffect, useState, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import type { AuthUser, CsrfResponse, LoginResponse } from '@elder-interview/contracts';
+
+import { createInterviewApi } from './interview/interview-api.js';
+import { checkMicrophoneInput } from './interview/microphone-check.js';
+import { PreparationPage } from './interview/preparation-page.js';
+import { parseInterviewRoute } from './interview/routes.js';
+import { WorkbenchShell } from './interview/workbench-shell.js';
 
 export function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
@@ -8,6 +14,17 @@ export function App(): React.JSX.Element {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pathname, setPathname] = useState(globalThis.location.pathname);
+
+  useEffect(() => {
+    function onPopState(): void {
+      setPathname(globalThis.location.pathname);
+    }
+    globalThis.addEventListener('popstate', onPopState);
+    return function cleanupPopState(): void {
+      globalThis.removeEventListener('popstate', onPopState);
+    };
+  }, []);
 
   useEffect(() => {
     async function restoreSession(): Promise<void> {
@@ -33,6 +50,11 @@ export function App(): React.JSX.Element {
     }
     void restoreSession();
   }, []);
+
+  const interviewApi = useMemo(
+    () => (csrfToken === null ? null : createInterviewApi(csrfToken)),
+    [csrfToken],
+  );
 
   async function login(event: SyntheticEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -80,68 +102,107 @@ export function App(): React.JSX.Element {
     }
   }
 
-  async function sendLogout(token: string | null): Promise<Response> {
-    return fetch('/api/v1/auth/logout', {
-      credentials: 'same-origin',
-      headers: token === null ? {} : { 'X-CSRF-Token': token },
-      method: 'POST',
-    });
+  function navigate(path: string, replace = false): void {
+    if (replace) globalThis.history.replaceState(null, '', path);
+    else globalThis.history.pushState(null, '', path);
+    setPathname(path);
+  }
+
+  if (loading) {
+    return (
+      <main className="auth-page" aria-busy="true">
+        <div className="skeleton skeleton--label" />
+        <div className="skeleton skeleton--title" />
+        <span className="sr-only">正在检查登录状态</span>
+      </main>
+    );
+  }
+
+  if (user === null || csrfToken === null || interviewApi === null) {
+    return (
+      <main className="auth-page">
+        <section className="auth-panel" aria-labelledby="login-title">
+          <p className="context-label">拾光 · 倾听员工作区</p>
+          <h1 id="login-title">欢迎回来</h1>
+          <p className="auth-intro">登录后继续已分配的访谈准备。</p>
+          <form onSubmit={(event) => void login(event)}>
+            <label>
+              邮箱
+              <input
+                autoComplete="username"
+                name="email"
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                }}
+                value={email}
+              />
+            </label>
+            <label>
+              密码
+              <input
+                autoComplete="current-password"
+                name="password"
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                }}
+                type="password"
+                value={password}
+              />
+            </label>
+            <button className="button button--primary" type="submit">
+              登录
+            </button>
+          </form>
+          {error === null ? null : (
+            <p className="inline-error" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
+      </main>
+    );
+  }
+
+  const route = parseInterviewRoute(pathname);
+  if (route?.kind === 'preparation') {
+    return (
+      <PreparationPage
+        api={interviewApi}
+        checkMicrophone={checkMicrophoneInput}
+        initialSessionId={route.sessionId}
+        navigate={navigate}
+        projectId={route.projectId}
+      />
+    );
+  }
+  if (route?.kind === 'workbench') {
+    return <WorkbenchShell projectId={route.projectId} sessionId={route.sessionId} />;
   }
 
   return (
-    <main>
-      <p className="eyebrow">DEV-001B</p>
-      <h1>身份与会话基础</h1>
-      {loading ? (
-        <p>正在检查会话…</p>
-      ) : user === null ? (
-        <form
-          onSubmit={(event) => {
-            void login(event);
-          }}
-        >
-          <label>
-            邮箱
-            <input
-              autoComplete="username"
-              name="email"
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              value={email}
-            />
-          </label>
-          <label>
-            密码
-            <input
-              autoComplete="current-password"
-              name="password"
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-              type="password"
-              value={password}
-            />
-          </label>
-          <button type="submit">登录</button>
-        </form>
-      ) : (
-        <section>
-          <h2>已登录</h2>
-          <p>{user.display_name}</p>
-          <p>角色：{user.role}</p>
-          <button
-            onClick={() => {
-              void logout();
-            }}
-            type="button"
-          >
-            退出登录
-          </button>
-        </section>
-      )}
-      {error === null ? null : <p role="alert">{error}</p>}
-      <p>当前仅提供最小登录会话外壳，不包含长者项目或访谈业务。</p>
+    <main className="auth-page">
+      <section className="auth-panel">
+        <p className="context-label">拾光 · 倾听员工作区</p>
+        <h1>已登录</h1>
+        <p>{user.display_name}</p>
+        <p>请使用已分配项目的正式访谈深链进入准备页。</p>
+        <button className="button button--secondary" onClick={() => void logout()} type="button">
+          退出登录
+        </button>
+        {error === null ? null : (
+          <p className="inline-error" role="alert">
+            {error}
+          </p>
+        )}
+      </section>
     </main>
   );
+}
+
+async function sendLogout(token: string | null): Promise<Response> {
+  return fetch('/api/v1/auth/logout', {
+    credentials: 'same-origin',
+    headers: token === null ? {} : { 'X-CSRF-Token': token },
+    method: 'POST',
+  });
 }

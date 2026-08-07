@@ -12,8 +12,9 @@
 | DEV-004A | REV-012 | PR #3 / `917f888` | DONE | 仅确定态转录证据核心；真实 ASR、实时事件和真实试点未覆盖 |
 | DEV-004B1 | REV-013 | PR #4 / `80ff1c7` | DONE | 仅服务端合成 PCM 协议；三个 P2 和 B2/真实 ASR/长时性能未覆盖 |
 | DEV-004B2 | REV-014 | PR #5 / `73a07cb` / CI `31143035668` PASS | DONE | 定向复审 PASS；仅内部虚构/合成 PCM 浏览器纵向链路，父 DEV-004 继续开放 |
-| SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY；页面规划不代表结束契约通过 |
-| SPEC-SESSION-END-001 | 待项目负责人审查 | PR #8 / 候选 `3cf41a8` / 最终 head 与 CI 待绑定 | REVIEW | ADR-022 与正式契约候选已形成；CON-019 保持 OPEN，DEV-005C/D 仍 BLOCKED |
+| SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY，SPEC-SESSION-END-001 READY；CON-019 与 DEV-005C/D 仍开放/阻塞 |
+| DEV-005A | REV-016 | PR #7 / `ea6c20f` / CI `31161076538` PASS / merge `066c424` | DONE | P0/P1=0；工作台状态改由服务端事实驱动、授权显示统一最新记录两项 P2 转 DEV-005B |
+| SPEC-SESSION-END-001 | 待项目负责人审查 | PR #8 / 契约提交 `3cf41a8` / 最终 head 与 CI 待绑定 | REVIEW | ADR-022 与正式契约候选已形成；CON-019 保持 OPEN，DEV-005C/D 仍 BLOCKED |
 
 ## 阅读规则
 
@@ -23,4 +24,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-015`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-016`。
