@@ -119,10 +119,10 @@ export class RealtimeTranscriptionTransport {
     this.url = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${INTERVIEW_WS_PATH}`;
     this.reconnectDelays = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
     this.timerApi = {
-      clearInterval: options.clearInterval ?? globalThis.clearInterval,
-      clearTimeout: options.clearTimeout ?? globalThis.clearTimeout,
-      setInterval: options.setInterval ?? globalThis.setInterval,
-      setTimeout: options.setTimeout ?? globalThis.setTimeout,
+      clearInterval: options.clearInterval ?? globalThis.clearInterval.bind(globalThis),
+      clearTimeout: options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis),
+      setInterval: options.setInterval ?? globalThis.setInterval.bind(globalThis),
+      setTimeout: options.setTimeout ?? globalThis.setTimeout.bind(globalThis),
     };
   }
 
