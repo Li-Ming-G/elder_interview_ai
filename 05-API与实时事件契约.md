@@ -317,11 +317,14 @@ POST   /sessions/:id/boundary-candidates/:candidate_id/actions
 
 ### 3.9 AI 建议
 
+首次访谈最小纵向闭环只需要“获取/生成一个当前建议或继续倾听”和“没用，换一个”。替换必须幂等，并在当前会话排除当前及高度相似问题。精确请求、响应、节流和持久化契约由 `SPEC-AI-QUESTION-001` 冻结后才成为正式实现依据。
+
 ```http
 GET  /sessions/:id/suggestions
 POST /sessions/:id/suggestions/request
-POST /suggestions/:id/actions
 ```
+
+原规划的通用 `POST /suggestions/:id/actions` 已冻结，不属于首轮实现范围；DEV-007 不得据此实现采用、已问、忽略、稍后或改写动作。
 
 ### 3.10 记忆
 
@@ -593,6 +596,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 ```
 
 ### 5.10 `suggestion.created` 示例
+
+首轮事件同时只允许一个 `primary`，`alternatives` 必须为空；后续 `SPEC-AI-QUESTION-001` 可在不改变该产品行为的前提下收敛字段。
 
 ```json
 {

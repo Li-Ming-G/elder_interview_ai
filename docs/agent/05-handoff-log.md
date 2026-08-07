@@ -8,6 +8,7 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
+| SPEC-FE-001 | [HO-030](handoffs/HO-030.md) | 项目负责人（GitHub 审查） / DEV-005、DEV-007 后续任务对话 | 审查页面规划；CON-018 由 SPEC-AI-QUESTION-001 关闭 |
 
 ## 最近已完成交接
 
