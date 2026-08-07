@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：后端会话编排实现任务对话（定向修复中）
 - 前置依赖：SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2
 - 交接对象：总控 Agent、DEV-005D
@@ -95,3 +95,10 @@
 - 阻塞 fake 同时覆盖相同 request recover、不同 request reconcile 和匹配 frozen snapshot 的 stop，barrier 释放前 `drainAndClose()` 始终只调用一次；释放后终态、响应与逐 request 重放稳定。
 - 拒绝路径验证 single-flight 登记清理后，相同 finalization ID 可合法重新驱动。
 - 本地 format、lint、typecheck、unit 127/127、migration deploy/status、PostgreSQL integration 30/30、auth 13/13、build、smoke 与 diff check 通过；无 migration、依赖或三个 P2 变更。
+
+## REV-019 第三次定向复审与收口
+
+- 项目负责人严格绑定 final head `36f534a45367eb19d19d19d05f0edcda317dbde9` 和 CI `31174226564`，结论 `PASS`，P0=0、P1=0。
+- single-flight 使用 `Map<finalizationId, Promise<void>>` 复用 runner，`finally` 只清理当前 Promise；失败清理后可合法重驱。阻塞 adapter 测试覆盖相同 ID recover、不同 ID reconcile、匹配 stop 和稳定幂等响应。
+- PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 `main`；DEV-005C 转 `DONE`，DEV-005D 转 `READY`。
+- 三个 P2 继续保留：stop 202/200、malformed finalization 422 错误码、非原 actor complete 权限错误语义；不阻塞当前内部 MVP，但后续契约加固时处理。

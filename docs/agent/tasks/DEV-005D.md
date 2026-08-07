@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - 负责人：待创建的前端安全结束实现任务对话
 - 前置依赖：DEV-005A、DEV-005B、DEV-005C PASS
 - 交接对象：总控 Agent、纵向集成/产品验证角色
@@ -13,7 +13,7 @@
 
 ## 输入依据
 
-`AGENTS.md`、`00` 至 `10`、SPEC-SESSION-END-001 最终契约、DEV-005A/B/C、ADR-020/021/022、CON-019 审查记录及最新交接。
+`AGENTS.md`、`00` 至 `10`、SPEC-SESSION-END-001 最终契约、DEV-005A/B/C、ADR-020/021/022、CON-019、REV-019、HO-034 及最新交接。
 
 ## 允许修改
 

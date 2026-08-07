@@ -44,3 +44,10 @@
 - 阻塞 adapter 证明并发同 ID recover、不同 ID reconcile 与匹配 stop 共用一个 runner；失败清理后相同 finalization ID 可重驱。
 - 本地门禁：format、lint、typecheck、unit 127/127、migration deploy/status、integration 30/30、auth 13/13、build、smoke、diff check 全部通过。
 - DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`；等待 PR #10 新 final head CI 与第三次定向复审。
+
+## REV-019 第三次定向复审与最终交接
+
+- 最终 head：`36f534a45367eb19d19d19d05f0edcda317dbde9`；CI `31174226564` 全部门禁 PASS；项目负责人结论 `PASS`，P0=0、P1=0。
+- 第二轮唯一 single-flight P1 已关闭；旧四项 P1 继续维持关闭。三个 P2 保留但不阻塞当前范围。
+- PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 `main`；DEV-005C DONE，DEV-005D READY，父 DEV-005 仍 BLOCKED。
+- DEV-005D 只消费公共 session snapshot 和 stop/recover contract，不得重建 manifest/转录/本地时间的完成判断，也不得在前端处理三个服务端 P2。

@@ -364,6 +364,11 @@ P2：
 - 新增唯一 P1：`advance()` 将状态写为 `draining` 并在事务外等待 adapter 时，没有按 finalization 建立 single-flight；并发 recover/reconcile/匹配 stop 可重复调用真实 `drainAndClose()`，同 request ID 在首次响应落库前也不能阻止第二 runner。
 - 修正要求：使用进程内 `Map<finalizationId, Promise<void>>` 复用同一 advance Promise，在 `finally` 清理；用阻塞 fake 覆盖相同/不同 request ID recover、reconcile 和匹配 stop，断言 drain 调用一次且最终/幂等响应稳定。进程重启后的 persisted `draining` 仍应可重驱。
 - 范围：不新增 migration、Redis、BullMQ、真实 ASR、云存储或队列；三个原 P2 继续不处理。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
+- 第三次定向复审提交：`36f534a45367eb19d19d19d05f0edcda317dbde9`；CI `31174226564` 全部门禁 PASS。
+- 最终结论：`PASS`；P0=0、P1=0。旧四项 P1 和第二轮 single-flight P1 均关闭。
+- 通过依据：同一 finalization 复用 `Map<id, Promise<void>>`；`finally` 防止旧 runner 删除后继；失败后清理并可重驱。阻塞 adapter 测试覆盖相同 request ID recover、不同 ID reconcile、匹配 snapshot stop，期间 drain 调用一次，释放后状态和幂等响应稳定。
+- 非阻塞边界：stop 202/200、malformed finalization 422 和非原 actor complete 权限语义三个 P2 继续保留；不阻塞 DEV-005C 当前内部 MVP 范围。
+- 合并记录：PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 `main`；DEV-005C DONE，DEV-005D READY，父 DEV-005 继续 BLOCKED。
 
 ## 审查模板
 

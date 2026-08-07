@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B 和安全结束契约已通过；DEV-005C 定向修复中，DEV-005D 与父 DEV-005 仍 BLOCKED。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B/C 和安全结束契约已通过；DEV-005D READY，父 DEV-005 仍 BLOCKED。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -455,3 +455,11 @@
 - Evidence: 阻塞 adapter 下，相同 ID recover、不同 ID reconcile 与匹配 stop 并发只调用一次外部 drain；释放后响应重放稳定且终态 drained/completed。首次推进拒绝后相同 finalization ID 可重新驱动。
 - Lesson: 持久状态解决崩溃恢复，single-flight 解决同进程外部副作用互斥；两者不能互相替代。
 - Boundary: Map 不承载业务事实；未增加数据库、migration、队列、依赖、真实 ASR 或三个 P2。
+
+### 2026-08-07 — REV-019 第三次定向复审 PASS
+
+- Review evidence: 项目负责人锁定 PR #10 final head `36f534a45367eb19d19d19d05f0edcda317dbde9` 与 CI `31174226564`，确认 single-flight P1 关闭，P0/P1=0。
+- Closed scope: PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 main；DEV-005C 在内部 MVP 服务端安全结束范围转 DONE。
+- Next execution: DEV-005D 转 READY，只消费统一 snapshot 完成安全结束页薄集成；父 DEV-005 等待 D 通过。
+- Deferred risk: 三个 REV-019 P2 保留，不阻塞当前范围；真实 ASR、持久队列、云存储和生产部署仍未覆盖。
+- Lesson: single-flight 解决同进程副作用重入，持久状态解决崩溃恢复；两者通过不同生命周期协作，不能互相替代。
