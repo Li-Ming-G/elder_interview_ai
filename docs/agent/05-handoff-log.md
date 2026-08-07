@@ -9,6 +9,7 @@
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
 | DEV-005A | [HO-030](handoffs/HO-030.md) / [启动提示词](prompts/DEV-005A.md) | 新的前端实现任务对话 | 只实现准备页与正式路由外壳；不得调用 stop/recover 或模拟完成 |
+| SPEC-SESSION-END-001 | [HO-032](handoffs/SPEC-SESSION-END-001.md) | 项目负责人（GitHub 审查） | 正式契约已进入 REVIEW 候选；CON-019 保持 OPEN，DEV-005C/D 未解锁 |
 
 ## 最近已完成交接
 

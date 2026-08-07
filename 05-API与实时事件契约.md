@@ -238,7 +238,134 @@ POST /sessions/:id/recover
 
 `POST /sessions/:id/start` 至少包含新的 `request_id`。服务端在同一事务重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时转 `recording` 并写 `started_at`。不得信任客户端提供的 `can_record`、授权状态或项目归属。相同 `request_id` 重试返回首次结果；门禁失败不得创建录音或 ASR/AI 任务。
 
-`POST /sessions/:id/stop` 与 `POST /sessions/:id/recover` 当前只有路径占位，不是正式可执行契约，现有服务端也未实现。`SPEC-SESSION-END-001` 必须先冻结请求与响应、合法状态、幂等与并发、assignment/授权变化下的安全收束、音频 manifest 与 final 转录等待、失败事实、完成条件和查询方式；在其通过前，任何 DEV 任务不得模拟 stop 成功、从计时器推算 `completed`，也不得把上述路径作为已存在能力调用。
+#### 3.5.1 公共会话结束 snapshot
+
+`GET /sessions/:id`、stop 和 recover 返回同一 `InterviewSessionResponse` snapshot。结束前 `finalization=null`；结束收束存在后至少返回：
+
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "sequence_no": 1,
+  "status": "stopping",
+  "started_at": "2026-08-07T08:00:00.000Z",
+  "ended_at": "2026-08-07T08:30:12.000Z",
+  "duration_seconds": 1812,
+  "created_by": "uuid",
+  "created_at": "2026-08-07T08:00:00.000Z",
+  "updated_at": "2026-08-07T08:30:12.000Z",
+  "finalization": {
+    "audio_object_id": "uuid",
+    "expected_chunk_count": 363,
+    "recording_status": "stopped",
+    "upload_status": "awaiting_upload",
+    "uploaded_chunk_count": 360,
+    "manifest_checksum": null,
+    "transcript_status": "pending",
+    "transcript_error_code": null,
+    "failure_code": null,
+    "processing_started_at": null,
+    "completed_at": null
+  }
+}
+```
+
+公共枚举：
+
+- `recording_status`: `recording|stopped|interrupted`；
+- `upload_status`: `awaiting_upload|verifying|complete|unrecoverable`；
+- `transcript_status`: `pending|draining|drained|degraded|not_started`；
+- `transcript_error_code`: `null|ASR_UNAVAILABLE|ASR_DRAIN_TIMEOUT|ASR_DRAIN_INCOMPLETE`；
+- `failure_code`: `null|AUDIO_COMMITMENT_CONFLICT|AUDIO_MANIFEST_UNRECOVERABLE|FINALIZATION_INTERNAL_FAILURE`。
+
+响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
+
+#### 3.5.2 stop
+
+客户端必须先停止新 PCM、停止 MediaRecorder并收到最终 `dataavailable`，再冻结并持久化以下请求及稳定 `request_id`：
+
+```json
+{
+  "request_id": "uuid",
+  "audio_object_id": "uuid",
+  "expected_chunk_count": 2,
+  "chunks": [
+    {
+      "sequence_no": 0,
+      "start_ms": 0,
+      "end_ms": 5000,
+      "size_bytes": 12345,
+      "checksum": "64-char-lowercase-hex",
+      "mime_type": "audio/webm;codecs=opus"
+    },
+    {
+      "sequence_no": 1,
+      "start_ms": 5000,
+      "end_ms": 9200,
+      "size_bytes": 10321,
+      "checksum": "64-char-lowercase-hex",
+      "mime_type": "audio/webm;codecs=opus"
+    }
+  ]
+}
+```
+
+规则：
+
+- `recording|reconnecting` 是首次 stop 的合法前置状态；服务端按 session 串行，重新验证当前 auth session、actor、有效 assignment 和资源归属；
+- audio object 必须是该 session 唯一的 `purpose=interview` 对象；`expected_chunk_count` 为正整数，`chunks.length` 与其相等，sequence 连续为 `0..N-1`，时间不重叠且递增，所有字段通过与 audio API 相同的边界校验；
+- 首次接受时，服务端以 `started_at + 最后一片 end_ms` 推导/校验 `ended_at`，以 `ceil(last end_ms/1000)` 计算时长，并固化 stop snapshot、chunk commitments、幂等记录后原子转为 `stopping`。从该提交点起拒绝新 PCM、新 interview audio object、扩大 count 和 commitment 外上传；
+- 成功接受返回 202 和公共 snapshot。若提交时所有分片/manifest 已完整，服务端可在同一请求内推进到 `processing` 或 `completed`，响应始终返回提交完成时的真实 snapshot；
+- 相同 `request_id`、actor、session 和完全相同 payload 重放，返回首次响应快照，不重复写状态/审计；payload 不同返回 409 `IDEMPOTENCY_PAYLOAD_MISMATCH`；跨 action/actor/target 复用返回 409 `IDEMPOTENCY_KEY_REUSED`；
+- 不同 `request_id` 并发 stop 只有一个能创建 finalization；胜者提交后，完全相同冻结快照的后来请求返回当前 snapshot 和 200，不创建第二个动作；任一冻结字段不同返回 409 `SESSION_STOP_CONFLICT`；
+- `stopping|processing` 收到与已冻结快照一致的新 stop request ID，返回当前 snapshot 和 200；`completed|failed` 返回终态 snapshot 和 200；`created|device_check|interrupted` 没有完整 finalize payload 时返回 409 `SESSION_NOT_STOPPABLE`；
+- stop 响应丢失时必须复用原 `request_id`。不得生成新 audio object 或从剩余本地 Blob 推导 count。
+
+#### 3.5.3 受限 evidence-finalization 补传
+
+stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 assignment。stop 接受后：
+
+- 禁止初始化第二个 interview audio object；
+- 已认证且账号有效的原操作者即使 assignment 后续撤销或授权撤回，仍可只对冻结 audio object 执行 commitment 内缺片上传、complete 和最小 finalization 查询；
+- 该例外不允许读取录音/转录正文，不允许下载、修改已上传分片、增加 sequence、扩大 count、继续 PCM、继续 AI 或执行其他项目操作；每次使用写入最小审计；
+- auth session 过期/登出时不得匿名继续。用户重新认证且账号仍 active 后，服务端按原 actor 与冻结 finalization 授予上述受限能力；账号停用或无法重新认证时只保留服务端已保存事实并进入 `interrupted` 或最终 `failed`，不得签发长期浏览器 bearer token；
+- 授权撤回同时停止新采集、新 ASR/AI 任务和普通查询/导出；已经开始的 final drain 只可收束 stop 前已接受 PCM、不得扩大内容范围。撤回不能删除或覆盖 stop 前已产生的原始证据；物理删除仍走 deletion request。
+
+#### 3.5.4 recover
+
+请求：
+
+```json
+{
+  "request_id": "uuid",
+  "action": "reconcile"
+}
+```
+
+`action`：
+
+- `reconcile`：适用于 `stopping|processing|completed|failed`，重新读取持久 finalization、audio manifest 和 ASR 终态，安全重驱进程内 runner并返回公共 snapshot；
+- `resume_capture`：只适用于尚无 finalization 的 `interrupted`，且当前 assignment、项目、授权、auth session 和账号全部有效；原子转为 `reconnecting`；
+- `finalize_interrupted`：只适用于尚无 finalization 的 `interrupted`，请求除 `action` 外必须携带与 stop 相同的 `audio_object_id/expected_chunk_count/chunks`，按 stop 规则冻结已有证据并进入 `stopping`。
+
+规则：
+
+- 相同 request ID 重放返回首次快照；不同 request ID 并发按 session 串行并返回提交后的当前事实；不产生第二个 finalization；
+- `reconcile` 不依赖 `event_stream_id/server_sequence`，不承诺恢复 interim 或 WebSocket 历史，也不把 5 分钟/512 事件 replay 当成 session recover；
+- `recording|reconnecting` 的 reconcile 返回 409 `SESSION_RECOVERY_NOT_REQUIRED`；无 finalization 的 `created|device_check` 返回 409 `SESSION_NOT_RECOVERABLE`；
+- `completed|failed` 的 reconcile 返回 200 终态 snapshot，不改变终态；进程重启后的 `stopping|processing` 必须能仅凭持久事实重驱；
+- recover 的普通授权与受限 evidence-finalization 授权遵循上一节。失去 assignment 后不能 `resume_capture`，但原操作者重新认证后可以 reconcile/补传冻结证据。
+
+#### 3.5.5 状态推进与错误
+
+- `stopping -> processing`：冻结范围内分片全部可靠保存，audio complete 对存储重新复核且 manifest 完整；
+- `processing -> completed`：transcript 进入 `drained|degraded|not_started`；AI/记忆/建议/工作记录不是条件；
+- stop 接受时服务端持久化当时最高已接受 ASR audio sequence；`drained` 必须来自 adapter 对该 stream 的明确 drain 终止并写完成时间，不得从最后一条 final 或 WebSocket close 推断；stream 不存在、进程重启丢失或无法确认时只能进入 `not_started|degraded`；
+- 意外断线且尚无 stop snapshot 可进入 `interrupted`；缺片或 runner 进程故障保持 `stopping|processing` 可 recover；
+- 只有 audio commitment 冲突、manifest 已确认不可恢复或重复内部收束失败达到配置上限并需人工处置时进入 `failed`；`failed` 不覆盖已保存音频、manifest、final 转录或授权记录；
+- 未识别内部错误返回 503 `SESSION_FINALIZATION_UNAVAILABLE`，响应只含公共 error envelope。校验失败 422 `INVALID_SESSION_FINALIZATION`；前置/并发冲突使用上述 409；401/403 继续遵循统一认证语义。
+
+本节是经 SPEC-SESSION-END-001 形成的正式候选契约；当前分支不代表服务端已经实现。只有项目负责人绑定最终 GitHub head 审查通过后，DEV-005C 才可据此修改 machine-readable contract、migration 和代码。
 
 ### 3.6 音频
 
@@ -286,7 +413,7 @@ complete 请求：
 
 客户端必须在录制停止时冻结 `expected_chunk_count` 并持久化 complete request ID；不得根据 ACK 后仍残留的 Blob 数量推导总分片数。complete 成功响应至少核对 audio object ID、`status=complete`、chunk count 和非空 manifest checksum。
 
-manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。只有有效 assignment 可以初始化、上传、完成和查询。
+manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。通常只有有效 assignment 可以初始化、上传、完成和查询；session stop 已接受后的唯一例外是 §3.5.3 冻结范围内的 evidence-finalization 补传与最小查询，不得把该例外扩展为普通项目访问。
 
 ### 3.7 转录
 

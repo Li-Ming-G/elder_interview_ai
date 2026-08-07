@@ -12,7 +12,8 @@
 | DEV-004A | REV-012 | PR #3 / `917f888` | DONE | 仅确定态转录证据核心；真实 ASR、实时事件和真实试点未覆盖 |
 | DEV-004B1 | REV-013 | PR #4 / `80ff1c7` | DONE | 仅服务端合成 PCM 协议；三个 P2 和 B2/真实 ASR/长时性能未覆盖 |
 | DEV-004B2 | REV-014 | PR #5 / `73a07cb` / CI `31143035668` PASS | DONE | 定向复审 PASS；仅内部虚构/合成 PCM 浏览器纵向链路，父 DEV-004 继续开放 |
-| SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY，SPEC-SESSION-END-001 READY；CON-019 与 DEV-005C/D 仍开放/阻塞 |
+| SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY；页面规划不代表结束契约通过 |
+| SPEC-SESSION-END-001 | 待项目负责人审查 | 分支 `codex/spec-session-end-001` / commit、PR、CI 待回填 | REVIEW | ADR-022 与正式契约候选已形成；CON-019 保持 OPEN，DEV-005C/D 仍 BLOCKED |
 
 ## 阅读规则
 

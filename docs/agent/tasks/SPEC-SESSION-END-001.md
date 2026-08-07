@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待创建的会话编排契约任务对话
+- 状态：`REVIEW`
+- 负责人：会话编排契约 Agent
 - 前置依赖：SPEC-FE-001 产品行为、DEV-003/DEV-004B2 已验证 seam
 - 交接对象：总控 Agent、DEV-005C/005D 实现任务对话
 
@@ -46,6 +46,15 @@
 - 最小内部 MVP 与未来生产加固的明确分界；
 - 覆盖正常、重复、并发、掉线、撤权、授权撤回、缺片、ASR 故障和进程故障的验收矩阵。
 
+## 已冻结的正式候选
+
+- 每个 session 一个 `purpose=interview` audio object；客户端停止 PCM/MediaRecorder 后提交稳定 stop request ID、expected count 和逐片不可变 commitment；
+- 持久 `session_finalization` 是 session 状态、manifest、ASR drain、错误和 recover 的唯一聚合事实；
+- stop 接受后拒绝新 PCM/新 object/commitment 外分片，只允许原 active actor 重新认证后的受限 evidence-finalization 补传；
+- `stopping` 等待原始 manifest，`processing` 等待 ASR `drained|degraded|not_started`；raw complete + transcript terminal 才可 `completed`，AI 不参与；
+- `interrupted` 可恢复，`completed|failed` 终态；runner/WS replay 可丢，持久事实可重驱；
+- 公共 snapshot、错误码、并发/重放和完整矩阵见 `05` §3.5 与 `09` §10.1；数据与权限见 `04` §4.25-4.26、`08` §4.5。
+
 ## 验证与验收
 
 - 正式文档对 stop/recover、状态转换、完成条件和降级语义一致；
@@ -53,3 +62,4 @@
 - 原始录音优先保存，ASR/AI 故障不制造数据丢失；
 - 未完成 manifest 或服务端事实未知时不能返回 `completed`；
 - 属于状态机与跨模块契约，项目负责人或独立审查明确 PASS 后才能 `DONE`。
+- 当前只进入 GitHub `REVIEW` 候选；不得自行宣布 PASS、关闭 CON-019 或解锁 DEV-005C。
