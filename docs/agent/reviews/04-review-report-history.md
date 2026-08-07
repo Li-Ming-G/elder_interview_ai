@@ -261,7 +261,7 @@ P2：
 
 - 审查仓库：private `Li-Ming-G/elder_interview_ai`
 - 审查分支：`codex/dev004b2-browser-realtime`
-- 审查 PR：待创建
+- 审查 PR：`https://github.com/Li-Ming-G/elder_interview_ai/pull/5`
 - 候选提交：任务基线 `ea12a8f`；实现 `87dd225`；总控补强 `ce67549`；最终 PR head 待 GitHub CI 前锁定
 - 审查范围：DEV-004B2 内部虚构/合成 PCM 浏览器纵向链路；heartbeat/event ACK 撤权复核、内部错误分类、独立 transport/state machine、薄 harness、背压、interim/final、短时重连和真实 API Chromium 证据
 - 审查人：项目负责人（待 GitHub 人工审查）
