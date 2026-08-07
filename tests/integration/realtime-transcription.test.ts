@@ -142,46 +142,62 @@ describe('authenticated realtime transcription WebSocket', () => {
   it.each(['heartbeat', 'event.ack'] as const)(
     'rechecks assignment for %s and releases the active producer',
     async (messageType) => {
-      const audioStreamId = randomUUID();
-      const client = await connect(url, cookie);
-      const inbox = new Inbox(client);
-      client.send(JSON.stringify(join(csrf, audioStreamId)));
-      const ready = await inbox.next();
-      await prisma.projectAssignment.updateMany({
-        data: { revokedAt: new Date() },
-        where: { projectId, userId, revokedAt: null },
-      });
-      client.send(
-        JSON.stringify(
-          messageType === 'heartbeat'
-            ? heartbeat()
-            : eventAck((ready as { server_sequence: number }).server_sequence),
-        ),
-      );
-      expect(await inbox.next()).toMatchObject({ type: 'error', payload: { code: 'FORBIDDEN' } });
-      expect(await inbox.closed()).toBe(4403);
-      await prisma.projectAssignment.updateMany({
-        data: { revokedAt: null },
-        where: { projectId, userId },
+      await withIsolatedRecordingSession(async () => {
+        const audioStreamId = randomUUID();
+        const client = await connect(url, cookie);
+        const inbox = new Inbox(client);
+        client.send(JSON.stringify(join(csrf, audioStreamId)));
+        const ready = await inbox.next();
+        await prisma.projectAssignment.updateMany({
+          data: { revokedAt: new Date() },
+          where: { projectId, userId, revokedAt: null },
+        });
+        try {
+          client.send(
+            JSON.stringify(
+              messageType === 'heartbeat'
+                ? heartbeat()
+                : eventAck((ready as { server_sequence: number }).server_sequence),
+            ),
+          );
+          expect(await inbox.next()).toMatchObject({
+            type: 'error',
+            payload: { code: 'FORBIDDEN' },
+          });
+          expect(await inbox.closed()).toBe(4403);
+        } finally {
+          await prisma.projectAssignment.updateMany({
+            data: { revokedAt: null },
+            where: { projectId, userId },
+          });
+        }
       });
     },
   );
 
   it('maps an unexpected persistence failure to REALTIME_UNAVAILABLE without details', async () => {
-    const client = await connect(url, cookie);
-    const inbox = new Inbox(client);
-    client.send(JSON.stringify(join(csrf, randomUUID())));
-    await inbox.next();
-    const failure = vi
-      .spyOn(prisma.interviewSession, 'findUnique')
-      .mockRejectedValueOnce(new Error('database-name SQL private detail'));
-    client.send(JSON.stringify(heartbeat()));
-    const error = await inbox.next();
-    expect(error).toMatchObject({ type: 'error', payload: { code: 'REALTIME_UNAVAILABLE' } });
-    expect(JSON.stringify(error)).not.toContain('database-name');
-    expect(JSON.stringify(error)).not.toContain('SQL');
-    expect(await inbox.closed()).toBe(4500);
-    failure.mockRestore();
+    await withIsolatedRecordingSession(async () => {
+      const client = await connect(url, cookie);
+      const inbox = new Inbox(client);
+      client.send(JSON.stringify(join(csrf, randomUUID())));
+      await inbox.next();
+      const failure = vi
+        .spyOn(prisma.interviewSession, 'findUnique')
+        .mockRejectedValueOnce(new Error('database-name SQL private detail'));
+      try {
+        client.send(JSON.stringify(heartbeat()));
+        const error = await inbox.next();
+        expect(error).toMatchObject({
+          type: 'error',
+          payload: { code: 'REALTIME_UNAVAILABLE' },
+        });
+        expect(JSON.stringify(error)).not.toContain('database-name');
+        expect(JSON.stringify(error)).not.toContain('SQL');
+        expect(await inbox.closed()).toBe(4500);
+      } finally {
+        failure.mockRestore();
+      }
+    });
   });
 
   it('orders interim/final, persists before publish, replays, and rechecks assignment per frame', async () => {
@@ -252,6 +268,26 @@ describe('authenticated realtime transcription WebSocket', () => {
     client.send(JSON.stringify(join(csrf, randomUUID())));
     expect(await inbox.next()).toMatchObject({ type: 'error', payload: { code } });
     expect(await inbox.closed()).toBe(closeCode);
+  }
+
+  let isolatedSequence = 1000;
+  async function withIsolatedRecordingSession<T>(run: () => Promise<T>): Promise<T> {
+    const previousSessionId = activeSessionId;
+    const isolated = await prisma.interviewSession.create({
+      data: {
+        createdBy: userId,
+        projectId,
+        sequenceNo: isolatedSequence,
+        status: 'recording',
+      },
+    });
+    isolatedSequence += 1;
+    activeSessionId = isolated.id;
+    try {
+      return await run();
+    } finally {
+      activeSessionId = previousSessionId;
+    }
   }
 });
 
