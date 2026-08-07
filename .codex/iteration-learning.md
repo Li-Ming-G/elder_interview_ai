@@ -272,3 +272,14 @@
 - Implementation evidence: 当前仅有正式契约、任务卡、ADR-019 补充和 HO-026；代码实现与测试证据待实现 Agent 交付后补充。
 - Lesson: 新 Agent 能隔离执行上下文，但不能自动保存历史；稳定历史来自冻结任务卡、唯一责任人、commit/PR 和结构化交接。
 - Better future prompt: “请按已冻结的 DEV-004B2 任务卡启动一个新的纵向实现 Agent；只做真实 Chromium 合成 PCM、字幕、背压和短时恢复，并关闭已到触发点的撤权复核与内部错误分类，完成后交总控验证和 GitHub 审查。”
+
+### 2026-08-07 — DEV-004B2 实现候选与总控收口
+
+- User outcome: 独立项目任务对话完成 B2 后，由总控锁定实现、补齐证据并准备 GitHub 审查。
+- Review mode: Review-and-fix，主模式 integration；执行者结果不代替项目负责人独立 PASS。
+- Review finding: 实现范围与任务卡一致；总控发现客户端未严格核对 ready/audio ACK 的 `audio_stream_id`，且真实 Chromium 场景未直接查询 final 持久化和 ASR 故障前后音频数据快照。
+- Adopted decision: 拒绝跨 stream ACK；auth Chromium 直接读取隔离 PostgreSQL 形成最终落库与数据不变证据；保持无公开注入、无真实麦克风/ASR边界。
+- Implementation evidence: 独立实现 `b3d1678`，纯 B2 分支等价实现 `87dd225`，总控补强 `ce67549`；本地 format/lint/typecheck/build、unit 103、普通 Chromium 4/4 PASS。
+- Verification boundary: 无 TEST_DATABASE_URL/PostgreSQL/Docker；smoke 因 API/database 未 ready 失败，migration/integration/auth/auth Chromium/smoke 交 GitHub CI，REV-014 保持 PENDING。
+- Lesson: ACK 不只是“序号够不够大”，还必须与当前 stream identity 绑定；否则重连或服务端串流错误可能让客户端错误丢弃仍未确认的数据。
+- Better future prompt: “请在浏览器实时链路中分别验证 audio/event cursor，并要求所有 ready/ACK 同时匹配 stream identity；真实 E2E 必须直接证明 final 已持久化且故障不改原始音频数据。”

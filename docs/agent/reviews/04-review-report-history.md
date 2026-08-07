@@ -257,6 +257,20 @@ P2：
 - 审查边界：仅覆盖 DEV-004B1 服务端内部合成 PCM；不覆盖 DEV-004B2、浏览器字幕、真实麦克风/ASR、AudioWorklet、校准/remap、持久 outbox、跨进程恢复、长时性能或生产部署
 - 允许进入的下一状态：DEV-004B1 转 `DONE` 并合入 main；父 DEV-004 保持 `IN_PROGRESS`，DEV-004B2 开工前补任务卡和迭代预审
 
+## REV-014｜DEV-004B2 GitHub 项目负责人审查
+
+- 审查仓库：private `Li-Ming-G/elder_interview_ai`
+- 审查分支：`codex/dev004b2-browser-realtime`
+- 审查 PR：待创建
+- 候选提交：任务基线 `ea12a8f`；实现 `87dd225`；总控补强 `ce67549`；最终 PR head 待 GitHub CI 前锁定
+- 审查范围：DEV-004B2 内部虚构/合成 PCM 浏览器纵向链路；heartbeat/event ACK 撤权复核、内部错误分类、独立 transport/state machine、薄 harness、背压、interim/final、短时重连和真实 API Chromium 证据
+- 审查人：项目负责人（待 GitHub 人工审查）
+- 当前结论：`PENDING`
+- 本地证据：format/lint/typecheck/build、unit `19 files / 103 tests`、普通 Chromium `4/4`、diff check PASS；总控补充跨 audio stream ready/ACK 拒绝测试
+- 环境缺口：本地无 TEST_DATABASE_URL/PostgreSQL/Docker；migration、PostgreSQL integration、auth、auth Chromium 与 smoke 尚未通过，必须由 GitHub CI 补齐
+- 审查边界：不覆盖真实麦克风/ASR、AudioWorklet、校准/remap、长时、浏览器刷新/进程/跨进程恢复、持久 outbox、正式工作台或生产部署
+- 允许进入的下一状态：只有项目负责人锁定最终 PR head、确认 CI 并明确 PASS 后，DEV-004B2 才可转 DONE；父 DEV-004 继续 IN_PROGRESS
+
 ## 审查模板
 
 ```text

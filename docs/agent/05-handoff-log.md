@@ -7,7 +7,7 @@
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
-| DEV-004 | HO-026 | 浏览器实时转录实现 Agent / 总控 | DEV-004B2 已启动；关闭两项已触发 B1 P2，长时 runtime 清理继续延期 |
+| DEV-004 | HO-028 | 项目负责人（GitHub 审查） / 总控 | DEV-004B2 候选已进入 REVIEW；等待最终 PR head、CI 与 PASS/FAIL；长时 runtime 清理继续延期 |
 
 ## 最近已完成交接
 
