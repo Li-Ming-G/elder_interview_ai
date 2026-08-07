@@ -8,8 +8,7 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| DEV-005B | [HO-033](handoffs/DEV-005A.md) | 已启动的前端工作台实现任务对话 | 独立 worktree 与 DEV-005C 并行；使用 impeccable，接入真实 session/WS 状态并关闭 REV-016 两项 P2，不接真实 AI、stop/recover 或 C 的未合并代码 |
-| DEV-005C | [HO-032](handoffs/SPEC-SESSION-END-001.md) | 新的后端会话编排实现任务对话 | SPEC 契约已 PASS；按 ADR-022 实现 stop/recover，并覆盖首次 snapshot 前撤权的禁止建界场景；DEV-005D 仍阻塞 |
+| DEV-005C | [HO-034](handoffs/DEV-005C.md) | 原后端会话编排实现任务对话（定向修复） | REV-019 对 head `738898a` REQUEST_CHANGES；只修四项 P1，提交新 final head 后定向复审；DEV-005D 仍阻塞 |
 
 ## 最近已完成交接
 
@@ -22,6 +21,7 @@
 | SPEC-FE-001 | [HO-030](handoffs/HO-030.md) | PR #6 合并，REV-015 PASS，页面规划与可执行拆分 DONE |
 | DEV-005A | [HO-033](handoffs/DEV-005A.md) | PR #7 合并，REV-016 PASS，准备页与正式路由外壳 DONE；DEV-005B READY |
 | SPEC-SESSION-END-001 | [HO-032](handoffs/SPEC-SESSION-END-001.md) | PR #8 合并，REV-017 最终 PASS，契约 DONE；CON-019 RESOLVED，DEV-005C READY |
+| DEV-005B | [HO-035](handoffs/DEV-005B.md) | PR #9 合并，REV-018 PASS，转录优先工作台 DONE；父 DEV-005 继续 BLOCKED |
 | DOC-002 | HO-025 | 协作文档当前态与历史归档分离完成 |
 
 ## 使用规则

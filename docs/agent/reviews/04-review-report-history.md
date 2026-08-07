@@ -337,6 +337,29 @@ P2：
 - 通过依据：首次 stop 与无 finalization 的 `finalize_interrupted` 在同一资源锁内重新验证 assignment、归属、最新授权与项目限制；撤权前没有 snapshot 时返回 403 且不创建 finalization/commitments，撤权前已冻结时才允许 commitment 范围内的受限补传；`09` §10.1 已覆盖 assignment 仍有效但授权先撤回的负向场景。
 - 合并记录：PR #8 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`；SPEC-SESSION-END-001 转 `DONE`，ADR-022 Accepted，CON-019 RESOLVED，DEV-005C READY；DEV-005D 继续等待 DEV-005C PASS。
 
+## REV-018｜DEV-005B GitHub 项目负责人审查
+
+- 审查 PR：[#9](https://github.com/Li-Ming-G/elder_interview_ai/pull/9)
+- 最终提交：`c73e7ad0499c02af532670f350e62b34bf73cd87`；非 Draft、可合并且 head 未漂移。
+- 自动证据：CI `31166457093` 全部门禁 PASS。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 通过依据：工作台从 project/session/latest consent 服务端事实启动 transport；session/project 不匹配失败关闭；最新授权排序修复 REV-016 P2；final 按 segment ID 去重；回看、暂停跟随、新 final 计数和回到最新成立；ASR 与原始录音状态分离；没有接 stop/recover 或模拟 completed。
+- 合并记录：PR #9 以 merge commit `647a6b4ffb1ca5f95fcfb7ff537390d109b84acf` 合入 `main`；DEV-005B 转 `DONE`，父 DEV-005 继续 `BLOCKED`。
+- 范围边界：不覆盖安全结束、真实麦克风/ASR/LLM、建议持久化、真实试点或生产部署。
+
+## REV-019｜DEV-005C GitHub 项目负责人首轮审查
+
+- 审查 PR：[#10](https://github.com/Li-Ming-G/elder_interview_ai/pull/10)
+- 审查提交：`738898a9d18dbb77d5fefec78d5daef90fcd5a48`；非 Draft、可合并且 head 未漂移。
+- 自动证据：CI `31167044756` 全部门禁 PASS。
+- 当前结论：`REQUEST_CHANGES`；P0=0、P1=4。
+- P1-1：stop/`finalize_interrupted`、revoke 和 audio upload/complete 使用不同资源锁，撤权后仍可能提交 snapshot，stop 检查后也可能并发写入 commitment 外新字节。必须统一固定锁序、锁内重读并补 barrier 并发测试；complete 防御性核对冻结 commitments。
+- P1-2：当前没有 ASR final drain/close seam，runtime 存在时直接 `degraded` 并完成。必须覆盖 drain 成功、不可用、超时及最后 final 先落库。
+- P1-3：进程重启丢 runtime 后忽略持久 `asr_last_audio_sequence_accepted`，把曾启动 ASR 误报为 `not_started`；已有接收证据但无法证明 drain 应为 `degraded`。
+- P1-4：advance 会重写终态/`completed_at`，且新 stop request ID 没有持久自己的首次响应，响应丢失后重试结果会漂移。`completed|failed` 必须稳定，每个 request ID 重放首次响应。
+- P2：stop 202/200、malformed finalization 422 错误码和非原 actor complete 权限语义为非阻塞偏差；不纳入本轮四项 P1 定向修复。
+- 定向复审条件：只关闭上述四项 P1并补对应自动化；提交新的 final head 和完整 CI 后复审。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
+
 ## 审查模板
 
 ```text

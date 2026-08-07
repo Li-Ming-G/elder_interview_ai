@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待创建的后端会话编排实现任务对话
+- 状态：`REVIEW`
+- 负责人：后端会话编排实现任务对话（定向修复中）
 - 前置依赖：SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2
 - 交接对象：总控 Agent、DEV-005D
 
@@ -60,3 +60,13 @@
 - 实现 Agent 可在冻结契约内决定局部类名、事务组织和测试结构；
 - 若必须改变字段、状态、错误码、权限、完成条件或新增依赖，停止并反馈总控；
 - 实现 Agent 不修改无关模块，不代替审查者宣布 PASS；总控负责 Git、协作文档和审查收口。
+
+## REV-019 首轮实现审查
+
+- 审查绑定 PR #10 head `738898a9d18dbb77d5fefec78d5daef90fcd5a48`，CI `31167044756` PASS；结论 `REQUEST_CHANGES`，P0=0、P1=4。
+- P1-1：stop/`finalize_interrupted`、撤权和 audio upload/complete 未共享同一资源锁，存在撤权后仍创建 finalization 及 stop 检查后并发扩大字节集合的窗口；统一固定锁序并补真实 barrier 并发测试，complete 防御性全量核对 commitments。
+- P1-2：ASR final drain 未实现；增加最小 ending seam，覆盖 drain 成功为 `drained`、不可用/超时为 `degraded`，且最后 final 必须先落库再完成。
+- P1-3：runtime 丢失时未使用持久 `asr_last_audio_sequence_accepted`，把曾运行过 ASR 的重启场景误报为 `not_started`；曾接收 PCM 但无法证明 drain 时必须为 `degraded`。
+- P1-4：`completed|failed` 终态没有稳定返回，且新 stop request ID 的首次响应未持久化，导致响应丢失后的同 ID 重试结果漂移；终态不得被 reconcile 改写，每个 request ID 必须重放自己的首次响应。
+- P2：stop 的 202/200、malformed finalization 的 422 `INVALID_SESSION_FINALIZATION`、非原 actor complete 的权限错误语义已登记为非阻塞偏差，不纳入本轮四项 P1 定向修复，避免扩大范围。
+- DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`；只需修复上述四项 P1 后提交新 final head 定向复审。

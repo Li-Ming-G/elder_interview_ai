@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A 和安全结束契约已通过，DEV-005B/C READY，DEV-005D 与父 DEV-005 仍 BLOCKED。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A/B 和安全结束契约已通过；DEV-005C 定向修复中，DEV-005D 与父 DEV-005 仍 BLOCKED。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -413,3 +413,11 @@
 - Impeccable context: `apps/web` 已有绿色 OKLCH 令牌、准备页和工作台壳；项目没有 PRODUCT.md。当前属于已有代码上的明确范围任务，因此不以 init 阻塞，采用 product register 并继承现有设计系统。
 - Required quality: 转录是视觉中心；长内容回看不能被自动滚动打断；桌面/窄屏、键盘焦点、对比度、live-region、错误/重连/空状态和 reduced-motion 必须经真实浏览器验证。
 - Boundary: impeccable 只提高信息层级、可用性和视觉完成度，不得恢复三栏、多建议、真实 AI、stop/recover 或其他后置功能。
+
+### 2026-08-07 — REV-018 PASS 与 REV-019 四项状态机 P1
+
+- Frontend result: 项目负责人对 PR #9 head `c73e7ad0499c02af532670f350e62b34bf73cd87` 给出 PASS，CI `31166457093` 全绿；以 merge `647a6b4ffb1ca5f95fcfb7ff537390d109b84acf` 合入 main，DEV-005B DONE。
+- Backend review: PR #10 head `738898a9d18dbb77d5fefec78d5daef90fcd5a48` 虽 CI `31167044756` 全绿，仍有四项 P1：结束相关操作未共锁、ASR final drain 缺失、重启后 ASR 事实误报、终态/stop request 幂等不稳定。
+- Adopted correction: DEV-005C 保持 REVIEW，只做统一锁与 barrier 测试、最小 ASR ending seam、持久接收证据判定、终态和首次响应稳定重放；不扩真实供应商、队列或前端。
+- Lesson: 状态机的顺序不能由“每个操作各自有锁”推导，只有共享资源锁和锁内重读才能建立跨模块线性化点；CI 覆盖已有路径，不代表未建模的并发窗口不存在。
+- Boundary: DEV-005D 继续 BLOCKED，父 DEV-005 不因工作台通过而完成。
