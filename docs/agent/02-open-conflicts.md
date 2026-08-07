@@ -13,7 +13,6 @@
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
 | CON-014 | 说话人校准是否为 session start 硬门禁 | 保持 DEV-004C 关闭；内部虚构数据允许 `unknown` 回退 |
 | CON-018 | “没用，换一个”的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞 DEV-005A 页面外壳 |
-| CON-019 | 安全结束页缺少服务端 stop/completion 契约 | SPEC-SESSION-END-001 为 DEV-005C 硬前置；不阻塞拆分后的 DEV-005A 准备页 |
 
 ## 使用规则
 

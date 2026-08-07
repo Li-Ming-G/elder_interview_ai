@@ -5,10 +5,10 @@
 - 任务：`SPEC-SESSION-END-001`、REQ-004、ADR-022、CON-019
 - 分支：`codex/spec-session-end-001`
 - 基线：`origin/main@b61db7d`
-- 候选提交：`3cf41a8`
+- 最终审查提交：`9c471d81d783c902ae389c50500cafac0b187202`
 - PR：[#8](https://github.com/Li-Ming-G/elder_interview_ai/pull/8)（非 Draft）
-- 状态：`REVIEW`；最终审查 head 与 CI 等待项目负责人审查时绑定
-- 接收对象：项目负责人（GitHub 审查）、后续 DEV-005C/005D
+- 状态：`DONE`；REV-017 定向复审 PASS，merge `9af96c1be61936e7eef7665d313e44a6f0c6c2bf`
+- 接收对象：DEV-005C 实现任务对话；后续 DEV-005D
 
 ## 已完成
 
@@ -27,13 +27,13 @@
 
 ## 关键边界
 
-- 当前是文档契约候选，不代表 stop/recover 已实现；
-- CON-019 保持 `OPEN`，DEV-005C/005D 保持 `BLOCKED`；项目负责人绑定最终 head 明确 PASS 后才可更新；
+- 当前是已经获批的正式文档契约，不代表 stop/recover 已实现；
+- CON-019 已按契约缺口范围 `RESOLVED`，DEV-005C 已 `READY`；DEV-005D 仍等待 DEV-005C PASS；
 - WebSocket 5 分钟/512 事件 replay 不等于 session recover；
 - 内部 MVP 可用进程内 runner，未来 queue/outbox 只替换调度 seam；真实麦克风/ASR/LLM/云存储/生产部署均未引入；
 - 受限补传只允许 stop 冻结范围内的原操作者重新认证，不是普通 assignment 绕过或匿名上传。
 
-## 验证
+## 审查候选阶段验证
 
 - `pnpm format:check`：PASS；
 - 修改 Markdown 本地链接检查：17 个文件，PASS；
@@ -45,10 +45,9 @@
 
 ## 下一步
 
-1. 推送分支并创建非 Draft PR；
-2. 等待 CI 后由项目负责人锁定最终 GitHub head 审查；
-3. PASS 后总控关闭 CON-019、把 SPEC 标记 DONE 并解锁 DEV-005C；
-4. DEV-005C 按 `04`/`05` 实现 migration/contracts/service/tests，DEV-005D 只消费公共 snapshot。
+1. 由新的 DEV-005C 任务对话按 `04`/`05` 实现 migration/contracts/service/tests；
+2. DEV-005C 提交非 Draft PR，并由项目负责人绑定最终 head 审查；
+3. DEV-005C PASS 后才解锁 DEV-005D；DEV-005D 只消费公共 snapshot。
 
 ## REV-017 首审与定向修正
 
@@ -57,3 +56,9 @@
 - 修正：首次 stop 和无 finalization 的 `finalize_interrupted` 都在同一 session 锁内复核最新授权有效、项目未受限；失败返回 403，不创建 finalization/commitments，只保留已可靠接收分片并进入/保持 `interrupted`。
 - 只有撤权前已经冻结的 snapshot 才能启用原 actor 重认证后的 commitment 范围补传。
 - `09` §10.1 已增加“assignment 仍有效但授权在首次 snapshot 前撤回”的明确负向矩阵；等待修复后最终 head 定向复审。
+
+## REV-017 定向复审与收口
+
+- 最终 head：`9c471d81d783c902ae389c50500cafac0b187202`；CI `31163777417` 全部门禁 PASS；结论 `PASS`。
+- 首次 stop 与无 finalization 的 `finalize_interrupted` 已采用相同门禁；撤权前没有 snapshot 时不得建立 commitments，撤权前已冻结时才允许 commitment 范围内的受限补传。
+- PR #8 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`；SPEC DONE、ADR-022 Accepted、CON-019 RESOLVED、DEV-005C READY，DEV-005D 继续 BLOCKED。

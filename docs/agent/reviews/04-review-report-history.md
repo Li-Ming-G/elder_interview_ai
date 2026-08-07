@@ -331,6 +331,11 @@ P2：
 - 影响：录制中撤回授权但 assignment 仍有效时，DEV-005C 可能接受首次 stop 并事后创建 finalization/commitments，与安全治理契约相反。
 - 修正要求：首次 stop 与尚无 finalization 的 `finalize_interrupted` 必须复核最新授权有效且项目未受限；撤权后不得新建 finalization/commitments，只保留服务端已可靠接收分片并进入/保持 `interrupted`；只有撤权前已经冻结的 snapshot 才允许受限补传。
 - 定向复审条件：`05` 与 `08` 一致，并在 `09` §10.1 覆盖“授权在首次 snapshot 前撤回且 assignment 仍有效”的负向场景；CON-019 保持 OPEN、SPEC 保持 REVIEW、DEV-005C/D 保持 BLOCKED。
+- 定向复审提交：`9c471d81d783c902ae389c50500cafac0b187202`；GitHub head 已核对一致。
+- 定向复审 CI：`31163777417` 全部门禁 PASS，覆盖 migration、integration、auth、build、smoke 和 Chromium E2E。
+- 最终结论：`PASS`；上轮唯一 P1 已闭环，未发现新的 P0/P1。
+- 通过依据：首次 stop 与无 finalization 的 `finalize_interrupted` 在同一资源锁内重新验证 assignment、归属、最新授权与项目限制；撤权前没有 snapshot 时返回 403 且不创建 finalization/commitments，撤权前已冻结时才允许 commitment 范围内的受限补传；`09` §10.1 已覆盖 assignment 仍有效但授权先撤回的负向场景。
+- 合并记录：PR #8 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`；SPEC-SESSION-END-001 转 `DONE`，ADR-022 Accepted，CON-019 RESOLVED，DEV-005C READY；DEV-005D 继续等待 DEV-005C PASS。
 
 ## 审查模板
 

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：会话编排契约 Agent
 - 前置依赖：SPEC-FE-001 产品行为、DEV-003/DEV-004B2 已验证 seam
 - 交接对象：总控 Agent、DEV-005C/005D 实现任务对话
@@ -62,11 +62,12 @@
 - 原始录音优先保存，ASR/AI 故障不制造数据丢失；
 - 未完成 manifest 或服务端事实未知时不能返回 `completed`；
 - 属于状态机与跨模块契约，项目负责人或独立审查明确 PASS 后才能 `DONE`。
-- 当前只进入 GitHub `REVIEW` 候选；不得自行宣布 PASS、关闭 CON-019 或解锁 DEV-005C。
+- 项目负责人已对最终 GitHub head 给出明确 PASS；契约任务可以关闭，但不代表 stop/recover 实现或安全结束页面已经完成。
 
 ## REV-017 P1 定向修正
 
 - 首次 stop 与尚无 finalization 的 `finalize_interrupted` 必须在创建 snapshot/commitments 前重新验证最新授权仍有效且项目未受限；assignment 仍有效不能替代授权门禁。
 - 若授权已撤回且此前没有 stop snapshot，返回 403 `FORBIDDEN`，不创建 finalization、commitments 或受限补传例外，只保留服务端已经可靠收到的分片并将/保持 session 为 `interrupted`。
 - 只有撤权前已经成功冻结的 stop snapshot 才允许原 actor 重新认证后在 commitment 范围内补传。
-- SPEC 继续为 `REVIEW`，CON-019 继续 `OPEN`，DEV-005C/D 继续 `BLOCKED`，等待项目负责人按修复后最终 head 定向复审。
+- 定向复审已绑定 final head `9c471d81d783c902ae389c50500cafac0b187202` 和 CI `31163777417`，结论 `PASS`；PR #8 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`。
+- SPEC 转 `DONE`，ADR-022 转 `Accepted`，CON-019 转 `RESOLVED`，DEV-005C 转 `READY`；DEV-005D 继续等待 DEV-005C 实现并审查 PASS。

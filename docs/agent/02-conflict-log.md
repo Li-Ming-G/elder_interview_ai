@@ -218,7 +218,7 @@
 
 ### CON-019｜安全结束页缺少可执行的服务端 stop/completion 契约
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-07
 - 发现者：项目负责人 PR #6 审查 / 总控 Agent / iteration-coach 独立只读预审
 - 涉及文件与章节：`03` §12/§17.2、`04` §4.6、`05` §3.5/§4、`06` §9-10、`09` 场景 A/§12.1、DEV-005A、SPEC-FE-001
@@ -229,6 +229,8 @@
 - 关闭条件：SPEC-SESSION-END-001 获得明确 PASS，并把 DEV-005C/005D 所需字段、错误、幂等、权限和验收矩阵写入正式契约；实现完成另按任务审查，不以关闭冲突代替代码验收。
 - 处理进展（2026-08-07）：SPEC-SESSION-END-001 已形成正式审查候选：唯一 interview audio object、stop 后冻结逐片 commitment、持久 `session_finalization`、受限 evidence-finalization 补传、ASR `drained|degraded|not_started`、统一公共 snapshot、recover 重驱与验收矩阵已写入 `03` 至 `06`、`08`、`09` 和 ADR-022。当前仍为 `OPEN`；候选 push/CI/PR 不等于关闭，等待项目负责人绑定最终 GitHub head 明确审查。
 - REV-017 首审进展：项目负责人锁定 PR #8 head `e8fa20f39903aaf9f84a4dc4672d10ff25058933`，CI `31162831225` PASS，但发现 P1：授权在首次 stop snapshot 前撤回且 assignment 仍有效时，`05` 没有明确禁止首次 stop/`finalize_interrupted` 新建 commitments，与 `08` 冲突。已按“撤权前已冻结才允许受限补传”定向修正；CON-019 继续 `OPEN`，等待修复后最终 head PASS。
+- 最终决定：采用 ADR-022 的持久 `session_finalization` 与逐片 commitment；首次 stop/无 finalization 的 `finalize_interrupted` 必须在同一资源锁内重新验证有效 assignment、资源归属、最新授权仍有效且项目未受限。只有撤权前已冻结的 snapshot 才允许原 actor 重新认证后在 commitment 范围内补传。
+- 完成确认（2026-08-07）：项目负责人对 PR #8 final head `9c471d81d783c902ae389c50500cafac0b187202` 给出 REV-017 定向复审 `PASS`，CI `31163777417` 全绿；PR 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`。契约缺口已关闭并解锁 DEV-005C；stop/recover 代码实现及 DEV-005D 页面仍分别等待后续任务验收。
 
 ## 登记模板
 

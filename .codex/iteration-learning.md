@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001 已通过并合并，DEV-005A 准备页/路由外壳 READY；安全结束契约 READY，DEV-005C/D 与父 DEV-005 仍 BLOCKED。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；SPEC-FE-001、DEV-005A 和安全结束契约已通过，DEV-005B/C READY，DEV-005D 与父 DEV-005 仍 BLOCKED。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/019；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -397,3 +397,11 @@
 - Implementation evidence: 定向修改 `05` §3.5.2/3.5.4、`08` §4.5、`09` §10.1 及 REV-017/CON-019/任务/交接记录；业务代码仍未实现。
 - Lesson: assignment 证明“谁原本能操作项目”，授权证明“此刻是否还能建立新的处理边界”；两者不能互相替代。撤权后的证据保全必须依赖撤权前已冻结的允许列表。
 - Better future prompt: “首次 finalization 与后续受限补传分开鉴权：前者要求当前 assignment、最新授权有效且项目未受限；后者只允许撤权前已冻结 commitments 内的原 actor 补传。”
+
+### 2026-08-07 — REV-017 定向复审 PASS 与 DEV-005C 解锁
+
+- Review evidence: 项目负责人锁定 PR #8 final head `9c471d81d783c902ae389c50500cafac0b187202`，确认非 Draft、可合并且上轮唯一 P1 闭环；CI `31163777417` 全部门禁 PASS。
+- Closed scope: PR #8 以 merge commit `9af96c1be61936e7eef7665d313e44a6f0c6c2bf` 合入 `main`；SPEC-SESSION-END-001 转 `DONE`，ADR-022 转 `Accepted`，CON-019 在“契约缺失”范围转 `RESOLVED`。
+- Next execution: DEV-005C 转 `READY`，按正式 stop/recover、持久 finalization、逐片 commitment 和撤权前后两类门禁实现服务端结束编排；DEV-005D 继续等待 C 的最终 PASS。
+- Boundary: 契约 PASS 不代表 stop/recover、页面结束状态或父 DEV-005 已完成；真实麦克风/ASR/LLM、云队列和生产部署仍不在当前实现前置。
+- Lesson: 冲突可以在契约明确后关闭，但实现任务仍需独立测试与审查；“冲突已解决”和“功能已完成”必须保持两条状态线。

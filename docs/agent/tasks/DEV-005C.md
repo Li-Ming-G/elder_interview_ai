@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - 负责人：待创建的后端会话编排实现任务对话
 - 前置依赖：SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2
 - 交接对象：总控 Agent、DEV-005D
@@ -13,7 +13,7 @@
 
 ## 输入依据
 
-`AGENTS.md`、`00` 至 `10`、SPEC-SESSION-END-001 最终契约、DEV-002/003C/004A/004B2、ADR-019/021/022、CON-019 审查记录及最新相关交接。
+`AGENTS.md`、`00` 至 `10`、SPEC-SESSION-END-001 最终契约、DEV-002/003C/004A/004B2、ADR-019/021/022、CON-019 最终记录、REV-017 与 HO-032。
 
 ## 允许修改
 
@@ -46,6 +46,8 @@
 - 按最终契约覆盖正常结束、相同 request 重放、不同 request 并发和非法状态；
 - 未完成原始音频收束时不得进入 `completed`，且不得丢弃已产生分片；
 - assignment/授权变化后停止继续采集，但安全收束已有原始数据；
+- 授权在首次 snapshot 前撤回且 assignment 仍有效时，stop/`finalize_interrupted` 必须返回 403，不创建 finalization、commitments 或补传例外，并将/保持 session 为 `interrupted`；
+- 只有撤权前已冻结的 snapshot 才允许原 actor 重新认证后在 commitment 范围内补传；
 - stop/recover 请求、响应、幂等、并发、受限补传、状态转换和错误必须逐项覆盖 `05` §3.5；不得把普通 assignment 绕过实现成受限补传；
 - ASR 故障有明确降级事实且不破坏录音、manifest 或 session 可恢复性；
 - 普通读取只允许当前有效 assignment，restricted/data_admin 规则不退化；

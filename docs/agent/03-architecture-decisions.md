@@ -184,7 +184,7 @@
 
 ## ADR-022｜会话结束以持久 finalization 聚合和冻结分片承诺为事实源
 
-- 状态：Proposed（等待 SPEC-SESSION-END-001 最终 GitHub head 审查）
+- 状态：Accepted（REV-017 对 PR #8 head `9c471d8` PASS）
 - 决定：一次 session 只允许一个 interview audio object。客户端先停止 PCM 和 MediaRecorder、收取最终分片，再以稳定 stop request ID 提交 expected count 与逐片不可变 commitment。服务端原子冻结采集截止、时长和 `session_finalization` 后进入 `stopping`；只允许承诺范围内补传。manifest 完整后进入 `processing`；ASR 终结为 `drained|degraded|not_started` 后进入 `completed`，AI 不参与门禁。
 - 原因：现有 session 总状态无法证明缺片、manifest、ASR drain 或进程故障恢复；所有上传都要求当前 assignment，又与撤权后保存已产生证据冲突。冻结 commitment 使撤权后的补传成为字节级受限能力，而不是普通资源权限旁路。
 - 恢复边界：`interrupted` 是尚无完整 stop snapshot 的可恢复采集中断；`stopping|processing` 只依赖持久 finalization 重驱，WebSocket 512 事件/5 分钟 replay 不参与判断；`completed|failed` 为终态。
