@@ -164,28 +164,89 @@ describe('RealtimeTranscriptionTransport', () => {
     expect(classifyError(code)).toBe(kind);
   });
 
-  it('fails reset explicitly on an event gap', () => {
+  it.each([
+    ['INVALID_CSRF_TOKEN', 4401, 'auth'],
+    ['FORBIDDEN', 4403, 'permission'],
+    ['SESSION_NOT_STREAMABLE', 4408, 'session'],
+  ] as const)('terminates a failed join as %s without reconnecting', (code, closeCode, kind) => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const { transport, states } = harness([socket]);
+    transport.connect();
+    socket.open();
+    socket.message(server('error', 0, { code }));
+    socket.remoteClose(closeCode, code);
+
+    expect(latest(states)).toMatchObject({
+      connection: 'unavailable',
+      errorCode: code,
+      failureKind: kind,
+    });
+    expect(messages(socket).filter(({ type }) => type === 'event.ack')).toHaveLength(0);
+    expect(socket.readyState).toBe(3);
+    const sent = socket.sent.length;
+    vi.advanceTimersByTime(60_000);
+    expect(socket.sent).toHaveLength(sent);
+  });
+
+  it('classifies a join close code when its error envelope is lost', () => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const { transport, states } = harness([socket]);
+    transport.connect();
+    socket.open();
+    socket.remoteClose(4403, 'FORBIDDEN');
+
+    expect(latest(states)).toMatchObject({
+      connection: 'unavailable',
+      errorCode: 'FORBIDDEN',
+      failureKind: 'permission',
+    });
+    const sent = socket.sent.length;
+    vi.advanceTimersByTime(60_000);
+    expect(socket.sent).toHaveLength(sent);
+  });
+
+  it('fails reset explicitly on an event gap without ACK or later sends', async () => {
+    vi.useFakeTimers();
     const socket = new FakeSocket();
     const { transport, states } = harness([socket]);
     transport.connect();
     socket.open();
     socket.message(server('session.ready', 0, { resumed: false }));
+    const ackCount = messages(socket).filter(({ type }) => type === 'event.ack').length;
     socket.message(server('heartbeat.ack', 2, {}));
     expect(latest(states)).toMatchObject({
       errorCode: 'RESUME_WINDOW_EXPIRED',
       failureKind: 'reset',
       resetRequired: true,
     });
+    expect(messages(socket).filter(({ type }) => type === 'event.ack')).toHaveLength(ackCount);
+    expect(socket.readyState).toBe(3);
+    expect(await transport.sendSyntheticFrame(1)).toBe(false);
+    const sent = socket.sent.length;
+    vi.advanceTimersByTime(60_000);
+    expect(socket.sent).toHaveLength(sent);
   });
 
   it.each(['session.ready', 'audio.ack'] as const)(
     'does not accept %s for a different audio stream',
-    (type) => {
+    async (type) => {
+      vi.useFakeTimers();
       const socket = new FakeSocket();
       const { transport, states } = harness([socket]);
       transport.connect();
       socket.open();
+      expect(await transport.sendSyntheticFrame(7)).toBe(true);
+      let framesBefore: number;
+      let acknowledgementsBefore: number;
       if (type === 'session.ready') {
+        framesBefore = messages(socket).filter(
+          ({ type: sentType }) => sentType === 'audio.frame',
+        ).length;
+        acknowledgementsBefore = messages(socket).filter(
+          ({ type: sentType }) => sentType === 'event.ack',
+        ).length;
         socket.message(
           server(type, 0, {
             audio_stream_id: 'wrong-audio-stream',
@@ -195,6 +256,12 @@ describe('RealtimeTranscriptionTransport', () => {
         );
       } else {
         socket.message(server('session.ready', 0, { resumed: false }));
+        framesBefore = messages(socket).filter(
+          ({ type: sentType }) => sentType === 'audio.frame',
+        ).length;
+        acknowledgementsBefore = messages(socket).filter(
+          ({ type: sentType }) => sentType === 'event.ack',
+        ).length;
         socket.message(
           server(type, 1, {
             audio_stream_id: 'wrong-audio-stream',
@@ -205,9 +272,19 @@ describe('RealtimeTranscriptionTransport', () => {
       expect(latest(states)).toMatchObject({
         errorCode: 'INVALID_WS_MESSAGE',
         failureKind: 'session',
-        pendingFrames: 0,
+        pendingFrames: 1,
       });
-      transport.disconnect();
+      expect(socket.readyState).toBe(3);
+      expect(
+        messages(socket).filter(({ type: sentType }) => sentType === 'event.ack'),
+      ).toHaveLength(acknowledgementsBefore);
+      expect(
+        messages(socket).filter(({ type: sentType }) => sentType === 'audio.frame'),
+      ).toHaveLength(framesBefore);
+      expect(await transport.sendSyntheticFrame(8)).toBe(false);
+      const sent = socket.sent.length;
+      vi.advanceTimersByTime(60_000);
+      expect(socket.sent).toHaveLength(sent);
     },
   );
 });
@@ -292,12 +369,13 @@ class FakeSocket {
     for (const listener of this.listeners.message) listener(new MessageEvent('message', { data }));
   }
 
-  public close(code = 1000): void {
-    this.remoteClose(code);
+  public close(code = 1000, reason = ''): void {
+    this.remoteClose(code, reason);
   }
 
-  public remoteClose(code: number): void {
+  public remoteClose(code: number, reason = ''): void {
     this.readyState = 3;
-    for (const listener of this.listeners.close) listener(new CloseEvent('close', { code }));
+    for (const listener of this.listeners.close)
+      listener(new CloseEvent('close', { code, reason }));
   }
 }

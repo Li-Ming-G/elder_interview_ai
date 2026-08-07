@@ -167,6 +167,7 @@ export class RealtimeTranscriptionGateway {
     state: ConnectionState,
     message: Extract<InterviewWsClientMessage, { type: 'session.join' }>,
   ): Promise<void> {
+    state.sessionId = message.session_id;
     state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
     const mode = await this.access.assertJoin(
       state.actor,
@@ -224,7 +225,6 @@ export class RealtimeTranscriptionGateway {
     }
     state.joined = true;
     state.runtime = runtime;
-    state.sessionId = message.session_id;
     for (const stored of replay) this.sendStored(client, stored.envelope);
     this.sendStored(
       client,

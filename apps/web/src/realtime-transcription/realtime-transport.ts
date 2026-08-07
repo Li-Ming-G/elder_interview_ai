@@ -96,6 +96,7 @@ export class RealtimeTranscriptionTransport {
   private reconnectTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   private reconnectAttempt = 0;
   private disposed = false;
+  private terminal = false;
   private eventStreamId: string | null = null;
   private highestServerSequence = -1;
   private nextAudioSequence = 0;
@@ -127,24 +128,29 @@ export class RealtimeTranscriptionTransport {
   }
 
   public connect(): void {
-    if (this.disposed || this.socket !== null) return;
+    if (this.disposed || this.terminal || this.socket !== null) return;
     this.patch({ connection: this.reconnectAttempt === 0 ? 'connecting' : 'reconnecting' });
     const socket = this.createSocket(this.url);
     this.socket = socket;
     socket.addEventListener('open', () => {
-      if (this.socket !== socket || this.disposed) return;
+      if (this.socket !== socket || this.disposed || this.terminal) return;
       socket.send(JSON.stringify(this.joinMessage()));
       this.startHeartbeat();
     });
     socket.addEventListener('message', (event) => {
-      if (this.socket !== socket || this.disposed) return;
+      if (this.socket !== socket || this.disposed || this.terminal) return;
       this.onServerMessage(event.data);
     });
     socket.addEventListener('close', (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
       this.stopHeartbeat();
-      if (this.disposed) return;
+      if (this.disposed || this.terminal) return;
+      const closeFailure = classifyClose(event.code, event.reason);
+      if (closeFailure !== null) {
+        this.terminalFailure(closeFailure.code, closeFailure.kind, closeFailure.resetRequired);
+        return;
+      }
       if (event.code === 1000) this.patch({ connection: 'closed' });
       else if (!this.state.resetRequired && this.state.failureKind === null)
         this.scheduleReconnect();
@@ -159,6 +165,7 @@ export class RealtimeTranscriptionTransport {
 
   public async sendSyntheticFrame(fill = 0): Promise<boolean> {
     if (
+      this.cannotSendFrames() ||
       this.pending.size >= MAX_PENDING_FRAMES ||
       this.pending.size * INTERVIEW_PCM_FRAME_BYTES >= MAX_PENDING_BYTES
     ) {
@@ -178,7 +185,7 @@ export class RealtimeTranscriptionTransport {
       sequence_no: sequence,
       start_ms: sequence * INTERVIEW_PCM_FRAME_DURATION_MS,
     };
-    if (this.disposed || this.pending.size >= MAX_PENDING_FRAMES) return false;
+    if (this.cannotSendFrames() || this.pending.size >= MAX_PENDING_FRAMES) return false;
     this.nextAudioSequence += 1;
     this.pending.set(sequence, { payload, rawBytes: pcm.byteLength });
     this.send('audio.frame', payload);
@@ -237,15 +244,15 @@ export class RealtimeTranscriptionTransport {
       this.terminalFailure('RESUME_WINDOW_EXPIRED', 'reset', true);
       return;
     }
+    if (!this.apply(message)) return;
     this.eventStreamId = message.event_stream_id;
     this.highestServerSequence = message.server_sequence;
-    this.apply(message);
     if (message.type !== 'error')
       this.send('event.ack', { server_sequence: message.server_sequence });
     if (message.type === 'session.ready') this.resendPendingFrames();
   }
 
-  private apply(message: InterviewWsServerEnvelope<InterviewWsServerType, unknown>): void {
+  private apply(message: InterviewWsServerEnvelope<InterviewWsServerType, unknown>): boolean {
     if (message.type === 'session.ready') {
       const payload = message.payload as {
         audio_stream_id: string;
@@ -254,7 +261,7 @@ export class RealtimeTranscriptionTransport {
       };
       if (payload.audio_stream_id !== this.audioStreamId) {
         this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
-        return;
+        return false;
       }
       this.acceptAudioAck(payload.highest_audio_sequence_acked);
       this.reconnectAttempt = 0;
@@ -266,7 +273,7 @@ export class RealtimeTranscriptionTransport {
       };
       if (payload.audio_stream_id !== this.audioStreamId) {
         this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
-        return;
+        return false;
       }
       const highest = payload.highest_audio_sequence_acked;
       this.acceptAudioAck(highest);
@@ -320,10 +327,13 @@ export class RealtimeTranscriptionTransport {
       const payload = message.payload as InterviewWsErrorPayload;
       const classified = classifyError(payload.code);
       this.terminalFailure(payload.code, classified, payload.reset_required === true);
+      return false;
     }
+    return true;
   }
 
   private send(type: InterviewWsClientMessage['type'], payload: unknown): void {
+    if (this.terminal) return;
     const socket = this.socket;
     if (socket === null || socket.readyState !== socket.OPEN) return;
     socket.send(
@@ -335,6 +345,10 @@ export class RealtimeTranscriptionTransport {
         type,
       }),
     );
+  }
+
+  private cannotSendFrames(): boolean {
+    return this.disposed || this.terminal;
   }
 
   private startHeartbeat(): void {
@@ -350,6 +364,7 @@ export class RealtimeTranscriptionTransport {
   }
 
   private scheduleReconnect(): void {
+    if (this.terminal) return;
     const delay = this.reconnectDelays[this.reconnectAttempt];
     if (delay === undefined) {
       this.terminalFailure('REALTIME_UNAVAILABLE', 'internal', false);
@@ -364,12 +379,21 @@ export class RealtimeTranscriptionTransport {
   }
 
   private terminalFailure(code: string, kind: RealtimeFailureKind, resetRequired: boolean): void {
+    if (this.terminal) return;
+    this.terminal = true;
+    this.stopHeartbeat();
+    if (this.reconnectTimer !== null) this.timerApi.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    const socket = this.socket;
+    this.socket = null;
     this.patch({
       connection: 'unavailable',
       errorCode: code,
       failureKind: kind,
       resetRequired,
     });
+    if (socket !== null && socket.readyState === socket.OPEN)
+      socket.close(4000, 'client_terminal_failure');
   }
 
   private updatePending(): void {
@@ -407,6 +431,26 @@ export function classifyError(code: string): RealtimeFailureKind {
   if (code === 'ASR_UNAVAILABLE') return 'asr';
   if (code === 'REALTIME_UNAVAILABLE') return 'internal';
   return 'session';
+}
+
+function classifyClose(
+  closeCode: number,
+  reason: string,
+): { code: string; kind: RealtimeFailureKind; resetRequired: boolean } | null {
+  const code = (fallback: string): string => (reason.length === 0 ? fallback : reason);
+  if (closeCode === 4401)
+    return { code: code('AUTH_REQUIRED'), kind: 'auth', resetRequired: false };
+  if (closeCode === 4403)
+    return { code: code('FORBIDDEN'), kind: 'permission', resetRequired: false };
+  if (closeCode === 4408)
+    return { code: code('SESSION_NOT_STREAMABLE'), kind: 'session', resetRequired: false };
+  if (closeCode === 4450)
+    return { code: code('RESUME_WINDOW_EXPIRED'), kind: 'reset', resetRequired: true };
+  if (closeCode === 4500)
+    return { code: code('REALTIME_UNAVAILABLE'), kind: 'internal', resetRequired: false };
+  if (closeCode === 4503)
+    return { code: code('ASR_UNAVAILABLE'), kind: 'asr', resetRequired: false };
+  return null;
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {

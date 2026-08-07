@@ -33,6 +33,29 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(adapter.calls).toBe(0);
   });
 
+  it('binds the requested session to an error raised during join authorization', async () => {
+    const sessionId = randomUUID();
+    const gateway = createGateway(
+      new CountingAdapter(),
+      'produce',
+      undefined,
+      undefined,
+      undefined,
+      () => Promise.reject(new ForbiddenException({ code: 'FORBIDDEN' })),
+    );
+    const client = new FakeSocket();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, randomUUID()));
+    await client.waitClosed();
+
+    expect(client.closeCode).toBe(4403);
+    expect(client.sent[0]).toMatchObject({
+      payload: { code: 'FORBIDDEN' },
+      session_id: sessionId,
+      type: 'error',
+    });
+  });
+
   it('serializes concurrent frames on one connection', async () => {
     const adapter = new CountingAdapter();
     const gateway = createGateway(adapter, 'produce');
@@ -319,11 +342,12 @@ function createGateway(
   runtimes = new RealtimeRuntimeService(),
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
+  assertJoin: () => Promise<RealtimeSessionMode> = () => Promise.resolve(mode),
 ): RealtimeTranscriptionGateway {
   const access = {
     assertActiveConnection,
     assertFrame: () => Promise.resolve('produce' as const),
-    assertJoin: () => Promise.resolve(mode),
+    assertJoin,
     authenticate: () => Promise.resolve(actor),
   } as unknown as RealtimeAccessService;
   const ingestion = {
@@ -354,11 +378,21 @@ class CountingAdapter extends StreamingAsrAdapter {
 class FakeSocket extends EventEmitter {
   public readonly OPEN = 1;
   public readyState = this.OPEN;
-  public readonly sent: Array<{ payload: Record<string, unknown>; type: string }> = [];
+  public readonly sent: Array<{
+    payload: Record<string, unknown>;
+    session_id: string;
+    type: string;
+  }> = [];
   public closeCode = 0;
 
   public send(value: string): void {
-    this.sent.push(JSON.parse(value) as { payload: Record<string, unknown>; type: string });
+    this.sent.push(
+      JSON.parse(value) as {
+        payload: Record<string, unknown>;
+        session_id: string;
+        type: string;
+      },
+    );
   }
 
   public receive(value: Record<string, unknown>): void {
