@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1 已通过，DEV-004B2 候选另行审查；产品优先切片已收敛为“首次访谈最小纵向闭环”，页面规划处于 SPEC-FE-001 REVIEW。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；产品优先切片已收敛为“首次访谈最小纵向闭环”，页面规划处于 SPEC-FE-001 REVIEW。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
