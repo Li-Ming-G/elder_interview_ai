@@ -499,6 +499,8 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 
 连接建立后客户端每 15 秒发送一次 `heartbeat`；服务端返回 `heartbeat.ack`。连续 45 秒未收到任何有效客户端消息时，服务端以 `JOIN_TIMEOUT`（尚未 join）或 `HEARTBEAT_TIMEOUT` 关闭连接。首个 `session.join` 的 5 秒限制优先适用。
 
+已 join 连接处理 `heartbeat` 或 `event.ack` 前，必须重新验证当前 auth session、有效 assignment、项目状态、最新授权和 session 当前允许的 produce/resume-only 模式。`stopping|processing` 的 resume-only 连接仍可 ACK/replay；权限撤销或资源门禁失效时即使没有继续发送音频，也必须失败关闭并释放 producer。
+
 `session.ready.payload` 至少包含：
 
 ```json
@@ -563,9 +565,12 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 | 4409 | `AUDIO_FRAME_GAP` / `AUDIO_FRAME_CONFLICT` | 帧序号冲突 |
 | 4429 | `BACKPRESSURE_LIMIT` | 客户端忽略背压 |
 | 4450 | `RESUME_WINDOW_EXPIRED` | 短时恢复不可用 |
+| 4500 | `REALTIME_UNAVAILABLE` | 未识别的内部或持久化故障；不得泄露内部详情 |
 | 4503 | `ASR_UNAVAILABLE` | streaming adapter 不可用 |
 
 日志不得包含 PCM/base64、转录正文、Cookie、CSRF、provider payload 或完整消息信封。
+
+未识别的数据库或内部异常不得映射为 `FORBIDDEN`。服务端统一返回 `REALTIME_UNAVAILABLE/4500`，只向客户端表达实时转录暂时不可用；错误正文和日志不得返回 SQL、堆栈、数据库名称、供应商原文或访谈正文。权限错误继续使用 `FORBIDDEN/4403`。
 
 ### 5.9 `asr.final` 示例
 

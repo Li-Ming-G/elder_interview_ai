@@ -7,7 +7,7 @@
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
-| DEV-004 | HO-024 | 总控 / 下一阶段实时转录角色 | DEV-004B2、DEV-004C 边界；处理 B1 三项 P2 |
+| DEV-004 | HO-026 | 浏览器实时转录实现 Agent / 总控 | DEV-004B2 已启动；关闭两项已触发 B1 P2，长时 runtime 清理继续延期 |
 
 ## 最近已完成交接
 
@@ -26,4 +26,4 @@
 
 ## 历史索引
 
-完整 `HO-001` 至 `HO-024` 及补充记录见 [`handoffs/05-handoff-log-history.md`](handoffs/05-handoff-log-history.md)。
+完整 `HO-001` 至 `HO-024` 及补充记录见 [`handoffs/05-handoff-log-history.md`](handoffs/05-handoff-log-history.md)；HO-025 见 `handoffs/DOC-002.md`，HO-026 起按任务文件归档。

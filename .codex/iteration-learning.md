@@ -261,3 +261,14 @@
 - Implementation evidence: `AGENTS.md`、`00-项目说明与执行入口.md`、`docs/agent/README.md`、`docs/agent/04-review-report.md`、`docs/agent/05-handoff-log.md`、`docs/agent/02-open-conflicts.md`、`docs/agent/handoffs/DOC-002.md`。
 - Tradeoff: 暂不把历史卷拆成大量单篇文件，避免当前引用迁移和编码风险；后续可按任务逐步拆分。
 - Lesson: 协作记录的关键不是删除历史，而是把动态状态、当前入口和审计证据分成不同层级。
+
+### 2026-08-07 — DEV-004B2 浏览器实时纵向链路预审
+
+- User outcome: 每个明确 DEV 阶段由新的实现 Agent 承接，总控冻结提示词、边界、验证与 Git，使历史留在任务卡、提交和交接中。
+- Review mode: Correction mode；唯一独立只读预审确认 B2 适合启动，但不能只做字幕演示。
+- Review finding: heartbeat/event ACK 撤权复核与内部错误分类已到触发时点，必须随 B2 关闭；runtime 集合清理只在长时访谈前成为门禁。
+- Options considered: 单独后端加固后再启前端 Agent；或由一个 B2 纵向实现 Agent完成两项小型服务端加固与浏览器客户端。采用后者，避免额外任务卡/分支/PR，同时保持一张冻结任务卡对应一个实现 Agent。
+- Adopted decision: B2 使用真实 Chromium、合成 PCM、独立 transport/state machine 和薄 harness，验证 interim/final、ACK、20 帧背压和同页面短时恢复；新增 `REALTIME_UNAVAILABLE/4500`，长连接非音频消息重验资源权限；不接真实麦克风、AudioWorklet、真实供应商或正式工作台。
+- Implementation evidence: 当前仅有正式契约、任务卡、ADR-019 补充和 HO-026；代码实现与测试证据待实现 Agent 交付后补充。
+- Lesson: 新 Agent 能隔离执行上下文，但不能自动保存历史；稳定历史来自冻结任务卡、唯一责任人、commit/PR 和结构化交接。
+- Better future prompt: “请按已冻结的 DEV-004B2 任务卡启动一个新的纵向实现 Agent；只做真实 Chromium 合成 PCM、字幕、背压和短时恢复，并关闭已到触发点的撤权复核与内部错误分类，完成后交总控验证和 GitHub 审查。”
