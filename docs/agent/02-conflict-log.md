@@ -227,6 +227,8 @@
 - 临时处理：stop/recover 明确为路径占位；DEV-005A 缩为准备页与路由外壳，DEV-005B 只保留结束动作挂载位置；新建 SPEC-SESSION-END-001、DEV-005C 后端编排和 DEV-005D 结束页薄集成。
 - 需要谁决策：会话编排契约任务提出正式状态机与完成事实，项目负责人或独立审查通过后由后端实现任务执行。
 - 关闭条件：SPEC-SESSION-END-001 获得明确 PASS，并把 DEV-005C/005D 所需字段、错误、幂等、权限和验收矩阵写入正式契约；实现完成另按任务审查，不以关闭冲突代替代码验收。
+- 处理进展（2026-08-07）：SPEC-SESSION-END-001 已形成正式审查候选：唯一 interview audio object、stop 后冻结逐片 commitment、持久 `session_finalization`、受限 evidence-finalization 补传、ASR `drained|degraded|not_started`、统一公共 snapshot、recover 重驱与验收矩阵已写入 `03` 至 `06`、`08`、`09` 和 ADR-022。当前仍为 `OPEN`；候选 push/CI/PR 不等于关闭，等待项目负责人绑定最终 GitHub head 明确审查。
+- REV-017 首审进展：项目负责人锁定 PR #8 head `e8fa20f39903aaf9f84a4dc4672d10ff25058933`，CI `31162831225` PASS，但发现 P1：授权在首次 stop snapshot 前撤回且 assignment 仍有效时，`05` 没有明确禁止首次 stop/`finalize_interrupted` 新建 commitments，与 `08` 冲突。已按“撤权前已冻结才允许受限补传”定向修正；CON-019 继续 `OPEN`，等待修复后最终 head PASS。
 
 ## 登记模板
 

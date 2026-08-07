@@ -359,6 +359,17 @@
 - Lesson: 是否并行不取决于任务名字不同，而取决于前置事实是否稳定、修改范围是否重叠，以及是否同时改变同一份契约。
 - Better future prompt: “请检查当前任务板和 worktree，选择一个与正在开发任务文件边界独立、能缩短 MVP 关键路径的 READY 任务；先给并行建议，不要自动创建新对话。”
 
+### 2026-08-07 — SPEC-SESSION-END-001 会话结束契约冻结
+
+- User outcome: 让 DEV-005C/005D 不再猜 stop/recover、完成状态、撤权后的原始证据保全或失败语义，同时不提前实现代码和生产队列。
+- Review mode: Correction mode；恰好一次独立只读预审指出现有 session 字段、普通 assignment 上传权限和短时 WS replay 无法同时证明 stop 前证据边界、撤权补传与进程重启恢复。
+- Review finding: 必须先冻结唯一 interview audio object、MediaRecorder 停止后的逐片 commitment、持久 finalization/ASR terminal 和受限 evidence-finalization 权限；薄 DTO 会把核心竞态留给实现 Agent。
+- Options considered: 只提交 object/count；继续要求当前 assignment；持久 finalization + commitments。前两者分别无法拒绝 stop 后新字节或会在撤权后丢失已产生证据，采用第三种。
+- Adopted decision: pending project-owner review；候选规定 `stopping` 等 manifest、`processing` 等 ASR `drained|degraded|not_started`，raw complete + transcript terminal 才 completed；AI 不参与；runner/outbox 只替换调度 seam。
+- Implementation evidence: `03` §12/§17.2、`04` §4.25-4.26、`05` §3.5、`06` §9-11、`08` §4.5、`09` §10.1、ADR-022、HO-032；本轮无业务代码或 migration。
+- Lesson: 撤权后的“保存已有数据”不是放宽上传权限，而是把允许保存的字节集合在撤权前冻结；恢复协议需要持久业务事实，短时事件 replay 只能恢复显示。
+- Better future prompt: “请先冻结 stop 时唯一录音对象、最终分片 count/commitment、撤权后的字节级补传权限和 ASR terminal；completed 只由持久服务端事实决定，进程内 runner 可替换但不能成为事实源。”
+
 ### 2026-08-07 — DEV-005A 首次访谈准备页与正式路由外壳
 
 - User outcome: 倾听员从已分配虚构项目深链进入准备页，明确看到服务、授权和设备状态，只有服务端最终门禁允许时才能进入可供 DEV-005B 接续的工作台外壳。
@@ -377,3 +388,12 @@
 - Follow-up: DEV-005B 必须以真实 session/WebSocket 服务端事实替换 URL 占位状态，并按最新授权记录展示授权状态；两项均为不阻塞 A 的 P2。
 - Boundary: 父 DEV-005、安全结束、完整工作台、真实麦克风/授权资料、真实 ASR/LLM、真实试点与生产部署仍未完成。
 - Lesson: 占位路由可以先稳定页面边界，但不能成为业务事实来源；状态展示和权限提示必须最终与服务端采用同一条事实选择规则。
+
+### 2026-08-07 — REV-017 首审发现撤权前后冻结边界冲突
+
+- Review evidence: 项目负责人锁定 PR #8 head `e8fa20f39903aaf9f84a4dc4672d10ff25058933`，CI `31162831225` 全部门禁 PASS，结论 `REQUEST_CHANGES`，P0=0、P1=1。
+- Review finding: `08` 禁止授权在首次 snapshot 前撤回后由客户端新建补传例外，但 `05` 首次 stop 未明确复核最新授权和项目限制；assignment 仍有效时可能事后创建 commitments。
+- Adopted correction: 首次 stop 与无 finalization 的 `finalize_interrupted` 在同一 session 锁内复核最新授权有效、项目未受限；失败不创建 finalization/commitments，只保留服务端已可靠接收分片并进入/保持 `interrupted`。只有撤权前已经冻结的 snapshot 才启用受限补传。
+- Implementation evidence: 定向修改 `05` §3.5.2/3.5.4、`08` §4.5、`09` §10.1 及 REV-017/CON-019/任务/交接记录；业务代码仍未实现。
+- Lesson: assignment 证明“谁原本能操作项目”，授权证明“此刻是否还能建立新的处理边界”；两者不能互相替代。撤权后的证据保全必须依赖撤权前已冻结的允许列表。
+- Better future prompt: “首次 finalization 与后续受限补传分开鉴权：前者要求当前 assignment、最新授权有效且项目未受限；后者只允许撤权前已冻结 commitments 内的原 actor 补传。”
