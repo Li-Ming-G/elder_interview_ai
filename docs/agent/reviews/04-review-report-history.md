@@ -359,6 +359,11 @@ P2：
 - P1-4：advance 会重写终态/`completed_at`，且新 stop request ID 没有持久自己的首次响应，响应丢失后重试结果会漂移。`completed|failed` 必须稳定，每个 request ID 重放首次响应。
 - P2：stop 202/200、malformed finalization 422 错误码和非原 actor complete 权限语义为非阻塞偏差；不纳入本轮四项 P1 定向修复。
 - 定向复审条件：只关闭上述四项 P1并补对应自动化；提交新的 final head 和完整 CI 后复审。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
+- 第二轮定向复审提交：`33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063`；CI `31172641955` 全部门禁 PASS；结论仍为 `REQUEST_CHANGES`。
+- 已关闭：首轮四项 P1 4/4 通过，包括共享锁与 barrier 并发、ASR final drain、runtime loss 持久事实及终态/首次响应幂等。
+- 新增唯一 P1：`advance()` 将状态写为 `draining` 并在事务外等待 adapter 时，没有按 finalization 建立 single-flight；并发 recover/reconcile/匹配 stop 可重复调用真实 `drainAndClose()`，同 request ID 在首次响应落库前也不能阻止第二 runner。
+- 修正要求：使用进程内 `Map<finalizationId, Promise<void>>` 复用同一 advance Promise，在 `finally` 清理；用阻塞 fake 覆盖相同/不同 request ID recover、reconcile 和匹配 stop，断言 drain 调用一次且最终/幂等响应稳定。进程重启后的 persisted `draining` 仍应可重驱。
+- 范围：不新增 migration、Redis、BullMQ、真实 ASR、云存储或队列；三个原 P2 继续不处理。DEV-005C 保持 `REVIEW`，DEV-005D 保持 `BLOCKED`。
 
 ## 审查模板
 

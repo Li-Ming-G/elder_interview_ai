@@ -421,3 +421,11 @@
 - Adopted correction: DEV-005C 保持 REVIEW，只做统一锁与 barrier 测试、最小 ASR ending seam、持久接收证据判定、终态和首次响应稳定重放；不扩真实供应商、队列或前端。
 - Lesson: 状态机的顺序不能由“每个操作各自有锁”推导，只有共享资源锁和锁内重读才能建立跨模块线性化点；CI 覆盖已有路径，不代表未建模的并发窗口不存在。
 - Boundary: DEV-005D 继续 BLOCKED，父 DEV-005 不因工作台通过而完成。
+
+### 2026-08-07 — REV-019 第二轮发现 ASR drain runner 重入
+
+- Review evidence: 项目负责人锁定 PR #10 head `33c9a33cc1b7ff54af30ac8eb205ad0e20ddc063` 与 CI `31172641955`；首轮四项 P1 全部关闭，但结论仍为 REQUEST_CHANGES。
+- New finding: 持久 `draining` 允许崩溃恢复，但同一进程中没有 single-flight 时，并发 recover/reconcile/stop 会重复调用外部 `drainAndClose()`；数据库最终状态保护无法约束供应商副作用。
+- Adopted correction: 按 finalization ID 复用一个进程内 advance Promise，完成后清理；进程重启后 Map 丢失，由持久状态重新驱动。补阻塞 fake 和并发 barrier 测试。
+- Boundary: 仅修 single-runner，不改数据库、不引队列、不处理三个 P2、不接真实 ASR。DEV-005C REVIEW、DEV-005D BLOCKED。
+- Lesson: “状态为 draining”既是持久恢复信号，又不能单独承担同进程互斥；可恢复状态和进程内 single-flight 是两个互补层次。
