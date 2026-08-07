@@ -1,11 +1,24 @@
-# HO-034｜DEV-005C 服务端会话安全结束实现候选
+# HO-034｜DEV-005C 实现候选与 REV-019 定向修复交接
+
+## 实现候选
 
 - 分支：`codex/dev-005c-session-finalization`
-- 初始实现提交：`64065dfcbfaca33e50021bc28b59cdae70f1cd40`；文档收口后最终 head 见 PR
 - PR：[#10](https://github.com/Li-Ming-G/elder_interview_ai/pull/10)（非 Draft）
-- 状态：`REVIEW`；项目负责人尚未给出 PASS
-- 完成：stop/recover、统一 snapshot、持久 finalization/commitment、单 session 唯一 interview object、同锁最新授权门禁、受限补传、manifest/ASR 降级门禁。
-- Migration：`20260807190000_session_finalization`，local/test deploy 通过，local status up-to-date。
-- 验证：format/lint/typecheck、unit 123/123、integration、auth 13/13、build、smoke 均通过；最终数字以 PR head 复跑为准。
-- 边界：未实现真实 ASR/云存储/队列/前端；runtime 无法证明 drain 时持久为 `degraded`，不伪造 `drained`；DEV-005D 继续 BLOCKED。
-- GitHub CI：PR 创建后暂未出现 run；需由项目负责人审查时复核，不以本地门禁替代。
+- 首轮审查 head：`738898a9d18dbb77d5fefec78d5daef90fcd5a48`
+- CI：`31167044756`，全部门禁 PASS
+- Migration：`20260807190000_session_finalization`
+- 已实现候选：stop/recover、公共 snapshot、持久 finalization/commitments、单 session 唯一 interview object、受限补传、manifest/ASR 状态门禁。
+
+## REV-019 结论
+
+- 项目负责人结论：`REQUEST_CHANGES`，P0=0、P1=4；CI 全绿不替代状态机审查。
+- P1-1：stop/`finalize_interrupted`、撤权、upload/complete 未共享同一资源锁；统一固定锁序、锁内重读，并以 barrier 测试覆盖撤权和上传竞态。
+- P1-2：补最小 ASR final drain/close seam；成功为 `drained`，不可用/超时为 `degraded`，最后 final 必须先落库。
+- P1-3：runtime 丢失时读取持久 `asr_last_audio_sequence_accepted`；曾接收过 PCM 但不能证明 drain 时不得报 `not_started`，应为 `degraded`。
+- P1-4：`completed|failed` 终态和时间必须稳定；每个新 stop request ID 都持久首次响应并在相同 ID 重试时原样重放。
+
+## 边界与下一步
+
+- 本轮只修四项 P1并补对应自动化，不接真实 ASR、云存储、队列或前端，不处理 REV-019 的三个非阻塞 P2。
+- 修复后推送新的 final head，等待 GitHub 完整 CI，再由项目负责人定向复审。
+- DEV-005C 保持 `REVIEW`；DEV-005D 和父 DEV-005 保持 `BLOCKED`。

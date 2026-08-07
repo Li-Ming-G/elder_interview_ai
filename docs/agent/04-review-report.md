@@ -15,7 +15,8 @@
 | SPEC-FE-001 | REV-015 | PR #6 / `47f7b35` / CI `31153878655` PASS / merge `474c647` | DONE | 定向复审 PASS；DEV-005A 可 READY，SPEC-SESSION-END-001 READY；CON-019 与 DEV-005C/D 仍开放/阻塞 |
 | DEV-005A | REV-016 | PR #7 / `ea6c20f` / CI `31161076538` PASS / merge `066c424` | DONE | P0/P1=0；工作台状态改由服务端事实驱动、授权显示统一最新记录两项 P2 转 DEV-005B |
 | SPEC-SESSION-END-001 | REV-017 | PR #8 / final head `9c471d8` / CI `31163777417` PASS / merge `9af96c1` | DONE | 定向复审 PASS；首次 snapshot 前撤权 P1 已闭环，CON-019 RESOLVED，DEV-005C READY；DEV-005D 继续等待 C PASS |
-| DEV-005C | 待项目负责人编号 | PR #10 / 初始实现 `64065df` / CI 尚未出现 | REVIEW | 实现候选已通过本地门禁；不得在项目负责人绑定最终 head PASS 前解锁 DEV-005D |
+| DEV-005B | REV-018 | PR #9 / final head `c73e7ad` / CI `31166457093` PASS / merge `647a6b4` | DONE | P0/P1=0；真实 session/WS 事实、最新授权、final 去重、回看滚动与链路分离通过；父 DEV-005 仍开放 |
+| DEV-005C | REV-019 | PR #10 / reviewed head `738898a` / CI `31167044756` PASS | REQUEST_CHANGES | P1=4：结束边界锁串行、ASR final drain、重启后 ASR 事实、终态与 stop 幂等；DEV-005D 继续 BLOCKED |
 
 ## 阅读规则
 
@@ -25,4 +26,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-017`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-019`。

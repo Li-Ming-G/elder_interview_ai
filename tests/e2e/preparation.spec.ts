@@ -46,13 +46,123 @@ test('assigned fictional project passes preparation and enters only the workbenc
       configurable: true,
       value: FakeAudioContext,
     });
+    class WorkbenchWebSocket extends EventTarget {
+      public static readonly OPEN = 1;
+      public readonly OPEN = 1;
+      public readyState = 0;
+      public constructor() {
+        super();
+        setTimeout(() => {
+          this.readyState = this.OPEN;
+          this.dispatchEvent(new Event('open'));
+        }, 0);
+      }
+      public send(value: string): void {
+        const message = JSON.parse(value) as {
+          payload: { audio_stream_id?: string };
+          session_id: string;
+          type: string;
+        };
+        if (message.type !== 'session.join') return;
+        const envelope = (type: string, payload: unknown, server_sequence: number): string =>
+          JSON.stringify({
+            event_id: crypto.randomUUID(),
+            event_stream_id: '77777777-7777-4777-8777-777777777777',
+            payload,
+            schema_version: '1.0',
+            server_sequence,
+            session_id: message.session_id,
+            timestamp: '2026-08-07T00:02:00.000Z',
+            type,
+          });
+        setTimeout(() => {
+          this.dispatchEvent(
+            new MessageEvent('message', {
+              data: envelope(
+                'session.ready',
+                {
+                  audio_stream_id: message.payload.audio_stream_id,
+                  highest_audio_sequence_acked: -1,
+                  resumed: false,
+                  resume_window_events: 512,
+                  resume_window_seconds: 300,
+                },
+                0,
+              ),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('message', {
+              data: envelope(
+                'asr.interim',
+                {
+                  end_ms: 1800,
+                  finality: 'interim',
+                  hypothesis_id: 'h1',
+                  revision: 1,
+                  start_ms: 1000,
+                  text: '那时候我们',
+                },
+                1,
+              ),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('message', {
+              data: envelope(
+                'asr.interim',
+                {
+                  end_ms: 2200,
+                  finality: 'interim',
+                  hypothesis_id: 'h1',
+                  revision: 2,
+                  start_ms: 1000,
+                  text: '那时候我们住在河边',
+                },
+                2,
+              ),
+            }),
+          );
+          this.dispatchEvent(
+            new MessageEvent('message', {
+              data: envelope(
+                'asr.final',
+                {
+                  end_ms: 2200,
+                  finality: 'final',
+                  segment_id: 'segment-1',
+                  speaker_provider_id: 'speaker-1',
+                  speaker_role: 'elder',
+                  start_ms: 1000,
+                  text: '那时候我们住在河边。',
+                },
+                3,
+              ),
+            }),
+          );
+        }, 0);
+      }
+      public close(code = 1000): void {
+        this.readyState = 3;
+        this.dispatchEvent(new CloseEvent('close', { code }));
+      }
+    }
+    Object.defineProperty(globalThis, 'WebSocket', {
+      configurable: true,
+      value: WorkbenchWebSocket,
+    });
   });
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (request.method() === 'POST') writes.push(path);
-    const payload = responseFor(path, request.method());
+    const payload =
+      path === `/api/v1/sessions/${SESSION_ID}` &&
+      request.method() === 'GET' &&
+      writes.includes(`/api/v1/sessions/${SESSION_ID}/start`)
+        ? session('recording')
+        : responseFor(path, request.method());
     await route.fulfill({
       body: JSON.stringify(payload),
       contentType: 'application/json',
@@ -78,9 +188,15 @@ test('assigned fictional project passes preparation and enters only the workbenc
   await expect(page.getByRole('button', { name: '开始访谈' })).toBeEnabled();
 
   await page.getByRole('button', { name: '开始访谈' }).click();
-  await expect(page.getByRole('heading', { name: '访谈已开始' })).toBeVisible();
-  await expect(page.getByText(/DEV-005B 接入/)).toBeVisible();
-  await expect(page.getByText(/不提供结束、完成模拟或 AI 建议/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
+  await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
+  await expect(
+    page.getByTestId('workbench-finals').getByText('长者', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('继续倾听', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '结束访谈' })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ fullPage: true, path: 'test-results/dev-005b-workbench-narrow.png' });
 
   expect(writes).toEqual([
     `/api/v1/projects/${PROJECT_ID}/sessions`,
@@ -172,7 +288,7 @@ function session(status: 'created' | 'device_check' | 'recording'): unknown {
     id: SESSION_ID,
     project_id: PROJECT_ID,
     sequence_no: 1,
-    started_at: status === 'recording' ? '2026-08-07T00:01:00.000Z' : null,
+    started_at: status === 'recording' ? new Date().toISOString() : null,
     status,
     updated_at: '2026-08-07T00:01:00.000Z',
   };

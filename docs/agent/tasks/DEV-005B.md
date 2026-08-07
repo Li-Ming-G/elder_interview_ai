@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`DONE`
 - 负责人：前端工作台实现任务对话（独立 worktree）
 - 前置依赖：DEV-004B2 合并、DEV-005A 页面外壳
 - 交接对象：总控 Agent、DEV-005D、DEV-007A、纵向集成角色
@@ -53,3 +53,9 @@
 - 可在已冻结 wire contract 内复用/抽取 B2 transport，并决定工作台组件和滚动状态组织；
 - 若需改变 WebSocket 字段、恢复语义、公共 API、依赖或建议契约，停止并反馈总控；
 - 实现 Agent 不修改后端和治理文档，不代替审查者宣布 PASS；总控负责 Git 与收口。
+
+## REV-018 审查收口
+
+- 项目负责人审查严格绑定 PR #9 final head `c73e7ad0499c02af532670f350e62b34bf73cd87`，CI `31166457093` PASS，结论 `PASS`，P0=0、P1=0。
+- 真实 session/WS 状态门禁、project/session 归属、最新授权选择、final 去重、回看滚动和 ASR/录音链路分离均通过；未混入 stop/recover 或 completed 模拟。
+- PR #9 以 merge commit `647a6b4ffb1ca5f95fcfb7ff537390d109b84acf` 合入 `main`；DEV-005B 转 `DONE`。父 DEV-005 及安全结束链路仍未完成。
