@@ -270,7 +270,7 @@ P2：
 - P1-2：跨 audio stream ready/ACK 或 event sequence gap 触发 terminal failure 后，客户端仍推进 event cursor、发送 ACK、重发 PCM，socket/heartbeat 也未终止。
 - 修复提交：`6fd228f`。服务端在格式有效的 join 进入鉴权前绑定请求 session；客户端只有事件成功应用后才推进游标/ACK/重发，terminal/reset 会关闭 socket、停止 heartbeat/reconnect 并拒绝后续帧；close code 在错误信封丢失时仍按 4401/4403/4408/4450/4500/4503 分类。
 - 修复本地证据：定向 API/Web transport `2 files / 33 tests` PASS；format、lint、typecheck、build PASS；全仓 unit `19 files / 109 tests` PASS；普通 Chromium `4/4` PASS；`git diff --check` PASS。
-- 环境缺口：修复后 PostgreSQL/migration/auth/smoke/auth Chromium 仍须由新 head GitHub CI 重跑；旧 CI 不能替代新 head 证据。
+- 修复 CI 证据：head `656933b` 的 GitHub CI `31142873253` 全部 PASS，覆盖 frozen install、format、lint、typecheck、109 项 unit、migration deploy/status、PostgreSQL integration、auth、build、smoke、普通 Chromium 和 auth Chromium。
 - 审查边界：不覆盖真实麦克风/ASR、AudioWorklet、校准/remap、长时、浏览器刷新/进程/跨进程恢复、持久 outbox、正式工作台或生产部署
 - 允许进入的下一状态：推送含 `6fd228f` 的新 head、全 CI PASS 后交项目负责人定向复审；明确 PASS 前 DEV-004B2 保持 REVIEW，父 DEV-004 继续 IN_PROGRESS
 
