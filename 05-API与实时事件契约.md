@@ -245,7 +245,7 @@ POST /sessions/:id/recover
 
 `POST /sessions/:id/capture/interrupted` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "reason" }`。它是减权动作：当前 generation 为 `preparing|active` 且尚无 finalization 时，幂等写 `interrupted`、使 session 进入/保持 `interrupted` 并释放 producer。重新认证的原 actor 在 assignment 已失效后仍可报告；账号 disabled 不可。stop 已冻结或 session 已终态时只返回当前稳定 snapshot，不允许回退。普通网络/WS 故障不得调用本动作。
 
-`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、无已接受 PCM，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed` 并返回 `failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
+`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、无已接受 PCM，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed`，保持 `finalization=null` 并返回顶层 `capture_failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
 
 #### 3.5.1 公共会话结束 snapshot
 
@@ -260,6 +260,7 @@ POST /sessions/:id/recover
   "started_at": "2026-08-07T08:00:00.000Z",
   "ended_at": "2026-08-07T08:30:12.000Z",
   "duration_seconds": 1812,
+  "capture_failure_code": null,
   "created_by": "uuid",
   "created_at": "2026-08-07T08:00:00.000Z",
   "updated_at": "2026-08-07T08:30:12.000Z",
@@ -295,9 +296,11 @@ POST /sessions/:id/recover
 - `upload_status`: `awaiting_upload|verifying|complete|unrecoverable`；
 - `transcript_status`: `pending|draining|drained|degraded|not_started`；
 - `transcript_error_code`: `null|ASR_UNAVAILABLE|ASR_DRAIN_TIMEOUT|ASR_DRAIN_INCOMPLETE`；
-- `failure_code`: `null|NO_AUDIO_CAPTURED|AUDIO_COMMITMENT_CONFLICT|AUDIO_MANIFEST_UNRECOVERABLE|FINALIZATION_INTERNAL_FAILURE`。
+- `failure_code`: `null|AUDIO_COMMITMENT_CONFLICT|AUDIO_MANIFEST_UNRECOVERABLE|FINALIZATION_INTERNAL_FAILURE`（仅位于 finalization）。
 
 `capture.status` 为 `preparing|active|interrupted|stopped|abandoned_empty`。capture snapshot 只返回 audio object ID、generation、stream ID、status、timeline offset、服务端已上传分片数、中断原因/时间；不返回 local job ID、commitment、对象键、下载地址、正文或内部错误。尚未 start 时 `capture=null`。
+
+顶层 `capture_failure_code` 为 `null|NO_AUDIO_CAPTURED`，只表达无 finalization 的采集阶段终结。它与 `finalization.failure_code` 互斥；不得为了承载 `NO_AUDIO_CAPTURED` 创建空 finalization，也不得把 manifest/ASR/runner 错误提升到顶层。
 
 响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
 

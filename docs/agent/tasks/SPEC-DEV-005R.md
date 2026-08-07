@@ -43,7 +43,7 @@
 4. 固定原因：`capture_start_failed|page_recovery_detected|microphone_ended|recorder_error|local_archive_failed|auth_lost|unknown`。
 5. 崩溃或刷新后不自动请求麦克风；若本地 dirty checkpoint 或服务端 active capture 无当前 controller，先报告 interrupted，再让用户选择继续或安全结束。
 6. `resume_capture` 仅在无 finalization、session/capture 为 interrupted 且完整门禁有效时允许；复用同一 session、audio object 和 local job，创建下一 generation 与新 audio stream ID。原始 archive sequence/timeline 继续高水位；新 PCM sequence 从 0 开始并携带服务端冻结的 `timeline_offset_ms`。
-7. 只有 session interrupted、无 finalization、服务端无原始分片、无已接受 PCM 且客户端报告 archive 为零时，才允许 `abandon_empty_capture`；结果为 audio object `failed`、generation `abandoned_empty`、session 终态 `failed`、`NO_AUDIO_CAPTURED`，不得伪造 completed 或删除可能存在的本地文件。
+7. 只有 session interrupted、无 finalization、服务端无原始分片、无已接受 PCM 且客户端报告 archive 为零时，才允许 `abandon_empty_capture`；结果为 audio object `failed`、generation `abandoned_empty`、session 终态 `failed`、顶层 `capture_failure_code=NO_AUDIO_CAPTURED` 且 finalization 仍为空，不得伪造 completed 或删除可能存在的本地文件。
 8. 正常 stop 等待最终 `dataavailable`、archive 写入和正数 commitments 后使用既有 finalization；中断且有正数 commitments 使用 `finalize_interrupted`。
 
 ### 4. 结束与工作台体验

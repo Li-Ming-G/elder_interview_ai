@@ -15,6 +15,7 @@
 - 新增 ADR-023、SPEC 与 R1-R4 任务卡，保留旧 DEV-005A/B/C 的 PR/CI/PASS 历史；
 - DISC-005-R0/D 讨论收口，旧未实施 DEV-005D 由 R3 取代；
 - CON-020 仅记录设计已确定，继续等待真实实现证据。
+- R1 开工预审发现空录音没有 finalization、但旧公共失败字段仅存在于 finalization 的表达缝隙；已明确新增 session 顶层 `capture_failure_code=null|NO_AUDIO_CAPTURED`，与 finalization failure 互斥，禁止伪造空 finalization。
 
 ## 验证与边界
 
