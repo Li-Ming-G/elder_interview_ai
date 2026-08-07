@@ -416,3 +416,11 @@
 - Implementation evidence: `session-finalization.service.ts`、audio/realtime seam、migration `20260807190000_session_finalization`、unit 123/123、PostgreSQL integration、auth 13/13、build/smoke；任务进入 REVIEW 等待 GitHub 审查。
 - Lesson: 撤权后的证据保全不是继续授予项目访问，而是只完成撤权前冻结的不可变字节集合。
 - Better future prompt: “请分别测试首次建立 finalization 与已有 snapshot 后补传：前者同锁复核最新授权，后者仅允许 active 原 actor 对 frozen commitment 做最小写入。”
+
+### 2026-08-07 — DEV-005B 与 DEV-005C 并行启动
+
+- User outcome: 在服务端安全结束编排开发期间同步推进转录优先工作台，并明确要求前端使用 impeccable。
+- Parallel boundary: DEV-005B 只修改 `apps/web/**` 并消费现有 session/WS seam；DEV-005C 负责后端 stop/recover、finalization 和 migration。两者使用独立 worktree，B 不依赖 C 的未合并代码，DEV-005D 仍等待 C PASS。
+- Impeccable context: `apps/web` 已有绿色 OKLCH 令牌、准备页和工作台壳；项目没有 PRODUCT.md。当前属于已有代码上的明确范围任务，因此不以 init 阻塞，采用 product register 并继承现有设计系统。
+- Required quality: 转录是视觉中心；长内容回看不能被自动滚动打断；桌面/窄屏、键盘焦点、对比度、live-region、错误/重连/空状态和 reduced-motion 必须经真实浏览器验证。
+- Boundary: impeccable 只提高信息层级、可用性和视觉完成度，不得恢复三栏、多建议、真实 AI、stop/recover 或其他后置功能。
