@@ -405,3 +405,14 @@
 - Next execution: DEV-005C 转 `READY`，按正式 stop/recover、持久 finalization、逐片 commitment 和撤权前后两类门禁实现服务端结束编排；DEV-005D 继续等待 C 的最终 PASS。
 - Boundary: 契约 PASS 不代表 stop/recover、页面结束状态或父 DEV-005 已完成；真实麦克风/ASR/LLM、云队列和生产部署仍不在当前实现前置。
 - Lesson: 冲突可以在契约明确后关闭，但实现任务仍需独立测试与审查；“冲突已解决”和“功能已完成”必须保持两条状态线。
+
+### 2026-08-07 — DEV-005C 服务端会话安全结束编排
+
+- User outcome: 让 stop/recover、实际时长、raw manifest 与 ASR 降级成为持久、可查询、可重驱且不扩大撤权前证据边界的服务端事实。
+- Review mode: Learning mode；恰好一次独立只读预审确认正式契约无需修改，migration 为确定交付物。
+- Review finding: 权限判定时刻与允许写入的字节集合必须在同一 session 锁提交点冻结；普通 assignment 与冻结后的 evidence-finalization 是两套权限。
+- Options considered: 复用普通 assignment 上传；依赖 WebSocket runtime；持久 finalization + commitments + 精确补传。采用第三种。
+- Adopted decision: 单 migration 增加数据库唯一性与聚合；stop/finalize_interrupted 同锁复核最新授权；recover 只读持久事实，runtime 无法证明 drain 时明确降级。
+- Implementation evidence: `session-finalization.service.ts`、audio/realtime seam、migration `20260807190000_session_finalization`、unit 123/123、PostgreSQL integration、auth 13/13、build/smoke；任务进入 REVIEW 等待 GitHub 审查。
+- Lesson: 撤权后的证据保全不是继续授予项目访问，而是只完成撤权前冻结的不可变字节集合。
+- Better future prompt: “请分别测试首次建立 finalization 与已有 snapshot 后补传：前者同锁复核最新授权，后者仅允许 active 原 actor 对 frozen commitment 做最小写入。”

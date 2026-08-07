@@ -9,6 +9,7 @@ import type {
   ConsentRecord,
   ElderProject,
   InterviewSession,
+  SessionFinalization,
   ServiceTerm,
 } from '../generated/prisma/client.js';
 
@@ -62,6 +63,14 @@ export function mapConsent(consent: ConsentRecord): ConsentResponse {
 }
 
 export function mapInterviewSession(session: InterviewSession): InterviewSessionResponse {
+  return mapInterviewSessionSnapshot(session, null, 0);
+}
+
+export function mapInterviewSessionSnapshot(
+  session: InterviewSession,
+  finalization: (SessionFinalization & { audioObject: { manifestChecksum: string | null } }) | null,
+  uploadedChunkCount: number,
+): InterviewSessionResponse {
   return {
     created_at: session.createdAt.toISOString(),
     created_by: session.createdBy,
@@ -69,7 +78,38 @@ export function mapInterviewSession(session: InterviewSession): InterviewSession
     project_id: session.projectId,
     sequence_no: session.sequenceNo,
     started_at: session.startedAt?.toISOString() ?? null,
+    ended_at: session.endedAt?.toISOString() ?? null,
+    duration_seconds: session.durationSeconds,
     status: session.status,
     updated_at: session.updatedAt.toISOString(),
+    finalization:
+      finalization === null
+        ? null
+        : {
+            audio_object_id: finalization.audioObjectId,
+            completed_at: finalization.completedAt?.toISOString() ?? null,
+            expected_chunk_count: finalization.expectedChunkCount,
+            failure_code: finalization.failureCode as
+              | 'AUDIO_COMMITMENT_CONFLICT'
+              | 'AUDIO_MANIFEST_UNRECOVERABLE'
+              | 'FINALIZATION_INTERNAL_FAILURE'
+              | null,
+            manifest_checksum:
+              finalization.audioStatus === 'complete'
+                ? finalization.audioObject.manifestChecksum
+                : null,
+            processing_started_at: finalization.processingStartedAt?.toISOString() ?? null,
+            recording_status:
+              session.status === 'interrupted'
+                ? 'interrupted'
+                : session.status === 'recording'
+                  ? 'recording'
+                  : 'stopped',
+            transcript_error_code: finalization.transcriptErrorCode as
+              'ASR_UNAVAILABLE' | 'ASR_DRAIN_TIMEOUT' | 'ASR_DRAIN_INCOMPLETE' | null,
+            transcript_status: finalization.transcriptStatus,
+            upload_status: finalization.audioStatus,
+            uploaded_chunk_count: uploadedChunkCount,
+          },
   };
 }

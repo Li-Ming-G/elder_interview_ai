@@ -9,7 +9,7 @@
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
 | DEV-005B | [HO-033](handoffs/DEV-005A.md) | 新的前端工作台实现任务对话 | DEV-005A 已 DONE；接入真实 session/WS 状态并关闭 REV-016 两项 P2，不接真实 AI 或 stop/recover |
-| DEV-005C | [HO-032](handoffs/SPEC-SESSION-END-001.md) | 新的后端会话编排实现任务对话 | SPEC 契约已 PASS；按 ADR-022 实现 stop/recover，并覆盖首次 snapshot 前撤权的禁止建界场景；DEV-005D 仍阻塞 |
+| DEV-005C | [HO-034](handoffs/DEV-005C.md) | 总控 / 项目负责人 GitHub 审查 | 实现候选进入 REVIEW；等待最终 head、PR 与 CI 审查，DEV-005D 仍 BLOCKED |
 
 ## 最近已完成交接
 

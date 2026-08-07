@@ -35,7 +35,7 @@
 | DEV-005 | 首次访谈页面闭环（父任务） | 总控 Agent | BLOCKED | DEV-002、DEV-003、DEV-004B2、SPEC-FE-001、SPEC-SESSION-END-001 | [父任务卡](tasks/DEV-005.md) | 页面与结束契约已通过；完整闭环仍等待 DEV-005B/C/D 实现，不等待项目列表、回顾或导出 UI |
 | DEV-005A | 首次访谈准备页与正式路由外壳 | 前端实现任务对话 | DONE | DEV-002、DEV-003、SPEC-FE-001 | [任务卡](tasks/DEV-005A.md)、PR #7 head `ea6c20f`、CI `31161076538` PASS、REV-016 PASS、merge `066c424`、HO-033 | 内部虚构数据准备页和路由外壳完成；两个 P2 转 DEV-005B，不代表完整工作台或安全结束完成 |
 | DEV-005B | 转录优先访谈工作台 | 待创建的前端实现任务对话 | READY | DEV-004B2、DEV-005A 页面外壳 | [任务卡](tasks/DEV-005B.md)、REV-016 P2 | 可独立实现正式工作台；必须由服务端 session/WS 事实驱动状态，并统一最新授权显示；真实 AI 建议归 DEV-007A |
-| DEV-005C | 服务端会话安全结束编排 | 待创建的后端会话编排实现任务对话 | READY | SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2 | [任务卡](tasks/DEV-005C.md)、[启动提示词](prompts/DEV-005C.md)、ADR-021/022、REV-017 PASS、HO-032 | 可在独立任务对话与 worktree 开工；必须覆盖首次 snapshot 前撤权的负向门禁，不得自行改变已冻结契约 |
+| DEV-005C | 服务端会话安全结束编排 | DEV-005C 后端会话编排实现任务对话 | REVIEW | SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2 | [任务卡](tasks/DEV-005C.md)、[启动提示词](prompts/DEV-005C.md)、ADR-021/022、REV-017 PASS、HO-034 | 实现候选待项目负责人绑定最终 GitHub head 审查；DEV-005D 继续 BLOCKED |
 | DEV-005D | 安全结束页薄集成 | 待创建的前端安全结束实现任务对话 | BLOCKED | DEV-005A、DEV-005B、DEV-005C PASS | [任务卡](tasks/DEV-005D.md) | 等待真实服务端结束事实；不得用前端状态或固定延时模拟完成 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |
 | DEV-007 | AI 追问引擎 | 待分配 | BLOCKED | DEV-006、SPEC-AI-QUESTION-001 | `05`、`07`、`09` | 等待长期记忆及单问题替换契约；旧采用/已问/忽略生命周期不得实现 |

@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待创建的后端会话编排实现任务对话
+- 状态：`REVIEW`
+- 负责人：DEV-005C 后端会话编排实现任务对话
 - 前置依赖：SPEC-SESSION-END-001 PASS、DEV-003C、DEV-004B2
 - 交接对象：总控 Agent、DEV-005D
 
@@ -60,3 +60,10 @@
 - 实现 Agent 可在冻结契约内决定局部类名、事务组织和测试结构；
 - 若必须改变字段、状态、错误码、权限、完成条件或新增依赖，停止并反馈总控；
 - 实现 Agent 不修改无关模块，不代替审查者宣布 PASS；总控负责 Git、协作文档和审查收口。
+
+## 实现候选交接（2026-08-07）
+
+- 新增 finalization/commitment migration、stop/recover、公共 snapshot、同锁撤权门禁和 commitment 范围补传；
+- PostgreSQL integration 覆盖重放、并发单 finalization、manifest 门禁及首次 snapshot 前撤权的 stop/`finalize_interrupted` 负向场景；
+- 本地 format、lint、typecheck、unit、integration、auth、migration、build、smoke 均通过；浏览器结束页 E2E 归 DEV-005D；
+- 任务仅进入 `REVIEW`；DEV-005D 保持 `BLOCKED`，等待项目负责人绑定最终 GitHub head 审查。

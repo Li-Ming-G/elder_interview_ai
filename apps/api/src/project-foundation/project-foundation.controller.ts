@@ -4,17 +4,20 @@ import type {
   ProjectResponse,
   ServiceTermResponse,
 } from '@elder-interview/contracts';
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
 
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { SessionFinalizationService } from './session-finalization.service.js';
 import {
   validateConsent,
   validateCreateProject,
   validateDeviceCheck,
   validateIdempotentRequest,
   validateServiceTerm,
+  validateStopSession,
+  validateRecoverSession,
   validateUuid,
 } from './project.validation.js';
 
@@ -23,6 +26,7 @@ export class ProjectFoundationController {
   public constructor(
     private readonly projects: ProjectFoundationService,
     private readonly actors: ProjectRequestActorService,
+    private readonly finalization: SessionFinalizationService,
   ) {}
 
   @Post('projects')
@@ -117,7 +121,7 @@ export class ProjectFoundationController {
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<InterviewSessionResponse> {
-    return this.projects.getSession(await this.actors.from(request), validateUuid(id));
+    return this.finalization.get(await this.actors.from(request), validateUuid(id));
   }
 
   @Post('sessions/:id/device-check')
@@ -143,6 +147,34 @@ export class ProjectFoundationController {
       await this.actors.from(request),
       validateUuid(id),
       validateIdempotentRequest(body).request_id,
+    );
+  }
+
+  @Post('sessions/:id/stop')
+  @HttpCode(202)
+  public async stopSession(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<InterviewSessionResponse> {
+    return this.finalization.stop(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateStopSession(body),
+    );
+  }
+
+  @Post('sessions/:id/recover')
+  @HttpCode(200)
+  public async recoverSession(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<InterviewSessionResponse> {
+    return this.finalization.recover(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateRecoverSession(body),
     );
   }
 }

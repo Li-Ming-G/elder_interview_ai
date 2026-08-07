@@ -83,7 +83,7 @@ export class AudioService {
     input: AudioChunkInput,
     bytes: Buffer,
   ): Promise<AudioChunkResponse> {
-    const object = await this.findAccessibleObject(actor, audioObjectId);
+    const object = await this.findObjectForWrite(actor, audioObjectId);
     const binding = this.binding(
       `audio_chunk.upload:${String(input.sequenceNo)}`,
       actor.id,
@@ -111,7 +111,7 @@ export class AudioService {
       await this.lock(transaction, `audio:${audioObjectId}`);
       const current = await transaction.audioObject.findUnique({ where: { id: audioObjectId } });
       if (current === null) throw this.notFound();
-      await this.assertActiveAssignment(transaction, current.projectId, actor.id);
+      await this.assertUploadAuthority(transaction, current, actor, input);
       await this.assertWritable(transaction, current);
       if (current.mimeType !== input.mimeType) throw this.chunkConflict();
 
@@ -187,7 +187,7 @@ export class AudioService {
     audioObjectId: string,
     input: CompleteAudioObjectRequest,
   ): Promise<AudioManifestResponse> {
-    const object = await this.findAccessibleObject(actor, audioObjectId);
+    const object = await this.findObjectForWrite(actor, audioObjectId);
     const binding = this.binding('audio_object.complete', actor.id, 'audio_object', audioObjectId);
     const replay = await this.findReplay<AudioManifestResponse>(input.request_id, binding);
     if (replay !== null) return replay;
@@ -203,7 +203,7 @@ export class AudioService {
       await this.lock(transaction, `audio:${audioObjectId}`);
       const current = await transaction.audioObject.findUnique({ where: { id: audioObjectId } });
       if (current === null) throw this.notFound();
-      await this.assertActiveAssignment(transaction, current.projectId, actor.id);
+      await this.assertCompleteAuthority(transaction, current, actor, input.expected_chunk_count);
       await this.assertWritable(transaction, current);
       const chunks = await transaction.audioChunk.findMany({
         orderBy: { sequenceNo: 'asc' },
@@ -281,6 +281,96 @@ export class AudioService {
     if (object === null) throw this.notFound();
     await this.assertProjectAccess(actor, object.projectId);
     return object;
+  }
+
+  private async findObjectForWrite(
+    actor: AuthPrincipal,
+    audioObjectId: string,
+  ): Promise<AudioObject> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    const object = await this.prisma.audioObject.findUnique({ where: { id: audioObjectId } });
+    if (object === null) throw this.notFound();
+    return object;
+  }
+
+  private async assertUploadAuthority(
+    transaction: Prisma.TransactionClient,
+    object: AudioObject,
+    actor: AuthPrincipal,
+    input: AudioChunkInput,
+  ): Promise<void> {
+    const finalization = await transaction.sessionFinalization.findUnique({
+      where: { audioObjectId: object.id },
+    });
+    if (finalization !== null) {
+      if (actor.status !== 'active' || finalization.createdBy !== actor.id) throw this.forbidden();
+      const commitment = await transaction.sessionFinalizationChunk.findUnique({
+        where: {
+          sessionFinalizationId_sequenceNo: {
+            sessionFinalizationId: finalization.id,
+            sequenceNo: input.sequenceNo,
+          },
+        },
+      });
+      if (
+        commitment === null ||
+        commitment.checksum !== input.checksum ||
+        commitment.startMs !== input.startMs ||
+        commitment.endMs !== input.endMs ||
+        commitment.mimeType !== input.mimeType
+      )
+        throw new ConflictException({
+          code: 'AUDIO_COMMITMENT_CONFLICT',
+          details: {},
+          message: 'Audio chunk is outside the frozen commitment',
+        });
+      await transaction.auditLog.create({
+        data: {
+          action: 'audio.evidence_upload',
+          actorId: actor.id,
+          actorType: 'user',
+          entityId: object.id,
+          entityType: 'audio_object',
+          metadata: { sequence_no: input.sequenceNo },
+          requestId: input.requestId,
+        },
+      });
+      return;
+    }
+    const assignment = await transaction.projectAssignment.findFirst({
+      where: { projectId: object.projectId, revokedAt: null, userId: actor.id },
+    });
+    if (assignment !== null) return;
+    throw this.forbidden();
+  }
+
+  private async assertCompleteAuthority(
+    transaction: Prisma.TransactionClient,
+    object: AudioObject,
+    actor: AuthPrincipal,
+    expectedCount: number,
+  ): Promise<void> {
+    const finalization = await transaction.sessionFinalization.findUnique({
+      where: { audioObjectId: object.id },
+    });
+    if (finalization !== null) {
+      if (
+        actor.status !== 'active' ||
+        finalization.createdBy !== actor.id ||
+        finalization.expectedChunkCount !== expectedCount
+      )
+        throw new ConflictException({
+          code: 'AUDIO_COMMITMENT_CONFLICT',
+          details: {},
+          message: 'Audio count is outside the frozen commitment',
+        });
+      return;
+    }
+    const assignment = await transaction.projectAssignment.findFirst({
+      where: { projectId: object.projectId, revokedAt: null, userId: actor.id },
+    });
+    if (assignment !== null) return;
+    throw this.forbidden();
   }
 
   private async assertCreateGate(

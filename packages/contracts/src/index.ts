@@ -118,10 +118,52 @@ export interface InterviewSessionResponse {
   sequence_no: number;
   status: InterviewSessionStatus;
   started_at: string | null;
+  ended_at?: string | null;
+  duration_seconds?: number | null;
   created_by: string;
   created_at: string;
   updated_at: string;
+  finalization?: SessionFinalizationSnapshot | null;
 }
+
+export type FinalizationUploadStatus =
+  'awaiting_upload' | 'verifying' | 'complete' | 'unrecoverable';
+export type FinalizationTranscriptStatus =
+  'pending' | 'draining' | 'drained' | 'degraded' | 'not_started';
+export interface SessionFinalizationSnapshot {
+  audio_object_id: string;
+  expected_chunk_count: number;
+  recording_status: 'recording' | 'stopped' | 'interrupted';
+  upload_status: FinalizationUploadStatus;
+  uploaded_chunk_count: number;
+  manifest_checksum: string | null;
+  transcript_status: FinalizationTranscriptStatus;
+  transcript_error_code: 'ASR_UNAVAILABLE' | 'ASR_DRAIN_TIMEOUT' | 'ASR_DRAIN_INCOMPLETE' | null;
+  failure_code:
+    | 'AUDIO_COMMITMENT_CONFLICT'
+    | 'AUDIO_MANIFEST_UNRECOVERABLE'
+    | 'FINALIZATION_INTERNAL_FAILURE'
+    | null;
+  processing_started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface SessionChunkCommitment {
+  sequence_no: number;
+  start_ms: number;
+  end_ms: number;
+  size_bytes: number;
+  checksum: string;
+  mime_type: string;
+}
+export interface StopSessionRequest extends IdempotentRequest {
+  audio_object_id: string;
+  expected_chunk_count: number;
+  chunks: SessionChunkCommitment[];
+}
+export type RecoverSessionRequest =
+  | (IdempotentRequest & { action: 'reconcile' | 'resume_capture' })
+  | (StopSessionRequest & { action: 'finalize_interrupted' });
 
 export interface DeviceCheckRequest {
   microphone_permission: 'granted' | 'denied';

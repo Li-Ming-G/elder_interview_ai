@@ -24,6 +24,7 @@ export function createRealtimeTranscriptionModule(
     ? DeterministicStreamingAsrFake
     : UnavailableStreamingAsrAdapter;
   return {
+    exports: [RealtimeRuntimeService],
     imports: [authModule, transcriptionModule],
     module: RealtimeTranscriptionModule,
     providers: [

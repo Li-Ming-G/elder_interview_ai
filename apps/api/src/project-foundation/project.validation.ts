@@ -4,6 +4,8 @@ import type {
   CreateServiceTermRequest,
   DeviceCheckRequest,
   IdempotentRequest,
+  RecoverSessionRequest,
+  StopSessionRequest,
 } from '@elder-interview/contracts';
 import { UnprocessableEntityException } from '@nestjs/common';
 
@@ -78,6 +80,41 @@ export function validateDeviceCheck(body: Record<string, unknown>): DeviceCheckR
   return {
     input_detected: body.input_detected,
     microphone_permission: body.microphone_permission as 'granted' | 'denied',
+  };
+}
+
+export function validateStopSession(body: Record<string, unknown>): StopSessionRequest {
+  if (!Array.isArray(body.chunks)) throw validationError();
+  return {
+    audio_object_id: validateUuid(body.audio_object_id),
+    chunks: body.chunks.map((value) => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value))
+        throw validationError();
+      const chunk = value as Record<string, unknown>;
+      if (typeof chunk.checksum !== 'string' || typeof chunk.mime_type !== 'string')
+        throw validationError();
+      return {
+        checksum: chunk.checksum,
+        end_ms: nonnegativeInteger(chunk.end_ms),
+        mime_type: chunk.mime_type,
+        sequence_no: nonnegativeInteger(chunk.sequence_no),
+        size_bytes: nonnegativeInteger(chunk.size_bytes),
+        start_ms: nonnegativeInteger(chunk.start_ms),
+      };
+    }),
+    expected_chunk_count: nonnegativeInteger(body.expected_chunk_count),
+    request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validateRecoverSession(body: Record<string, unknown>): RecoverSessionRequest {
+  if (!['reconcile', 'resume_capture', 'finalize_interrupted'].includes(String(body.action)))
+    throw validationError();
+  if (body.action === 'finalize_interrupted')
+    return { ...validateStopSession(body), action: 'finalize_interrupted' };
+  return {
+    action: body.action as 'reconcile' | 'resume_capture',
+    request_id: validateUuid(body.request_id),
   };
 }
 

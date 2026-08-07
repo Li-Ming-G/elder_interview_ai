@@ -24,15 +24,20 @@ export class AppModule implements NestModule {
     const authModule = createAuthModule(config);
     const audioModule = createAudioModule(config, authModule);
     const transcriptionModule = createTranscriptionModule(config, authModule);
+    const realtimeModule = createRealtimeTranscriptionModule(
+      config,
+      authModule,
+      transcriptionModule,
+    );
     return {
       controllers: [HealthController],
       global: true,
       imports: [
         authModule,
         audioModule,
-        createProjectFoundationModule(config, authModule, audioModule),
+        createProjectFoundationModule(config, authModule, audioModule, realtimeModule),
         transcriptionModule,
-        createRealtimeTranscriptionModule(config, authModule, transcriptionModule),
+        realtimeModule,
       ],
       module: AppModule,
       providers: [
