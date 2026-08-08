@@ -70,6 +70,28 @@ enum InterviewSessionStatus {
   failed
 }
 
+enum CaptureFailureCode {
+  NO_AUDIO_CAPTURED
+}
+
+enum CaptureGenerationStatus {
+  preparing
+  active
+  interrupted
+  stopped
+  abandoned_empty
+}
+
+enum CaptureInterruptionReason {
+  capture_start_failed
+  page_recovery_detected
+  microphone_ended
+  recorder_error
+  local_archive_failed
+  auth_lost
+  unknown
+}
+
 enum AudioPurpose {
   consent
   interview
@@ -282,6 +304,7 @@ model InterviewSession {
   startedAt          DateTime?              @map("started_at") @db.Timestamptz(3)
   endedAt            DateTime?              @map("ended_at") @db.Timestamptz(3)
   durationSeconds    Int?                   @map("duration_seconds")
+  captureFailureCode CaptureFailureCode?    @map("capture_failure_code")
   asrProvider        String?                @map("asr_provider") @db.VarChar(100)
   llmProvider        String?                @map("llm_provider") @db.VarChar(100)
   promptVersion      String?                @map("prompt_version") @db.VarChar(100)
@@ -293,6 +316,7 @@ model InterviewSession {
   audioObjects       AudioObject[]
   speakerMappings    SpeakerMapping[]
   transcriptSegments TranscriptSegment[]
+  captureGenerations SessionCaptureGeneration[]
   finalization       SessionFinalization?
 
   @@unique([projectId, sequenceNo])
@@ -318,10 +342,34 @@ model AudioObject {
   chunks           AudioChunk[]
   consentRecords   ConsentRecord[]   @relation("ConsentAudioObject")
   finalization     SessionFinalization?
+  captureGenerations SessionCaptureGeneration[]
 
   @@index([projectId, purpose, createdAt(sort: Desc)])
   @@index([sessionId, purpose])
   @@map("audio_object")
+}
+
+model SessionCaptureGeneration {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  sessionId          String                     @map("session_id") @db.Uuid
+  audioObjectId      String                     @map("audio_object_id") @db.Uuid
+  generationNo       Int                        @map("generation_no")
+  audioStreamId      String                     @unique @map("audio_stream_id") @db.Uuid
+  timelineOffsetMs   Int                        @map("timeline_offset_ms")
+  status             CaptureGenerationStatus    @default(preparing)
+  interruptionReason CaptureInterruptionReason? @map("interruption_reason")
+  confirmedActiveAt  DateTime?                  @map("confirmed_active_at") @db.Timestamptz(3)
+  firstPcmAcceptedAt DateTime?                  @map("first_pcm_accepted_at") @db.Timestamptz(3)
+  interruptedAt      DateTime?                  @map("interrupted_at") @db.Timestamptz(3)
+  stoppedAt          DateTime?                  @map("stopped_at") @db.Timestamptz(3)
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session            InterviewSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  audioObject        AudioObject                @relation(fields: [audioObjectId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, generationNo])
+  @@index([sessionId, status])
+  @@map("session_capture_generation")
 }
 
 model AudioChunk {

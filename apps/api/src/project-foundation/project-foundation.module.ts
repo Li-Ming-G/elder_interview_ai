@@ -12,7 +12,9 @@ import {
 import { ProjectFoundationController } from './project-foundation.controller.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
+import { SessionSnapshotService } from './session-snapshot.service.js';
 
 @Module({})
 // Nest requires a module token for the dynamic module returned below.
@@ -38,7 +40,9 @@ export function createProjectFoundationModule(
       ProjectAccessService,
       ProjectFoundationService,
       ProjectRequestActorService,
+      SessionCaptureService,
       SessionFinalizationService,
+      SessionSnapshotService,
     ],
   };
 }

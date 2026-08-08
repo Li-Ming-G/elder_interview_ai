@@ -144,6 +144,13 @@ export class RealtimeRuntimeService {
     runtime.lastTouchedAt = Date.now();
   }
 
+  public interruptSession(sessionId: string): void {
+    const runtime = this.sessions.get(sessionId);
+    if (runtime === undefined) return;
+    runtime.producer = null;
+    runtime.lastTouchedAt = Date.now();
+  }
+
   private prune(runtime: SessionRuntime): void {
     const cutoff = Date.now() - MAX_AGE_MS;
     runtime.events = runtime.events

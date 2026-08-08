@@ -117,7 +117,7 @@ function parseNonnegativeInteger(value: string): number {
   return parsed;
 }
 
-function validateMimeType(value: unknown): string {
+export function validateMimeType(value: unknown): string {
   if (typeof value !== 'string') throw validationError();
   const mimeType = value.trim();
   if (

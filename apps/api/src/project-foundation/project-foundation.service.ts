@@ -7,6 +7,7 @@ import type {
   InterviewSessionResponse,
   ProjectResponse,
   ServiceTermResponse,
+  StartSessionRequest,
 } from '@elder-interview/contracts';
 import {
   ConflictException,
@@ -24,6 +25,7 @@ import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
 import { evaluateInterviewStartGate } from './interview-start-policy.js';
 import { mapConsent, mapInterviewSession, mapProject, mapServiceTerm } from './project.mapper.js';
 import { ProjectAccessService, type ProjectAccessSnapshot } from './project-access.service.js';
+import { SessionSnapshotService } from './session-snapshot.service.js';
 
 interface IdempotencyBinding {
   action: string;
@@ -39,6 +41,7 @@ export class ProjectFoundationService {
     private readonly access: ProjectAccessService,
     private readonly authorization: ResourceAuthorizationService,
     private readonly audioIntegrity: AudioIntegrityService,
+    private readonly snapshots: SessionSnapshotService,
   ) {}
 
   public async createProject(
@@ -390,7 +393,7 @@ export class ProjectFoundationService {
   public async startSession(
     actor: AuthPrincipal,
     sessionId: string,
-    requestId: string,
+    input: StartSessionRequest,
   ): Promise<InterviewSessionResponse> {
     const binding: IdempotencyBinding = {
       action: 'interview_session.start',
@@ -401,16 +404,22 @@ export class ProjectFoundationService {
     const existing = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (existing === null) throw this.notFound();
     await this.assertInterviewerProject(actor, existing.projectId);
-    const replay = await this.findReplay<InterviewSessionResponse>(requestId, binding);
-    if (replay !== null) return replay;
+    const replay = await this.findReplay<InterviewSessionResponse>(input.request_id, binding);
+    if (replay !== null) {
+      await this.assertStartReplay(replay, input);
+      return replay;
+    }
     const started = await this.prisma.$transaction(async (transaction) => {
-      await this.lock(transaction, `request:${requestId}`);
+      await this.lock(transaction, `request:${input.request_id}`);
       const repeated = await this.findReplayInTransaction<InterviewSessionResponse>(
         transaction,
-        requestId,
+        input.request_id,
         binding,
       );
-      if (repeated !== null) return repeated;
+      if (repeated !== null) {
+        await this.assertStartReplay(repeated, input, transaction);
+        return repeated;
+      }
       await this.lock(transaction, `project:${existing.projectId}`);
       await this.lock(transaction, `session:${sessionId}`);
       const session = await transaction.interviewSession.findUnique({ where: { id: sessionId } });
@@ -440,9 +449,27 @@ export class ProjectFoundationService {
         });
       }
       const now = new Date();
-      const updated = await transaction.interviewSession.update({
+      await transaction.interviewSession.update({
         data: { startedAt: now, status: 'recording' },
         where: { id: session.id },
+      });
+      const audio = await transaction.audioObject.create({
+        data: {
+          createdBy: actor.id,
+          mimeType: input.mime_type,
+          projectId: project.id,
+          purpose: 'interview',
+          sessionId: session.id,
+        },
+      });
+      await transaction.sessionCaptureGeneration.create({
+        data: {
+          audioObjectId: audio.id,
+          audioStreamId: input.audio_stream_id,
+          generationNo: 0,
+          sessionId: session.id,
+          timelineOffsetMs: 0,
+        },
       });
       if (project.status === 'ready') {
         await transaction.elderProject.update({
@@ -450,7 +477,7 @@ export class ProjectFoundationService {
           where: { id: project.id },
         });
       }
-      const response = mapInterviewSession(updated);
+      const response = await this.snapshots.read(session.id, transaction);
       await transaction.auditLog.create({
         data: {
           action: 'interview_session.start',
@@ -459,13 +486,27 @@ export class ProjectFoundationService {
           entityId: session.id,
           entityType: 'interview_session',
           metadata: { project_id: project.id },
-          requestId,
+          requestId: input.request_id,
         },
       });
-      await this.writeIdempotency(transaction, requestId, binding, response);
+      await this.writeIdempotency(transaction, input.request_id, binding, response);
       return response;
     });
     return started;
+  }
+
+  private async assertStartReplay(
+    snapshot: InterviewSessionResponse,
+    input: StartSessionRequest,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    if (snapshot.capture?.audio_stream_id !== input.audio_stream_id) {
+      throw this.idempotencyPayloadMismatch();
+    }
+    const audio = await db.audioObject.findUnique({
+      where: { id: snapshot.capture.audio_object_id },
+    });
+    if (audio?.mimeType !== input.mime_type) throw this.idempotencyPayloadMismatch();
   }
 
   private async refreshReady(
@@ -579,6 +620,14 @@ export class ProjectFoundationService {
       code: 'INVALID_SESSION_TRANSITION',
       details: {},
       message: 'Interview session state does not allow this operation',
+    });
+  }
+
+  private idempotencyPayloadMismatch(): ConflictException {
+    return new ConflictException({
+      code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+      details: {},
+      message: 'Idempotent request payload does not match the original request',
     });
   }
 }

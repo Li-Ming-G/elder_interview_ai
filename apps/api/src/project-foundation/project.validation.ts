@@ -3,11 +3,17 @@ import type {
   CreateProjectRequest,
   CreateServiceTermRequest,
   DeviceCheckRequest,
+  StartSessionRequest,
+  ConfirmCaptureActiveRequest,
+  ReportCaptureInterruptedRequest,
+  AbandonEmptyCaptureRequest,
   IdempotentRequest,
   RecoverSessionRequest,
   StopSessionRequest,
 } from '@elder-interview/contracts';
 import { UnprocessableEntityException } from '@nestjs/common';
+
+import { validateMimeType } from '../audio/audio.validation.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -70,6 +76,49 @@ export function validateIdempotentRequest(body: Record<string, unknown>): Idempo
   return { request_id: validateUuid(body.request_id) };
 }
 
+export function validateStartSession(body: Record<string, unknown>): StartSessionRequest {
+  return {
+    audio_stream_id: validateUuid(body.audio_stream_id),
+    mime_type: validateMimeType(body.mime_type),
+    request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validateConfirmCaptureActive(
+  body: Record<string, unknown>,
+): ConfirmCaptureActiveRequest {
+  return {
+    audio_stream_id: validateUuid(body.audio_stream_id),
+    generation_no: nonnegativeInteger(body.generation_no),
+    request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validateReportCaptureInterrupted(
+  body: Record<string, unknown>,
+): ReportCaptureInterruptedRequest {
+  const input = validateConfirmCaptureActive(body);
+  const reasons = [
+    'capture_start_failed',
+    'page_recovery_detected',
+    'microphone_ended',
+    'recorder_error',
+    'local_archive_failed',
+    'auth_lost',
+    'unknown',
+  ] as const;
+  if (!reasons.includes(body.reason as (typeof reasons)[number])) throw validationError();
+  return { ...input, reason: body.reason as ReportCaptureInterruptedRequest['reason'] };
+}
+
+export function validateAbandonEmptyCapture(
+  body: Record<string, unknown>,
+): AbandonEmptyCaptureRequest {
+  const input = validateConfirmCaptureActive(body);
+  if (body.local_archive_chunk_count !== 0) throw validationError();
+  return { ...input, local_archive_chunk_count: 0 };
+}
+
 export function validateDeviceCheck(body: Record<string, unknown>): DeviceCheckRequest {
   if (
     !['granted', 'denied'].includes(String(body.microphone_permission)) ||
@@ -112,10 +161,18 @@ export function validateRecoverSession(body: Record<string, unknown>): RecoverSe
     throw validationError();
   if (body.action === 'finalize_interrupted')
     return { ...validateStopSession(body), action: 'finalize_interrupted' };
-  return {
-    action: body.action as 'reconcile' | 'resume_capture',
-    request_id: validateUuid(body.request_id),
-  };
+  if (body.action === 'resume_capture') {
+    return {
+      action: 'resume_capture',
+      audio_stream_id: validateUuid(body.audio_stream_id),
+      local_archive_chunk_count: nonnegativeInteger(body.local_archive_chunk_count),
+      local_archive_timeline_high_water_ms: nonnegativeInteger(
+        body.local_archive_timeline_high_water_ms,
+      ),
+      request_id: validateUuid(body.request_id),
+    };
+  }
+  return { action: 'reconcile', request_id: validateUuid(body.request_id) };
 }
 
 function requiredText(value: unknown, maxLength: number): string {
