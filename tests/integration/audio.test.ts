@@ -109,7 +109,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         session_id: sessionId,
       });
     expect(invalidInterview.status).toBe(409);
-    expect((invalidInterview.body as ErrorBody).code).toBe('INVALID_AUDIO_STATE');
+    expect((invalidInterview.body as ErrorBody).code).toBe('INTERVIEW_AUDIO_START_REQUIRED');
 
     const initialized = await listenerA
       .post(`/api/v1/projects/${projectId}/audio-objects`)
@@ -271,7 +271,11 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: requestId(10) });
+      .send({
+        audio_stream_id: '00000000-0000-4000-8000-000000000410',
+        mime_type: MIME,
+        request_id: requestId(10),
+      });
     expect(started.body).toMatchObject({ status: 'recording' });
     const interviewObject = await listenerA
       .post(`/api/v1/projects/${projectId}/audio-objects`)
@@ -283,8 +287,15 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         request_id: requestId(11),
         session_id: sessionId,
       });
-    expect(interviewObject.status).toBe(201);
-    expect(interviewObject.body).toMatchObject({ purpose: 'interview', session_id: sessionId });
+    expect(interviewObject.status).toBe(409);
+    expect((interviewObject.body as ErrorBody).code).toBe('INTERVIEW_AUDIO_START_REQUIRED');
+    expect((started.body as { capture: { audio_object_id: string } }).capture.audio_object_id).toBe(
+      (
+        await prisma.audioObject.findFirstOrThrow({
+          where: { purpose: 'interview', sessionId },
+        })
+      ).id,
+    );
     expect(csrfB).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -486,6 +497,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
 async function cleanDatabase(prisma: PrismaService): Promise<void> {
   await prisma.consentRecord.deleteMany();
   await prisma.audioChunk.deleteMany();
+  await prisma.sessionCaptureGeneration.deleteMany();
   await prisma.audioObject.deleteMany();
   await prisma.interviewSession.deleteMany();
   await prisma.serviceTerm.deleteMany();

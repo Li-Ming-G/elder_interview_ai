@@ -9,6 +9,7 @@ import type {
   ConsentRecord,
   ElderProject,
   InterviewSession,
+  SessionCaptureGeneration,
   SessionFinalization,
   ServiceTerm,
 } from '../generated/prisma/client.js';
@@ -70,8 +71,24 @@ export function mapInterviewSessionSnapshot(
   session: InterviewSession,
   finalization: (SessionFinalization & { audioObject: { manifestChecksum: string | null } }) | null,
   uploadedChunkCount: number,
+  capture: SessionCaptureGeneration | null = null,
+  captureUploadedChunkCount = 0,
 ): InterviewSessionResponse {
   return {
+    capture:
+      capture === null
+        ? null
+        : {
+            audio_object_id: capture.audioObjectId,
+            audio_stream_id: capture.audioStreamId,
+            generation_no: capture.generationNo,
+            interrupted_at: capture.interruptedAt?.toISOString() ?? null,
+            interruption_reason: capture.interruptionReason,
+            status: capture.status,
+            timeline_offset_ms: capture.timelineOffsetMs,
+            uploaded_chunk_count: captureUploadedChunkCount,
+          },
+    capture_failure_code: session.captureFailureCode,
     created_at: session.createdAt.toISOString(),
     created_by: session.createdBy,
     id: session.id,
@@ -100,9 +117,9 @@ export function mapInterviewSessionSnapshot(
                 : null,
             processing_started_at: finalization.processingStartedAt?.toISOString() ?? null,
             recording_status:
-              session.status === 'interrupted'
+              capture?.status === 'interrupted' || session.status === 'interrupted'
                 ? 'interrupted'
-                : session.status === 'recording'
+                : capture?.status === 'active' || session.status === 'recording'
                   ? 'recording'
                   : 'stopped',
             transcript_error_code: finalization.transcriptErrorCode as

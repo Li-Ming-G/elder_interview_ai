@@ -319,9 +319,13 @@ describe('RealtimeTranscriptionGateway serialization', () => {
   );
 
   it('maps unknown internal failures to a non-sensitive 4500 error', async () => {
-    const gateway = createGateway(new CountingAdapter(), 'produce', undefined, undefined, () =>
-      Promise.reject(new Error('database-name SQL secret stack')),
-    );
+    let accessChecks = 0;
+    const gateway = createGateway(new CountingAdapter(), 'produce', undefined, undefined, () => {
+      accessChecks += 1;
+      return accessChecks === 1
+        ? Promise.resolve('produce')
+        : Promise.reject(new Error('database-name SQL secret stack'));
+    });
     const client = new FakeSocket();
     const sessionId = randomUUID();
     gateway.handleConnection(client as unknown as WebSocket, request());
@@ -334,6 +338,74 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(JSON.stringify(client.sent)).not.toContain('database-name');
     expect(JSON.stringify(client.sent)).not.toContain('SQL');
   });
+
+  it('fails closed without recording or ACK when PCM evidence cannot be persisted', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(
+      adapter,
+      'produce',
+      runtimes,
+      undefined,
+      undefined,
+      undefined,
+      async (accept) => {
+        await accept();
+        throw new Error('test-only evidence write failure');
+      },
+    );
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    await client.waitClosed();
+
+    expect(adapter.calls).toBe(1);
+    expect(client.closeCode).toBe(4500);
+    expect(client.sent.at(-1)?.payload).toEqual({ code: 'REALTIME_UNAVAILABLE' });
+    expect(client.sent.some(({ type }) => type === 'audio.ack')).toBe(false);
+    expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(-1);
+  });
+
+  it('does not ACK an adapter result after the producer lease is interrupted', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    let acceptStarted: (() => void) | undefined;
+    let releaseAccept: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      acceptStarted = resolve;
+    });
+    const blocked = new Promise<readonly []>((resolve) => {
+      releaseAccept = (): void => {
+        resolve([]);
+      };
+    });
+    const adapter = {
+      accept: () => {
+        acceptStarted?.();
+        return blocked;
+      },
+      drainAndClose: () => Promise.resolve(),
+    } as StreamingAsrAdapter;
+    const gateway = createGateway(adapter, 'produce', runtimes);
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    await started;
+
+    expect(runtimes.interruptCapture(sessionId, audioStreamId)).toBe(true);
+    releaseAccept?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(client.sent.some(({ type }) => type === 'audio.ack')).toBe(false);
+    expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(-1);
+  });
 });
 
 function createGateway(
@@ -343,6 +415,7 @@ function createGateway(
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
   assertJoin: () => Promise<RealtimeSessionMode> = () => Promise.resolve(mode),
+  acceptAndPersist: <T>(accept: () => Promise<T>) => Promise<T> = (accept) => accept(),
 ): RealtimeTranscriptionGateway {
   const access = {
     assertActiveConnection,
@@ -353,7 +426,16 @@ function createGateway(
   const ingestion = {
     ingest,
   };
-  return new RealtimeTranscriptionGateway(access, runtimes, adapter, ingestion as never);
+  return new RealtimeTranscriptionGateway(
+    access,
+    runtimes,
+    adapter,
+    ingestion as never,
+    {
+      acceptAndPersist: <T>(_sessionId: string, _audioStreamId: string, accept: () => Promise<T>) =>
+        acceptAndPersist(accept),
+    } as never,
+  );
 }
 
 class CountingAdapter extends StreamingAsrAdapter {

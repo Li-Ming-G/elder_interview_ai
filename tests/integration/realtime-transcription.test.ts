@@ -144,6 +144,7 @@ describe('authenticated realtime transcription WebSocket', () => {
     async (messageType) => {
       await withIsolatedRecordingSession(async () => {
         const audioStreamId = randomUUID();
+        await setCaptureStream(audioStreamId);
         const client = await connect(url, cookie);
         const inbox = new Inbox(client);
         client.send(JSON.stringify(join(csrf, audioStreamId)));
@@ -175,11 +176,27 @@ describe('authenticated realtime transcription WebSocket', () => {
     },
   );
 
-  it('maps an unexpected persistence failure to REALTIME_UNAVAILABLE without details', async () => {
+  it('rejects a producer stream that is not the current persisted capture generation', async () => {
     await withIsolatedRecordingSession(async () => {
+      await setCaptureStream(randomUUID());
       const client = await connect(url, cookie);
       const inbox = new Inbox(client);
       client.send(JSON.stringify(join(csrf, randomUUID())));
+      expect(await inbox.next()).toMatchObject({
+        payload: { code: 'SESSION_NOT_STREAMABLE' },
+        type: 'error',
+      });
+      expect(await inbox.closed()).toBe(4408);
+    });
+  });
+
+  it('maps an unexpected persistence failure to REALTIME_UNAVAILABLE without details', async () => {
+    await withIsolatedRecordingSession(async () => {
+      const audioStreamId = randomUUID();
+      await setCaptureStream(audioStreamId);
+      const client = await connect(url, cookie);
+      const inbox = new Inbox(client);
+      client.send(JSON.stringify(join(csrf, audioStreamId)));
       await inbox.next();
       const failure = vi
         .spyOn(prisma.interviewSession, 'findUnique')
@@ -202,6 +219,7 @@ describe('authenticated realtime transcription WebSocket', () => {
 
   it('orders interim/final, persists before publish, replays, and rechecks assignment per frame', async () => {
     const audioStreamId = randomUUID();
+    await setCaptureStream(audioStreamId);
     let client = await connect(url, cookie);
     let inbox = new Inbox(client);
     client.send(JSON.stringify(join(csrf, audioStreamId)));
@@ -268,6 +286,38 @@ describe('authenticated realtime transcription WebSocket', () => {
     client.send(JSON.stringify(join(csrf, randomUUID())));
     expect(await inbox.next()).toMatchObject({ type: 'error', payload: { code } });
     expect(await inbox.closed()).toBe(closeCode);
+  }
+
+  async function setCaptureStream(audioStreamId: string): Promise<void> {
+    const existing = await prisma.sessionCaptureGeneration.findFirst({
+      orderBy: { generationNo: 'desc' },
+      where: { sessionId: activeSessionId },
+    });
+    if (existing !== null) {
+      await prisma.sessionCaptureGeneration.update({
+        data: { audioStreamId },
+        where: { id: existing.id },
+      });
+      return;
+    }
+    const audio = await prisma.audioObject.create({
+      data: {
+        createdBy: userId,
+        mimeType: 'audio/webm;codecs=opus',
+        projectId,
+        purpose: 'interview',
+        sessionId: activeSessionId,
+      },
+    });
+    await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: audio.id,
+        audioStreamId,
+        generationNo: 0,
+        sessionId: activeSessionId,
+        timelineOffsetMs: 0,
+      },
+    });
   }
 
   let isolatedSequence = 1000;
@@ -447,6 +497,7 @@ async function cleanDatabase(database: PrismaService): Promise<void> {
   await database.speakerMapping.deleteMany();
   await database.consentRecord.deleteMany();
   await database.audioChunk.deleteMany();
+  await database.sessionCaptureGeneration.deleteMany();
   await database.audioObject.deleteMany();
   await database.interviewSession.deleteMany();
   await database.serviceTerm.deleteMany();

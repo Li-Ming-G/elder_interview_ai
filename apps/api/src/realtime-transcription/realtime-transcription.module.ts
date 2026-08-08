@@ -1,6 +1,7 @@
 import type { ApiConfig } from '@elder-interview/config';
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
 import {
   DeterministicStreamingAsrFake,
   StreamingAsrAdapter,
@@ -28,6 +29,7 @@ export function createRealtimeTranscriptionModule(
     imports: [authModule, transcriptionModule],
     module: RealtimeTranscriptionModule,
     providers: [
+      CapturePcmEvidenceService,
       RealtimeAccessService,
       RealtimeRuntimeService,
       implementation,

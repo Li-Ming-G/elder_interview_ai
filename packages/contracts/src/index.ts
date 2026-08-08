@@ -120,10 +120,35 @@ export interface InterviewSessionResponse {
   started_at: string | null;
   ended_at?: string | null;
   duration_seconds?: number | null;
+  capture_failure_code?: 'NO_AUDIO_CAPTURED' | null;
   created_by: string;
   created_at: string;
   updated_at: string;
+  capture?: SessionCaptureSnapshot | null;
   finalization?: SessionFinalizationSnapshot | null;
+}
+
+export type CaptureGenerationStatus =
+  'preparing' | 'active' | 'interrupted' | 'stopped' | 'abandoned_empty';
+
+export type CaptureInterruptionReason =
+  | 'capture_start_failed'
+  | 'page_recovery_detected'
+  | 'microphone_ended'
+  | 'recorder_error'
+  | 'local_archive_failed'
+  | 'auth_lost'
+  | 'unknown';
+
+export interface SessionCaptureSnapshot {
+  audio_object_id: string;
+  generation_no: number;
+  audio_stream_id: string;
+  status: CaptureGenerationStatus;
+  timeline_offset_ms: number;
+  uploaded_chunk_count: number;
+  interruption_reason: CaptureInterruptionReason | null;
+  interrupted_at: string | null;
 }
 
 export type FinalizationUploadStatus =
@@ -161,8 +186,34 @@ export interface StopSessionRequest extends IdempotentRequest {
   expected_chunk_count: number;
   chunks: SessionChunkCommitment[];
 }
+export interface StartSessionRequest extends IdempotentRequest {
+  mime_type: string;
+  audio_stream_id: string;
+}
+
+export interface ConfirmCaptureActiveRequest extends IdempotentRequest {
+  generation_no: number;
+  audio_stream_id: string;
+}
+
+export interface ReportCaptureInterruptedRequest extends ConfirmCaptureActiveRequest {
+  reason: CaptureInterruptionReason;
+}
+
+export interface AbandonEmptyCaptureRequest extends ConfirmCaptureActiveRequest {
+  local_archive_chunk_count: 0;
+}
+
+export interface ResumeCaptureRequest extends IdempotentRequest {
+  action: 'resume_capture';
+  audio_stream_id: string;
+  local_archive_chunk_count: number;
+  local_archive_timeline_high_water_ms: number;
+}
+
 export type RecoverSessionRequest =
-  | (IdempotentRequest & { action: 'reconcile' | 'resume_capture' })
+  | (IdempotentRequest & { action: 'reconcile' })
+  | ResumeCaptureRequest
   | (StopSessionRequest & { action: 'finalize_interrupted' });
 
 export interface DeviceCheckRequest {

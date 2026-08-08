@@ -23,6 +23,7 @@ export class RealtimeAccessService {
     actor: AuthPrincipal,
     sessionId: string,
     csrfToken: string,
+    audioStreamId: string,
   ): Promise<RealtimeSessionMode> {
     if (!(await this.sessions.verifyCsrf(actor.sessionId, csrfToken))) {
       throw new ForbiddenException({
@@ -31,7 +32,26 @@ export class RealtimeAccessService {
         message: 'Access denied',
       });
     }
-    return this.assertFrame(actor, sessionId, true);
+    const mode = await this.assertFrame(actor, sessionId, true);
+    if (mode === 'produce') {
+      const capture = await this.prisma.sessionCaptureGeneration.findFirst({
+        orderBy: { generationNo: 'desc' },
+        select: { audioStreamId: true, status: true },
+        where: { sessionId },
+      });
+      if (
+        capture === null ||
+        capture.audioStreamId !== audioStreamId ||
+        !['preparing', 'active'].includes(capture.status)
+      ) {
+        throw new ForbiddenException({
+          code: 'SESSION_NOT_STREAMABLE',
+          details: {},
+          message: 'Session is not streamable',
+        });
+      }
+    }
+    return mode;
   }
 
   public async assertFrame(

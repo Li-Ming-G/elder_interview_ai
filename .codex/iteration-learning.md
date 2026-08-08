@@ -532,6 +532,7 @@
 
 - Contract correction: R1 预审发现 `NO_AUDIO_CAPTURED` 发生时依法没有 finalization，而旧公共失败字段只嵌在 finalization。采用 session 顶层 `capture_failure_code`，只允许空采集失败并与 finalization failure 互斥；不创建伪 finalization。
 - Evidence correction: realtime runtime 是进程内状态，不能在重启后证明零 PCM；generation 增加一次性 `first_pcm_accepted_at`，第一帧被 adapter 接受时写入，空录音放弃要求其为空，不引入每帧数据库写放大。
+- R1 implementation evidence: PostgreSQL barrier 证明 request→project→session→audio 同序可串行 start/stop/upload/PCM/revoke；runtime 清理必须发生在事务提交后，并把首次受影响 session ID 作为脱敏审计事实，才能让响应丢失后的幂等重放补做清理而不误伤后来会话。
 - Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
 
 ### 2026-08-08 — DEV-005R 页面内容占比讨论前置
@@ -577,3 +578,25 @@
 - Implementation evidence: PR #11 head `80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf`、CI `31244954185`、merge `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3`、REV-021 PASS。
 - Lesson: stacked 开发应先合并权威契约，再让每个实现分支 rebase 并按自身风险复审；这能把“规则是否正确”和“实现是否符合规则”分成两个可验证问题。
 - Better future prompt: “契约 PASS 后先合入 main，再逐个 rebase 实现 PR；每个实现只复审受新契约影响的差异，不批量合并。”
+
+### 2026-08-08 — DEV-005R1 PCM 与幂等副作用代际边界
+
+- User outcome: ASR/adapter 挂起不得阻塞原始录音 stop/revoke；旧 revoke/report 请求重放不得清理合法 resume 后的新 producer。
+- Review mode: Correction mode。
+- Review finding: 原实现把外部 adapter 放在每帧业务锁事务内，并把 replay cleanup 只绑定长期 session ID；二者分别造成无限阻塞与跨 generation 误杀。
+- Options considered: 每帧短事务；outbox/队列；首帧有界 single-flight + 后续快路径 + runtime producer lease。采用第三种，避免扩大 R1 模型。
+- Adopted decision: 首帧最多持锁 250 ms，成功接受后原子写证据；后续帧无业务事务。所有 post-commit/replay runtime cleanup 绑定 session + audio stream，并以 producer lease 阻止迟到 ACK。
+- Implementation evidence: `apps/api/src/realtime-transcription/capture-pcm-evidence.service.ts`、`realtime-runtime.service.ts`、`realtime.gateway.ts`、`apps/api/src/project-foundation/project-foundation.service.ts`、`session-capture.service.ts`；unit 26/136、PostgreSQL integration 7/40、auth 3/13、build/smoke 全通过。
+- Lesson: 持久业务幂等不意味着进程内副作用可以无条件重放；补偿副作用必须绑定当次资源租约身份，而非长期实体 ID。
+- Better future prompt: “请分别定义业务事实的事务线性化点与进程内 producer 租约；外部调用必须有 deadline，幂等重放的 cleanup 必须按 generation/audio_stream 条件匹配，并验证旧请求不会影响新代际。”
+
+### 2026-08-08 — DEV-005R1 跨 generation 零证据聚合
+
+- User outcome: 防止历史 generation 已接受 PCM 时，最新空 generation 被错误 abandon 为 `NO_AUDIO_CAPTURED`。
+- Review mode: Correction mode。
+- Review finding: 实现和 `05` 局部文字都把证据判断缩窄到当前 generation，但单 session 复用唯一 audio object，`NO_AUDIO_CAPTURED` 必须是 session 全历史的聚合事实。
+- Options considered: 只看当前 generation；新增冗余 session 证据字段；在既有锁内对 generation 表做存在性查询。采用第三种，不改 schema 或公共契约形状。
+- Adopted decision: `abandonEmpty` 在已有四级锁内查询 `sessionId + firstPcmAcceptedAt not null`，任一命中即 409，其他成功/失败语义不变。
+- Implementation evidence: `apps/api/src/project-foundation/session-capture.service.ts` 与 `tests/integration/session-capture.test.ts`；PostgreSQL 定向 10/10、完整 integration 7/41、unit 26/136、auth 3/13、Chromium 4/4、build/smoke 全通过。
+- Lesson: “空”若用于终结共享聚合对象，就必须对该对象的完整历史求证，不能只检查最新一次尝试。
+- Better future prompt: “请把 NO_AUDIO_CAPTURED 定义为 session 全 capture generations 的聚合不变量，并测试早期 generation 有证据、最新 generation 为空的反例。”

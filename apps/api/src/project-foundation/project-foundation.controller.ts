@@ -9,13 +9,18 @@ import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/commo
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
 import {
+  validateAbandonEmptyCapture,
+  validateConfirmCaptureActive,
   validateConsent,
   validateCreateProject,
   validateDeviceCheck,
   validateIdempotentRequest,
+  validateReportCaptureInterrupted,
   validateServiceTerm,
+  validateStartSession,
   validateStopSession,
   validateRecoverSession,
   validateUuid,
@@ -27,6 +32,7 @@ export class ProjectFoundationController {
     private readonly projects: ProjectFoundationService,
     private readonly actors: ProjectRequestActorService,
     private readonly finalization: SessionFinalizationService,
+    private readonly captures: SessionCaptureService,
   ) {}
 
   @Post('projects')
@@ -146,7 +152,46 @@ export class ProjectFoundationController {
     return this.projects.startSession(
       await this.actors.from(request),
       validateUuid(id),
-      validateIdempotentRequest(body).request_id,
+      validateStartSession(body),
+    );
+  }
+
+  @Post('sessions/:id/capture/confirm-active')
+  public async confirmCaptureActive(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<InterviewSessionResponse> {
+    return this.captures.confirmActive(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateConfirmCaptureActive(body),
+    );
+  }
+
+  @Post('sessions/:id/capture/interrupted')
+  public async reportCaptureInterrupted(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<InterviewSessionResponse> {
+    return this.captures.reportInterrupted(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateReportCaptureInterrupted(body),
+    );
+  }
+
+  @Post('sessions/:id/capture/abandon-empty')
+  public async abandonEmptyCapture(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<InterviewSessionResponse> {
+    return this.captures.abandonEmpty(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateAbandonEmptyCapture(body),
     );
   }
 
@@ -171,10 +216,11 @@ export class ProjectFoundationController {
     @Body() body: Record<string, unknown>,
     @Req() request: AuthenticatedRequest,
   ): Promise<InterviewSessionResponse> {
-    return this.finalization.recover(
-      await this.actors.from(request),
-      validateUuid(id),
-      validateRecoverSession(body),
-    );
+    const actor = await this.actors.from(request);
+    const sessionId = validateUuid(id);
+    const input = validateRecoverSession(body);
+    return input.action === 'resume_capture'
+      ? this.captures.resume(actor, sessionId, input)
+      : this.finalization.recover(actor, sessionId, input);
   }
 }
