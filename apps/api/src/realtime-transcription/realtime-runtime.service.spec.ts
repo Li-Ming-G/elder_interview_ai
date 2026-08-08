@@ -24,4 +24,22 @@ describe('RealtimeRuntimeService', () => {
     expect(service.replayAfter(runtime, -1)).toBeNull();
     expect(service.replayAfter(runtime, 0)?.[0]?.envelope.server_sequence).toBe(1);
   });
+
+  it('interrupts only the capture stream named by a replay cleanup target', () => {
+    const service = new RealtimeRuntimeService();
+    const sessionId = randomUUID();
+    const oldStreamId = randomUUID();
+    const newStreamId = randomUUID();
+    const oldRuntime = service.create(sessionId, oldStreamId);
+    const oldProducer = {};
+    service.claim(oldRuntime, oldProducer);
+    expect(service.interruptCapture(sessionId, oldStreamId)).toBe(true);
+    expect(oldRuntime.producer).toBeNull();
+
+    const newRuntime = service.create(sessionId, newStreamId);
+    const newProducer = {};
+    const lease = service.claim(newRuntime, newProducer);
+    expect(service.interruptCapture(sessionId, oldStreamId)).toBe(false);
+    expect(service.isProducerLeaseCurrent(newRuntime, newProducer, lease)).toBe(true);
+  });
 });

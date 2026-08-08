@@ -578,3 +578,14 @@
 - Implementation evidence: PR #11 head `80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf`、CI `31244954185`、merge `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3`、REV-021 PASS。
 - Lesson: stacked 开发应先合并权威契约，再让每个实现分支 rebase 并按自身风险复审；这能把“规则是否正确”和“实现是否符合规则”分成两个可验证问题。
 - Better future prompt: “契约 PASS 后先合入 main，再逐个 rebase 实现 PR；每个实现只复审受新契约影响的差异，不批量合并。”
+
+### 2026-08-08 — DEV-005R1 PCM 与幂等副作用代际边界
+
+- User outcome: ASR/adapter 挂起不得阻塞原始录音 stop/revoke；旧 revoke/report 请求重放不得清理合法 resume 后的新 producer。
+- Review mode: Correction mode。
+- Review finding: 原实现把外部 adapter 放在每帧业务锁事务内，并把 replay cleanup 只绑定长期 session ID；二者分别造成无限阻塞与跨 generation 误杀。
+- Options considered: 每帧短事务；outbox/队列；首帧有界 single-flight + 后续快路径 + runtime producer lease。采用第三种，避免扩大 R1 模型。
+- Adopted decision: 首帧最多持锁 250 ms，成功接受后原子写证据；后续帧无业务事务。所有 post-commit/replay runtime cleanup 绑定 session + audio stream，并以 producer lease 阻止迟到 ACK。
+- Implementation evidence: `apps/api/src/realtime-transcription/capture-pcm-evidence.service.ts`、`realtime-runtime.service.ts`、`realtime.gateway.ts`、`apps/api/src/project-foundation/project-foundation.service.ts`、`session-capture.service.ts`；unit 26/136、PostgreSQL integration 7/40、auth 3/13、build/smoke 全通过。
+- Lesson: 持久业务幂等不意味着进程内副作用可以无条件重放；补偿副作用必须绑定当次资源租约身份，而非长期实体 ID。
+- Better future prompt: “请分别定义业务事实的事务线性化点与进程内 producer 租约；外部调用必须有 deadline，幂等重放的 cleanup 必须按 generation/audio_stream 条件匹配，并验证旧请求不会影响新代际。”

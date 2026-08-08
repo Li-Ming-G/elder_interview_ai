@@ -173,7 +173,7 @@ export class SessionCaptureService {
       );
       return current;
     });
-    this.runtime.interruptSession(sessionId);
+    this.runtime.interruptCapture(sessionId, input.audio_stream_id);
     return snapshot;
   }
 
@@ -256,7 +256,7 @@ export class SessionCaptureService {
       );
       return current;
     });
-    this.runtime.interruptSession(sessionId);
+    this.runtime.interruptCapture(sessionId, input.audio_stream_id);
     return snapshot;
   }
 

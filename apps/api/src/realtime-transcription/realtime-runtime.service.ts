@@ -32,6 +32,7 @@ export interface SessionRuntime {
   pendingBytes: number;
   pendingFrames: number;
   producer: object | null;
+  producerLease: number;
   publishedFinalSegmentIds: Set<string>;
   sessionId: string;
 }
@@ -60,6 +61,7 @@ export class RealtimeRuntimeService {
       pendingBytes: 0,
       pendingFrames: 0,
       producer: null,
+      producerLease: 0,
       publishedFinalSegmentIds: new Set(),
       sessionId,
     };
@@ -144,14 +146,38 @@ export class RealtimeRuntimeService {
   }
 
   public release(runtime: SessionRuntime, client: object): void {
-    if (runtime.producer === client) runtime.producer = null;
+    if (runtime.producer === client) {
+      runtime.producer = null;
+      runtime.producerLease += 1;
+    }
     runtime.lastTouchedAt = Date.now();
+  }
+
+  public claim(runtime: SessionRuntime, client: object): number {
+    runtime.producer = client;
+    runtime.producerLease += 1;
+    runtime.lastTouchedAt = Date.now();
+    return runtime.producerLease;
+  }
+
+  public isProducerLeaseCurrent(runtime: SessionRuntime, client: object, lease: number): boolean {
+    return runtime.producer === client && runtime.producerLease === lease;
+  }
+
+  public interruptCapture(sessionId: string, audioStreamId: string): boolean {
+    const runtime = this.sessions.get(sessionId);
+    if (runtime === undefined || runtime.audioStreamId !== audioStreamId) return false;
+    runtime.producer = null;
+    runtime.producerLease += 1;
+    runtime.lastTouchedAt = Date.now();
+    return true;
   }
 
   public interruptSession(sessionId: string): void {
     const runtime = this.sessions.get(sessionId);
     if (runtime === undefined) return;
     runtime.producer = null;
+    runtime.producerLease += 1;
     runtime.lastTouchedAt = Date.now();
   }
 

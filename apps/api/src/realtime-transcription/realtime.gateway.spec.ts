@@ -369,6 +369,43 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(client.sent.some(({ type }) => type === 'audio.ack')).toBe(false);
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(-1);
   });
+
+  it('does not ACK an adapter result after the producer lease is interrupted', async () => {
+    const runtimes = new RealtimeRuntimeService();
+    let acceptStarted: (() => void) | undefined;
+    let releaseAccept: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      acceptStarted = resolve;
+    });
+    const blocked = new Promise<readonly []>((resolve) => {
+      releaseAccept = (): void => {
+        resolve([]);
+      };
+    });
+    const adapter = {
+      accept: () => {
+        acceptStarted?.();
+        return blocked;
+      },
+      drainAndClose: () => Promise.resolve(),
+    } as StreamingAsrAdapter;
+    const gateway = createGateway(adapter, 'produce', runtimes);
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0));
+    await started;
+
+    expect(runtimes.interruptCapture(sessionId, audioStreamId)).toBe(true);
+    releaseAccept?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(client.sent.some(({ type }) => type === 'audio.ack')).toBe(false);
+    expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(-1);
+  });
 });
 
 function createGateway(

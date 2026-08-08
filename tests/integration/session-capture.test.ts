@@ -407,6 +407,271 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' } });
   });
 
+  it('bounds a blocked first adapter and leaves stop as the only committed race winner', async () => {
+    const fixture = await createFixture();
+    const sessionId = fixture.sessionIds[0];
+    const stream = randomUUID();
+    const started = await projects.startSession(actor, sessionId, {
+      audio_stream_id: stream,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    const audioObjectId = started.capture?.audio_object_id;
+    if (audioObjectId === undefined) throw new Error('Expected capture audio object');
+    await captures.confirmActive(actor, sessionId, {
+      audio_stream_id: stream,
+      generation_no: 0,
+      request_id: randomUUID(),
+    });
+    let acceptStarted: (() => void) | undefined;
+    const adapterStarted = new Promise<void>((resolve) => {
+      acceptStarted = resolve;
+    });
+    const hanging = evidence
+      .acceptAndPersist(sessionId, stream, () => {
+        acceptStarted?.();
+        return new Promise<never>(() => undefined);
+      })
+      .then(
+        () => ({ status: 'fulfilled' as const }),
+        (error: unknown) => ({ error, status: 'rejected' as const }),
+      );
+    await adapterStarted;
+    const stop = finalization.stop(actor, sessionId, {
+      audio_object_id: audioObjectId,
+      chunks: [commitment('c')],
+      expected_chunk_count: 1,
+      request_id: randomUUID(),
+    });
+
+    const stopped = await within(stop, 1_500);
+    expect(stopped).toMatchObject({ capture: { status: 'stopped' }, status: 'stopping' });
+    expect((await hanging).status).toBe('rejected');
+    expect(
+      (
+        await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+          where: { audioStreamId: stream },
+        })
+      ).firstPcmAcceptedAt,
+    ).toBeNull();
+
+    const acceptedFixture = await createFixture();
+    const acceptedSessionId = acceptedFixture.sessionIds[0];
+    const acceptedStream = randomUUID();
+    const acceptedStart = await projects.startSession(actor, acceptedSessionId, {
+      audio_stream_id: acceptedStream,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    const acceptedAudioObjectId = acceptedStart.capture?.audio_object_id;
+    if (acceptedAudioObjectId === undefined) throw new Error('Expected capture audio object');
+    let releaseFirst: (() => void) | undefined;
+    let firstStarted: (() => void) | undefined;
+    const firstAdapterStarted = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const firstAdapter = new Promise<readonly []>((resolve) => {
+      releaseFirst = (): void => {
+        resolve([]);
+      };
+    });
+    const acceptedEvidence = evidence.acceptAndPersist(acceptedSessionId, acceptedStream, () => {
+      firstStarted?.();
+      return firstAdapter;
+    });
+    await firstAdapterStarted;
+    const stopAfterAccepted = finalization.stop(actor, acceptedSessionId, {
+      audio_object_id: acceptedAudioObjectId,
+      chunks: [commitment('e')],
+      expected_chunk_count: 1,
+      request_id: randomUUID(),
+    });
+    releaseFirst?.();
+    await acceptedEvidence;
+    await within(stopAfterAccepted, 1_000);
+    expect(
+      (
+        await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+          where: { audioStreamId: acceptedStream },
+        })
+      ).firstPcmAcceptedAt,
+    ).not.toBeNull();
+  });
+
+  it('keeps later frames off database locks and lets stop finish while the adapter is blocked', async () => {
+    const fixture = await createFixture();
+    const sessionId = fixture.sessionIds[0];
+    const stream = randomUUID();
+    const started = await projects.startSession(actor, sessionId, {
+      audio_stream_id: stream,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    const audioObjectId = started.capture?.audio_object_id;
+    if (audioObjectId === undefined) throw new Error('Expected capture audio object');
+    await evidence.acceptAndPersist(sessionId, stream, () => Promise.resolve([]));
+    let acceptStarted: (() => void) | undefined;
+    let releaseAccept: (() => void) | undefined;
+    const adapterStarted = new Promise<void>((resolve) => {
+      acceptStarted = resolve;
+    });
+    const blocked = new Promise<readonly []>((resolve) => {
+      releaseAccept = (): void => {
+        resolve([]);
+      };
+    });
+    const laterFrame = evidence.acceptAndPersist(sessionId, stream, () => {
+      acceptStarted?.();
+      return blocked;
+    });
+    await adapterStarted;
+
+    const stopped = await within(
+      finalization.stop(actor, sessionId, {
+        audio_object_id: audioObjectId,
+        chunks: [commitment('d')],
+        expected_chunk_count: 1,
+        request_id: randomUUID(),
+      }),
+      1_000,
+    );
+    releaseAccept?.();
+    await laterFrame;
+
+    expect(stopped).toMatchObject({ capture: { status: 'stopped' }, status: 'stopping' });
+    expect(
+      (
+        await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+          where: { audioStreamId: stream },
+        })
+      ).firstPcmAcceptedAt,
+    ).not.toBeNull();
+  });
+
+  it('keeps report-interrupted replay cleanup bound to its original capture stream', async () => {
+    const fixture = await createFixture();
+    const sessionId = fixture.sessionIds[0];
+    const stream0 = randomUUID();
+    await projects.startSession(actor, sessionId, {
+      audio_stream_id: stream0,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    const reportRequest = {
+      audio_stream_id: stream0,
+      generation_no: 0,
+      reason: 'page_recovery_detected' as const,
+      request_id: randomUUID(),
+    };
+    const interrupted = await captures.reportInterrupted(actor, sessionId, reportRequest);
+    const oldRuntime = runtime.create(sessionId, stream0);
+    runtime.claim(oldRuntime, {});
+    expect(await captures.reportInterrupted(actor, sessionId, reportRequest)).toEqual(interrupted);
+    expect(oldRuntime.producer).toBeNull();
+
+    const stream1 = randomUUID();
+    await captures.resume(actor, sessionId, {
+      action: 'resume_capture',
+      audio_stream_id: stream1,
+      local_archive_chunk_count: 0,
+      local_archive_timeline_high_water_ms: 0,
+      request_id: randomUUID(),
+    });
+    const currentRuntime = runtime.create(sessionId, stream1);
+    const currentProducer = {};
+    runtime.claim(currentRuntime, currentProducer);
+
+    expect(await captures.reportInterrupted(actor, sessionId, reportRequest)).toEqual(interrupted);
+    expect(currentRuntime.producer).toBe(currentProducer);
+    expect(
+      await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+        where: { audioStreamId: stream1 },
+      }),
+    ).toMatchObject({ generationNo: 1, status: 'preparing' });
+  });
+
+  it('replays revoke cleanup for the old stream without terminating a later authorized resume', async () => {
+    const fixture = await createFixture();
+    const sessionId = fixture.sessionIds[0];
+    const stream0 = randomUUID();
+    await projects.startSession(actor, sessionId, {
+      audio_stream_id: stream0,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    await evidence.acceptAndPersist(sessionId, stream0, () => Promise.resolve([]));
+    let releaseAdapter: (() => void) | undefined;
+    let adapterStarted: (() => void) | undefined;
+    const laterAdapterStarted = new Promise<void>((resolve) => {
+      adapterStarted = resolve;
+    });
+    const blockedAdapter = new Promise<readonly []>((resolve) => {
+      releaseAdapter = (): void => {
+        resolve([]);
+      };
+    });
+    const laterFrame = evidence.acceptAndPersist(sessionId, stream0, () => {
+      adapterStarted?.();
+      return blockedAdapter;
+    });
+    await laterAdapterStarted;
+    const oldRuntime = runtime.create(sessionId, stream0);
+    runtime.claim(oldRuntime, {});
+    const requestId = randomUUID();
+    const revoked = await within(
+      projects.revokeConsent(actor, fixture.consentId, requestId),
+      1_000,
+    );
+    releaseAdapter?.();
+    await laterFrame;
+    expect(oldRuntime.producer).toBeNull();
+
+    runtime.claim(oldRuntime, {});
+    expect(await projects.revokeConsent(actor, fixture.consentId, requestId)).toEqual(revoked);
+    expect(oldRuntime.producer).toBeNull();
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'consent.revoke', requestId },
+    });
+    expect(audit.metadata).toMatchObject({
+      interrupted_captures: [{ audio_stream_id: stream0, generation_no: 0, session_id: sessionId }],
+    });
+
+    await prisma.consentRecord.create({
+      data: {
+        consentMethod: 'electronic',
+        consentTextVersion: 'capture-v2',
+        consentType: 'recording_transcription_ai',
+        consentedAt: new Date(),
+        createdBy: actorId,
+        projectId: fixture.projectId,
+        status: 'valid',
+      },
+    });
+    await prisma.elderProject.update({
+      data: { status: 'active', statusBeforeRestriction: null },
+      where: { id: fixture.projectId },
+    });
+    const stream1 = randomUUID();
+    await captures.resume(actor, sessionId, {
+      action: 'resume_capture',
+      audio_stream_id: stream1,
+      local_archive_chunk_count: 0,
+      local_archive_timeline_high_water_ms: 0,
+      request_id: randomUUID(),
+    });
+    const currentRuntime = runtime.create(sessionId, stream1);
+    const currentProducer = {};
+    runtime.claim(currentRuntime, currentProducer);
+
+    expect(await projects.revokeConsent(actor, fixture.consentId, requestId)).toEqual(revoked);
+    expect(currentRuntime.producer).toBe(currentProducer);
+    expect(
+      await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+        where: { audioStreamId: stream1 },
+      }),
+    ).toMatchObject({ generationNo: 1, status: 'preparing' });
+  });
+
   it('serializes revoke with start, stop, upload, and PCM acceptance behind a real project barrier', async () => {
     const fixture = await createFixture(2);
     const captureSessionId = fixture.sessionIds[0];
@@ -472,9 +737,29 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const outcomes = await Promise.allSettled(operations);
     expect(outcomes[4]).toMatchObject({ status: 'fulfilled' });
     const replayRuntime = runtime.create(captureSessionId, stream);
-    replayRuntime.producer = {};
+    const replayProducer = {};
+    runtime.claim(replayRuntime, replayProducer);
     await projects.revokeConsent(actor, fixture.consentId, revokeRequestId);
-    expect(runtime.find(captureSessionId)?.producer).toBeNull();
+    const revokeAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'consent.revoke', requestId: revokeRequestId },
+    });
+    const interruptedCaptures =
+      typeof revokeAudit.metadata === 'object' &&
+      revokeAudit.metadata !== null &&
+      !Array.isArray(revokeAudit.metadata) &&
+      Array.isArray(revokeAudit.metadata.interrupted_captures)
+        ? revokeAudit.metadata.interrupted_captures
+        : [];
+    const originallyInterrupted = interruptedCaptures.some(
+      (target) =>
+        typeof target === 'object' &&
+        target !== null &&
+        !Array.isArray(target) &&
+        target.audio_stream_id === stream,
+    );
+    expect(runtime.find(captureSessionId)?.producer).toBe(
+      originallyInterrupted ? null : replayProducer,
+    );
 
     const sessions = await prisma.interviewSession.findMany({
       where: { id: { in: fixture.sessionIds } },
@@ -564,5 +849,39 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       await released;
     });
     return { acquired, completed, release: () => releaseLock?.() };
+  }
+
+  function commitment(seed: string): {
+    checksum: string;
+    end_ms: number;
+    mime_type: string;
+    sequence_no: number;
+    size_bytes: number;
+    start_ms: number;
+  } {
+    return {
+      checksum: seed.repeat(64),
+      end_ms: 1_000,
+      mime_type: MIME,
+      sequence_no: 0,
+      size_bytes: 10,
+      start_ms: 0,
+    };
+  }
+
+  async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error('operation exceeded test deadline'));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 });

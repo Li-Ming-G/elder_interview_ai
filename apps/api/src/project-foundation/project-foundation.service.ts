@@ -35,6 +35,12 @@ interface IdempotencyBinding {
   targetType: string;
 }
 
+interface InterruptedCaptureTarget {
+  audioStreamId: string;
+  generationNo: number;
+  sessionId: string;
+}
+
 @Injectable()
 export class ProjectFoundationService {
   public constructor(
@@ -236,9 +242,9 @@ export class ProjectFoundationService {
     await this.assertInterviewerProject(actor, existing.projectId);
     const replay = await this.findReplay<ConsentResponse>(requestId, binding);
     if (replay !== null) {
-      const interruptedSessionIds = await this.replayedInterruptedSessionIds(requestId);
-      interruptedSessionIds.forEach((sessionId) => {
-        this.runtime.interruptSession(sessionId);
+      const interruptedCaptures = await this.replayedInterruptedCaptures(requestId);
+      interruptedCaptures.forEach(({ audioStreamId, sessionId }) => {
+        this.runtime.interruptCapture(sessionId, audioStreamId);
       });
       return replay;
     }
@@ -249,7 +255,7 @@ export class ProjectFoundationService {
         requestId,
         binding,
       );
-      if (repeated !== null) return { interruptedSessionIds: [], response: repeated };
+      if (repeated !== null) return { interruptedCaptures: [], response: repeated };
       await this.lock(transaction, `project:${existing.projectId}`);
       const endingSessions = await transaction.interviewSession.findMany({
         orderBy: { id: 'asc' },
@@ -300,22 +306,27 @@ export class ProjectFoundationService {
         },
         where: { id: project.id },
       });
-      const interruptedSessionIds = endingSessions.map(({ id }) => id);
+      const interruptedCaptures: InterruptedCaptureTarget[] = [];
       for (const session of endingSessions) {
-        const activeCapture = ['recording', 'reconnecting', 'interrupted'].includes(session.status)
-          ? await transaction.sessionCaptureGeneration.findFirst({
-              orderBy: { generationNo: 'desc' },
-              where: { sessionId: session.id, status: { in: ['preparing', 'active'] } },
-            })
-          : null;
-        if (activeCapture !== null) {
+        const affectedCapture = await transaction.sessionCaptureGeneration.findFirst({
+          orderBy: { generationNo: 'desc' },
+          where: { sessionId: session.id },
+        });
+        if (affectedCapture !== null) {
+          interruptedCaptures.push({
+            audioStreamId: affectedCapture.audioStreamId,
+            generationNo: affectedCapture.generationNo,
+            sessionId: session.id,
+          });
+        }
+        if (affectedCapture !== null && ['preparing', 'active'].includes(affectedCapture.status)) {
           await transaction.sessionCaptureGeneration.update({
             data: {
               interruptedAt: now,
               interruptionReason: 'auth_lost',
               status: 'interrupted',
             },
-            where: { id: activeCapture.id },
+            where: { id: affectedCapture.id },
           });
         }
         await transaction.interviewSession.updateMany({
@@ -332,17 +343,23 @@ export class ProjectFoundationService {
           entityId: revoked.id,
           entityType: 'consent_record',
           metadata: {
-            interrupted_session_ids: interruptedSessionIds,
+            interrupted_captures: interruptedCaptures.map(
+              ({ audioStreamId, generationNo, sessionId }) => ({
+                audio_stream_id: audioStreamId,
+                generation_no: generationNo,
+                session_id: sessionId,
+              }),
+            ),
             project_id: consent.projectId,
           },
           requestId,
         },
       });
       await this.writeIdempotency(transaction, requestId, binding, response);
-      return { interruptedSessionIds, response };
+      return { interruptedCaptures, response };
     });
-    result.interruptedSessionIds.forEach((sessionId) => {
-      this.runtime.interruptSession(sessionId);
+    result.interruptedCaptures.forEach(({ audioStreamId, sessionId }) => {
+      this.runtime.interruptCapture(sessionId, audioStreamId);
     });
     return result.response;
   }
@@ -550,7 +567,9 @@ export class ProjectFoundationService {
     if (audio?.mimeType !== input.mime_type) throw this.idempotencyPayloadMismatch();
   }
 
-  private async replayedInterruptedSessionIds(requestId: string): Promise<string[]> {
+  private async replayedInterruptedCaptures(
+    requestId: string,
+  ): Promise<InterruptedCaptureTarget[]> {
     const audit = await this.prisma.auditLog.findFirst({
       orderBy: { createdAt: 'asc' },
       select: { metadata: true },
@@ -564,10 +583,27 @@ export class ProjectFoundationService {
     ) {
       return [];
     }
-    const ids = audit.metadata.interrupted_session_ids;
-    return Array.isArray(ids)
-      ? ids.filter((value): value is string => typeof value === 'string')
-      : [];
+    const captures = audit.metadata.interrupted_captures;
+    if (!Array.isArray(captures)) return [];
+    return captures.flatMap((value) => {
+      if (
+        typeof value !== 'object' ||
+        value === null ||
+        Array.isArray(value) ||
+        typeof value.audio_stream_id !== 'string' ||
+        typeof value.generation_no !== 'number' ||
+        typeof value.session_id !== 'string'
+      ) {
+        return [];
+      }
+      return [
+        {
+          audioStreamId: value.audio_stream_id,
+          generationNo: value.generation_no,
+          sessionId: value.session_id,
+        },
+      ];
+    });
   }
 
   private async refreshReady(

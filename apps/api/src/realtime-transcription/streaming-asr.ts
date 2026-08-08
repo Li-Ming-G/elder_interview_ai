@@ -6,6 +6,7 @@ import type { NormalizedAsrResult } from '../transcription/transcription.types.j
 export interface StreamingFrameContext {
   frame: InterviewWsAudioFramePayload;
   sessionId: string;
+  signal: AbortSignal;
 }
 
 export interface StreamingEndContext {

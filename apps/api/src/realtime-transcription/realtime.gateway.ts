@@ -228,7 +228,7 @@ export class RealtimeTranscriptionGateway {
         }
         this.runtimes.release(runtime, previousProducer);
       }
-      runtime.producer = client;
+      this.runtimes.claim(runtime, client);
       await this.access.assertActiveConnection(state.actor, runtime.sessionId);
       if (runtime.producer !== client) {
         this.fail(client, state, 'FORBIDDEN', 4403);
@@ -262,6 +262,7 @@ export class RealtimeTranscriptionGateway {
       this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
       return;
     }
+    const producerLease = runtime.producerLease;
     const replay = this.runtimes.frameMatches(runtime, frame);
     if (replay === true) {
       this.audioAck(client, runtime);
@@ -285,10 +286,12 @@ export class RealtimeTranscriptionGateway {
       const results = await this.captureEvidence.acceptAndPersist(
         runtime.sessionId,
         runtime.audioStreamId,
-        () => this.adapter.accept({ frame, sessionId: runtime.sessionId }),
+        (signal) => this.adapter.accept({ frame, sessionId: runtime.sessionId, signal }),
       );
+      if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
       for (const result of results) {
         const persisted = await this.ingestion.ingest(result);
+        if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
         if (persisted.kind === 'interim') {
           this.sendStored(
             client,
@@ -317,6 +320,7 @@ export class RealtimeTranscriptionGateway {
           );
         }
       }
+      if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
       this.runtimes.recordFrame(runtime, frame);
       this.audioAck(client, runtime);
     } catch (error) {
