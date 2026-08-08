@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；旧 DEV-005A/B/C 历史范围已通过；DISC-005-R0 与 A-R/B-R/C-R/D-R 已获批准，SPEC-DEV-005R 正在 GitHub 审查候选阶段，后续按 R1/R2C/R2/R3/R4 实现。
+- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R 已经 REV-021 PASS 并合入 main，后续按 R1 定向修复、R2C 收口、R2、R3、R4 顺序推进。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -566,3 +566,14 @@
 - Implementation evidence: `04`、`05`、`06`、`09`、SPEC-DEV-005R、DEV-005R1/R4、ADR-017/023、REV-021 与治理索引已修订；PR #13 原任务已收到 all-generation 查询与 PostgreSQL 回归的定向修复要求。
 - Lesson: “零证据”是聚合级断言，不是当前子状态断言；只要历史 generation 留下任何持久证据，就不能由最新 generation 的空值覆盖整个 session 的事实。
 - Better future prompt: “请把空录音条件定义为 session 聚合不变量，列出服务端分片、所有 capture generations 的 PCM 证据和同一 local job 累计 archive 三个独立检查，并覆盖跨 generation 反例。”
+
+### 2026-08-08 — SPEC-DEV-005R 定向复审与基线收口
+
+- User outcome: 四项 P1 修订通过后正式解除 stacked 契约门禁，但不把实现 PR 一次性合入 main。
+- Review mode: Learning mode；项目负责人定向复审确认四项 4/4 关闭，未发现新 P0/P1。
+- Review finding: 契约、旧 ADR 与验收矩阵现在对 interview object 创建、archive 保留、全 generation PCM 和 resume DTO 给出一致答案。
+- Options considered: 契约与实现一起批量合并；只登记 PASS 不合并基线；先合并契约、再逐项重放实现审查。采用第三种。
+- Adopted decision: PR #11 先合入 main；SPEC-DEV-005R DONE，ADR-023/024 Accepted。R1 继续修唯一实现缺陷，R2C 独立收口，随后才进入 R2。
+- Implementation evidence: PR #11 head `80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf`、CI `31244954185`、merge `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3`、REV-021 PASS。
+- Lesson: stacked 开发应先合并权威契约，再让每个实现分支 rebase 并按自身风险复审；这能把“规则是否正确”和“实现是否符合规则”分成两个可验证问题。
+- Better future prompt: “契约 PASS 后先合入 main，再逐个 rebase 实现 PR；每个实现只复审受新契约影响的差异，不批量合并。”

@@ -195,7 +195,7 @@
 
 ## ADR-023｜正式访谈采用单流控制器、浏览器归档与采集代
 
-- 状态：Proposed（等待 SPEC-DEV-005R GitHub 审查）
+- 状态：Accepted（REV-021 对 PR #11 head `80ab84f` PASS）
 - 决定：正式路由由 session-scoped `InterviewCaptureController` 独占一条 MediaStream，同时驱动 MediaRecorder 原始归档和 AudioWorklet 实时 PCM；每个 Blob 只写一次浏览器 archive，delivery queue 仅引用它，ACK 不删除 archive。服务端 atomic start 创建唯一 interview audio object 与 generation 0；显式中断/恢复使用持久 capture generation 和新 audio stream，但复用同一 session/object/local job。
 - 原因：旧正式页面、audio harness 和实时工作台分别拥有开始、原始录音、上传和 PCM，无法向 stop 提供同一对象/作业/commitments，也无法区分刷新、实时断线与真实采集中断。
 - 事实边界：原始录音、本浏览器 archive、服务端 manifest、转录和 session 是五类独立事实；WebSocket replay、URL、计时或最后 final 均不能证明原始录音完成。正常 stop 仍以 ADR-022 finalization 为服务端事实源。
@@ -206,7 +206,7 @@
 
 ## ADR-024｜工作台按业务状态分配注意力，Android Chrome 作为首轮移动主设备
 
-- 状态：Proposed（等待 SPEC-DEV-005R GitHub 审查）
+- 状态：Accepted（REV-021 对 PR #11 head `80ab84f` PASS）
 - 决定：正常录制保持“窄顶部—最大连续转录—低干扰单建议”的纵向结构；桌面以 8/79/13、390×844 以 9/73/18 为视觉护栏，异常和结束状态按用户处置任务重新分配重心。五类事实按来源分区，高密度转录在所有设备保持左元数据/右正文。手机是完整访谈主设备，首轮正式平台为 Android Chrome；iPhone Safari 延期。
 - 原因：倾听员应主要关注长者和转录，但必须一眼知道原始录音是否可靠保存。固定 80% 不能同时服务正常访谈、中断处置和安全结束；把五类事实都堆在顶部会在手机上压缩核心内容。Android 作为主设备又要求采集可靠性与响应式 UI 同时成立。
 - 行为边界：只有结束确认使用 modal；关键异常提升但不抢焦点；R3 只预留建议 replace/undo 状态，不实现 DEV-007。旋转只重排；后台、锁屏和设备中断的继续/中断结果必须由 R2 真机证据冻结，见 CON-021。

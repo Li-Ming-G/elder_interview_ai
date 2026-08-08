@@ -392,6 +392,9 @@ P2：
 - P1-4：正式冻结 `resume_capture` 的 request ID、action、新 stream、同一 local job 累计 archive count 与 timeline high-water 完整 payload。
 - 非阻塞收尾：SPEC 最终 PASS 后把 ADR-023/024 转 Accepted；R4 明确同时负责关闭 CON-020/021。
 - 定向复审条件：只复核上述四项及相邻正式来源一致性；R1 仅复审全 generation PCM 修复；R2C 不重开。SPEC-DEV-005R 与 DEV-005R1 均保持 `REVIEW`。
+- 定向复审提交：`80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf`；CI `31244954185` 完整 verify PASS。
+- 最终结论：`PASS`；P0=0、P1=0。旧 interview init、ACK 删除 archive Blob、全 generation PCM 判定与 resume payload 四项 4/4 关闭；ADR-017 的历史与 ADR-023 现行关系明确，R4 同时负责 CON-020/021。
+- 合并记录：PR #11 以 merge commit `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3` 合入 `main`；SPEC-DEV-005R DONE，ADR-023/024 Accepted，stacked 契约基线门禁解除。R1 仍等待全 generation PCM 实现定向复审，R2C 不重开。
 
 ## 审查模板
 

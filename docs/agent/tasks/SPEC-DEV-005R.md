@@ -3,7 +3,7 @@
 ## 基本信息
 
 - 任务类型：产品、数据、API、浏览器音频和交互跨模块契约
-- 状态：`REVIEW`
+- 状态：`DONE`（REV-021 定向复审 PASS；PR #11 head `80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf`，merge `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3`）
 - 负责人：总控 Agent
 - 输入依据：DISC-005-R0、A-R、B-R、C-R、D-R 已批准决定；`03` 至 `06`、`08`、`09`；DEV-003、DEV-004B2、DEV-005A/B/C 历史实现与审查
 - 前置依赖：项目负责人已确认四阶段讨论无异议
@@ -97,6 +97,7 @@ R1 与严格限界的 R2C 可以从同一 SPEC 基线并行；共享 DTO 只归 
 - 已把 `NO_AUDIO_CAPTURED` 冻结为该 session 所有 generations 均无 `first_pcm_accepted_at`，并要求 R1 定向修复与 PostgreSQL 回归。
 - 已冻结 `resume_capture` 完整 payload，并明确 archive count/timeline 是同一 local job 跨 generations 的累计高水位。
 - ADR-023/024 仅在本 SPEC 最终 PASS 后转 Accepted；R4 明确负责同时关闭 CON-020/021。
+- 定向复审：项目负责人对 head `80ab84f8970dcb68fb85d39e71c22f9aa6ec61bf` 给出 `PASS`，四个 P1 4/4 关闭；CI `31244954185` 完整 verify PASS。ADR-023/024 已转 Accepted，契约基线门禁解除。
 
 ## 审查边界
 

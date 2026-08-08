@@ -5,8 +5,8 @@
 - 日期：2026-08-07
 - 基线：`main@9b71e4f`
 - 任务：SPEC-DEV-005R
-- 状态：`REVIEW`
-- 接收对象：项目负责人 GitHub 审查；DEV-005R1/2/3/4 后续实现任务
+- 状态：`DONE`（REV-021 PASS；PR #11 merge `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3`）
+- 接收对象：DEV-005R1/2C/2/3/4 后续实现任务
 
 ## 已完成
 

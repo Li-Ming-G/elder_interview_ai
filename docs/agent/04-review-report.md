@@ -18,7 +18,7 @@
 | DEV-005B | REV-018 | PR #9 / final head `c73e7ad` / CI `31166457093` PASS / merge `647a6b4` | DONE | P0/P1=0；真实 session/WS 事实、最新授权、final 去重、回看滚动与链路分离通过；父 DEV-005 仍开放 |
 | DEV-005C | REV-019 | PR #10 / final head `36f534a` / CI `31174226564` PASS / merge `9691dad` | DONE | 第三次定向复审 PASS；P0/P1=0，三个 P2 保留但不阻塞当前范围；DEV-005D 的技术前置已成立，现等待新增 DISC-005D 产品讨论门槛 |
 | DEV-005R1 | REV-020 | PR #13 / reviewed head `6847dc2` / CI `31239385749` PASS | REVIEW | 原 PASS 被 REV-021 发现的全 generation PCM P1 部分 supersede；等待 PR #13 定向修复与复审，其他已通过范围不重开 |
-| SPEC-DEV-005R | REV-021 | PR #11 / reviewed head `dc6a953` / CI `31243186240` PASS | REVIEW | REQUEST_CHANGES：旧 interview init、ACK 删除 Blob、全 generation PCM、resume DTO 四个 P1 已写回新候选；等待定向复审 |
+| SPEC-DEV-005R | REV-021 | PR #11 / final head `80ab84f` / CI `31244954185` PASS / merge `c572490` | DONE | 定向复审 PASS，四个 P1 4/4 关闭；解除 stacked 契约基线门禁，父 DEV-005R 与实现任务继续开放 |
 
 ## 阅读规则
 
