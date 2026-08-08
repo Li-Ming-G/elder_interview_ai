@@ -243,6 +243,23 @@ describe('BrowserCaptureCore', () => {
     await nextOwner.release();
   });
 
+  it('finalizes archive with a dirty failed checkpoint for controller-side interruption', async () => {
+    const failures = vi.fn();
+    const harness = await startedCapture({ onCaptureFailure: failures });
+
+    await harness.core.interrupt();
+
+    expect(failures).not.toHaveBeenCalled();
+    expect(harness.fakeRecorder.stopCalls).toHaveBeenCalledOnce();
+    expect(harness.trackStop).toHaveBeenCalledOnce();
+    expect(harness.lockState.isHeld()).toBe(false);
+    await expect(harness.checkpointStore.getCaptureCheckpoint('job-0')).resolves.toMatchObject({
+      dirty: true,
+      status: 'failed',
+    });
+    await expect(harness.queue.restoreArchive('core-session')).resolves.toHaveLength(1);
+  });
+
   it('turns a runtime checkpoint failure into one archive failure and recovers the write chain', async () => {
     const failures = vi.fn();
     const harness = await startedCapture({ onCaptureFailure: failures });

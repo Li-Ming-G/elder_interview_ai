@@ -6,6 +6,8 @@ import { checkMicrophoneInput } from './interview/microphone-check.js';
 import { PreparationPage } from './interview/preparation-page.js';
 import { parseInterviewRoute } from './interview/routes.js';
 import { WorkbenchShell } from './interview/workbench-shell.js';
+import { createBrowserInterviewCaptureController } from './interview/browser-interview-capture-controller.js';
+import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
 
 export function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
@@ -55,6 +57,22 @@ export function App(): React.JSX.Element {
     () => (csrfToken === null ? null : createInterviewApi(csrfToken)),
     [csrfToken],
   );
+  const captureController = useMemo(() => {
+    if (interviewApi === null || csrfToken === null) return null;
+    const controllers = new Map<string, InterviewCaptureController>();
+    return (projectId: string, sessionId: string): InterviewCaptureController => {
+      const existing = controllers.get(sessionId);
+      if (existing !== undefined) return existing;
+      const controller = createBrowserInterviewCaptureController({
+        api: interviewApi,
+        csrfToken,
+        projectId,
+        sessionId,
+      });
+      controllers.set(sessionId, controller);
+      return controller;
+    };
+  }, [csrfToken, interviewApi]);
 
   async function login(event: SyntheticEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -118,7 +136,7 @@ export function App(): React.JSX.Element {
     );
   }
 
-  if (user === null || csrfToken === null || interviewApi === null) {
+  if (user === null || csrfToken === null || interviewApi === null || captureController === null) {
     return (
       <main className="auth-page">
         <section className="auth-panel" aria-labelledby="login-title">
@@ -168,6 +186,7 @@ export function App(): React.JSX.Element {
     return (
       <PreparationPage
         api={interviewApi}
+        captureController={(sessionId) => captureController(route.projectId, sessionId)}
         checkMicrophone={checkMicrophoneInput}
         initialSessionId={route.sessionId}
         navigate={navigate}
@@ -179,7 +198,7 @@ export function App(): React.JSX.Element {
     return (
       <WorkbenchShell
         api={interviewApi}
-        csrfToken={csrfToken}
+        captureController={captureController(route.projectId, route.sessionId)}
         projectId={route.projectId}
         sessionId={route.sessionId}
       />

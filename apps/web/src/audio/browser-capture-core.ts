@@ -109,6 +109,11 @@ export class BrowserCaptureCore {
     return archive;
   }
 
+  /** Finalize the local archive while preserving a dirty failed checkpoint for recovery. */
+  public async interrupt(): Promise<void> {
+    await this.failCaptureWithoutNotification();
+  }
+
   private attachTracks(stream: MediaStream): void {
     for (const track of stream.getAudioTracks()) track.addEventListener('ended', this.trackEnded);
   }
@@ -127,6 +132,19 @@ export class BrowserCaptureCore {
       } catch {
         // Observer failures cannot prevent raw archive finalization and cleanup.
       }
+      await this.options.recorder.stop().catch(() => undefined);
+      await this.writeCheckpoint('failed', true).catch(() => undefined);
+    } finally {
+      this.stopRealtimeWithoutBlockingArchive();
+      await this.releaseActive().catch(() => undefined);
+      this.failing = false;
+    }
+  }
+
+  private async failCaptureWithoutNotification(): Promise<void> {
+    if (this.failing || this.active === null) return;
+    this.failing = true;
+    try {
       await this.options.recorder.stop().catch(() => undefined);
       await this.writeCheckpoint('failed', true).catch(() => undefined);
     } finally {

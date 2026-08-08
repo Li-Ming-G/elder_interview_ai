@@ -13,6 +13,7 @@ import type { InterviewApi, PreparationData } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import type { MicrophoneChecker } from './microphone-check.js';
 import { PreparationPage } from './preparation-page.js';
+import type { InterviewCaptureControllerSnapshot } from './interview-capture-controller.js';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
@@ -42,7 +43,7 @@ describe('PreparationPage', () => {
     fireEvent.click(start);
     fireEvent.click(start);
     await waitFor(() => {
-      expect(api.startSession).toHaveBeenCalledTimes(1);
+      expect(api.captureStart).toHaveBeenCalledTimes(1);
     });
     expect(navigate).toHaveBeenLastCalledWith(
       `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`,
@@ -127,8 +128,8 @@ describe('PreparationPage', () => {
     resolveCheck?.();
     await screen.findByText('权限已允许，并检测到声音输入。');
 
-    let resolveStart: ((session: InterviewSessionResponse) => void) | undefined;
-    api.startSession.mockImplementation(
+    let resolveStart: ((snapshot: InterviewCaptureControllerSnapshot) => void) | undefined;
+    api.captureStart.mockImplementation(
       async () =>
         new Promise((resolve) => {
           resolveStart = resolve;
@@ -140,8 +141,8 @@ describe('PreparationPage', () => {
       (await screen.findByRole('button', { name: '正在开始…' })).hasAttribute('disabled'),
     ).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: '正在开始…' }));
-    expect(api.startSession).toHaveBeenCalledTimes(1);
-    resolveStart?.({ ...SESSION, status: 'recording' });
+    expect(api.captureStart).toHaveBeenCalledTimes(1);
+    resolveStart?.(ACTIVE_CAPTURE);
   });
 
   it.each([
@@ -151,7 +152,7 @@ describe('PreparationPage', () => {
     const api = createApi();
     if (phase === 'device-check') api.deviceCheck.mockRejectedValue(new Error('failed'));
     if (phase === 'start') {
-      api.startSession.mockRejectedValue(new InterviewApiError('CONSENT_REQUIRED', expected, 409));
+      api.captureStart.mockRejectedValue(new InterviewApiError('CONSENT_REQUIRED', expected, 409));
     }
     renderPage(api);
     await screen.findByText('虚构长者小禾');
@@ -178,6 +179,7 @@ function renderPage(
   render(
     <PreparationPage
       api={api}
+      captureController={() => ({ start: api.captureStart })}
       checkMicrophone={checkMicrophone}
       initialSessionId={initialSessionId}
       navigate={navigate}
@@ -188,7 +190,7 @@ function renderPage(
 
 type MockApi = {
   [Key in keyof InterviewApi]: ReturnType<typeof vi.fn<InterviewApi[Key]>>;
-};
+} & { captureStart: ReturnType<typeof vi.fn<() => Promise<InterviewCaptureControllerSnapshot>>> };
 
 function createApi(overrides: Partial<PreparationData> = {}): MockApi {
   const data: PreparationData = {
@@ -200,11 +202,13 @@ function createApi(overrides: Partial<PreparationData> = {}): MockApi {
   };
   return {
     createSession: vi.fn(() => Promise.resolve(SESSION)),
+    captureStart: vi.fn(() => Promise.resolve(ACTIVE_CAPTURE)),
     deviceCheck: vi.fn(() => Promise.resolve({ ...SESSION, status: 'device_check' })),
     loadPreparation: vi.fn(() => Promise.resolve(data)),
-    startSession: vi.fn(() => Promise.resolve({ ...SESSION, status: 'recording' })),
   };
 }
+
+const ACTIVE_CAPTURE = { phase: 'active' } as InterviewCaptureControllerSnapshot;
 
 const PROJECT: ProjectResponse = {
   approximate_age: null,

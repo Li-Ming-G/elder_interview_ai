@@ -67,13 +67,60 @@ export interface AudioArchiveSnapshot {
 
 export type AudioUploadJobStatus = 'recording' | 'uploading' | 'completing' | 'complete' | 'failed';
 
+export type InterviewCaptureLocalStatus =
+  'prepared' | 'server_preparing' | 'recording' | 'active' | 'interrupted' | 'stopped';
+
+export interface PersistedCaptureCommand {
+  audioStreamId: string;
+  generationNo: number;
+  requestId: string;
+}
+
+export interface PersistedCaptureInterruption extends PersistedCaptureCommand {
+  reason:
+    | 'capture_start_failed'
+    | 'page_recovery_detected'
+    | 'microphone_ended'
+    | 'recorder_error'
+    | 'local_archive_failed'
+    | 'auth_lost'
+    | 'unknown';
+}
+
+export interface PersistedCaptureResume {
+  audioStreamId: string;
+  localArchiveChunkCount: number;
+  localArchiveTimelineHighWaterMs: number;
+  requestId: string;
+}
+
+/**
+ * Application-level v1 record stored inside IndexedDB's existing v4 upload-jobs store.
+ * This is deliberately separate from the database schema version: adding fields to a
+ * structured-clone record does not require a new object store or database migration.
+ */
+export interface InterviewCaptureJobState {
+  audioObjectId: string | null;
+  audioStreamId: string;
+  confirmActiveRequests: Record<string, PersistedCaptureCommand>;
+  generationNo: number | null;
+  interruptionReports: Record<string, PersistedCaptureInterruption>;
+  pendingResume: PersistedCaptureResume | null;
+  protocolVersion: 1;
+  startRequestId: string;
+  status: InterviewCaptureLocalStatus;
+  stopRequestId: string | null;
+  timelineOffsetMs: number;
+}
+
 export interface AudioUploadJob {
   audioObjectId: string | null;
   bufferSessionId: string;
   chunkRequestIds: Record<string, string>;
   completeRequestId: string | null;
-  createRequestId: string;
+  createRequestId: string | null;
   expectedChunkCount: number | null;
+  interviewCapture?: InterviewCaptureJobState;
   jobId: string;
   lastError: string | null;
   mimeType: string;
@@ -86,6 +133,10 @@ export interface AudioUploadJob {
 export interface AudioUploadJobStore {
   getUploadJob(jobId: string): Promise<AudioUploadJob | null>;
   putUploadJob(job: AudioUploadJob): Promise<void>;
+  updateUploadJob(
+    jobId: string,
+    update: (current: AudioUploadJob) => AudioUploadJob,
+  ): Promise<AudioUploadJob>;
 }
 
 export type BrowserCaptureCheckpointStatus = 'failed' | 'recording' | 'starting' | 'stopped';

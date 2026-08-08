@@ -43,14 +43,18 @@ export class SequentialAudioDeliveryPump {
       const key = String(record.chunk.sequenceNo);
       let requestId: string | undefined = job.chunkRequestIds[key];
       if (requestId === undefined) {
-        requestId = this.requestId();
-        job = {
-          ...job,
-          chunkRequestIds: { ...job.chunkRequestIds, [key]: requestId },
+        const generatedRequestId = this.requestId();
+        job = await this.jobs.updateUploadJob(jobId, (current) => ({
+          ...current,
+          chunkRequestIds: {
+            ...current.chunkRequestIds,
+            [key]: current.chunkRequestIds[key] ?? generatedRequestId,
+          },
           lastError: null,
           status: 'uploading',
-        };
-        await this.jobs.putUploadJob(job);
+        }));
+        requestId = job.chunkRequestIds[key];
+        if (requestId === undefined) throw new Error('CHUNK_REQUEST_ID_MISSING');
       }
       await this.queue.markUploading(job.bufferSessionId, record.chunk.sequenceNo);
       try {
@@ -67,7 +71,11 @@ export class SequentialAudioDeliveryPump {
       } catch (error) {
         const code = error instanceof Error ? error.message : 'DELIVERY_FAILED';
         await this.queue.markFailed(job.bufferSessionId, record.chunk.sequenceNo, code);
-        await this.jobs.putUploadJob({ ...job, lastError: code, status: 'failed' });
+        await this.jobs.updateUploadJob(jobId, (current) => ({
+          ...current,
+          lastError: code,
+          status: 'failed',
+        }));
         throw error;
       }
     }

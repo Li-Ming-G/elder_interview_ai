@@ -173,6 +173,42 @@ describe('IndexedDbAudioChunkStore', () => {
     const upgraded = new IndexedDbAudioChunkStore(factory);
     expect(await upgraded.getUploadJob('v3-job')).toEqual(legacyJob);
   });
+
+  it('serializes upload-job field updates inside the existing version 4 store', async () => {
+    const store = new IndexedDbAudioChunkStore(new IDBFactory());
+    const job: AudioUploadJob = {
+      audioObjectId: null,
+      bufferSessionId: 'atomic-session',
+      chunkRequestIds: {},
+      completeRequestId: null,
+      createRequestId: null,
+      expectedChunkCount: null,
+      jobId: 'atomic-job',
+      lastError: null,
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'interview',
+      serverSessionId: 'atomic-session',
+      status: 'recording',
+    };
+    await store.putUploadJob(job);
+
+    await Promise.all([
+      store.updateUploadJob(job.jobId, (current) => ({
+        ...current,
+        chunkRequestIds: { ...current.chunkRequestIds, '0': 'stable-chunk-request' },
+      })),
+      store.updateUploadJob(job.jobId, (current) => ({
+        ...current,
+        completeRequestId: 'stable-complete-request',
+      })),
+    ]);
+
+    await expect(store.getUploadJob(job.jobId)).resolves.toMatchObject({
+      chunkRequestIds: { '0': 'stable-chunk-request' },
+      completeRequestId: 'stable-complete-request',
+    });
+  });
 });
 
 function createVersionTwoDatabase(

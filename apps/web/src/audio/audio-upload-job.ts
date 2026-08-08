@@ -116,6 +116,10 @@ export class AudioUploadJobRunner {
 
   private async ensureAudioObject(job: AudioUploadJob, csrfToken: string): Promise<AudioUploadJob> {
     if (job.audioObjectId !== null) return job;
+    if (job.purpose === 'interview') {
+      throw new Error('INTERVIEW_AUDIO_OBJECT_REQUIRES_ATOMIC_SESSION_START');
+    }
+    if (job.createRequestId === null) throw new Error('AUDIO_CREATE_REQUEST_ID_MISSING');
     const response = await this.fetch(`/api/v1/projects/${job.projectId}/audio-objects`, {
       body: JSON.stringify({
         mime_type: job.mimeType,
@@ -217,6 +221,18 @@ export class InMemoryAudioUploadJobStore implements AudioUploadJobStore {
     this.jobs.set(job.jobId, cloneJob(job) as AudioUploadJob);
     return Promise.resolve();
   }
+
+  public updateUploadJob(
+    jobId: string,
+    update: (current: AudioUploadJob) => AudioUploadJob,
+  ): Promise<AudioUploadJob> {
+    const current = cloneJob(this.jobs.get(jobId) ?? null);
+    if (current === null) return Promise.reject(new Error('UPLOAD_JOB_NOT_FOUND'));
+    const updated = update(current);
+    if (updated.jobId !== jobId) return Promise.reject(new Error('UPLOAD_JOB_IDENTITY_CHANGED'));
+    this.jobs.set(jobId, cloneJob(updated) as AudioUploadJob);
+    return Promise.resolve(cloneJob(updated) as AudioUploadJob);
+  }
 }
 
 function assertChunkAck(
@@ -282,5 +298,22 @@ function validateCreate(input: CreateAudioUploadJobInput): void {
 }
 
 function cloneJob(job: AudioUploadJob | null): AudioUploadJob | null {
-  return job === null ? null : { ...job, chunkRequestIds: { ...job.chunkRequestIds } };
+  if (job === null) return null;
+  return {
+    ...job,
+    chunkRequestIds: { ...job.chunkRequestIds },
+    ...(job.interviewCapture === undefined
+      ? {}
+      : {
+          interviewCapture: {
+            ...job.interviewCapture,
+            confirmActiveRequests: { ...job.interviewCapture.confirmActiveRequests },
+            interruptionReports: { ...job.interviewCapture.interruptionReports },
+            pendingResume:
+              job.interviewCapture.pendingResume === null
+                ? null
+                : { ...job.interviewCapture.pendingResume },
+          },
+        }),
+  };
 }

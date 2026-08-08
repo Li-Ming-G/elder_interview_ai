@@ -611,3 +611,14 @@
 - Implementation evidence: `browser-capture-core.ts/.spec.ts`、`pcm-audio-worklet-producer.ts/.spec.ts`、`session-browser-lock.ts/.spec.ts`；定向 unit 9/9、全量 unit 141/141、Chromium 6/6、音频 repeat 9/9、integration 30/30、auth 13/13、auth Chromium 4/4。
 - Lesson: “停止时不等待旧 Promise”只解决当前 teardown 活性；若对象会复用，还必须用 generation identity 防止旧 Promise 在新一代启动后重新获得写状态的能力。
 - Better future prompt: “所有可复用的异步 producer 在 stop/resume 测试中必须覆盖旧 generation 的 resolve、reject 和事件迟到；旧任务不得改变新 generation 状态，证据链 finalization 不得等待辅助链路。”
+
+### 2026-08-08 — DEV-005R2 controller 的跨事实提交点与 Android 证据边界
+
+- User outcome: 把 R1 服务端采集生命周期和 R2C 浏览器核心接成正式 session-scoped controller，同一麦克风单流驱动 archive 与 realtime，并在刷新、中断和恢复后保持同一 job/audio object 的可审计事实。
+- Review mode: Learning mode；iteration-coach 的唯一独立只读预审建议用显式持久状态机、所有权锁先于副作用、沿用 IndexedDB v4 的应用层协议，以及从不可变 archive 生成安全结束交接。
+- Review finding: controller 与 delivery pump 都会更新同一 upload job；若继续 read-modify-put，后到的 delivery 写入会覆盖 confirm/resume 稳定 request ID。Android visibility/background/lock screen 的真实行为没有目标设备证据，不能靠页面事件推断。
+- Adopted decision: 在既有 v4 `upload-jobs` store 内加入事务级原子更新，不升级 schema；formal job 禁止另建 interview object；顺序固定为 lock/storage→单次麦克风→atomic start→archive/checkpoint→confirm→realtime。刷新只持久报告 interrupted，不自动申请麦克风；显式 resume 才产生新 generation。
+- Implementation evidence: unit 32 files/168 tests、普通 Chromium 7/7、auth Chromium 4/4、integration 41、auth 13、migration/status/build/smoke/format/lint/typecheck/diff 均通过；测试暴露并关闭了 upload job 覆盖竞态。
+- Verification boundary: 执行环境没有 `adb` 且未发现 Android PnP 设备；5–10 分钟、后台、锁屏、visibility、权限/设备中断全部未验证，CON-021 保持 OPEN，未修改公共 reason/snapshot。
+- Lesson: 跨本地持久化、服务端幂等与实时副作用的状态机，可靠性取决于每个提交点是否原子且可恢复；“字段彼此不同”并不意味着并发整对象写安全。平台生命周期结论也必须来自目标设备证据，而不是 CSS 或浏览器事件名称。
+- Better future prompt: “请把 controller 每个可重放步骤的稳定 request ID、持久提交点、锁顺序和 generation fencing 画成状态转换表，并用并发写、响应丢失、刷新和旧代迟到反例验证；平台 continue/interrupted 只采信目标设备观测。”

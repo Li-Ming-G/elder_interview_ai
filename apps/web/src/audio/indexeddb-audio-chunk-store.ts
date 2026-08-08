@@ -195,6 +195,21 @@ export class IndexedDbAudioChunkStore
     return result ?? null;
   }
 
+  public async updateUploadJob(
+    jobId: string,
+    update: (current: AudioUploadJob) => AudioUploadJob,
+  ): Promise<AudioUploadJob> {
+    return this.write([UPLOAD_JOB_STORE], async (transaction): Promise<AudioUploadJob> => {
+      const jobs = transaction.objectStore(UPLOAD_JOB_STORE);
+      const current = await request(jobs.get(jobId) as IDBRequest<AudioUploadJob | undefined>);
+      if (current === undefined) throw new Error('UPLOAD_JOB_NOT_FOUND');
+      const updated = update(current);
+      if (updated.jobId !== jobId) throw new Error('UPLOAD_JOB_IDENTITY_CHANGED');
+      await request(jobs.put(updated));
+      return updated;
+    });
+  }
+
   public async list(sessionId: string): Promise<BufferedAudioChunk[]> {
     const database = await this.database();
     const transaction = database.transaction([ARCHIVE_STORE, DELIVERY_STORE], 'readonly');

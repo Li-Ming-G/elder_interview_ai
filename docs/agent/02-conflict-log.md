@@ -254,6 +254,7 @@
 - 冲突内容：产品已确认 Android Chrome 是完整访谈主设备，但尚无目标真机证据证明页面隐藏、切后台、锁屏、旋转和音频设备中断时 MediaStream/MediaRecorder/AudioWorklet/IndexedDB 的可靠行为。页面若自行假定“继续正常”会静默丢音频；一律中断又可能无必要破坏访谈。
 - 受影响任务：DEV-005R2 必须冻结 controller 行为，DEV-005R4 必须提供真机证据；DEV-005R3 只能消费已冻结事实。iPhone Safari 明确延期。不阻塞 DEV-005R1 服务端或边界独立的 DEV-005R2C 继续开发。
 - 临时处理：旋转只允许重排，禁止刷新、重新请求麦克风或创建新 capture。其他生命周期事件在 R2 真机验证后选择“可证明可靠则继续”或“不可证明则持久报告 interrupted”；不得私有发明状态或仅改文案。
+- DEV-005R2 候选证据（2026-08-08）：执行环境未安装 `adb`，PnP 查询也未发现 Android 目标设备，因此设备型号、Android 版本与 Chrome 版本均不可取得；5–10 分钟录制、visibility/后台、锁屏、权限或音频设备中断均未验证。桌面真实 Chromium harness 已证明旋转不触发刷新、重新申请麦克风或新 capture，但这不能替代 Android 证据。controller 未监听 visibility 并猜测平台结果，现有 reason/snapshot 暂未因缺乏证据而改动。
 - 关闭条件：目标 Android Chrome 真机覆盖 5–10 分钟录制、旋转、后台/锁屏、权限/设备中断和刷新恢复；正式契约明确每类事件的继续/中断结果，必要的 reason/snapshot 变更先同步文档与共享契约，并获得项目负责人 PASS。
 
 ## 登记模板
