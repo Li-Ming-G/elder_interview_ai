@@ -380,6 +380,19 @@ P2：
 - 非阻塞边界：真实 provider 必须实际响应 `AbortSignal`；producer lease 当前只保证单 API 进程；Android Chrome 真机和长时采集由 R4 验收。
 - 状态限制：这是 DEV-005R1 implementation PASS，不代表 SPEC-DEV-005R 或父 DEV-005R 完成。由于 PR 为 stacked candidate，在 SPEC baseline PASS 前，DEV-005R1 保持 `REVIEW`，不得标记 `DONE` 或合入 `main`。
 
+## REV-021｜SPEC-DEV-005R GitHub 项目负责人首轮审查
+
+- 审查 PR：[#11](https://github.com/Li-Ming-G/elder_interview_ai/pull/11)
+- 审查提交：`dc6a9537277180ff6ebdf104ad1238cdcf08ced0`；PR open、非 Draft、可合并，head 未漂移，base 为 `main`。
+- 自动证据：CI `31243186240` 完整 verify PASS。
+- 当前结论：`REQUEST_CHANGES`；P0=0、P1=4。
+- P1-1：`05`/`06` 旧 audio init 仍允许或暗示独立创建 interview object，与 atomic start 唯一创建冲突。必须把独立 init 限制为 consent 等非 interview 用途，并同步旧 ADR。
+- P1-2：`05` 仍允许 ACK 后删除本地 Blob，与 archive/delivery 分离冲突。ACK 只能清 delivery pending/reference，archive Blob 保留。
+- P1-3：空录音判断必须检查该 session 所有 capture generations 的 `first_pcm_accepted_at`，不能只检查当前 generation；该项同时影响 PR #13 实现，需定向修复与 PostgreSQL 回归。
+- P1-4：正式冻结 `resume_capture` 的 request ID、action、新 stream、同一 local job 累计 archive count 与 timeline high-water 完整 payload。
+- 非阻塞收尾：SPEC 最终 PASS 后把 ADR-023/024 转 Accepted；R4 明确同时负责关闭 CON-020/021。
+- 定向复审条件：只复核上述四项及相邻正式来源一致性；R1 仅复审全 generation PCM 修复；R2C 不重开。SPEC-DEV-005R 与 DEV-005R1 均保持 `REVIEW`。
+
 ## 审查模板
 
 ```text

@@ -133,8 +133,8 @@
 ## ADR-017｜浏览器上传以跨刷新持久化作业衔接本地分片与服务端幂等
 
 - 状态：Accepted
-- 决定：一个浏览器上传作业对应一个连续 `0..N-1` 的 audio object。IndexedDB 除不可变 Blob 和 seq/timeline 高水位外，还持久化 init/chunk/complete 的稳定 request ID、服务端 audio object ID、录制结束时冻结的 expected count 和作业状态。网络请求前先持久化 request ID；响应丢失或刷新后复用同一 ID；只有服务端 ACK 全字段匹配才删除本地 Blob。
-- 原因：只保存 Blob 无法在 init 或 complete 响应丢失后确定服务端状态，刷新时可能重复创建对象、错误重放或从已 ACK 删除的剩余 Blob 算错分片总数。服务端 ADR-015 幂等只有客户端复用稳定 request ID 才能形成端到端恢复协议。
+- 决定：一个浏览器上传作业对应一个连续 `0..N-1` 的 audio object。IndexedDB 除不可变 Blob 和 seq/timeline 高水位外，还持久化创建对象、chunk、complete 的稳定 request ID、服务端 audio object ID、录制结束时冻结的 expected count 和作业状态。网络请求前先持久化 request ID；响应丢失或刷新后复用同一 ID。对正式访谈，本段“init 创建对象”和“ACK 后删除 Blob”的旧语义已由 ADR-023 部分取代：对象由 atomic start 创建；ACK 只清 delivery pending/reference，本浏览器 archive Blob 保留。consent 等非 interview 对象仍可使用独立 init。
+- 原因：只保存 Blob 无法在创建对象或 complete 响应丢失后确定服务端状态，刷新时可能重复创建对象、错误重放或从 delivery 状态错误推算分片总数。服务端 ADR-015 幂等只有客户端复用稳定 request ID 才能形成端到端恢复协议；archive 保留则进一步保证 ACK 不会抹去本浏览器原始证据。
 - 代价：IndexedDB 增加 upload job store 和前向版本迁移，客户端需要显式状态机、严格响应校验和有限重试；内部 harness/E2E 复杂度增加。
 - 边界：本批只用合成/虚构音频和显式内部验证入口；不实现完整访谈 UI、Service Worker、无限后台同步、真实麦克风、云存储或 ASR。CON-012 不阻塞本决策。
 - 重新评估条件：一个 session 需要多个 audio object、分片并行上传、跨设备续传或后台长期同步时，重新评估对象边界、租约和冲突合并。
@@ -199,7 +199,7 @@
 - 决定：正式路由由 session-scoped `InterviewCaptureController` 独占一条 MediaStream，同时驱动 MediaRecorder 原始归档和 AudioWorklet 实时 PCM；每个 Blob 只写一次浏览器 archive，delivery queue 仅引用它，ACK 不删除 archive。服务端 atomic start 创建唯一 interview audio object 与 generation 0；显式中断/恢复使用持久 capture generation 和新 audio stream，但复用同一 session/object/local job。
 - 原因：旧正式页面、audio harness 和实时工作台分别拥有开始、原始录音、上传和 PCM，无法向 stop 提供同一对象/作业/commitments，也无法区分刷新、实时断线与真实采集中断。
 - 事实边界：原始录音、本浏览器 archive、服务端 manifest、转录和 session 是五类独立事实；WebSocket replay、URL、计时或最后 final 均不能证明原始录音完成。正常 stop 仍以 ADR-022 finalization 为服务端事实源。
-- 恢复边界：短时 WS 重连复用当前 stream；显式 capture resume 创建下一 generation/stream，原始 timeline 延续、PCM sequence 重置并带 offset。零音频仅在服务端/PCM/本地 archive 均无证据时以 `NO_AUDIO_CAPTURED` 终结。
+- 恢复边界：短时 WS 重连复用当前 stream；显式 capture resume 创建下一 generation/stream，原始 timeline 延续、PCM sequence 重置并带 offset。零音频仅在服务端无分片、该 session 所有 generations 均无 PCM 接受证据且同一 local job 累计 archive 为零时以 `NO_AUDIO_CAPTURED` 终结。
 - 安全边界：同 session 单标签锁；撤权/撤 assignment 停止新采集但不丢已产生证据；浏览器 archive 仅用于内部虚构数据验证，真实试点前必须补本地备份管理/删除。
 - 代价：增加前向 migration、浏览器敏感数据驻留、controller 生命周期和更多恢复状态；换取从 start 到 stop 的单一所有权与可验证纵向链路。当前不引 Redis/队列、云存储或跨设备接管。
 - 重新评估条件：需要跨设备接管、多进程浏览器协作或永久离线备份时，引入显式租约/同步和用户可管理的本地数据产品能力，不得把当前 session lock 静默升级为跨设备保证。

@@ -245,7 +245,7 @@ POST /sessions/:id/recover
 
 `POST /sessions/:id/capture/interrupted` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "reason" }`。它是减权动作：当前 generation 为 `preparing|active` 且尚无 finalization 时，幂等写 `interrupted`、使 session 进入/保持 `interrupted` 并释放 producer。重新认证的原 actor 在 assignment 已失效后仍可报告；账号 disabled 不可。stop 已冻结或 session 已终态时只返回当前稳定 snapshot，不允许回退。普通网络/WS 故障不得调用本动作。
 
-`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、该 generation 的 `first_pcm_accepted_at` 为空，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed`，保持 `finalization=null` 并返回顶层 `capture_failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
+`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、该 session 的所有 capture generations 均不存在非空 `first_pcm_accepted_at`，且客户端对同一 local job 只声明累计 archive 分片为零；成功后把当前 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed`，保持 `finalization=null` 并返回顶层 `capture_failure_code=NO_AUDIO_CAPTURED`。任一历史或当前 generation 存在 PCM 证据，或任一其他证据存在，都必须 409 `CAPTURE_EVIDENCE_EXISTS`，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
 
 业务 WebSocket 中该 generation 的第一帧 PCM 被 ASR adapter 成功接受后，服务端必须幂等写入 `first_pcm_accepted_at`；拒绝、背压或未被 adapter 接受的帧不能写。该事实不进入公共 snapshot，不包含 PCM、checksum 或正文。
 
@@ -350,7 +350,7 @@ POST /sessions/:id/recover
 
 #### 3.5.3 受限 evidence-finalization 补传
 
-stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 assignment。stop 接受后：
+stop 接受前，既有 interview audio object 的 upload/complete/manifest 继续要求当前有效 assignment；interview object 只能由 atomic start 创建，不存在独立 interview audio init。stop 接受后：
 
 - 禁止初始化第二个 interview audio object；
 - 已认证且账号有效的原操作者即使 assignment 后续撤销或授权撤回，仍可只对冻结 audio object 执行 commitment 内缺片上传、complete 和最小 finalization 查询；
@@ -368,6 +368,20 @@ stop 接受前，audio init/upload/complete/manifest 继续要求当前有效 as
   "action": "reconcile"
 }
 ```
+
+显式恢复采集使用同一路径，正式请求体冻结为：
+
+```json
+{
+  "request_id": "uuid",
+  "action": "resume_capture",
+  "audio_stream_id": "uuid",
+  "local_archive_chunk_count": 3,
+  "local_archive_timeline_high_water_ms": 15000
+}
+```
+
+`local_archive_chunk_count` 与 `local_archive_timeline_high_water_ms` 都是同一 session local job 跨全部 generations 的累计高水位，不是新 generation 的局部计数。
 
 `action`：
 
@@ -415,7 +429,7 @@ GET  /audio-objects/:id/manifest
 }
 ```
 
-`purpose=consent` 时 `session_id` 必须为空，只要求当前倾听员拥有有效 project assignment，不要求项目已经取得有效授权或 session 已 start。`purpose=interview` 时 `session_id` 必填、必须属于同一项目，且 session 必须为 `recording|reconnecting|stopping`；不得用 consent 对象冒充访谈录音。响应返回 audio object ID、project/session、purpose、status、mime type 和时间戳。
+本轮 `POST /projects/:id/audio-objects` 只允许创建 `purpose=consent` 对象：`session_id` 必须为空，只要求当前倾听员拥有有效 project assignment，不要求项目已经取得有效授权或 session 已 start。`purpose=interview` 必须稳定返回 409 `INTERVIEW_AUDIO_START_REQUIRED`；正式 interview object 只能由 `POST /sessions/:id/start` 原子创建并从 start snapshot 取得 ID。不得用 consent 对象冒充访谈录音。响应返回 audio object ID、project/session、purpose、status、mime type 和时间戳。
 
 分片上传使用原始二进制请求体，且至少包含以下 header：
 
@@ -429,7 +443,7 @@ X-Chunk-SHA256: 64-char-lowercase-hex
 
 `sequenceNo` 为从 0 开始的非负整数。服务端先校验 body 大小、时间范围和 SHA-256，再写入私有存储与数据库。相同 request ID 按 §4 重放；不同 request ID 重试同一 `(audio_object_id, sequenceNo)` 时，只有二进制、checksum、时间、size 和 MIME 全部一致才返回原分片结果，任一不同返回 409 `AUDIO_CHUNK_CONFLICT`。对象已 complete 后上传返回 409 `AUDIO_OBJECT_COMPLETE`。存储失败返回 503 `AUDIO_STORAGE_UNAVAILABLE`，不得写成 uploaded 或 ACK；响应和日志不返回 `object_key`。
 
-浏览器可靠补传必须为 init、每个 sequence 的 chunk upload 和 complete 分别生成并跨刷新持久化稳定 request ID；网络失败或响应丢失后的重试复用原 ID，不得因刷新重新创建 audio object。客户端只有在 ACK 的 audio object、sequence、时间范围、size、checksum、MIME 和 `upload_status=uploaded` 全部与本地不可变分片一致时才可删除本地 Blob。
+浏览器可靠补传必须为 consent init 或 interview start、每个 sequence 的 chunk upload 和 complete 分别生成并跨刷新持久化稳定 request ID；网络失败或响应丢失后的重试复用原 ID，不得因刷新重新创建 audio object。客户端只有在 ACK 的 audio object、sequence、时间范围、size、checksum、MIME 和 `upload_status=uploaded` 全部与本地不可变分片一致时，才可清除该分片的 delivery pending/reference；本浏览器 archive Blob 必须保留，直至后续正式清理策略明确执行。
 
 complete 请求：
 

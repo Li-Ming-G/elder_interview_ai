@@ -30,7 +30,7 @@
 1. 同一正式 MediaStream 同时供 MediaRecorder 和 AudioWorklet 使用；不得二次获取麦克风。
 2. MediaRecorder 原始录音是首要链路；AudioWorklet 输出 mono/16 kHz/s16le/100 ms PCM，实时链路失败不停止原始录音。
 3. 每个原始 Blob 只写一次本地 archive；delivery queue 只引用 archive。服务端 ACK 只删除待交付状态，不删除 archive Blob。
-4. 分片必须先持久化 archive，再进入单一顺序上传泵。每个 init/chunk/complete/stop request ID 必须在请求前持久化并稳定重放。
+4. 分片必须先持久化 archive，再进入单一顺序上传泵。正式访谈的 start/chunk/complete/stop request ID 必须在请求前持久化并稳定重放；init 只用于 consent 等非 interview 对象。
 5. 网络中断暂停上传但继续本地归档；实时 PCM 仍保持 20 帧有界背压。WebSocket 五分钟/512 事件 replay 不是 PCM 或录音恢复。
 6. 浏览器锁保证同一 session 同时只有一个 tab 持有 controller；当前范围不承诺跨浏览器或跨设备接管。
 7. IndexedDB canary 必须成功；可获得 estimate 时建议至少 64 MiB 可用。剩余估算不高于 16 MiB、会话内部上限或实际写失败触发安全中断。这些数值是内部可配置保护，不是永久产品限制。
@@ -42,8 +42,8 @@
 3. `report_interrupted` 是幂等减权动作：当前 generation 才能报告；它把 capture/session 置为 interrupted、释放 producer，不创建 finalization 或第二个对象。普通网络或 WebSocket 故障不等于采集中断。
 4. 固定原因：`capture_start_failed|page_recovery_detected|microphone_ended|recorder_error|local_archive_failed|auth_lost|unknown`。
 5. 崩溃或刷新后不自动请求麦克风；若本地 dirty checkpoint 或服务端 active capture 无当前 controller，先报告 interrupted，再让用户选择继续或安全结束。
-6. `resume_capture` 仅在无 finalization、session/capture 为 interrupted 且完整门禁有效时允许；复用同一 session、audio object 和 local job，创建下一 generation 与新 audio stream ID。原始 archive sequence/timeline 继续高水位；新 PCM sequence 从 0 开始并携带服务端冻结的 `timeline_offset_ms`。
-7. 只有 session interrupted、无 finalization、服务端无原始分片、无已接受 PCM 且客户端报告 archive 为零时，才允许 `abandon_empty_capture`；结果为 audio object `failed`、generation `abandoned_empty`、session 终态 `failed`、顶层 `capture_failure_code=NO_AUDIO_CAPTURED` 且 finalization 仍为空，不得伪造 completed 或删除可能存在的本地文件。
+6. `resume_capture` 仅在无 finalization、session/capture 为 interrupted 且完整门禁有效时允许；请求固定包含 `request_id`、`action=resume_capture`、新 `audio_stream_id`、同一 local job 跨全部 generations 的累计 `local_archive_chunk_count` 与 `local_archive_timeline_high_water_ms`。复用同一 session、audio object 和 local job，创建下一 generation 与新 audio stream ID。原始 archive sequence/timeline 继续高水位；新 PCM sequence 从 0 开始并携带服务端冻结的 `timeline_offset_ms`。
+7. 只有 session interrupted、无 finalization、服务端无原始分片、该 session 所有 capture generations 均无 `first_pcm_accepted_at` 且客户端报告同一 local job 累计 archive 为零时，才允许 `abandon_empty_capture`；结果为 audio object `failed`、当前 generation `abandoned_empty`、session 终态 `failed`、顶层 `capture_failure_code=NO_AUDIO_CAPTURED` 且 finalization 仍为空，不得伪造 completed 或删除可能存在的本地文件。
 8. 正常 stop 等待最终 `dataavailable`、archive 写入和正数 commitments 后使用既有 finalization；中断且有正数 commitments 使用 `finalize_interrupted`。
 
 ### 4. 结束与工作台体验
@@ -89,6 +89,15 @@ R1 与严格限界的 R2C 可以从同一 SPEC 基线并行；共享 DTO 只归 
 - 桌面与窄屏、键盘、焦点、screen reader live region、reduced motion 通过；
 - 无真实录音、正文、对象键、token 或内部错误写入日志和测试制品。
 
+## REV-021 首轮审查修订
+
+- 审查绑定：PR #11 head `dc6a9537277180ff6ebdf104ad1238cdcf08ced0`、CI `31243186240` PASS；结论 `REQUEST_CHANGES`，P0=0、P1=4。
+- 已统一正式 interview audio object 只能由 atomic start 创建；独立 audio init 只允许 consent 等非 interview 用途。
+- 已统一 ACK 只清 delivery pending/reference，不删除本浏览器 archive Blob；ADR-017 的旧正式访谈语义由 ADR-023 部分取代。
+- 已把 `NO_AUDIO_CAPTURED` 冻结为该 session 所有 generations 均无 `first_pcm_accepted_at`，并要求 R1 定向修复与 PostgreSQL 回归。
+- 已冻结 `resume_capture` 完整 payload，并明确 archive count/timeline 是同一 local job 跨 generations 的累计高水位。
+- ADR-023/024 仅在本 SPEC 最终 PASS 后转 Accepted；R4 明确负责同时关闭 CON-020/021。
+
 ## 审查边界
 
-本任务冻结契约，不代表任何 DEV-005R 实现完成。旧 DEV-005A/B/C 的 PR、CI 和 PASS 继续作为历史证据，不撤销也不覆盖。CON-020 只有在 DEV-005R4 真实浏览器纵向证据和项目负责人 PASS 后才能关闭。
+本任务冻结契约，不代表任何 DEV-005R 实现完成。旧 DEV-005A/B/C 的 PR、CI 和 PASS 继续作为历史证据，不撤销也不覆盖。CON-020 与 CON-021 只有在 DEV-005R4 真实浏览器纵向证据和项目负责人 PASS 后才能关闭。

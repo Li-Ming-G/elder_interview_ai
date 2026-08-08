@@ -8,9 +8,9 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) | 项目负责人 GitHub 审查 / 后续 DEV-005R 实现任务 | A-R/B-R/C-R/D-R 已写回正式候选；CON-020 等实现与 Chromium 证据，不得提前关闭 |
+| SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | 项目负责人定向复审 / 后续 DEV-005R 实现任务 | 首轮 4 个 P1 已写回候选；等待新 head 复审，CON-020/021 不得提前关闭 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
-| DEV-005R1 | PR #13 / REV-020；实现分支内 `handoffs/DEV-005R1.md` | SPEC-DEV-005R 审查 / 总控 | 实现 PASS，等待 stacked 契约基线 PASS；暂不 DONE、不合并 |
+| DEV-005R1 | PR #13 / REV-020；实现分支内 `handoffs/DEV-005R1.md` | 原实现任务 / 项目负责人定向复审 | 全 generation PCM P1 修复中；原 PASS 部分 supersede，暂不 DONE、不合并 |
 | DEV-005R2C/2/3/4 | [HO-038](handoffs/SPEC-DEV-005R.md)、[HO-040](handoffs/DISC-005R-UI.md) | 后续独立项目任务 | R2C 等最终审查；R2 冻结 Android 生命周期，随后 R3→R4；UI 使用 impeccable |
 
 ## 最近已完成交接

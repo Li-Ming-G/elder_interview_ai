@@ -555,3 +555,14 @@
 - Implementation evidence: `01`、`03`、`06`、`09`、SPEC-DEV-005R、DEV-005R2/R3/R4、SPEC-AI-QUESTION-001、ADR-024、CON-021、HO-040；本轮未修改业务代码。
 - Deferred decision: Android Chrome 的后台、锁屏、页面隐藏、旋转和设备中断行为必须由 R2 真机证据冻结；如果现有 interruption reason 不足，先改公共契约。iPhone Safari 明确延期。
 - Lesson: 响应式设计不只是缩窄布局；当手机承担完整录制时，生命周期可靠性、状态解释和真机验收都成为产品契约，而不是 CSS 细节。
+
+### 2026-08-08 — SPEC-DEV-005R 首轮审查四项契约缝隙修订
+
+- User outcome: 不推翻 DEV-005R 总体设计，只定向关闭 interview init、ACK/archive、全 generation PCM 空录音判断和 resume DTO 四个 P1，并在必要时极小修正 R1。
+- Review mode: Correction mode；独立只读复核确认四项均成立，且全 generation PCM 同时是 PR #13 的实现缺陷；未发现第五个阻塞项。
+- Review finding: 新总契约已形成正确方向，但旧 `05`、`06` 与 Accepted ADR-017 仍保留历史实现语义；若只改 SPEC 摘要，后续 Agent 仍会从正式来源得到相反答案。
+- Options considered: 只改四句；推翻重写整套契约；同步所有相邻权威来源并让 R1 只修一项。采用第三种。
+- Adopted decision: interview object 只能由 atomic start 创建；ACK 只清 delivery、不删 archive；`NO_AUDIO_CAPTURED` 要求该 session 所有 generations 均无 PCM 接受证据；resume 的 archive count/timeline 是同一 local job 累计高水位。ADR-017 的正式访谈旧语义由 ADR-023 部分取代，R4 同时负责 CON-020/021。
+- Implementation evidence: `04`、`05`、`06`、`09`、SPEC-DEV-005R、DEV-005R1/R4、ADR-017/023、REV-021 与治理索引已修订；PR #13 原任务已收到 all-generation 查询与 PostgreSQL 回归的定向修复要求。
+- Lesson: “零证据”是聚合级断言，不是当前子状态断言；只要历史 generation 留下任何持久证据，就不能由最新 generation 的空值覆盖整个 session 的事实。
+- Better future prompt: “请把空录音条件定义为 session 聚合不变量，列出服务端分片、所有 capture generations 的 PCM 证据和同一 local job 累计 archive 三个独立检查，并覆盖跨 generation 反例。”
