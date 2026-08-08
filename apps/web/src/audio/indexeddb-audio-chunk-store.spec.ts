@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AudioChunkQueue } from './audio-chunk-queue.js';
 import { IndexedDbAudioChunkStore } from './indexeddb-audio-chunk-store.js';
-import type { BufferedAudioChunk } from './types.js';
+import type { AudioUploadJob, BufferedAudioChunk } from './types.js';
 
 function queue(factory: IDBFactory): AudioChunkQueue {
   return new AudioChunkQueue(new IndexedDbAudioChunkStore(factory), {
@@ -41,6 +41,16 @@ describe('IndexedDbAudioChunkStore', () => {
 
     const reopenedPage = queue(factory);
     expect(await reopenedPage.restore('fictional-indexeddb-session')).toEqual([]);
+    const [archived] = await reopenedPage.restoreArchive('fictional-indexeddb-session');
+    expect(archived).toMatchObject({ byteLength: 5, checksumSha256: 'checksum:first' });
+    expect(archived?.blob).toBeDefined();
+    expect(await reopenedPage.getArchiveSnapshot('fictional-indexeddb-session')).toMatchObject({
+      archiveChunkCount: 1,
+      archiveHighWaterSequenceNo: 0,
+      deliveryAcknowledgedHighWaterSequenceNo: 0,
+      pendingDeliveryCount: 0,
+      timelineEndMs: 1000,
+    });
     expect(await reopenedPage.getNextSequenceNo('fictional-indexeddb-session')).toBe(1);
     expect(await reopenedPage.getTimelineEndMs('fictional-indexeddb-session')).toBe(1000);
     await reopenedPage.enqueue({
@@ -117,6 +127,9 @@ describe('IndexedDbAudioChunkStore', () => {
     });
     expect(await upgraded.getNextSequenceNo('legacy-session')).toBe(1);
     expect(await upgraded.getTimelineEndMs('legacy-session')).toBe(1500);
+    const [archived] = await upgraded.listArchive('legacy-session');
+    expect(archived).toMatchObject({ byteLength: 6, checksumSha256: 'checksum:legacy' });
+    expect(archived?.blob).toBeDefined();
     await upgraded.putUploadJob({
       audioObjectId: null,
       bufferSessionId: 'legacy-session',
@@ -136,6 +149,29 @@ describe('IndexedDbAudioChunkStore', () => {
       bufferSessionId: 'legacy-session',
       status: 'recording',
     });
+  });
+
+  it('upgrades version 3 without losing its persisted upload job', async () => {
+    const factory = new IDBFactory();
+    const legacyJob: AudioUploadJob = {
+      audioObjectId: 'fictional-object',
+      bufferSessionId: 'v3-session',
+      chunkRequestIds: { '0': 'stable-chunk-request' },
+      completeRequestId: 'stable-complete-request',
+      createRequestId: 'stable-create-request',
+      expectedChunkCount: 1,
+      jobId: 'v3-job',
+      lastError: 'response-lost',
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'interview',
+      serverSessionId: 'fictional-session',
+      status: 'failed',
+    };
+    await createVersionThreeDatabase(factory, legacyJob);
+
+    const upgraded = new IndexedDbAudioChunkStore(factory);
+    expect(await upgraded.getUploadJob('v3-job')).toEqual(legacyJob);
   });
 });
 
@@ -158,6 +194,25 @@ function createVersionTwoDatabase(
     };
     open.onerror = (): void => {
       reject(open.error ?? new Error('legacy database open failed'));
+    };
+    open.onsuccess = (): void => {
+      open.result.close();
+      resolve();
+    };
+  });
+}
+
+function createVersionThreeDatabase(factory: IDBFactory, job: AudioUploadJob): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const open = factory.open('elder-interview-audio-buffer', 3);
+    open.onupgradeneeded = (): void => {
+      const chunks = open.result.createObjectStore('chunks', { keyPath: 'chunk.key' });
+      chunks.createIndex('by-session', 'chunk.sessionId', { unique: false });
+      open.result.createObjectStore('session-state', { keyPath: 'sessionId' });
+      open.result.createObjectStore('upload-jobs', { keyPath: 'jobId' }).add(job);
+    };
+    open.onerror = (): void => {
+      reject(open.error ?? new Error('version 3 database open failed'));
     };
     open.onsuccess = (): void => {
       open.result.close();

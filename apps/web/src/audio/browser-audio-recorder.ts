@@ -54,6 +54,7 @@ export class BrowserAudioRecorder {
     persistedChunkCount: 0,
     status: 'idle',
   };
+  private stopStreamTracks = true;
   private stream: MediaStream | null = null;
   private timelineEndMs = 0;
   private writeChain: Promise<void> = Promise.resolve();
@@ -85,6 +86,35 @@ export class BrowserAudioRecorder {
   }
 
   public async start(context?: RecordingSessionContext): Promise<void> {
+    await this.prepare(context);
+    if (this.mediaDevices === undefined) {
+      const captureError = new AudioCaptureError(
+        'AUDIO_CAPTURE_UNSUPPORTED',
+        '当前浏览器不支持可靠录音采集',
+      );
+      this.transition('failed', captureError, this.snapshotValue.persistedChunkCount);
+      throw captureError;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await this.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (error) {
+      const captureError = classifyDeviceError(error);
+      this.transition('failed', captureError, this.snapshotValue.persistedChunkCount);
+      throw captureError;
+    }
+    this.startRecorder(stream, true);
+  }
+
+  public async startWithStream(
+    context: RecordingSessionContext,
+    stream: MediaStream,
+  ): Promise<void> {
+    await this.prepare(context);
+    this.startRecorder(stream, false);
+  }
+
+  private async prepare(context?: RecordingSessionContext): Promise<void> {
     if (context === undefined || !context.canRecord) {
       throw new AudioCaptureError('RECORDING_NOT_ALLOWED', '外部授权门禁未允许开始录音');
     }
@@ -98,7 +128,7 @@ export class BrowserAudioRecorder {
     ) {
       throw new Error('audio capture is already active');
     }
-    if (this.mediaDevices === undefined || this.mediaRecorderFactory === undefined) {
+    if (this.mediaRecorderFactory === undefined) {
       throw new AudioCaptureError('AUDIO_CAPTURE_UNSUPPORTED', '当前浏览器不支持可靠录音采集');
     }
 
@@ -120,22 +150,19 @@ export class BrowserAudioRecorder {
       throw captureError;
     }
     this.transition('requesting_permission', null, recovered.length);
+  }
 
-    try {
-      this.stream = await this.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch (error) {
-      const captureError = classifyDeviceError(error);
-      this.transition('failed', captureError, recovered.length);
-      throw captureError;
+  private startRecorder(stream: MediaStream, stopStreamTracks: boolean): void {
+    const factory = this.mediaRecorderFactory;
+    if (factory === undefined) {
+      throw new AudioCaptureError('AUDIO_CAPTURE_UNSUPPORTED', '当前浏览器不支持可靠录音采集');
     }
-
+    this.stream = stream;
+    this.stopStreamTracks = stopStreamTracks;
     const mimeType = this.supportedMimeTypes[0];
     let recorder: MediaRecorderLike;
     try {
-      recorder = this.mediaRecorderFactory(
-        this.stream,
-        mimeType === undefined ? undefined : { mimeType },
-      );
+      recorder = factory(this.stream, mimeType === undefined ? undefined : { mimeType });
     } catch (error) {
       this.stopTracks();
       this.resolveRecorderStopped?.();
@@ -146,7 +173,7 @@ export class BrowserAudioRecorder {
         '浏览器无法初始化兼容的录音格式',
         { cause: error },
       );
-      this.transition('failed', captureError, recovered.length);
+      this.transition('failed', captureError, this.snapshotValue.persistedChunkCount);
       throw captureError;
     }
     this.recorder = recorder;
@@ -179,10 +206,10 @@ export class BrowserAudioRecorder {
         '浏览器录音器无法启动',
         { cause: error },
       );
-      this.transition('failed', captureError, recovered.length);
+      this.transition('failed', captureError, this.snapshotValue.persistedChunkCount);
       throw captureError;
     }
-    this.transition('recording', null, recovered.length);
+    this.transition('recording', null, this.snapshotValue.persistedChunkCount);
   }
 
   public async stop(): Promise<BufferedAudioChunk[]> {
@@ -253,7 +280,9 @@ export class BrowserAudioRecorder {
   }
 
   private stopTracks(): void {
-    for (const track of this.stream?.getTracks() ?? []) track.stop();
+    if (this.stopStreamTracks) {
+      for (const track of this.stream?.getTracks() ?? []) track.stop();
+    }
     this.stream = null;
   }
 

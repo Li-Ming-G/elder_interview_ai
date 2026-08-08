@@ -164,6 +164,13 @@ export class RealtimeTranscriptionTransport {
   }
 
   public async sendSyntheticFrame(fill = 0): Promise<boolean> {
+    return this.sendPcmFrame(new Uint8Array(INTERVIEW_PCM_FRAME_BYTES).fill(fill & 0xff));
+  }
+
+  public async sendPcmFrame(pcmBytes: Uint8Array): Promise<boolean> {
+    if (pcmBytes.byteLength !== INTERVIEW_PCM_FRAME_BYTES) {
+      throw new RangeError(`PCM frames must contain ${String(INTERVIEW_PCM_FRAME_BYTES)} bytes`);
+    }
     if (
       this.cannotSendFrames() ||
       this.pending.size >= MAX_PENDING_FRAMES ||
@@ -172,7 +179,7 @@ export class RealtimeTranscriptionTransport {
       return false;
     }
     const sequence = this.nextAudioSequence;
-    const pcm = new Uint8Array(INTERVIEW_PCM_FRAME_BYTES).fill(fill & 0xff);
+    const pcm = new Uint8Array(pcmBytes);
     const payload: InterviewWsAudioFramePayload = {
       audio_stream_id: this.audioStreamId,
       channels: 1,

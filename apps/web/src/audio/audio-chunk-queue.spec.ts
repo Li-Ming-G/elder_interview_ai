@@ -71,6 +71,15 @@ describe('AudioChunkQueue', () => {
       true,
     );
     expect(await queue.restore('fictional-session')).toHaveLength(0);
+    const [archived] = await queue.restoreArchive('fictional-session');
+    expect(await archived?.blob.text()).toBe('pending');
+    expect(await queue.getArchiveSnapshot('fictional-session')).toMatchObject({
+      archiveChunkCount: 1,
+      archiveHighWaterSequenceNo: 0,
+      deliveryAcknowledgedHighWaterSequenceNo: 0,
+      pendingDeliveryCount: 0,
+      timelineEndMs: 1000,
+    });
     expect(await queue.getNextSequenceNo('fictional-session')).toBe(1);
     expect(await queue.getTimelineEndMs('fictional-session')).toBe(1000);
   });

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`（独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9`）
+- 状态：`REVIEW`（独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9`）
 - 负责人：新的前端音频核心实现任务
 - 输入依据：`SPEC-DEV-005R`、`06`、`09`、ADR-023
 - 前置依赖：SPEC-DEV-005R 候选基线已提交；只做不依赖共享 DTO 的浏览器核心
@@ -34,3 +34,11 @@
 - mono/16k/s16le/100ms PCM 和 20 帧背压；
 - canary/estimate/写失败与 browser lock；
 - unit + 专用 Chromium 虚构数据测试通过；只提交 `REVIEW` 候选并主动通知总控。
+
+## REVIEW 候选摘要
+
+- 以外部 `MediaStream` 同时驱动 `MediaRecorder` 与 `AudioWorklet`，recorder 不再申请或停止第二条流；
+- IndexedDB v4 将不可变 archive Blob 与 delivery 引用分仓，ACK 只删除 delivery，并保留 sequence、timeline、ACK/ archive 高水位、upload job 与 dirty checkpoint；
+- worklet 在音频线程完成 mono/16k/s16le 重采样并按 100ms/3200 bytes 出帧；既有 transport 保持 20 个未 ACK 帧背压；
+- 增加顺序 delivery pump、持久 request ID seam、canary/容量阈值、Web Locks 单浏览器单标签所有权及 track/recorder/write 失败回调；
+- 本地 format、lint、全仓 typecheck、unit、build 与 Chromium 均通过；等待独立审查，不宣告 `PASS/DONE`。
