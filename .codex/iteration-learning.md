@@ -589,3 +589,14 @@
 - Implementation evidence: `apps/api/src/realtime-transcription/capture-pcm-evidence.service.ts`、`realtime-runtime.service.ts`、`realtime.gateway.ts`、`apps/api/src/project-foundation/project-foundation.service.ts`、`session-capture.service.ts`；unit 26/136、PostgreSQL integration 7/40、auth 3/13、build/smoke 全通过。
 - Lesson: 持久业务幂等不意味着进程内副作用可以无条件重放；补偿副作用必须绑定当次资源租约身份，而非长期实体 ID。
 - Better future prompt: “请分别定义业务事实的事务线性化点与进程内 producer 租约；外部调用必须有 deadline，幂等重放的 cleanup 必须按 generation/audio_stream 条件匹配，并验证旧请求不会影响新代际。”
+
+### 2026-08-08 — DEV-005R1 跨 generation 零证据聚合
+
+- User outcome: 防止历史 generation 已接受 PCM 时，最新空 generation 被错误 abandon 为 `NO_AUDIO_CAPTURED`。
+- Review mode: Correction mode。
+- Review finding: 实现和 `05` 局部文字都把证据判断缩窄到当前 generation，但单 session 复用唯一 audio object，`NO_AUDIO_CAPTURED` 必须是 session 全历史的聚合事实。
+- Options considered: 只看当前 generation；新增冗余 session 证据字段；在既有锁内对 generation 表做存在性查询。采用第三种，不改 schema 或公共契约形状。
+- Adopted decision: `abandonEmpty` 在已有四级锁内查询 `sessionId + firstPcmAcceptedAt not null`，任一命中即 409，其他成功/失败语义不变。
+- Implementation evidence: `apps/api/src/project-foundation/session-capture.service.ts` 与 `tests/integration/session-capture.test.ts`；PostgreSQL 定向 10/10、完整 integration 7/41、unit 26/136、auth 3/13、Chromium 4/4、build/smoke 全通过。
+- Lesson: “空”若用于终结共享聚合对象，就必须对该对象的完整历史求证，不能只检查最新一次尝试。
+- Better future prompt: “请把 NO_AUDIO_CAPTURED 定义为 session 全 capture generations 的聚合不变量，并测试早期 generation 有证据、最新 generation 为空的反例。”

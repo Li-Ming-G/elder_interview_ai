@@ -342,6 +342,79 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     ).rejects.toMatchObject({ response: { code: 'CAPTURE_EVIDENCE_EXISTS' } });
   });
 
+  it('rejects abandoning a later generation when an earlier generation accepted PCM', async () => {
+    const fixture = await createFixture();
+    const sessionId = fixture.sessionIds[0];
+    const stream0 = randomUUID();
+    const started = await projects.startSession(actor, sessionId, {
+      audio_stream_id: stream0,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    const audioObjectId = started.capture?.audio_object_id;
+    if (audioObjectId === undefined) throw new Error('Expected capture audio object');
+    await evidence.acceptAndPersist(sessionId, stream0, () => Promise.resolve([]));
+    await captures.reportInterrupted(actor, sessionId, {
+      audio_stream_id: stream0,
+      generation_no: 0,
+      reason: 'microphone_ended',
+      request_id: randomUUID(),
+    });
+    const stream1 = randomUUID();
+    await captures.resume(actor, sessionId, {
+      action: 'resume_capture',
+      audio_stream_id: stream1,
+      local_archive_chunk_count: 0,
+      local_archive_timeline_high_water_ms: 0,
+      request_id: randomUUID(),
+    });
+    await captures.reportInterrupted(actor, sessionId, {
+      audio_stream_id: stream1,
+      generation_no: 1,
+      reason: 'page_recovery_detected',
+      request_id: randomUUID(),
+    });
+    const audioBefore = await prisma.audioObject.findUniqueOrThrow({
+      where: { id: audioObjectId },
+    });
+
+    await expect(
+      captures.abandonEmpty(actor, sessionId, {
+        audio_stream_id: stream1,
+        generation_no: 1,
+        local_archive_chunk_count: 0,
+        request_id: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ response: { code: 'CAPTURE_EVIDENCE_EXISTS' } });
+
+    expect(
+      await prisma.interviewSession.findUniqueOrThrow({ where: { id: sessionId } }),
+    ).toMatchObject({ captureFailureCode: null, status: 'interrupted' });
+    expect(
+      await prisma.audioObject.findUniqueOrThrow({ where: { id: audioObjectId } }),
+    ).toMatchObject({ id: audioBefore.id, status: audioBefore.status });
+    expect(await prisma.sessionFinalization.findUnique({ where: { sessionId } })).toBeNull();
+    const generations = await prisma.sessionCaptureGeneration.findMany({
+      orderBy: { generationNo: 'asc' },
+      where: { sessionId },
+    });
+    expect(generations).toHaveLength(2);
+    expect(generations[0]).toMatchObject({
+      audioObjectId,
+      audioStreamId: stream0,
+      generationNo: 0,
+      status: 'interrupted',
+    });
+    expect(generations[0]?.firstPcmAcceptedAt).not.toBeNull();
+    expect(generations[1]).toMatchObject({
+      audioObjectId,
+      audioStreamId: stream1,
+      firstPcmAcceptedAt: null,
+      generationNo: 1,
+      status: 'interrupted',
+    });
+  });
+
   it('fails disabled reporting closed and keeps stop and terminal snapshots monotonic', async () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];

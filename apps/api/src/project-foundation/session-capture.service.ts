@@ -209,15 +209,15 @@ export class SessionCaptureService {
       ) {
         throw this.conflict('CAPTURE_NOT_ABANDONABLE');
       }
-      const [finalization, storedChunks] = await Promise.all([
+      const [acceptedPcmGeneration, finalization, storedChunks] = await Promise.all([
+        tx.sessionCaptureGeneration.findFirst({
+          select: { id: true },
+          where: { firstPcmAcceptedAt: { not: null }, sessionId },
+        }),
         tx.sessionFinalization.findUnique({ where: { sessionId } }),
         tx.audioChunk.count({ where: { audioObjectId: locked.capture.audioObjectId } }),
       ]);
-      if (
-        finalization !== null ||
-        storedChunks !== 0 ||
-        locked.capture.firstPcmAcceptedAt !== null
-      ) {
+      if (acceptedPcmGeneration !== null || finalization !== null || storedChunks !== 0) {
         throw this.conflict('CAPTURE_EVIDENCE_EXISTS');
       }
       const now = new Date();
