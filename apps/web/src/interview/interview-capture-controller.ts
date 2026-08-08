@@ -53,12 +53,23 @@ export interface InterviewCaptureControllerSnapshot {
   generationNo: number | null;
   lastError: string | null;
   localJobId: string;
+  endHandoff: PersistedEndHandoffSnapshot | null;
   phase: InterviewCaptureControllerPhase;
   projectId: string;
   realtime: RealtimeState;
   serverCapture: SessionCaptureSnapshot | null;
+  serverSession: InterviewSessionResponse | null;
+  serverVerificationError: string | null;
+  serverVerifiedAt: string | null;
   sessionId: string;
   storage: BrowserStorageAssessment | null;
+}
+
+export interface PersistedEndHandoffSnapshot {
+  audioObjectId: string;
+  completeRequestId: string;
+  expectedChunkCount: number;
+  stopRequestId: string;
 }
 
 export interface CaptureStopHandoff {
@@ -149,10 +160,14 @@ export class InterviewCaptureController {
       generationNo: null,
       lastError: null,
       localJobId: interviewCaptureLocalJobId(options.sessionId),
+      endHandoff: null,
       phase: 'idle',
       projectId: options.projectId,
       realtime: INITIAL_REALTIME_STATE,
       serverCapture: null,
+      serverSession: null,
+      serverVerificationError: null,
+      serverVerifiedAt: null,
       sessionId: options.sessionId,
       storage: null,
     };
@@ -180,6 +195,63 @@ export class InterviewCaptureController {
 
   public resume(): Promise<InterviewCaptureControllerSnapshot> {
     return this.serial(() => this.resumeInternal());
+  }
+
+  public verifyServerSession(): Promise<InterviewCaptureControllerSnapshot> {
+    return this.serial(async () => {
+      try {
+        const session = await this.options.api.getSession(this.options.sessionId);
+        this.observeServerSession(session);
+        if (
+          this.runtime !== null &&
+          session.status !== 'recording' &&
+          session.status !== 'reconnecting'
+        ) {
+          const runtime = this.runtime;
+          this.runtime = null;
+          this.runtimeGenerationKey = null;
+          this.realtimeActivated = false;
+          await runtime.interrupt().catch((error: unknown) => {
+            this.patch({ lastError: errorCode(error) });
+          });
+          await this.options.browserLock.release().catch(() => undefined);
+          await this.refreshArchiveAndDeliver(true).catch(() => undefined);
+        }
+        return this.snapshot;
+      } catch (error) {
+        if (isAuthorityFailure(error)) {
+          const job = await this.formalJobForCleanup(null);
+          if (job === null) {
+            const runtime = this.runtime;
+            this.runtime = null;
+            this.runtimeGenerationKey = null;
+            this.realtimeActivated = false;
+            await runtime?.interrupt().catch(() => undefined);
+            await this.options.browserLock.release().catch(() => undefined);
+          } else {
+            await this.interruptForAuthorityLoss(job, error).catch(() => undefined);
+          }
+          await this.refreshArchiveAndDeliver(false).catch(() => undefined);
+          this.patch({ lastError: 'AUTHORITY_LOST', phase: 'interrupted' });
+        }
+        this.patch({ serverVerificationError: errorCode(error) });
+        throw error;
+      }
+    });
+  }
+
+  public observeServerSession(
+    session: InterviewSessionResponse,
+  ): InterviewCaptureControllerSnapshot {
+    assertSessionIdentity(session, this.options.projectId, this.options.sessionId);
+    this.patch({
+      phase: phaseFromFacts(session, this.state.endHandoff, this.state.phase),
+      serverCapture: session.capture ?? null,
+      serverSession: session,
+      serverVerificationError: null,
+      serverVerifiedAt: new Date().toISOString(),
+    });
+    return this.snapshot;
   }
 
   public flushDelivery(): Promise<number> {
@@ -240,6 +312,7 @@ export class InterviewCaptureController {
         request_id: capture.startRequestId,
       });
       assertSessionIdentity(started, this.options.projectId, this.options.sessionId);
+      this.observeServerSession(started);
       const serverCapture = requiredMatchingCapture(started, {
         audioObjectId: null,
         audioStreamId: capture.audioStreamId,
@@ -299,10 +372,11 @@ export class InterviewCaptureController {
     suppliedSession?: InterviewSessionResponse,
   ): Promise<InterviewCaptureControllerSnapshot> {
     const session = suppliedSession ?? (await this.options.api.getSession(this.options.sessionId));
-    assertSessionIdentity(session, this.options.projectId, this.options.sessionId);
+    this.observeServerSession(session);
     const job = await this.options.jobs.getUploadJob(this.state.localJobId);
     const archive = await this.options.queue.getArchiveSnapshot(this.options.sessionId);
-    this.patch({ archive, serverCapture: session.capture ?? null, lastError: null });
+    const endHandoff = job === null ? null : persistedEndHandoff(job);
+    this.patch({ archive, endHandoff, serverCapture: session.capture ?? null, lastError: null });
     if (this.runtime !== null) return this.snapshot;
     if (job === null || job.interviewCapture === undefined) {
       if (session.capture?.status === 'preparing' || session.capture?.status === 'active') {
@@ -310,7 +384,7 @@ export class InterviewCaptureController {
       } else {
         this.patch({
           lastError: session.capture === null ? null : 'LOCAL_CAPTURE_JOB_MISSING',
-          phase: phaseFromServerCapture(session.capture ?? null),
+          phase: phaseFromFacts(session, endHandoff, this.state.phase),
         });
       }
       return this.snapshot;
@@ -321,7 +395,7 @@ export class InterviewCaptureController {
     const serverNeedsRecovery =
       session.capture?.status === 'preparing' || session.capture?.status === 'active';
     if (!serverNeedsRecovery) {
-      this.patch({ phase: phaseFromServerCapture(session.capture ?? null) });
+      this.patch({ phase: phaseFromFacts(session, endHandoff, this.state.phase) });
       return this.snapshot;
     }
     if (!(await this.options.browserLock.acquire())) {
@@ -348,7 +422,7 @@ export class InterviewCaptureController {
     }
     try {
       const current = await this.options.api.getSession(this.options.sessionId);
-      assertSessionIdentity(current, this.options.projectId, this.options.sessionId);
+      this.observeServerSession(current);
       const capture = current.capture;
       this.patch({ serverCapture: capture ?? null });
       if (capture?.status !== 'preparing' && capture?.status !== 'active') {
@@ -382,7 +456,7 @@ export class InterviewCaptureController {
             request_id: record.requestId,
           },
         );
-        assertSessionIdentity(interrupted, this.options.projectId, this.options.sessionId);
+        this.observeServerSession(interrupted);
         const serverCapture = requiredMatchingCapture(interrupted, {
           audioObjectId: record.audioObjectId,
           audioStreamId: record.audioStreamId,
@@ -446,6 +520,7 @@ export class InterviewCaptureController {
 
   private async resumeInternal(): Promise<InterviewCaptureControllerSnapshot> {
     let job = await this.requiredJob();
+    if (persistedEndHandoff(job) !== null) throw new Error('END_HANDOFF_ALREADY_FROZEN');
     const capture = requiredCapture(job);
     if (this.runtime !== null && capture.generationNo !== null) {
       if (capture.status === 'active') return this.snapshot;
@@ -489,7 +564,7 @@ export class InterviewCaptureController {
         local_archive_timeline_high_water_ms: pending.localArchiveTimelineHighWaterMs,
         request_id: pending.requestId,
       });
-      assertSessionIdentity(resumed, this.options.projectId, this.options.sessionId);
+      this.observeServerSession(resumed);
       const serverCapture = requiredMatchingCapture(resumed, {
         audioObjectId: capture.audioObjectId,
         audioStreamId: pending.audioStreamId,
@@ -615,7 +690,7 @@ export class InterviewCaptureController {
       generation_no: command.generationNo,
       request_id: command.requestId,
     });
-    assertSessionIdentity(confirmed, this.options.projectId, this.options.sessionId);
+    this.observeServerSession(confirmed);
     const serverCapture = requiredMatchingCapture(confirmed, {
       audioObjectId: capture.audioObjectId,
       audioStreamId: capture.audioStreamId,
@@ -684,7 +759,7 @@ export class InterviewCaptureController {
         reason: report.reason,
         request_id: report.requestId,
       });
-      assertSessionIdentity(interrupted, this.options.projectId, this.options.sessionId);
+      this.observeServerSession(interrupted);
       const serverCapture = requiredMatchingCapture(interrupted, {
         audioObjectId: capture.audioObjectId,
         audioStreamId: capture.audioStreamId,
@@ -769,7 +844,8 @@ export class InterviewCaptureController {
       status: 'uploading',
     }));
     const archive = await this.options.queue.getArchiveSnapshot(this.options.sessionId);
-    this.patch({ archive, phase: 'stopped' });
+    const endHandoff = persistedEndHandoff(job);
+    this.patch({ archive, endHandoff, phase: 'stopped' });
     const commitments = chunks.map(toCommitment);
     return Object.freeze({
       audioObjectId: capture.audioObjectId,
@@ -1007,6 +1083,50 @@ function phaseFromServerCapture(
   return 'idle';
 }
 
+function phaseFromFacts(
+  session: InterviewSessionResponse,
+  endHandoff: PersistedEndHandoffSnapshot | null,
+  current: InterviewCaptureControllerPhase,
+): InterviewCaptureControllerPhase {
+  if (endHandoff !== null) return session.status === 'failed' ? 'failed' : 'stopped';
+  if (session.status === 'interrupted') return 'interrupted';
+  if (
+    session.status === 'stopping' ||
+    session.status === 'processing' ||
+    session.status === 'completed'
+  ) {
+    return 'stopped';
+  }
+  if (session.status === 'failed') {
+    return session.capture_failure_code === 'NO_AUDIO_CAPTURED' ? 'stopped' : 'failed';
+  }
+  if (
+    current === 'interrupted' &&
+    (session.status === 'recording' || session.status === 'reconnecting')
+  ) {
+    return 'interrupted';
+  }
+  return phaseFromServerCapture(session.capture ?? null);
+}
+
+function persistedEndHandoff(job: AudioUploadJob): PersistedEndHandoffSnapshot | null {
+  const capture = requiredCapture(job);
+  if (
+    capture.audioObjectId === null ||
+    capture.stopRequestId === null ||
+    job.completeRequestId === null ||
+    job.expectedChunkCount === null
+  ) {
+    return null;
+  }
+  return {
+    audioObjectId: capture.audioObjectId,
+    completeRequestId: job.completeRequestId,
+    expectedChunkCount: job.expectedChunkCount,
+    stopRequestId: capture.stopRequestId,
+  };
+}
+
 function isExactChunkAck(
   audioObjectId: string,
   chunk: ImmutableAudioChunk,
@@ -1087,8 +1207,31 @@ function cloneSnapshot(
   return {
     ...snapshot,
     archive: { ...snapshot.archive },
+    endHandoff: snapshot.endHandoff === null ? null : { ...snapshot.endHandoff },
     realtime: { ...snapshot.realtime, finals: [...snapshot.realtime.finals] },
     serverCapture: snapshot.serverCapture === null ? null : { ...snapshot.serverCapture },
+    serverSession:
+      snapshot.serverSession === null
+        ? null
+        : {
+            ...snapshot.serverSession,
+            ...(snapshot.serverSession.capture === undefined
+              ? {}
+              : {
+                  capture:
+                    snapshot.serverSession.capture === null
+                      ? null
+                      : { ...snapshot.serverSession.capture },
+                }),
+            ...(snapshot.serverSession.finalization === undefined
+              ? {}
+              : {
+                  finalization:
+                    snapshot.serverSession.finalization === null
+                      ? null
+                      : { ...snapshot.serverSession.finalization },
+                }),
+          },
     storage: snapshot.storage === null ? null : { ...snapshot.storage },
   };
 }

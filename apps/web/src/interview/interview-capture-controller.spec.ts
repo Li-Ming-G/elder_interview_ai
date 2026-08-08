@@ -519,6 +519,46 @@ describe('InterviewCaptureController', () => {
         start_ms: 0,
       }),
     ]);
+    await expect(harness.controller.resume()).rejects.toThrow('END_HANDOFF_ALREADY_FROZEN');
+    expect(harness.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(harness.controller.snapshot.endHandoff).toEqual({
+      audioObjectId: AUDIO_OBJECT_ID,
+      completeRequestId: first.completeRequestId,
+      expectedChunkCount: 1,
+      stopRequestId: first.stopRequestId,
+    });
+  });
+
+  it('rechecks only persisted server facts and preserves the last snapshot on a network failure', async () => {
+    const harness = createHarness();
+    await harness.controller.start();
+    const recording = session('recording', capture('active', 0, 'id-1'));
+    harness.api.getSession.mockResolvedValueOnce(recording);
+
+    const verified = await harness.controller.verifyServerSession();
+    expect(verified.serverSession?.status).toBe('recording');
+    expect(verified.serverVerifiedAt).toBeTruthy();
+    expect(harness.getUserMedia).toHaveBeenCalledTimes(1);
+
+    harness.api.getSession.mockRejectedValueOnce(new Error('NETWORK_UNAVAILABLE'));
+    await expect(harness.controller.verifyServerSession()).rejects.toThrow('NETWORK_UNAVAILABLE');
+    expect(harness.controller.snapshot.serverSession?.status).toBe('recording');
+    expect(harness.controller.snapshot.serverVerificationError).toBe('NETWORK_UNAVAILABLE');
+    expect(harness.getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops local capture and fails closed when a read-only verification loses authority', async () => {
+    const harness = createHarness();
+    await harness.controller.start();
+    harness.api.getSession.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', '登录已失效，请重新登录', 401),
+    );
+
+    await expect(harness.controller.verifyServerSession()).rejects.toThrow('登录已失效');
+    expect(harness.runtimes[0]?.interrupt).toHaveBeenCalledTimes(1);
+    expect(harness.controller.snapshot.phase).toBe('interrupted');
+    expect(harness.controller.snapshot.lastError).toBe('AUTHORITY_LOST');
+    expect(harness.getUserMedia).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -675,6 +715,8 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
 
 function createApi(events: string[]): MockApi {
   return {
+    abandonEmptyCapture: vi.fn<CompleteApi['abandonEmptyCapture']>(),
+    completeInterviewAudio: vi.fn<CompleteApi['completeInterviewAudio']>(),
     confirmCaptureActive: vi.fn<CompleteApi['confirmCaptureActive']>((_sessionId, request) => {
       events.push(`api.confirm:${String(request.generation_no)}`);
       return Promise.resolve(
@@ -703,6 +745,7 @@ function createApi(events: string[]): MockApi {
         session('recording', capture('preparing', 0, request.audio_stream_id)),
       );
     }),
+    stopSession: vi.fn<CompleteApi['stopSession']>(),
     uploadInterviewChunk: vi.fn<CompleteApi['uploadInterviewChunk']>((_audioObjectId, chunk) =>
       Promise.resolve({
         audio_object_id: AUDIO_OBJECT_ID,
