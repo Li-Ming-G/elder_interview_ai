@@ -5,7 +5,7 @@
 - Current stage: 探索期 MVP 核心纵向链路验证；旧 DEV-005A/B/C 历史范围已通过；DISC-005-R0 与 A-R/B-R/C-R/D-R 已获批准，SPEC-DEV-005R 正在 GitHub 审查候选阶段，后续按 R1/R2C/R2/R3/R4 实现。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -91,6 +91,14 @@
 - Reason: 原始录音、上传和实时 PCM 若由不同页面/流临时拥有，就无法证明 stop 使用 start 创建的同一对象，也无法在刷新或意外中断后恢复一致时间轴。
 - Tradeoff: 新增 capture generation、浏览器 archive 驻留、路由上层 controller 和分阶段实现；换取唯一对象、原始证据优先、显式中断与可审查纵向链路。
 - Boundary: 当前仅内部虚构数据、单浏览器单标签、进程内服务；不承诺跨设备、永久本地备份、云存储、真实 ASR 或真实试点。CON-020 在真实 Chromium 实现 PASS 前保持 OPEN。
+
+### D-012 — 页面注意力随访谈状态变化，Android Chrome 是首轮完整主设备
+
+- Status: adopted
+- Evidence: 项目负责人逐项确认 `DISC-005R-UI`；正式产品、流程、音频、验收规范及 SPEC-DEV-005R、DEV-005R2/R3/R4 已同步，ADR-024、CON-021、HO-040 记录边界。
+- Reason: 正常录制的首要任务是持续阅读转录，中断和结束时的首要任务则是保护证据并完成处置；固定页面比例无法表达状态变化。手机也不是桌面的应急恢复入口，而是长者访谈的完整主设备。
+- Tradeoff: R3 必须覆盖五个视口和全状态注意力层，R2/R4 必须增加 Android Chrome 真机生命周期证据；首轮不同时承诺 iPhone Safari。
+- Boundary: 比例是视觉护栏，实现使用受控 header/footer 与中间 `1fr`，不得硬编码百分比。Android 后台、锁屏、页面隐藏和音频设备中断究竟继续采集还是进入 interrupted，必须由 R2 真机证据与正式契约冻结；CON-021 未解决前 R3 不得猜测。
 
 ## Assumptions to Validate
 
@@ -536,3 +544,14 @@
 - Lesson: 页面比例应表达用户在当前业务状态下的首要任务；正常录制时转录居中，中断或结束时安全处置必须取得视觉主导，不能让一个静态百分比贯穿所有状态。
 - Better future prompt: “请分别给正常录制、中断、保存处理中和完成状态定义桌面/窄屏的内容比例、常驻事实、折叠事实与验收视口，再开始页面实现。”
 - Better future prompt: “先把已批准的端到端决定写成正式契约，再按单一事实拥有者拆 worktree；允许纯核心模块并行，但共享 DTO、路由和中央文档只能由指定任务修改，所有任务交付到 GitHub REVIEW 后主动通知总控。”
+
+### 2026-08-08 — DISC-005R-UI 页面占比与移动端边界定稿
+
+- User outcome: 在 DEV-005R3 开发前冻结不同业务状态的页面内容占比、手机信息结构、高密度转录、建议占位和结束面板行为，并把手机提升为完整访谈主设备。
+- Review mode: Correction mode；用户明确纠正“手机仅应急兼容”和“手机转录元数据放正文上方”两个初始假设，最终选择 Android Chrome 一等支持、所有设备统一左元数据右正文。
+- Review finding: 正常录制可用桌面约 `8/79/13`、390×844 约 `9/73/18` 作为视觉护栏，但 interrupted 与结束状态必须把状态事实和处置动作提升为视觉主导；五类事实不能铺成五个同权 chip。
+- Options considered: 固定比例贯穿全状态；手机降级为恢复入口；状态驱动注意力并将 Android Chrome 纳入完整纵向链路。采用第三种。
+- Adopted decision: 覆盖 1440×900、1024×768、768×1024、390×844、320×568；正常页仅转录主区滚动；顶部常驻长者/时长/安全摘要/结束，五类事实进入保存明细并按异常提升；高密度转录保持左元数据右正文；建议只预留单问题容器和一层撤销语义；结束确认是唯一 modal，processing/completed 可最小化。
+- Implementation evidence: `01`、`03`、`06`、`09`、SPEC-DEV-005R、DEV-005R2/R3/R4、SPEC-AI-QUESTION-001、ADR-024、CON-021、HO-040；本轮未修改业务代码。
+- Deferred decision: Android Chrome 的后台、锁屏、页面隐藏、旋转和设备中断行为必须由 R2 真机证据冻结；如果现有 interruption reason 不足，先改公共契约。iPhone Safari 明确延期。
+- Lesson: 响应式设计不只是缩窄布局；当手机承担完整录制时，生命周期可靠性、状态解释和真机验收都成为产品契约，而不是 CSS 细节。
