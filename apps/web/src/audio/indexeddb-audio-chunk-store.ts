@@ -6,15 +6,21 @@ import {
 import { sameImmutableChunk } from './in-memory-audio-chunk-store.js';
 import {
   audioChunkKey,
+  assertAudioUploadJobRecord,
+  assertCaptureInterruptionReportRecord,
   type AudioArchiveSnapshot,
   type AudioChunkDelivery,
   type AudioChunkStore,
   type AudioUploadJob,
   type AudioUploadJobStore,
+  type CaptureInterruptionReportRecord,
+  type CaptureInterruptionReportStore,
   type BrowserCaptureCheckpoint,
   type BrowserCaptureCheckpointStore,
   type BufferedAudioChunk,
   type ImmutableAudioChunk,
+  sameCaptureInterruptionReportIdentity,
+  sameCaptureInterruptionReportTarget,
 } from './types.js';
 
 const DATABASE_NAME = 'elder-interview-audio-buffer';
@@ -43,7 +49,11 @@ interface StoredAudioDelivery extends AudioChunkDelivery {
 }
 
 export class IndexedDbAudioChunkStore
-  implements AudioChunkStore, AudioUploadJobStore, BrowserCaptureCheckpointStore
+  implements
+    AudioChunkStore,
+    AudioUploadJobStore,
+    BrowserCaptureCheckpointStore,
+    CaptureInterruptionReportStore
 {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
@@ -187,12 +197,71 @@ export class IndexedDbAudioChunkStore
     const database = await this.database();
     const transaction = database.transaction(UPLOAD_JOB_STORE, 'readonly');
     const result = await request(
-      transaction.objectStore(UPLOAD_JOB_STORE).get(jobId) as IDBRequest<
-        AudioUploadJob | undefined
-      >,
+      transaction.objectStore(UPLOAD_JOB_STORE).get(jobId) as IDBRequest<unknown>,
     );
     await transactionComplete(transaction);
-    return result ?? null;
+    if (result === undefined) return null;
+    assertAudioUploadJobRecord(result, jobId);
+    return result;
+  }
+
+  public async getCaptureInterruptionReport(
+    jobId: string,
+  ): Promise<CaptureInterruptionReportRecord | null> {
+    const database = await this.database();
+    const transaction = database.transaction(UPLOAD_JOB_STORE, 'readonly');
+    const result = await request(
+      transaction.objectStore(UPLOAD_JOB_STORE).get(jobId) as IDBRequest<unknown>,
+    );
+    await transactionComplete(transaction);
+    if (result === undefined) return null;
+    assertCaptureInterruptionReportRecord(result, jobId);
+    return result;
+  }
+
+  public async getOrCreateCaptureInterruptionReport(
+    candidate: CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    assertCaptureInterruptionReportRecord(candidate, candidate.jobId);
+    return this.write(
+      [UPLOAD_JOB_STORE],
+      async (transaction): Promise<CaptureInterruptionReportRecord> => {
+        const records = transaction.objectStore(UPLOAD_JOB_STORE);
+        const existing = await request(records.get(candidate.jobId) as IDBRequest<unknown>);
+        if (existing !== undefined) {
+          assertCaptureInterruptionReportRecord(existing, candidate.jobId);
+          if (!sameCaptureInterruptionReportTarget(existing, candidate)) {
+            throw new Error('CAPTURE_INTERRUPTION_REPORT_IDENTITY_CONFLICT');
+          }
+          return existing;
+        }
+        await request(records.add(candidate));
+        return candidate;
+      },
+    );
+  }
+
+  public async updateCaptureInterruptionReport(
+    jobId: string,
+    update: (current: CaptureInterruptionReportRecord) => CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    return this.write(
+      [UPLOAD_JOB_STORE],
+      async (transaction): Promise<CaptureInterruptionReportRecord> => {
+        const records = transaction.objectStore(UPLOAD_JOB_STORE);
+        const current = await request(records.get(jobId) as IDBRequest<unknown>);
+        if (current === undefined) throw new Error('CAPTURE_INTERRUPTION_REPORT_NOT_FOUND');
+        assertCaptureInterruptionReportRecord(current, jobId);
+        const original = structuredClone(current);
+        const updated = update(structuredClone(current));
+        assertCaptureInterruptionReportRecord(updated, jobId);
+        if (!sameCaptureInterruptionReportIdentity(original, updated)) {
+          throw new Error('CAPTURE_INTERRUPTION_REPORT_IDENTITY_CHANGED');
+        }
+        await request(records.put(updated));
+        return updated;
+      },
+    );
   }
 
   public async updateUploadJob(
@@ -201,10 +270,11 @@ export class IndexedDbAudioChunkStore
   ): Promise<AudioUploadJob> {
     return this.write([UPLOAD_JOB_STORE], async (transaction): Promise<AudioUploadJob> => {
       const jobs = transaction.objectStore(UPLOAD_JOB_STORE);
-      const current = await request(jobs.get(jobId) as IDBRequest<AudioUploadJob | undefined>);
+      const current = await request(jobs.get(jobId) as IDBRequest<unknown>);
       if (current === undefined) throw new Error('UPLOAD_JOB_NOT_FOUND');
+      assertAudioUploadJobRecord(current, jobId);
       const updated = update(current);
-      if (updated.jobId !== jobId) throw new Error('UPLOAD_JOB_IDENTITY_CHANGED');
+      assertAudioUploadJobRecord(updated, jobId);
       await request(jobs.put(updated));
       return updated;
     });
@@ -317,6 +387,7 @@ export class IndexedDbAudioChunkStore
   }
 
   public async putUploadJob(job: AudioUploadJob): Promise<void> {
+    assertAudioUploadJobRecord(job, job.jobId);
     await this.simplePut(UPLOAD_JOB_STORE, job);
   }
 
@@ -450,6 +521,13 @@ export class IndexedDbAudioChunkStore
       return result;
     } catch (error) {
       if (error instanceof AudioBufferCapacityError || error instanceof AudioBufferConflictError) {
+        throw error;
+      }
+      if (
+        error instanceof Error &&
+        (error.message.startsWith('CAPTURE_INTERRUPTION_REPORT_') ||
+          error.message.startsWith('UPLOAD_JOB_RECORD_'))
+      ) {
         throw error;
       }
       if (isQuotaError(error)) throw new AudioBufferCapacityError();

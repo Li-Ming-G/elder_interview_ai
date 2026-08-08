@@ -19,6 +19,8 @@ import type {
   AudioUploadJob,
   AudioUploadJobStore,
   BrowserCaptureCheckpointStore,
+  CaptureInterruptionReportRecord,
+  CaptureInterruptionReportStore,
   ImmutableAudioChunk,
   InterviewCaptureJobState,
 } from '../audio/types.js';
@@ -39,6 +41,8 @@ const INITIAL_REALTIME_STATE: RealtimeState = {
 
 export type InterviewCaptureControllerPhase =
   'idle' | 'preparing' | 'active' | 'interrupted' | 'stopping' | 'stopped' | 'locked' | 'failed';
+
+type CaptureAttemptLockOwner = 'controller' | 'runtime';
 
 export interface InterviewCaptureControllerSnapshot {
   archive: AudioArchiveSnapshot;
@@ -97,6 +101,7 @@ export interface InterviewCaptureControllerOptions {
   checkpointStore: BrowserCaptureCheckpointStore;
   createRuntime: InterviewCaptureRuntimeFactory;
   getUserMedia?: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+  interruptionReports: CaptureInterruptionReportStore;
   jobs: AudioUploadJobStore;
   mimeType: () => string;
   projectId: string;
@@ -198,13 +203,16 @@ export class InterviewCaptureController {
       throw new Error('BROWSER_CAPTURE_LOCKED');
     }
 
+    let job: AudioUploadJob | null = null;
+    let lockOwner: CaptureAttemptLockOwner = 'controller';
     let stream: MediaStream | null = null;
     let serverBoundThisAttempt = false;
     let runtimeStarted = false;
     try {
-      let job = await this.options.jobs.getUploadJob(this.state.localJobId);
+      job = await this.options.jobs.getUploadJob(this.state.localJobId);
       if (job !== null) this.assertFormalJob(job);
       if (job !== null && this.runtime !== null) {
+        lockOwner = 'runtime';
         const existingCapture = requiredCapture(job);
         if (existingCapture.status === 'active') return this.snapshot;
         if (
@@ -242,24 +250,44 @@ export class InterviewCaptureController {
       serverBoundThisAttempt = true;
       await this.startRuntime(job, stream);
       runtimeStarted = true;
+      lockOwner = 'runtime';
       stream = null;
       await this.confirmAndActivate(job);
       return this.snapshot;
     } catch (error) {
-      stopStream(stream);
-      const latest = await this.requiredJob();
+      stopStreamWithoutThrowing(stream);
       if (serverBoundThisAttempt && !runtimeStarted) {
         const runtime = this.runtime;
         this.runtime = null;
         this.runtimeGenerationKey = null;
         this.realtimeActivated = false;
         await runtime?.interrupt().catch(() => undefined);
-        await this.reportInterrupted(latest, 'capture_start_failed', error);
+        if (lockOwner === 'controller') {
+          await this.options.browserLock.release().catch(() => undefined);
+        }
+        if (job !== null) {
+          await this.reportInterrupted(job, 'capture_start_failed', error).catch(() => undefined);
+        }
+        this.patch({ phase: 'interrupted', lastError: errorCode(error) });
       } else if (this.runtime === null) {
-        await this.options.browserLock.release().catch(() => undefined);
+        if (lockOwner === 'controller') {
+          await this.options.browserLock.release().catch(() => undefined);
+        }
         this.patch({ phase: 'failed', lastError: errorCode(error) });
       } else if (isAuthorityFailure(error)) {
-        await this.interruptForAuthorityLoss(latest, error);
+        const latest = await this.formalJobForCleanup(job);
+        if (latest === null) {
+          const runtime = this.runtime;
+          this.runtime = null;
+          this.runtimeGenerationKey = null;
+          this.realtimeActivated = false;
+          await runtime.interrupt().catch(() => undefined);
+          await this.options.browserLock.release().catch(() => undefined);
+        } else {
+          await this.interruptForAuthorityLoss(latest, error).catch(() => undefined);
+          await this.options.browserLock.release().catch(() => undefined);
+        }
+        this.patch({ lastError: errorCode(error) });
       } else {
         this.patch({ lastError: errorCode(error) });
       }
@@ -278,7 +306,12 @@ export class InterviewCaptureController {
     if (this.runtime !== null) return this.snapshot;
     if (job === null || job.interviewCapture === undefined) {
       if (session.capture?.status === 'preparing' || session.capture?.status === 'active') {
-        this.patch({ phase: 'failed', lastError: 'LOCAL_CAPTURE_JOB_MISSING' });
+        await this.recoverMissingLocalJob();
+      } else {
+        this.patch({
+          lastError: session.capture === null ? null : 'LOCAL_CAPTURE_JOB_MISSING',
+          phase: phaseFromServerCapture(session.capture ?? null),
+        });
       }
       return this.snapshot;
     }
@@ -308,6 +341,109 @@ export class InterviewCaptureController {
     return this.snapshot;
   }
 
+  private async recoverMissingLocalJob(): Promise<void> {
+    if (!(await this.options.browserLock.acquire())) {
+      this.patch({ phase: 'locked', lastError: 'BROWSER_CAPTURE_LOCKED' });
+      return;
+    }
+    try {
+      const current = await this.options.api.getSession(this.options.sessionId);
+      assertSessionIdentity(current, this.options.projectId, this.options.sessionId);
+      const capture = current.capture;
+      this.patch({ serverCapture: capture ?? null });
+      if (capture?.status !== 'preparing' && capture?.status !== 'active') {
+        this.patch({
+          lastError: capture === null ? null : 'LOCAL_CAPTURE_JOB_MISSING',
+          phase: phaseFromServerCapture(capture ?? null),
+        });
+        return;
+      }
+      let record: CaptureInterruptionReportRecord;
+      try {
+        record = await this.getOrCreateMissingJobReport(capture);
+      } catch (error) {
+        this.patch({ phase: 'failed', lastError: errorCode(error) });
+        throw error;
+      }
+      this.patch({
+        audioObjectId: capture.audio_object_id,
+        audioStreamId: capture.audio_stream_id,
+        generationNo: capture.generation_no,
+        lastError: 'LOCAL_CAPTURE_JOB_MISSING',
+        phase: 'interrupted',
+      });
+      try {
+        const interrupted = await this.options.api.reportCaptureInterrupted(
+          this.options.sessionId,
+          {
+            audio_stream_id: record.audioStreamId,
+            generation_no: record.generationNo,
+            reason: record.reason,
+            request_id: record.requestId,
+          },
+        );
+        assertSessionIdentity(interrupted, this.options.projectId, this.options.sessionId);
+        const serverCapture = requiredMatchingCapture(interrupted, {
+          audioObjectId: record.audioObjectId,
+          audioStreamId: record.audioStreamId,
+          generationNo: record.generationNo,
+          statuses: ['interrupted'],
+        });
+        this.patch({ serverCapture });
+        const updatedAt = new Date().toISOString();
+        await this.options.interruptionReports.updateCaptureInterruptionReport(
+          record.jobId,
+          (persisted) => ({
+            ...persisted,
+            lastError: null,
+            status: 'acknowledged',
+            updatedAt,
+          }),
+        );
+      } catch (error) {
+        const updatedAt = new Date().toISOString();
+        await this.options.interruptionReports
+          .updateCaptureInterruptionReport(record.jobId, (persisted) => ({
+            ...persisted,
+            lastError: errorCode(error),
+            status: 'pending',
+            updatedAt,
+          }))
+          .catch(() => undefined);
+        this.patch({ lastError: 'LOCAL_CAPTURE_JOB_MISSING', phase: 'interrupted' });
+        throw error;
+      }
+    } finally {
+      await this.options.browserLock.release().catch(() => undefined);
+    }
+  }
+
+  private async getOrCreateMissingJobReport(
+    capture: SessionCaptureSnapshot,
+  ): Promise<CaptureInterruptionReportRecord> {
+    const jobId = captureInterruptionReportJobId(
+      this.options.sessionId,
+      capture.generation_no,
+      capture.audio_stream_id,
+    );
+    const now = new Date().toISOString();
+    return this.options.interruptionReports.getOrCreateCaptureInterruptionReport({
+      audioObjectId: capture.audio_object_id,
+      audioStreamId: capture.audio_stream_id,
+      createdAt: now,
+      generationNo: capture.generation_no,
+      jobId,
+      lastError: null,
+      projectId: this.options.projectId,
+      reason: 'page_recovery_detected',
+      recordType: 'capture-interruption-report-v1',
+      requestId: this.requestId(),
+      sessionId: this.options.sessionId,
+      status: 'pending',
+      updatedAt: now,
+    });
+  }
+
   private async resumeInternal(): Promise<InterviewCaptureControllerSnapshot> {
     let job = await this.requiredJob();
     const capture = requiredCapture(job);
@@ -329,6 +465,7 @@ export class InterviewCaptureController {
       throw new Error('BROWSER_CAPTURE_LOCKED');
     }
     let stream: MediaStream | null = null;
+    let lockOwner: CaptureAttemptLockOwner = 'controller';
     let resumeBoundThisAttempt = false;
     let runtimeStarted = false;
     try {
@@ -364,24 +501,42 @@ export class InterviewCaptureController {
       stream = await this.getUserMedia({ audio: true, video: false });
       await this.startRuntime(job, stream);
       runtimeStarted = true;
+      lockOwner = 'runtime';
       stream = null;
       await this.confirmAndActivate(job);
       return this.snapshot;
     } catch (error) {
-      stopStream(stream);
-      const latest = await this.requiredJob();
+      stopStreamWithoutThrowing(stream);
       if (resumeBoundThisAttempt && !runtimeStarted) {
         const runtime = this.runtime;
         this.runtime = null;
         this.runtimeGenerationKey = null;
         this.realtimeActivated = false;
         await runtime?.interrupt().catch(() => undefined);
-        await this.reportInterrupted(latest, 'capture_start_failed', error);
+        await this.reportInterrupted(job, 'capture_start_failed', error).catch(() => undefined);
+        if (lockOwner === 'controller') {
+          await this.options.browserLock.release().catch(() => undefined);
+        }
+        this.patch({ phase: 'interrupted', lastError: errorCode(error) });
       } else if (this.runtime === null) {
-        await this.options.browserLock.release().catch(() => undefined);
+        if (lockOwner === 'controller') {
+          await this.options.browserLock.release().catch(() => undefined);
+        }
         this.patch({ phase: 'interrupted', lastError: errorCode(error) });
       } else if (isAuthorityFailure(error)) {
-        await this.interruptForAuthorityLoss(latest, error);
+        const latest = await this.formalJobForCleanup(job);
+        if (latest === null) {
+          const runtime = this.runtime;
+          this.runtime = null;
+          this.runtimeGenerationKey = null;
+          this.realtimeActivated = false;
+          await runtime.interrupt().catch(() => undefined);
+          await this.options.browserLock.release().catch(() => undefined);
+        } else {
+          await this.interruptForAuthorityLoss(latest, error).catch(() => undefined);
+          await this.options.browserLock.release().catch(() => undefined);
+        }
+        this.patch({ lastError: errorCode(error) });
       } else {
         this.patch({ lastError: errorCode(error) });
       }
@@ -404,6 +559,7 @@ export class InterviewCaptureController {
       onCaptureFailure: (reason, error) => {
         if (this.runtimeGenerationKey !== generationKey) return;
         void this.serial(async () => {
+          if (this.runtimeGenerationKey !== generationKey) return;
           const latest = await this.requiredJob();
           this.runtime = null;
           this.runtimeGenerationKey = null;
@@ -416,6 +572,7 @@ export class InterviewCaptureController {
         this.patch({ realtime });
         if (realtime.failureKind === 'auth' || realtime.failureKind === 'permission') {
           void this.serial(async () => {
+            if (this.runtimeGenerationKey !== generationKey) return;
             const latest = await this.requiredJob();
             await this.interruptForAuthorityLoss(latest, realtime.errorCode ?? 'auth_lost');
           });
@@ -497,6 +654,7 @@ export class InterviewCaptureController {
     reason: CaptureInterruptionReason,
     error?: unknown,
   ): Promise<void> {
+    const primaryError = error === undefined ? null : errorCode(error);
     let job = inputJob;
     let capture = requiredBoundCapture(job);
     const key = String(capture.generationNo);
@@ -518,7 +676,7 @@ export class InterviewCaptureController {
       job = await this.putCapture(job, { ...capture, status: 'interrupted' });
       capture = requiredBoundCapture(job);
     }
-    this.patch({ phase: 'interrupted', lastError: error === undefined ? null : errorCode(error) });
+    this.patch({ phase: 'interrupted', lastError: primaryError });
     try {
       const interrupted = await this.options.api.reportCaptureInterrupted(this.options.sessionId, {
         audio_stream_id: report.audioStreamId,
@@ -535,7 +693,7 @@ export class InterviewCaptureController {
       });
       this.patch({ serverCapture });
     } catch (reportError) {
-      this.patch({ lastError: errorCode(reportError) });
+      this.patch({ lastError: primaryError ?? errorCode(reportError) });
     }
   }
 
@@ -677,6 +835,19 @@ export class InterviewCaptureController {
     return job;
   }
 
+  private async formalJobForCleanup(
+    fallback: AudioUploadJob | null,
+  ): Promise<AudioUploadJob | null> {
+    try {
+      const current = await this.options.jobs.getUploadJob(this.state.localJobId);
+      if (current === null) return fallback;
+      this.assertFormalJob(current);
+      return current;
+    } catch {
+      return fallback;
+    }
+  }
+
   private assertFormalJob(job: AudioUploadJob): void {
     if (
       job.jobId !== this.state.localJobId ||
@@ -746,6 +917,20 @@ export class InterviewCaptureController {
 export function interviewCaptureLocalJobId(sessionId: string): string {
   if (sessionId.trim().length === 0) throw new TypeError('sessionId is required');
   return `interview-capture:${sessionId}`;
+}
+
+export function captureInterruptionReportJobId(
+  sessionId: string,
+  generationNo: number,
+  audioStreamId: string,
+): string {
+  if (sessionId.trim().length === 0 || audioStreamId.trim().length === 0) {
+    throw new TypeError('capture interruption report identity is required');
+  }
+  if (!Number.isInteger(generationNo) || generationNo < 0) {
+    throw new TypeError('capture interruption report generation is invalid');
+  }
+  return `capture-interruption-report:v1:${sessionId}:${String(generationNo)}:${audioStreamId}`;
 }
 
 function requiredCapture(job: AudioUploadJob): InterviewCaptureJobState {
@@ -860,8 +1045,20 @@ function captureGenerationKey(generationNo: number, audioStreamId: string): stri
   return `${String(generationNo)}:${audioStreamId}`;
 }
 
-function stopStream(stream: MediaStream | null): void {
-  for (const track of stream?.getTracks() ?? []) track.stop();
+function stopStreamWithoutThrowing(stream: MediaStream | null): void {
+  let tracks: MediaStreamTrack[];
+  try {
+    tracks = stream?.getTracks() ?? [];
+  } catch {
+    return;
+  }
+  for (const track of tracks) {
+    try {
+      track.stop();
+    } catch {
+      // Cleanup must not replace the capture attempt's primary failure.
+    }
+  }
 }
 
 function isAuthorityFailure(error: unknown): boolean {
@@ -876,7 +1073,12 @@ function isAuthorityFailure(error: unknown): boolean {
 }
 
 function errorCode(error: unknown): string {
-  return error instanceof Error && error.message.length > 0 ? error.message : 'CAPTURE_FAILED';
+  if (error instanceof Error && error.message.length > 0) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) return message;
+  }
+  return 'CAPTURE_FAILED';
 }
 
 function cloneSnapshot(

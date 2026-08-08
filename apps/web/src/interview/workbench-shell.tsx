@@ -65,7 +65,13 @@ export function WorkbenchShell({
   }, [captureController]);
   useEffect(() => {
     if (loadState.kind !== 'ready' || loadState.data.session === null) return;
-    void captureController.recover(loadState.data.session);
+    let current = true;
+    void captureController.recover(loadState.data.session).catch((error: unknown) => {
+      if (current) setLoadState({ kind: 'error', message: workbenchLoadError(error) });
+    });
+    return (): void => {
+      current = false;
+    };
   }, [captureController, loadState]);
 
   if (loadState.kind === 'loading') return <WorkbenchLoading />;

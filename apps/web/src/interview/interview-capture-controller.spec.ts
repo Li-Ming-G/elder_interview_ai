@@ -12,13 +12,19 @@ import { AudioChunkQueue } from '../audio/audio-chunk-queue.js';
 import { BrowserStorageGuard } from '../audio/browser-storage-guard.js';
 import { InMemoryAudioChunkStore } from '../audio/in-memory-audio-chunk-store.js';
 import { SequentialAudioDeliveryPump } from '../audio/sequential-delivery-pump.js';
-import type { SessionBrowserLock } from '../audio/session-browser-lock.js';
-import type { BrowserCaptureCheckpoint, BrowserCaptureCheckpointStore } from '../audio/types.js';
+import { SessionBrowserLock } from '../audio/session-browser-lock.js';
+import type {
+  BrowserCaptureCheckpoint,
+  BrowserCaptureCheckpointStore,
+  CaptureInterruptionReportRecord,
+  CaptureInterruptionReportStore,
+} from '../audio/types.js';
 import { InMemoryAudioUploadJobStore } from '../audio/audio-upload-job.js';
 import type { InterviewApi, InterviewCaptureApi } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import type { RealtimeState } from '../realtime-transcription/realtime-transport.js';
 import {
+  captureInterruptionReportJobId,
   InterviewCaptureController,
   type InterviewCaptureRuntime,
   type InterviewCaptureRuntimeFactoryInput,
@@ -85,6 +91,70 @@ describe('InterviewCaptureController', () => {
     expect(harness.api.startSession).not.toHaveBeenCalled();
     expect(harness.api.reportCaptureInterrupted).not.toHaveBeenCalled();
     expect(harness.controller.snapshot.phase).toBe('failed');
+  });
+
+  it('stops a temporary stream without letting cleanup replace a server-start failure', async () => {
+    const harness = createHarness();
+    const stop = vi.fn(() => {
+      throw new Error('TRACK_STOP_FAILED');
+    });
+    harness.getUserMedia.mockResolvedValueOnce({
+      getAudioTracks: (): MediaStreamTrack[] => [{ stop } as unknown as MediaStreamTrack],
+      getTracks: (): MediaStreamTrack[] => [{ stop } as unknown as MediaStreamTrack],
+    } as unknown as MediaStream);
+    harness.api.startSession.mockRejectedValueOnce(new Error('START_RESPONSE_LOST'));
+
+    await expect(harness.controller.start()).rejects.toThrow('START_RESPONSE_LOST');
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(harness.controller.snapshot.lastError).toBe('START_RESPONSE_LOST');
+    expect(harness.events).toContain('lock.release');
+  });
+
+  it('preserves a storage preflight failure, releases the lock, and allows a new owner', async () => {
+    const locks = new SharedLockManager();
+    const harness = createHarness({
+      browserLock: new SessionBrowserLock(SESSION_ID, { locks }),
+      storageStartFailures: [new Error('AUDIO_BUFFER_CANARY_FAILED')],
+    });
+
+    await expect(harness.controller.start()).rejects.toThrow('AUDIO_BUFFER_CANARY_FAILED');
+    expect(harness.getUserMedia).not.toHaveBeenCalled();
+    expect(harness.api.startSession).not.toHaveBeenCalled();
+    const nextOwner = new SessionBrowserLock(SESSION_ID, { locks });
+    await expect(nextOwner.acquire()).resolves.toBe(true);
+    await nextOwner.release();
+
+    await expect(harness.controller.start()).resolves.toMatchObject({ phase: 'active' });
+    await harness.controller.stopAndFreeze();
+  });
+
+  it('preserves MIME and local job creation failures without leaking the browser lock', async () => {
+    const mimeLocks = new SharedLockManager();
+    const mimeHarness = createHarness({
+      browserLock: new SessionBrowserLock(SESSION_ID, { locks: mimeLocks }),
+      mimeType: (): string => {
+        throw new Error('AUDIO_CAPTURE_UNSUPPORTED');
+      },
+    });
+    await expect(mimeHarness.controller.start()).rejects.toThrow('AUDIO_CAPTURE_UNSUPPORTED');
+    expect(mimeHarness.getUserMedia).not.toHaveBeenCalled();
+    expect(mimeHarness.api.startSession).not.toHaveBeenCalled();
+    const afterMimeFailure = new SessionBrowserLock(SESSION_ID, { locks: mimeLocks });
+    await expect(afterMimeFailure.acquire()).resolves.toBe(true);
+    await afterMimeFailure.release();
+
+    const writeLocks = new SharedLockManager();
+    const jobs = new FailOncePutUploadJobStore(new Error('LOCAL_JOB_WRITE_FAILED'));
+    const writeHarness = createHarness({
+      browserLock: new SessionBrowserLock(SESSION_ID, { locks: writeLocks }),
+      jobs,
+    });
+    await expect(writeHarness.controller.start()).rejects.toThrow('LOCAL_JOB_WRITE_FAILED');
+    expect(writeHarness.getUserMedia).not.toHaveBeenCalled();
+    expect(writeHarness.api.startSession).not.toHaveBeenCalled();
+    const afterWriteFailure = new SessionBrowserLock(SESSION_ID, { locks: writeLocks });
+    await expect(afterWriteFailure.acquire()).resolves.toBe(true);
+    await afterWriteFailure.release();
   });
 
   it('reports capture_start_failed when local runtime cannot start after atomic start', async () => {
@@ -181,6 +251,173 @@ describe('InterviewCaptureController', () => {
       local_archive_chunk_count: 1,
       local_archive_timeline_high_water_ms: 100,
     });
+  });
+
+  it('reports and releases a resumed generation when microphone acquisition fails', async () => {
+    const harness = createHarness();
+    const started = await harness.controller.start();
+    harness.runtimes[0]?.input.onCaptureFailure('microphone_ended');
+    await eventually(() => {
+      expect(harness.controller.snapshot.phase).toBe('interrupted');
+    });
+    harness.api.getSession.mockResolvedValue(
+      session('interrupted', capture('interrupted', 0, started.audioStreamId as string)),
+    );
+    harness.api.recoverSession.mockImplementation((_sessionId, request) =>
+      Promise.resolve(
+        session(
+          'reconnecting',
+          capture('preparing', 1, 'audio_stream_id' in request ? request.audio_stream_id : 'bad'),
+        ),
+      ),
+    );
+    harness.api.reportCaptureInterrupted.mockRejectedValueOnce(new Error('NETWORK_UNAVAILABLE'));
+    harness.getUserMedia.mockRejectedValueOnce(
+      new DOMException('resume denied', 'NotAllowedError'),
+    );
+    const releasesBefore = harness.events.filter((event) => event === 'lock.release').length;
+
+    await expect(harness.controller.resume()).rejects.toThrow('resume denied');
+    expect(harness.controller.snapshot.lastError).toBe('resume denied');
+    expect(harness.events.filter((event) => event === 'lock.release')).toHaveLength(
+      releasesBefore + 1,
+    );
+    const failedReport = harness.api.reportCaptureInterrupted.mock.calls.at(-1)?.[1];
+    expect(failedReport).toMatchObject({ generation_no: 1, reason: 'capture_start_failed' });
+
+    await harness.controller.recover(
+      session('reconnecting', capture('preparing', 1, failedReport?.audio_stream_id ?? 'missing')),
+    );
+    const retriedReport = harness.api.reportCaptureInterrupted.mock.calls.at(-1)?.[1];
+    expect(retriedReport).toEqual(failedReport);
+  });
+
+  it('persists and retries one orphan page-recovery report without creating a job or microphone', async () => {
+    const sharedJobs = new InMemoryAudioUploadJobStore();
+    const first = createHarness({ jobs: sharedJobs });
+    const active = session('recording', capture('active', 3, 'orphan-stream'));
+    first.api.getSession.mockResolvedValue(active);
+    first.api.reportCaptureInterrupted.mockImplementationOnce(async (_sessionId, request) => {
+      const record = await sharedJobs.getCaptureInterruptionReport(
+        captureInterruptionReportJobId(SESSION_ID, 3, 'orphan-stream'),
+      );
+      expect(record?.requestId).toBe(request.request_id);
+      throw new Error('NETWORK_UNAVAILABLE');
+    });
+
+    await expect(first.controller.recover(active)).rejects.toThrow('NETWORK_UNAVAILABLE');
+    expect(first.getUserMedia).not.toHaveBeenCalled();
+    expect(first.api.startSession).not.toHaveBeenCalled();
+    expect(await sharedJobs.getUploadJob(`interview-capture:${SESSION_ID}`)).toBeNull();
+    const firstPayload = first.api.reportCaptureInterrupted.mock.calls[0]?.[1];
+
+    const refreshed = createHarness({ jobs: sharedJobs });
+    refreshed.api.getSession.mockResolvedValue(active);
+    await refreshed.controller.recover(active);
+    expect(refreshed.api.reportCaptureInterrupted.mock.calls[0]?.[1]).toEqual(firstPayload);
+    expect(refreshed.controller.snapshot).toMatchObject({
+      lastError: 'LOCAL_CAPTURE_JOB_MISSING',
+      phase: 'interrupted',
+    });
+  });
+
+  it('uses generation-scoped orphan keys and skips reports once server capture is interrupted', async () => {
+    const jobs = new InMemoryAudioUploadJobStore();
+    const harness = createHarness({ jobs });
+    const generationZero = session('recording', capture('active', 0, 'stream-0'));
+    harness.api.getSession.mockResolvedValueOnce(generationZero);
+    await harness.controller.recover(generationZero);
+    const generationOne = session('reconnecting', capture('preparing', 1, 'stream-1'));
+    harness.api.getSession.mockResolvedValueOnce(generationOne);
+    await harness.controller.recover(generationOne);
+
+    expect(
+      await jobs.getCaptureInterruptionReport(
+        captureInterruptionReportJobId(SESSION_ID, 0, 'stream-0'),
+      ),
+    ).not.toBeNull();
+    expect(
+      await jobs.getCaptureInterruptionReport(
+        captureInterruptionReportJobId(SESSION_ID, 1, 'stream-1'),
+      ),
+    ).not.toBeNull();
+
+    const interrupted = session('interrupted', capture('interrupted', 2, 'stream-2'));
+    harness.api.getSession.mockResolvedValueOnce(interrupted);
+    await harness.controller.recover(session('recording', capture('active', 2, 'stream-2')));
+    expect(
+      await jobs.getCaptureInterruptionReport(
+        captureInterruptionReportJobId(SESSION_ID, 2, 'stream-2'),
+      ),
+    ).toBeNull();
+    expect(harness.controller.snapshot).toMatchObject({
+      lastError: 'LOCAL_CAPTURE_JOB_MISSING',
+      phase: 'interrupted',
+    });
+    const stopped = session('completed', capture('stopped', 3, 'stream-3'));
+    harness.api.getSession.mockResolvedValueOnce(stopped);
+    await harness.controller.recover(session('recording', capture('active', 3, 'stream-3')));
+    expect(
+      await jobs.getCaptureInterruptionReport(
+        captureInterruptionReportJobId(SESSION_ID, 3, 'stream-3'),
+      ),
+    ).toBeNull();
+    expect(harness.api.reportCaptureInterrupted).toHaveBeenCalledTimes(2);
+  });
+
+  it('replays the same orphan report when acknowledged persistence fails', async () => {
+    const jobs = new FailOnceReportUpdateStore();
+    const harness = createHarness({ interruptionReports: jobs, jobs });
+    const active = session('recording', capture('active', 4, 'stream-4'));
+    harness.api.getSession.mockResolvedValue(active);
+
+    await expect(harness.controller.recover(active)).rejects.toThrow(
+      'CAPTURE_REPORT_UPDATE_FAILED',
+    );
+    const firstPayload = harness.api.reportCaptureInterrupted.mock.calls[0]?.[1];
+    await harness.controller.recover(active);
+    expect(harness.api.reportCaptureInterrupted.mock.calls[1]?.[1]).toEqual(firstPayload);
+  });
+
+  it('fails closed without sending when the orphan report record is corrupted', async () => {
+    const jobs = new CorruptReportStore();
+    const harness = createHarness({ interruptionReports: jobs, jobs });
+    const active = session('recording', capture('active', 5, 'stream-5'));
+    harness.api.getSession.mockResolvedValue(active);
+
+    await expect(harness.controller.recover(active)).rejects.toThrow(
+      'CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID',
+    );
+    expect(harness.api.reportCaptureInterrupted).not.toHaveBeenCalled();
+    expect(harness.getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it('fails closed without sending when an orphan report key has conflicting identity', async () => {
+    const jobs = new InMemoryAudioUploadJobStore();
+    const jobId = captureInterruptionReportJobId(SESSION_ID, 6, 'stream-6');
+    await jobs.getOrCreateCaptureInterruptionReport({
+      audioObjectId: 'conflicting-object',
+      audioStreamId: 'stream-6',
+      createdAt: '2026-08-08T00:00:00.000Z',
+      generationNo: 6,
+      jobId,
+      lastError: null,
+      projectId: PROJECT_ID,
+      reason: 'page_recovery_detected',
+      recordType: 'capture-interruption-report-v1',
+      requestId: 'conflicting-request',
+      sessionId: SESSION_ID,
+      status: 'pending',
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    });
+    const harness = createHarness({ jobs });
+    const active = session('recording', capture('active', 6, 'stream-6'));
+    harness.api.getSession.mockResolvedValue(active);
+
+    await expect(harness.controller.recover(active)).rejects.toThrow(
+      'CAPTURE_INTERRUPTION_REPORT_IDENTITY_CONFLICT',
+    );
+    expect(harness.api.reportCaptureInterrupted).not.toHaveBeenCalled();
   });
 
   it('generation-fences a delayed failure from the previous runtime', async () => {
@@ -286,12 +523,16 @@ describe('InterviewCaptureController', () => {
 });
 
 interface HarnessOptions {
+  browserLock?: SessionBrowserLock;
   checkpoint?: BrowserCaptureCheckpoint | null;
   getUserMediaFailure?: Error;
+  interruptionReports?: CaptureInterruptionReportStore;
   jobs?: InMemoryAudioUploadJobStore;
   lockAvailable?: boolean;
+  mimeType?: () => string;
   queue?: AudioChunkQueue;
   runtimeStartFailure?: Error;
+  storageStartFailures?: Error[];
   store?: InMemoryAudioChunkStore;
 }
 
@@ -312,6 +553,7 @@ interface ControllerHarness {
   events: string[];
   getUserMedia: Mock<(constraints: MediaStreamConstraints) => Promise<MediaStream>>;
   jobs: InMemoryAudioUploadJobStore;
+  lock: SessionBrowserLock;
   queue: AudioChunkQueue;
   runtimes: TestRuntime[];
   store: InMemoryAudioChunkStore;
@@ -333,6 +575,7 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
   const runtimes: TestRuntime[] = [];
   let id = 0;
   const stream = fakeStream();
+  const storageStartFailures = [...(options.storageStartFailures ?? [])];
   const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>(() => {
     events.push('getUserMedia');
     if (options.getUserMediaFailure !== undefined) {
@@ -341,16 +584,27 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
     return Promise.resolve(stream);
   });
   const api = createApi(events);
-  const lock = {
-    acquire: vi.fn((): Promise<boolean> => {
-      events.push('lock.acquire');
-      return Promise.resolve(options.lockAvailable ?? true);
-    }),
-    release: vi.fn((): Promise<void> => {
-      events.push('lock.release');
-      return Promise.resolve();
-    }),
-  } as unknown as SessionBrowserLock;
+  const lock =
+    options.browserLock ??
+    new (class extends SessionBrowserLock {
+      public constructor() {
+        super(SESSION_ID, { locks: null });
+      }
+
+      public override acquire(): Promise<boolean> {
+        events.push('lock.acquire');
+        return Promise.resolve(options.lockAvailable ?? true);
+      }
+
+      public override release(): Promise<void> {
+        events.push('lock.release');
+        return Promise.resolve();
+      }
+    })();
+  if (options.browserLock === undefined) {
+    vi.spyOn(lock, 'acquire');
+    vi.spyOn(lock, 'release');
+  }
   const checkpointStore: BrowserCaptureCheckpointStore = {
     getCaptureCheckpoint: vi.fn(() => Promise.resolve(options.checkpoint ?? null)),
     putCaptureCheckpoint: vi.fn(),
@@ -361,6 +615,8 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
     ),
     assertCanStart: vi.fn(() => {
       events.push('storage.start');
+      const failure = storageStartFailures.shift();
+      if (failure !== undefined) return Promise.reject(failure);
       return Promise.resolve({ availableBytes: 1024, recommendedCapacityAvailable: true });
     }),
   } as unknown as BrowserStorageGuard;
@@ -375,7 +631,7 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
           return Promise.resolve();
         }),
         input,
-        interrupt: vi.fn(() => Promise.resolve()),
+        interrupt: vi.fn(() => lock.release()),
         start: vi.fn(async (mediaStream: MediaStream): Promise<void> => {
           void mediaStream;
           events.push(`runtime.start:${String(input.generationNo)}`);
@@ -392,14 +648,19 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
           }
           input.onArchiveProgress();
         }),
-        stop: vi.fn(() => queue.restoreArchive(SESSION_ID)),
+        stop: vi.fn(async () => {
+          const archive = await queue.restoreArchive(SESSION_ID);
+          await lock.release();
+          return archive;
+        }),
       };
       runtimes.push(runtime);
       return runtime;
     },
     getUserMedia,
+    interruptionReports: options.interruptionReports ?? jobs,
     jobs,
-    mimeType: (): string => MIME,
+    mimeType: options.mimeType ?? ((): string => MIME),
     projectId: PROJECT_ID,
     pump: new SequentialAudioDeliveryPump(queue, jobs, {
       requestId: (): string => `chunk-${String(++id)}`,
@@ -409,7 +670,7 @@ function createHarness(options: HarnessOptions = {}): ControllerHarness {
     sessionId: SESSION_ID,
     storageGuard,
   });
-  return { api, controller, events, getUserMedia, jobs, queue, runtimes, store };
+  return { api, controller, events, getUserMedia, jobs, lock, queue, runtimes, store };
 }
 
 function createApi(events: string[]): MockApi {
@@ -540,5 +801,61 @@ async function eventually(assertion: () => void): Promise<void> {
       if (attempt === 19) throw error;
       await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
     }
+  }
+}
+
+class SharedLockManager {
+  private held = false;
+
+  public request(
+    _name: string,
+    _options: { ifAvailable: true; mode: 'exclusive' },
+    callback: (lock: Lock | null) => Promise<void>,
+  ): Promise<void> {
+    if (this.held) return callback(null);
+    this.held = true;
+    return callback({} as Lock).finally(() => {
+      this.held = false;
+    });
+  }
+}
+
+class FailOncePutUploadJobStore extends InMemoryAudioUploadJobStore {
+  private failed = false;
+
+  public constructor(private readonly failure: Error) {
+    super();
+  }
+
+  public override putUploadJob(job: import('../audio/types.js').AudioUploadJob): Promise<void> {
+    if (!this.failed) {
+      this.failed = true;
+      return Promise.reject(this.failure);
+    }
+    return super.putUploadJob(job);
+  }
+}
+
+class FailOnceReportUpdateStore extends InMemoryAudioUploadJobStore {
+  private failed = false;
+
+  public override updateCaptureInterruptionReport(
+    jobId: string,
+    update: (current: CaptureInterruptionReportRecord) => CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    if (!this.failed) {
+      this.failed = true;
+      return Promise.reject(new Error('CAPTURE_REPORT_UPDATE_FAILED'));
+    }
+    return super.updateCaptureInterruptionReport(jobId, update);
+  }
+}
+
+class CorruptReportStore extends InMemoryAudioUploadJobStore {
+  public override getOrCreateCaptureInterruptionReport(
+    candidate: CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    void candidate;
+    return Promise.reject(new Error('CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID'));
   }
 }

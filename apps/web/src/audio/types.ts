@@ -139,6 +139,125 @@ export interface AudioUploadJobStore {
   ): Promise<AudioUploadJob>;
 }
 
+export const CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE = 'capture-interruption-report-v1' as const;
+
+export interface CaptureInterruptionReportRecord {
+  audioObjectId: string;
+  audioStreamId: string;
+  createdAt: string;
+  generationNo: number;
+  jobId: string;
+  lastError: string | null;
+  projectId: string;
+  reason: 'page_recovery_detected';
+  recordType: typeof CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE;
+  requestId: string;
+  sessionId: string;
+  status: 'acknowledged' | 'pending';
+  updatedAt: string;
+}
+
+export interface CaptureInterruptionReportStore {
+  getCaptureInterruptionReport(jobId: string): Promise<CaptureInterruptionReportRecord | null>;
+  getOrCreateCaptureInterruptionReport(
+    candidate: CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord>;
+  updateCaptureInterruptionReport(
+    jobId: string,
+    update: (current: CaptureInterruptionReportRecord) => CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord>;
+}
+
+export function assertAudioUploadJobRecord(
+  value: unknown,
+  expectedJobId?: string,
+): asserts value is AudioUploadJob {
+  if (!isRecord(value) || 'recordType' in value) throw new Error('UPLOAD_JOB_RECORD_TYPE_MISMATCH');
+  if (
+    typeof value.jobId !== 'string' ||
+    value.jobId.startsWith('capture-interruption-report:') ||
+    (expectedJobId !== undefined && value.jobId !== expectedJobId) ||
+    typeof value.projectId !== 'string' ||
+    typeof value.bufferSessionId !== 'string' ||
+    typeof value.mimeType !== 'string' ||
+    (value.purpose !== 'consent' && value.purpose !== 'interview') ||
+    !isRecord(value.chunkRequestIds)
+  ) {
+    throw new Error('UPLOAD_JOB_RECORD_INVALID');
+  }
+}
+
+export function assertCaptureInterruptionReportRecord(
+  value: unknown,
+  expectedJobId?: string,
+): asserts value is CaptureInterruptionReportRecord {
+  if (
+    !isRecord(value) ||
+    value.recordType !== CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE ||
+    typeof value.jobId !== 'string' ||
+    (expectedJobId !== undefined && value.jobId !== expectedJobId) ||
+    typeof value.projectId !== 'string' ||
+    typeof value.sessionId !== 'string' ||
+    typeof value.audioObjectId !== 'string' ||
+    typeof value.audioStreamId !== 'string' ||
+    !Number.isInteger(value.generationNo) ||
+    (value.generationNo as number) < 0 ||
+    value.reason !== 'page_recovery_detected' ||
+    typeof value.requestId !== 'string' ||
+    value.requestId.trim().length === 0 ||
+    (value.status !== 'pending' && value.status !== 'acknowledged') ||
+    typeof value.createdAt !== 'string' ||
+    typeof value.updatedAt !== 'string' ||
+    (value.lastError !== null && typeof value.lastError !== 'string')
+  ) {
+    throw new Error('CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID');
+  }
+  const expectedKey = `capture-interruption-report:v1:${value.sessionId}:${String(value.generationNo)}:${value.audioStreamId}`;
+  if (
+    value.jobId !== expectedKey ||
+    value.projectId.trim().length === 0 ||
+    value.sessionId.trim().length === 0 ||
+    value.audioObjectId.trim().length === 0 ||
+    value.audioStreamId.trim().length === 0
+  ) {
+    throw new Error('CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID');
+  }
+}
+
+export function sameCaptureInterruptionReportIdentity(
+  left: CaptureInterruptionReportRecord,
+  right: CaptureInterruptionReportRecord,
+): boolean {
+  return (
+    left.jobId === right.jobId &&
+    left.projectId === right.projectId &&
+    left.sessionId === right.sessionId &&
+    left.audioObjectId === right.audioObjectId &&
+    left.audioStreamId === right.audioStreamId &&
+    left.generationNo === right.generationNo &&
+    left.requestId === right.requestId &&
+    left.createdAt === right.createdAt
+  );
+}
+
+export function sameCaptureInterruptionReportTarget(
+  left: CaptureInterruptionReportRecord,
+  right: CaptureInterruptionReportRecord,
+): boolean {
+  return (
+    left.jobId === right.jobId &&
+    left.projectId === right.projectId &&
+    left.sessionId === right.sessionId &&
+    left.audioObjectId === right.audioObjectId &&
+    left.audioStreamId === right.audioStreamId &&
+    left.generationNo === right.generationNo
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 export type BrowserCaptureCheckpointStatus = 'failed' | 'recording' | 'starting' | 'stopped';
 
 export interface BrowserCaptureCheckpoint {

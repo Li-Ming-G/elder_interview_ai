@@ -67,6 +67,7 @@ export function InterviewCaptureControllerHarness({
             sessionId,
           ),
         getUserMedia: (): Promise<MediaStream> => source.create(),
+        interruptionReports: store,
         jobs: store,
         mimeType: (): string => 'audio/webm;codecs=opus',
         projectId,

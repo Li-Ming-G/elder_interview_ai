@@ -67,7 +67,7 @@ function api(result: PreparationData): InterviewApi {
   };
 }
 
-function controllerHarness(): {
+function controllerHarness(recoverError?: Error): {
   controller: Pick<InterviewCaptureController, 'recover' | 'subscribe'>;
   emit: (state: RealtimeState) => void;
   isSubscribed: () => boolean;
@@ -75,7 +75,11 @@ function controllerHarness(): {
   let listener: ((snapshot: InterviewCaptureControllerSnapshot) => void) | null = null;
   return {
     controller: {
-      recover: vi.fn(() => Promise.resolve({} as InterviewCaptureControllerSnapshot)),
+      recover: vi.fn(() =>
+        recoverError === undefined
+          ? Promise.resolve({} as InterviewCaptureControllerSnapshot)
+          : Promise.reject(recoverError),
+      ),
       subscribe: (next) => {
         listener = next;
         return () => {
@@ -89,6 +93,20 @@ function controllerHarness(): {
 }
 
 describe('WorkbenchShell', () => {
+  it('fails closed when capture recovery rejects instead of leaving an unhandled promise', async () => {
+    const transport = controllerHarness(new Error('CAPTURE_RECOVERY_FAILED'));
+    render(
+      <WorkbenchShell
+        api={api(data())}
+        captureController={transport.controller}
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+    expect(await screen.findByText('无法进入实时工作台')).toBeTruthy();
+    expect(screen.getByText('CAPTURE_RECOVERY_FAILED')).toBeTruthy();
+  });
+
   it('fails closed when the server session is not streamable', async () => {
     const transport = controllerHarness();
     render(

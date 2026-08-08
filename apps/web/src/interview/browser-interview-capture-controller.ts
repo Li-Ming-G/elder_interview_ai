@@ -10,6 +10,7 @@ import type {
   AudioChunkStore,
   AudioUploadJobStore,
   BrowserCaptureCheckpointStore,
+  CaptureInterruptionReportStore,
 } from '../audio/types.js';
 import {
   RealtimeTranscriptionTransport,
@@ -27,7 +28,10 @@ const DEFAULT_MAXIMUM_ARCHIVE_BYTES = 512 * 1024 * 1024;
 const DEFAULT_ARCHIVE_TIMESLICE_MS = 1_000;
 const SUPPORTED_INTERVIEW_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm'] as const;
 
-type BrowserCaptureStore = AudioChunkStore & AudioUploadJobStore & BrowserCaptureCheckpointStore;
+type BrowserCaptureStore = AudioChunkStore &
+  AudioUploadJobStore &
+  BrowserCaptureCheckpointStore &
+  CaptureInterruptionReportStore;
 
 export interface BrowserInterviewCaptureControllerOptions {
   api: InterviewApi & InterviewCaptureApi;
@@ -72,6 +76,7 @@ export function createBrowserInterviewCaptureController(
         options.archiveTimesliceMs ?? DEFAULT_ARCHIVE_TIMESLICE_MS,
       ),
     ...(options.getUserMedia === undefined ? {} : { getUserMedia: options.getUserMedia }),
+    interruptionReports: store,
     jobs: store,
     mimeType: selectInterviewArchiveMimeType,
     projectId: options.projectId,

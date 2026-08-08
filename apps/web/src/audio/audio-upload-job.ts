@@ -5,7 +5,17 @@ import type {
 } from '@elder-interview/contracts';
 
 import type { AudioChunkQueue } from './audio-chunk-queue.js';
-import type { AudioUploadJob, AudioUploadJobStore, BufferedAudioChunk } from './types.js';
+import {
+  assertAudioUploadJobRecord,
+  assertCaptureInterruptionReportRecord,
+  type AudioUploadJob,
+  type AudioUploadJobStore,
+  type BufferedAudioChunk,
+  type CaptureInterruptionReportRecord,
+  type CaptureInterruptionReportStore,
+  sameCaptureInterruptionReportIdentity,
+  sameCaptureInterruptionReportTarget,
+} from './types.js';
 
 export interface CreateAudioUploadJobInput {
   bufferSessionId: string;
@@ -210,14 +220,63 @@ export class AudioUploadJobRunner {
   }
 }
 
-export class InMemoryAudioUploadJobStore implements AudioUploadJobStore {
-  private readonly jobs = new Map<string, AudioUploadJob>();
+export class InMemoryAudioUploadJobStore
+  implements AudioUploadJobStore, CaptureInterruptionReportStore
+{
+  private readonly jobs = new Map<string, AudioUploadJob | CaptureInterruptionReportRecord>();
 
   public getUploadJob(jobId: string): Promise<AudioUploadJob | null> {
-    return Promise.resolve(cloneJob(this.jobs.get(jobId) ?? null));
+    const value = this.jobs.get(jobId);
+    if (value === undefined) return Promise.resolve(null);
+    assertAudioUploadJobRecord(value, jobId);
+    return Promise.resolve(cloneJob(value));
+  }
+
+  public getCaptureInterruptionReport(
+    jobId: string,
+  ): Promise<CaptureInterruptionReportRecord | null> {
+    const value = this.jobs.get(jobId);
+    if (value === undefined) return Promise.resolve(null);
+    assertCaptureInterruptionReportRecord(value, jobId);
+    return Promise.resolve(structuredClone(value));
+  }
+
+  public getOrCreateCaptureInterruptionReport(
+    candidate: CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    assertCaptureInterruptionReportRecord(candidate, candidate.jobId);
+    const existing = this.jobs.get(candidate.jobId);
+    if (existing !== undefined) {
+      assertCaptureInterruptionReportRecord(existing, candidate.jobId);
+      if (!sameCaptureInterruptionReportTarget(existing, candidate)) {
+        return Promise.reject(new Error('CAPTURE_INTERRUPTION_REPORT_IDENTITY_CONFLICT'));
+      }
+      return Promise.resolve(structuredClone(existing));
+    }
+    this.jobs.set(candidate.jobId, structuredClone(candidate));
+    return Promise.resolve(structuredClone(candidate));
+  }
+
+  public updateCaptureInterruptionReport(
+    jobId: string,
+    update: (current: CaptureInterruptionReportRecord) => CaptureInterruptionReportRecord,
+  ): Promise<CaptureInterruptionReportRecord> {
+    const existing = this.jobs.get(jobId);
+    if (existing === undefined) {
+      return Promise.reject(new Error('CAPTURE_INTERRUPTION_REPORT_NOT_FOUND'));
+    }
+    assertCaptureInterruptionReportRecord(existing, jobId);
+    const updated = update(structuredClone(existing));
+    assertCaptureInterruptionReportRecord(updated, jobId);
+    if (!sameCaptureInterruptionReportIdentity(existing, updated)) {
+      return Promise.reject(new Error('CAPTURE_INTERRUPTION_REPORT_IDENTITY_CHANGED'));
+    }
+    this.jobs.set(jobId, structuredClone(updated));
+    return Promise.resolve(structuredClone(updated));
   }
 
   public putUploadJob(job: AudioUploadJob): Promise<void> {
+    assertAudioUploadJobRecord(job, job.jobId);
     this.jobs.set(job.jobId, cloneJob(job) as AudioUploadJob);
     return Promise.resolve();
   }
@@ -226,10 +285,12 @@ export class InMemoryAudioUploadJobStore implements AudioUploadJobStore {
     jobId: string,
     update: (current: AudioUploadJob) => AudioUploadJob,
   ): Promise<AudioUploadJob> {
-    const current = cloneJob(this.jobs.get(jobId) ?? null);
-    if (current === null) return Promise.reject(new Error('UPLOAD_JOB_NOT_FOUND'));
+    const stored = this.jobs.get(jobId);
+    if (stored === undefined) return Promise.reject(new Error('UPLOAD_JOB_NOT_FOUND'));
+    assertAudioUploadJobRecord(stored, jobId);
+    const current = cloneJob(stored) as AudioUploadJob;
     const updated = update(current);
-    if (updated.jobId !== jobId) return Promise.reject(new Error('UPLOAD_JOB_IDENTITY_CHANGED'));
+    assertAudioUploadJobRecord(updated, jobId);
     this.jobs.set(jobId, cloneJob(updated) as AudioUploadJob);
     return Promise.resolve(cloneJob(updated) as AudioUploadJob);
   }
