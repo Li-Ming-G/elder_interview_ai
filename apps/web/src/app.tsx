@@ -199,6 +199,7 @@ export function App(): React.JSX.Element {
       <WorkbenchShell
         api={interviewApi}
         captureController={captureController(route.projectId, route.sessionId)}
+        navigate={navigate}
         projectId={route.projectId}
         sessionId={route.sessionId}
       />

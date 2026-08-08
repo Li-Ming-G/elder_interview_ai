@@ -30,13 +30,14 @@ test('assigned fictional project passes preparation and enters only the workbenc
         fftSize: number;
         getByteTimeDomainData: (samples: Uint8Array) => void;
       } {
+        const startedAt = performance.now();
         return {
           connect: () => undefined,
           disconnect: () => undefined,
           fftSize: 1024,
           getByteTimeDomainData: (samples): void => {
             samples.fill(128);
-            samples[12] = 140;
+            if (performance.now() - startedAt > 700) samples[12] = 220;
           },
         };
       }
@@ -271,7 +272,7 @@ test('assigned fictional project passes preparation and enters only the workbenc
     page.getByTestId('workbench-finals').getByText('长者', { exact: true }),
   ).toBeVisible();
   await expect(page.getByText('继续倾听', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '结束访谈' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '结束访谈' })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ fullPage: true, path: 'test-results/dev-005b-workbench-narrow.png' });
 
