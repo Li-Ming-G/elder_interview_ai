@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-002/003/004A/004B1/004B2 已通过，父 DEV-004 仍开放；旧 DEV-005A/B/C 在声明范围内已通过并保留历史证据；项目负责人要求先以 DISC-005-R0 重新定义完整首次访谈链路，再依次讨论 A-R/B-R/C-R/D-R，原 DEV-005D 暂停。
-- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三条链路解耦。
+- Current stage: 探索期 MVP 核心纵向链路验证；旧 DEV-005A/B/C 历史范围已通过；DISC-005-R0 与 A-R/B-R/C-R/D-R 已获批准，SPEC-DEV-005R 正在 GitHub 审查候选阶段，后续按 R1/R2C/R2/R3/R4 实现。
+- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -83,6 +83,22 @@
 - Reason: 产品行为、失败处置和用户可观察验收不能由实现 Agent 静默决定，但纯工程细节也不应重复进入产品讨论。
 - Tradeoff: 每个重大阶段多一次讨论与验收，但减少返工、口头结论漂移和实现者代替用户决策的风险。
 - Boundary: 讨论窗口只提交候选决定包，不修改正式依据或开发；总控验收通过并写回后才下发实现。锁、索引、组件拆分等可回退实现细节不默认进入讨论。
+
+### D-011 — 正式访谈由单流控制器和采集代贯穿 start 到 stop
+
+- Status: adopted
+- Evidence: 项目负责人批准 DISC-005-R0 与 A-R/B-R/C-R/D-R；现有正式准备页、audio harness、实时工作台和 DEV-005C finalization 各自通过但没有同一录音作业所有权；CON-020、SPEC-DEV-005R、ADR-023。
+- Reason: 原始录音、上传和实时 PCM 若由不同页面/流临时拥有，就无法证明 stop 使用 start 创建的同一对象，也无法在刷新或意外中断后恢复一致时间轴。
+- Tradeoff: 新增 capture generation、浏览器 archive 驻留、路由上层 controller 和分阶段实现；换取唯一对象、原始证据优先、显式中断与可审查纵向链路。
+- Boundary: 当前仅内部虚构数据、单浏览器单标签、进程内服务；不承诺跨设备、永久本地备份、云存储、真实 ASR 或真实试点。CON-020 在真实 Chromium 实现 PASS 前保持 OPEN。
+
+### D-012 — 页面注意力随访谈状态变化，Android Chrome 是首轮完整主设备
+
+- Status: adopted
+- Evidence: 项目负责人逐项确认 `DISC-005R-UI`；正式产品、流程、音频、验收规范及 SPEC-DEV-005R、DEV-005R2/R3/R4 已同步，ADR-024、CON-021、HO-040 记录边界。
+- Reason: 正常录制的首要任务是持续阅读转录，中断和结束时的首要任务则是保护证据并完成处置；固定页面比例无法表达状态变化。手机也不是桌面的应急恢复入口，而是长者访谈的完整主设备。
+- Tradeoff: R3 必须覆盖五个视口和全状态注意力层，R2/R4 必须增加 Android Chrome 真机生命周期证据；首轮不同时承诺 iPhone Safari。
+- Boundary: 比例是视觉护栏，实现使用受控 header/footer 与中间 `1fr`，不得硬编码百分比。Android 后台、锁屏、页面隐藏和音频设备中断究竟继续采集还是进入 interrupted，必须由 R2 真机证据与正式契约冻结；CON-021 未解决前 R3 不得猜测。
 
 ## Assumptions to Validate
 
@@ -504,3 +520,49 @@
 - Implementation evidence: `docs/agent/tasks/DISC-005-R0.md`、`docs/agent/prompts/DISC-005-R0.md`、HO-037、CON-020、任务板和追踪入口；未修改旧 DEV-005A/B/C/D 任务卡或业务代码。
 - Lesson: 模块分别 PASS 只能证明各自边界，不能证明纵向链路已有唯一责任人把开始阶段产生的证据一直交到结束阶段；重构先冻结端到端所有权，再划分子任务。
 - Better future prompt: “请先讨论一次首次访谈从开始到结束必须由谁持续持有 session、麦克风、录音上传作业和实时流，以及发生刷新/断网时哪些事实必须恢复；总纲通过后再拆阶段，不改写旧任务历史。”
+
+### 2026-08-07 — DEV-005R 讨论收口与实施基线
+
+- User outcome: A-R/B-R/C-R/D-R 全部无异议后开始开发；UI 统一使用 impeccable；总控设定最终目标并持续推进，新任务完成后主动通知总控复核。
+- Review mode: Correction mode；唯一独立只读复核确认可以继续开发，但必须先把聊天决定写回正式契约，且未经项目负责人 PASS 不得夜间自行合并 main 或标 DONE。
+- Review finding: 共享 API、Prisma、工作台入口和中央治理文档不能由多个 worktree 同时拥有；后端 R1 与严格限界、不改共享 DTO/路由的 R2C 可以并行，其余必须按 R1/R2C→R2→R3→R4 推进。
+- Options considered: 所有功能一个大 PR；多 Agent 同时改共享契约；短暂 SPEC 基线后有限并行和 stacked candidates。采用第三种。
+- Adopted decision: SPEC-DEV-005R/ADR-023 正式承接批准决定；旧 DEV-005A/B/C 历史保持；旧未实施 DEV-005D 由 R3 取代；CON-020 等 R4 真实 Chromium PASS 后关闭。实现任务必须主动通知总控，提供 final head/PR/CI/命令/风险。
+- Implementation evidence: `03/04/05/06/08/09/10`、SPEC-DEV-005R、DEV-005R1/R2C/R2/R3/R4 任务卡、提示词、任务板、追踪、CON-020、ADR-023、HO-038；当前为契约候选，业务代码尚未实现。
+
+- Contract correction: R1 预审发现 `NO_AUDIO_CAPTURED` 发生时依法没有 finalization，而旧公共失败字段只嵌在 finalization。采用 session 顶层 `capture_failure_code`，只允许空采集失败并与 finalization failure 互斥；不创建伪 finalization。
+- Evidence correction: realtime runtime 是进程内状态，不能在重启后证明零 PCM；generation 增加一次性 `first_pcm_accepted_at`，第一帧被 adapter 接受时写入，空录音放弃要求其为空，不引入每帧数据库写放大。
+- Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
+
+### 2026-08-08 — DEV-005R 页面内容占比讨论前置
+
+- User outcome: 在继续开发前补齐准备页、正常工作台、中断与结束状态的内容占比和注意力层级，避免 DEV-005R3 自行猜测。
+- Review mode: Correction mode；独立只读 UX 复核确认“转录约 80%”只覆盖正常态粗略方向，尚未冻结视口口径、窄屏、五类事实布局和状态变化后的重分配。
+- Options considered: 全状态固定 80% 转录；改为左右仪表盘；保持纵向结构并按业务状态改变比例。推荐第三种。
+- Adopted decision: pending user choice；已创建独立讨论任务 `DISC-005R-UI 页面内容占比与注意力层级`，从桌面 `8/79/13`、窄屏 `9/73/18` 和 interrupted/结束态重分配候选开始逐项确认。
+- Implementation evidence: 无；本轮只启动产品讨论，DEV-005R1 后端检查点与 R2C/R2 技术边界不变，DEV-005R3 UI 实现继续等待讨论结论。
+- Lesson: 页面比例应表达用户在当前业务状态下的首要任务；正常录制时转录居中，中断或结束时安全处置必须取得视觉主导，不能让一个静态百分比贯穿所有状态。
+- Better future prompt: “请分别给正常录制、中断、保存处理中和完成状态定义桌面/窄屏的内容比例、常驻事实、折叠事实与验收视口，再开始页面实现。”
+- Better future prompt: “先把已批准的端到端决定写成正式契约，再按单一事实拥有者拆 worktree；允许纯核心模块并行，但共享 DTO、路由和中央文档只能由指定任务修改，所有任务交付到 GitHub REVIEW 后主动通知总控。”
+
+### 2026-08-08 — DISC-005R-UI 页面占比与移动端边界定稿
+
+- User outcome: 在 DEV-005R3 开发前冻结不同业务状态的页面内容占比、手机信息结构、高密度转录、建议占位和结束面板行为，并把手机提升为完整访谈主设备。
+- Review mode: Correction mode；用户明确纠正“手机仅应急兼容”和“手机转录元数据放正文上方”两个初始假设，最终选择 Android Chrome 一等支持、所有设备统一左元数据右正文。
+- Review finding: 正常录制可用桌面约 `8/79/13`、390×844 约 `9/73/18` 作为视觉护栏，但 interrupted 与结束状态必须把状态事实和处置动作提升为视觉主导；五类事实不能铺成五个同权 chip。
+- Options considered: 固定比例贯穿全状态；手机降级为恢复入口；状态驱动注意力并将 Android Chrome 纳入完整纵向链路。采用第三种。
+- Adopted decision: 覆盖 1440×900、1024×768、768×1024、390×844、320×568；正常页仅转录主区滚动；顶部常驻长者/时长/安全摘要/结束，五类事实进入保存明细并按异常提升；高密度转录保持左元数据右正文；建议只预留单问题容器和一层撤销语义；结束确认是唯一 modal，processing/completed 可最小化。
+- Implementation evidence: `01`、`03`、`06`、`09`、SPEC-DEV-005R、DEV-005R2/R3/R4、SPEC-AI-QUESTION-001、ADR-024、CON-021、HO-040；本轮未修改业务代码。
+- Deferred decision: Android Chrome 的后台、锁屏、页面隐藏、旋转和设备中断行为必须由 R2 真机证据冻结；如果现有 interruption reason 不足，先改公共契约。iPhone Safari 明确延期。
+- Lesson: 响应式设计不只是缩窄布局；当手机承担完整录制时，生命周期可靠性、状态解释和真机验收都成为产品契约，而不是 CSS 细节。
+
+### 2026-08-08 — SPEC-DEV-005R 首轮审查四项契约缝隙修订
+
+- User outcome: 不推翻 DEV-005R 总体设计，只定向关闭 interview init、ACK/archive、全 generation PCM 空录音判断和 resume DTO 四个 P1，并在必要时极小修正 R1。
+- Review mode: Correction mode；独立只读复核确认四项均成立，且全 generation PCM 同时是 PR #13 的实现缺陷；未发现第五个阻塞项。
+- Review finding: 新总契约已形成正确方向，但旧 `05`、`06` 与 Accepted ADR-017 仍保留历史实现语义；若只改 SPEC 摘要，后续 Agent 仍会从正式来源得到相反答案。
+- Options considered: 只改四句；推翻重写整套契约；同步所有相邻权威来源并让 R1 只修一项。采用第三种。
+- Adopted decision: interview object 只能由 atomic start 创建；ACK 只清 delivery、不删 archive；`NO_AUDIO_CAPTURED` 要求该 session 所有 generations 均无 PCM 接受证据；resume 的 archive count/timeline 是同一 local job 累计高水位。ADR-017 的正式访谈旧语义由 ADR-023 部分取代，R4 同时负责 CON-020/021。
+- Implementation evidence: `04`、`05`、`06`、`09`、SPEC-DEV-005R、DEV-005R1/R4、ADR-017/023、REV-021 与治理索引已修订；PR #13 原任务已收到 all-generation 查询与 PostgreSQL 回归的定向修复要求。
+- Lesson: “零证据”是聚合级断言，不是当前子状态断言；只要历史 generation 留下任何持久证据，就不能由最新 generation 的空值覆盖整个 session 的事实。
+- Better future prompt: “请把空录音条件定义为 session 聚合不变量，列出服务端分片、所有 capture generations 的 PCM 证据和同一 local job 累计 archive 三个独立检查，并覆盖跨 generation 反例。”

@@ -243,6 +243,18 @@
 - 临时处理：不修改旧 A/B/C 代码或任务历史，不依赖 query harness/E2E 预置伪造结束输入；先执行 DISC-005-R0，再由 B-R 重点冻结真实/合成音频等级、单一作业生命周期、刷新恢复和 stop handoff。
 - 需要谁决策：项目负责人在 DISC-005-R0 与后续 B-R 中决定产品验证等级和用户可观察恢复行为；总控在全部阶段讨论后统一收敛正式产品与技术规范。
 - 关闭条件：新的跨阶段方案明确正式工作台从 start 到 stop 如何持有/恢复唯一录音上传作业，能产出与 DEV-005C 匹配的不可变 stop 输入，并形成真实浏览器纵向验收；对应实现与项目负责人审查另行关闭，不以讨论通过冒充代码完成。
+- 设计收口进展（2026-08-07）：项目负责人批准 R0 与 A-R/B-R/C-R/D-R；`SPEC-DEV-005R` 已把 session-scoped controller、atomic start、唯一 object、capture generation、archive/delivery 分离、显式恢复和同页结束体验写成正式候选。冲突继续 `OPEN`；只有 DEV-005R4 证明正式路由从 start 到同一对象 stop/manifest 且获得 GitHub PASS 后才关闭。
+
+### CON-021｜Android Chrome 后台与设备生命周期的采集事实尚无真机证据
+
+- 状态：`OPEN`
+- 发现时间：2026-08-08
+- 发现者：DISC-005R-UI 项目负责人讨论 / iteration-coach 独立只读复核 / 总控 Agent
+- 涉及文件与章节：`01` §8、`03` §9/§12、`05` capture actions、`06` §9/§11、`09` §10.2/场景 A、DEV-005R2/R3/R4
+- 冲突内容：产品已确认 Android Chrome 是完整访谈主设备，但尚无目标真机证据证明页面隐藏、切后台、锁屏、旋转和音频设备中断时 MediaStream/MediaRecorder/AudioWorklet/IndexedDB 的可靠行为。页面若自行假定“继续正常”会静默丢音频；一律中断又可能无必要破坏访谈。
+- 受影响任务：DEV-005R2 必须冻结 controller 行为，DEV-005R4 必须提供真机证据；DEV-005R3 只能消费已冻结事实。iPhone Safari 明确延期。不阻塞 DEV-005R1 服务端或边界独立的 DEV-005R2C 继续开发。
+- 临时处理：旋转只允许重排，禁止刷新、重新请求麦克风或创建新 capture。其他生命周期事件在 R2 真机验证后选择“可证明可靠则继续”或“不可证明则持久报告 interrupted”；不得私有发明状态或仅改文案。
+- 关闭条件：目标 Android Chrome 真机覆盖 5–10 分钟录制、旋转、后台/锁屏、权限/设备中断和刷新恢复；正式契约明确每类事件的继续/中断结果，必要的 reason/snapshot 变更先同步文档与共享契约，并获得项目负责人 PASS。
 
 ## 登记模板
 

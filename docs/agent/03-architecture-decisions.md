@@ -133,8 +133,8 @@
 ## ADR-017｜浏览器上传以跨刷新持久化作业衔接本地分片与服务端幂等
 
 - 状态：Accepted
-- 决定：一个浏览器上传作业对应一个连续 `0..N-1` 的 audio object。IndexedDB 除不可变 Blob 和 seq/timeline 高水位外，还持久化 init/chunk/complete 的稳定 request ID、服务端 audio object ID、录制结束时冻结的 expected count 和作业状态。网络请求前先持久化 request ID；响应丢失或刷新后复用同一 ID；只有服务端 ACK 全字段匹配才删除本地 Blob。
-- 原因：只保存 Blob 无法在 init 或 complete 响应丢失后确定服务端状态，刷新时可能重复创建对象、错误重放或从已 ACK 删除的剩余 Blob 算错分片总数。服务端 ADR-015 幂等只有客户端复用稳定 request ID 才能形成端到端恢复协议。
+- 决定：一个浏览器上传作业对应一个连续 `0..N-1` 的 audio object。IndexedDB 除不可变 Blob 和 seq/timeline 高水位外，还持久化创建对象、chunk、complete 的稳定 request ID、服务端 audio object ID、录制结束时冻结的 expected count 和作业状态。网络请求前先持久化 request ID；响应丢失或刷新后复用同一 ID。对正式访谈，本段“init 创建对象”和“ACK 后删除 Blob”的旧语义已由 ADR-023 部分取代：对象由 atomic start 创建；ACK 只清 delivery pending/reference，本浏览器 archive Blob 保留。consent 等非 interview 对象仍可使用独立 init。
+- 原因：只保存 Blob 无法在创建对象或 complete 响应丢失后确定服务端状态，刷新时可能重复创建对象、错误重放或从 delivery 状态错误推算分片总数。服务端 ADR-015 幂等只有客户端复用稳定 request ID 才能形成端到端恢复协议；archive 保留则进一步保证 ACK 不会抹去本浏览器原始证据。
 - 代价：IndexedDB 增加 upload job store 和前向版本迁移，客户端需要显式状态机、严格响应校验和有限重试；内部 harness/E2E 复杂度增加。
 - 边界：本批只用合成/虚构音频和显式内部验证入口；不实现完整访谈 UI、Service Worker、无限后台同步、真实麦克风、云存储或 ASR。CON-012 不阻塞本决策。
 - 重新评估条件：一个 session 需要多个 audio object、分片并行上传、跨设备续传或后台长期同步时，重新评估对象边界、租约和冲突合并。
@@ -192,3 +192,23 @@
 - 内部 MVP 与未来 seam：DEV-005C 可用有界进程内 runner 和启动扫描；未来队列/outbox 只替换触发、租约和重试，不改变聚合、状态、幂等、完成门禁或公共响应。生产基础设施不是内部验证前置。
 - 代价：需要一个前向 migration、finalization/chunk commitment 持久模型、公共 snapshot 和更严格的补传授权；stop payload 随分片数增长。换取进程重启可恢复、撤权不丢证据、页面不猜状态。
 - 重新评估条件：产品需要一次 session 多个录音对象、跨设备续传或 stop payload 超出可接受限制时，改为 session-level manifest aggregate/分批 commitment 协议；不得静默移除冻结边界。
+
+## ADR-023｜正式访谈采用单流控制器、浏览器归档与采集代
+
+- 状态：Proposed（等待 SPEC-DEV-005R GitHub 审查）
+- 决定：正式路由由 session-scoped `InterviewCaptureController` 独占一条 MediaStream，同时驱动 MediaRecorder 原始归档和 AudioWorklet 实时 PCM；每个 Blob 只写一次浏览器 archive，delivery queue 仅引用它，ACK 不删除 archive。服务端 atomic start 创建唯一 interview audio object 与 generation 0；显式中断/恢复使用持久 capture generation 和新 audio stream，但复用同一 session/object/local job。
+- 原因：旧正式页面、audio harness 和实时工作台分别拥有开始、原始录音、上传和 PCM，无法向 stop 提供同一对象/作业/commitments，也无法区分刷新、实时断线与真实采集中断。
+- 事实边界：原始录音、本浏览器 archive、服务端 manifest、转录和 session 是五类独立事实；WebSocket replay、URL、计时或最后 final 均不能证明原始录音完成。正常 stop 仍以 ADR-022 finalization 为服务端事实源。
+- 恢复边界：短时 WS 重连复用当前 stream；显式 capture resume 创建下一 generation/stream，原始 timeline 延续、PCM sequence 重置并带 offset。零音频仅在服务端无分片、该 session 所有 generations 均无 PCM 接受证据且同一 local job 累计 archive 为零时以 `NO_AUDIO_CAPTURED` 终结。
+- 安全边界：同 session 单标签锁；撤权/撤 assignment 停止新采集但不丢已产生证据；浏览器 archive 仅用于内部虚构数据验证，真实试点前必须补本地备份管理/删除。
+- 代价：增加前向 migration、浏览器敏感数据驻留、controller 生命周期和更多恢复状态；换取从 start 到 stop 的单一所有权与可验证纵向链路。当前不引 Redis/队列、云存储或跨设备接管。
+- 重新评估条件：需要跨设备接管、多进程浏览器协作或永久离线备份时，引入显式租约/同步和用户可管理的本地数据产品能力，不得把当前 session lock 静默升级为跨设备保证。
+
+## ADR-024｜工作台按业务状态分配注意力，Android Chrome 作为首轮移动主设备
+
+- 状态：Proposed（等待 SPEC-DEV-005R GitHub 审查）
+- 决定：正常录制保持“窄顶部—最大连续转录—低干扰单建议”的纵向结构；桌面以 8/79/13、390×844 以 9/73/18 为视觉护栏，异常和结束状态按用户处置任务重新分配重心。五类事实按来源分区，高密度转录在所有设备保持左元数据/右正文。手机是完整访谈主设备，首轮正式平台为 Android Chrome；iPhone Safari 延期。
+- 原因：倾听员应主要关注长者和转录，但必须一眼知道原始录音是否可靠保存。固定 80% 不能同时服务正常访谈、中断处置和安全结束；把五类事实都堆在顶部会在手机上压缩核心内容。Android 作为主设备又要求采集可靠性与响应式 UI 同时成立。
+- 行为边界：只有结束确认使用 modal；关键异常提升但不抢焦点；R3 只预留建议 replace/undo 状态，不实现 DEV-007。旋转只重排；后台、锁屏和设备中断的继续/中断结果必须由 R2 真机证据冻结，见 CON-021。
+- 代价：增加五视口、全状态和 Android 真机验收，R2/R4 范围扩大；换取移动端不静默丢音频、页面层级可验收和后续 UI Agent 不自行猜测。
+- 重新评估条件：实际试点需要 iPhone Safari、跨设备接管或后台长时录制保证时，单独讨论平台能力与产品降级，不得把 Android 证据外推为所有手机支持。

@@ -20,3 +20,8 @@
 - [`DEV-005A.md`](DEV-005A.md)：准备页与正式路由外壳，任务已完成，仅保留追溯用途。
 - [`DEV-005B.md`](DEV-005B.md)：转录优先访谈工作台，REV-018 PASS/DONE；保留 impeccable 与真实浏览器验收要求供追溯。
 - [`DEV-005C.md`](DEV-005C.md)：服务端会话安全结束编排，REV-019 PASS/DONE；保留三轮审查与修复边界供追溯。
+- [`DEV-005R1.md`](DEV-005R1.md)：服务端 atomic start、capture generation 与中断/恢复生命周期。
+- [`DEV-005R2C.md`](DEV-005R2C.md)：可并行的纯浏览器采集/归档核心，禁止改共享 DTO 和正式路由。
+- [`DEV-005R2.md`](DEV-005R2.md)：R1/R2C PASS 后的正式 controller/API 集成。
+- [`DEV-005R3.md`](DEV-005R3.md)：使用 impeccable 的工作台恢复与安全结束体验。
+- [`DEV-005R4.md`](DEV-005R4.md)：真实 Chromium 虚构内容纵向验收与收口。

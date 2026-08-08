@@ -370,6 +370,29 @@ P2：
 - 非阻塞边界：stop 202/200、malformed finalization 422 和非原 actor complete 权限语义三个 P2 继续保留；不阻塞 DEV-005C 当前内部 MVP 范围。
 - 合并记录：PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 `main`；DEV-005C DONE，DEV-005D READY，父 DEV-005 继续 BLOCKED。
 
+## REV-020｜DEV-005R1 GitHub 项目负责人最终审查
+
+- 审查 PR：[#13](https://github.com/Li-Ming-G/elder_interview_ai/pull/13)
+- 审查提交：`6847dc2048bb2c7b4edd01c20637f8740021bedc`；PR open、非 Draft、可合并，head 未漂移，base 为 `codex/dev-005r-contract-baseline`。
+- 自动证据：CI `31239385749` 完整 verify PASS；PR 记录 unit 136、PostgreSQL integration 40、auth 13，以及 migration、build、smoke 全通过。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 通过依据：首 PCM adapter 接受有 250ms deadline 与 `AbortSignal`，且只有接受和 `first_pcm_accepted_at` 持久化均成功后才可能 ACK；首证据后正常帧不再持有 Prisma transaction/advisory lock；gateway 在 adapter、ingestion 和最终 ACK 前复核 producer lease；stop/revoke/report 可使旧 lease 失效；revoke/report replay 按 session 与原 `audio_stream_id` 条件清理，不误杀合法 resume 的新 generation；migration 与应用层共同保证 atomic start、单 interview audio object、generation 唯一/状态约束和 `NO_AUDIO_CAPTURED` 零证据语义。
+- 非阻塞边界：真实 provider 必须实际响应 `AbortSignal`；producer lease 当前只保证单 API 进程；Android Chrome 真机和长时采集由 R4 验收。
+- 状态限制：这是 DEV-005R1 implementation PASS，不代表 SPEC-DEV-005R 或父 DEV-005R 完成。由于 PR 为 stacked candidate，在 SPEC baseline PASS 前，DEV-005R1 保持 `REVIEW`，不得标记 `DONE` 或合入 `main`。
+
+## REV-021｜SPEC-DEV-005R GitHub 项目负责人首轮审查
+
+- 审查 PR：[#11](https://github.com/Li-Ming-G/elder_interview_ai/pull/11)
+- 审查提交：`dc6a9537277180ff6ebdf104ad1238cdcf08ced0`；PR open、非 Draft、可合并，head 未漂移，base 为 `main`。
+- 自动证据：CI `31243186240` 完整 verify PASS。
+- 当前结论：`REQUEST_CHANGES`；P0=0、P1=4。
+- P1-1：`05`/`06` 旧 audio init 仍允许或暗示独立创建 interview object，与 atomic start 唯一创建冲突。必须把独立 init 限制为 consent 等非 interview 用途，并同步旧 ADR。
+- P1-2：`05` 仍允许 ACK 后删除本地 Blob，与 archive/delivery 分离冲突。ACK 只能清 delivery pending/reference，archive Blob 保留。
+- P1-3：空录音判断必须检查该 session 所有 capture generations 的 `first_pcm_accepted_at`，不能只检查当前 generation；该项同时影响 PR #13 实现，需定向修复与 PostgreSQL 回归。
+- P1-4：正式冻结 `resume_capture` 的 request ID、action、新 stream、同一 local job 累计 archive count 与 timeline high-water 完整 payload。
+- 非阻塞收尾：SPEC 最终 PASS 后把 ADR-023/024 转 Accepted；R4 明确同时负责关闭 CON-020/021。
+- 定向复审条件：只复核上述四项及相邻正式来源一致性；R1 仅复审全 generation PCM 修复；R2C 不重开。SPEC-DEV-005R 与 DEV-005R1 均保持 `REVIEW`。
+
 ## 审查模板
 
 ```text
