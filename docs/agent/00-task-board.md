@@ -40,7 +40,7 @@
 | DISC-005D | 安全结束页产品体验讨论 | 项目负责人 + 总控 Agent | DONE | DEV-005A、DEV-005B、DEV-005C PASS | [历史讨论卡](tasks/DISC-005D.md) | 旧候选已在 D-R 中复核、修订并写入 SPEC-DEV-005R；保留历史输入 |
 | DEV-005D | 安全结束页薄集成（旧任务） | 无 | CANCELLED | 已由 DEV-005R3 取代 | [历史任务卡](tasks/DEV-005D.md)、HO-037 | 未实施；不撤销旧 A/B/C，结束与中断体验由新纵向任务承接 |
 | SPEC-DEV-005R | 首次访谈真实采集纵向链路重构契约 | 总控 Agent | REVIEW | A-R/B-R/C-R/D-R 已批准 | [任务卡](tasks/SPEC-DEV-005R.md)、ADR-023、CON-020 | 已形成正式候选；等待 GitHub 审查，不能自行标 DONE |
-| DEV-005R1 | 服务端采集生命周期与原子开始 | 独立任务 `019fdce6-9745-7aa0-b430-8dd0f7fcf27a` | IN_PROGRESS | SPEC-DEV-005R 候选基线；合并等待 SPEC PASS | [任务卡](tasks/DEV-005R1.md) | stacked candidate；独占共享数据/API/DTO，完成后主动通知总控复核 |
+| DEV-005R1 | 服务端采集生命周期与原子开始 | 独立任务 `019fdce6-9745-7aa0-b430-8dd0f7fcf27a` | REVIEW | SPEC-DEV-005R 候选基线；合并等待 SPEC PASS | [任务卡](tasks/DEV-005R1.md)、PR #13 head `6847dc2`、CI `31239385749` PASS、REV-020 PASS | 实现范围已获项目负责人 PASS；stacked 基线尚未通过，暂不标 DONE、不合并 |
 | DISC-005R-UI | 页面内容占比与注意力层级 | 独立任务 `019fdee4-c4b0-7073-b652-0f0caea99cdc` | DONE | SPEC-DEV-005R、DEV-005R3 | [任务卡](tasks/DISC-005R-UI.md)、[HO-040](handoffs/DISC-005R-UI.md) | 用户逐项确认并由总控写回；Android Chrome 为完整主设备，R2 生命周期证据登记 CON-021 |
 | DEV-005R2C | 浏览器采集与归档核心（并行基础） | 独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9` | IN_PROGRESS | SPEC-DEV-005R 候选基线 | [任务卡](tasks/DEV-005R2C.md) | 禁止改共享 DTO、正式路由、工作台和中央治理文档；完成后主动通知总控 |
 | DEV-005R2 | 浏览器单流采集、归档与交付控制器 | 待创建的前端音频实现任务 | BLOCKED | DEV-005R1、DEV-005R2C PASS | [任务卡](tasks/DEV-005R2.md)、CON-021 | 集成 R1/R2C，并以 Android Chrome 真机冻结后台/锁屏/旋转/设备中断行为 |

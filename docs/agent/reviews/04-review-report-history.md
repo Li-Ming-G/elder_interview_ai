@@ -370,6 +370,16 @@ P2：
 - 非阻塞边界：stop 202/200、malformed finalization 422 和非原 actor complete 权限语义三个 P2 继续保留；不阻塞 DEV-005C 当前内部 MVP 范围。
 - 合并记录：PR #10 以 merge commit `9691dadb7117aadea81eeb9516a40d5f8cb81ba0` 合入 `main`；DEV-005C DONE，DEV-005D READY，父 DEV-005 继续 BLOCKED。
 
+## REV-020｜DEV-005R1 GitHub 项目负责人最终审查
+
+- 审查 PR：[#13](https://github.com/Li-Ming-G/elder_interview_ai/pull/13)
+- 审查提交：`6847dc2048bb2c7b4edd01c20637f8740021bedc`；PR open、非 Draft、可合并，head 未漂移，base 为 `codex/dev-005r-contract-baseline`。
+- 自动证据：CI `31239385749` 完整 verify PASS；PR 记录 unit 136、PostgreSQL integration 40、auth 13，以及 migration、build、smoke 全通过。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 通过依据：首 PCM adapter 接受有 250ms deadline 与 `AbortSignal`，且只有接受和 `first_pcm_accepted_at` 持久化均成功后才可能 ACK；首证据后正常帧不再持有 Prisma transaction/advisory lock；gateway 在 adapter、ingestion 和最终 ACK 前复核 producer lease；stop/revoke/report 可使旧 lease 失效；revoke/report replay 按 session 与原 `audio_stream_id` 条件清理，不误杀合法 resume 的新 generation；migration 与应用层共同保证 atomic start、单 interview audio object、generation 唯一/状态约束和 `NO_AUDIO_CAPTURED` 零证据语义。
+- 非阻塞边界：真实 provider 必须实际响应 `AbortSignal`；producer lease 当前只保证单 API 进程；Android Chrome 真机和长时采集由 R4 验收。
+- 状态限制：这是 DEV-005R1 implementation PASS，不代表 SPEC-DEV-005R 或父 DEV-005R 完成。由于 PR 为 stacked candidate，在 SPEC baseline PASS 前，DEV-005R1 保持 `REVIEW`，不得标记 `DONE` 或合入 `main`。
+
 ## 审查模板
 
 ```text
