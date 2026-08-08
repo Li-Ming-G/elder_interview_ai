@@ -414,6 +414,15 @@ P2：
 - 范围边界：只覆盖浏览器采集与归档核心积木；未提前实现 API、Prisma、共享 DTO、正式工作台或 DEV-005R2/R3。Android Chrome 页面生命周期与长时真机证据继续由 DEV-005R2/R4 负责。
 - 合并记录：PR #12 以 merge commit `e455c13f34a61de699d6e6015c055bec6b83be28` 合入 `main`；DEV-005R2C DONE，DEV-005R2 READY。
 
+## REV-023｜DEV-005R2 定向代码复审与环境门禁
+
+- 审查 PR：[#14](https://github.com/Li-Ming-G/elder_interview_ai/pull/14)
+- 审查对象：final head `829adf85479c22172308641fc201ac295744b47b`；base `main@efde30648158339fa336d13bcfc970e295e09eb0`，PR open、非 Draft、CLEAN 且 head 未漂移。
+- 自动证据：CI `31251923003` 完整 verify SUCCESS；总控独立重跑 controller、workbench、IndexedDB、upload runner 四个定向测试文件，`4 files / 40 tests` PASS；`git diff --check` PASS，候选 worktree clean。
+- 定向代码结论：`PASS`；P0=0、P1=0。start 前置失败首因与 browser lock、resume 新 generation 麦克风失败、local job missing 的稳定 orphan report 三项 P1 均关闭；workbench `recover()` rejection 已闭合。
+- 任务整体验收：`BLOCKED`。任务卡明确要求目标 Android Chrome 真机 5–10 分钟完整链路以及旋转、后台/锁屏、权限/麦克风/设备中断和刷新恢复；当前无设备、`adb` 不可用，不能用桌面 Chromium 替代。DEV-005R2 保持 `REVIEW`，CON-021 保持 `OPEN`，DEV-005R3 不解锁。
+- 合并记录：代码候选经用户授权，以 merge commit `5527af289d8e1321e01d7a137eb2c964c8ebbe12` 合入 `main`；合并不等于 DEV-005R2 DONE。
+
 ## 审查模板
 
 ```text

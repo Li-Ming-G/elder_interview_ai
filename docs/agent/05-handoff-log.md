@@ -10,7 +10,7 @@
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
 | SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R2/3/4 | 契约、R1、R2C 已 DONE；当前进入 R2，CON-020/021 仍开放 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
-| DEV-005R2/3/4 | [DEV-005R2 交接](handoffs/DEV-005R2.md)、[DEV-005R2C 交接](handoffs/DEV-005R2C.md)、[HO-038](handoffs/SPEC-DEV-005R.md)、[HO-040](handoffs/DISC-005R-UI.md) | 总控 / 项目负责人复核 PR #14 新 head；通过后才可进入 R3/R4 | R2 为 REVIEW；`c8aa8e9` 三项 P1 已修复候选，包含显式锁 owner、resume cleanup、v4 orphan report 与 Promise 闭合。Android 无真机，CON-021 OPEN；R3 仍等待 R2 PASS，UI 使用 impeccable |
+| DEV-005R2/3/4 | [DEV-005R2 交接](handoffs/DEV-005R2.md)、[DEV-005R2C 交接](handoffs/DEV-005R2C.md)、[HO-038](handoffs/SPEC-DEV-005R.md)、[HO-040](handoffs/DISC-005R-UI.md) | 取得 Android Chrome 真机并完成 R2 生命周期验收；通过后才可进入 R3/R4 | R2 final head `829adf8`、CI `31251923003`、REV-023 定向代码复审 P0/P1=0、merge `5527af2`；任务仍 REVIEW，Android 证据 BLOCKED、CON-021 OPEN，R3 继续等待，UI 使用 impeccable |
 
 ## 最近已完成交接
 
