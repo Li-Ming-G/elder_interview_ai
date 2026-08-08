@@ -163,7 +163,11 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
       input_detected: true,
       microphone_permission: 'granted',
     });
-    await write(`/sessions/${id}/start`, { request_id: crypto.randomUUID() });
+    await write(`/sessions/${id}/start`, {
+      audio_stream_id: crypto.randomUUID(),
+      mime_type: 'audio/webm;codecs=opus',
+      request_id: crypto.randomUUID(),
+    });
     return id;
   });
 

@@ -14,6 +14,7 @@ import { PrismaProjectAccessReader } from '../../apps/api/src/project-foundation
 import { ProjectAccessService } from '../../apps/api/src/project-foundation/project-access.service.js';
 import { ProjectFoundationService } from '../../apps/api/src/project-foundation/project-foundation.service.js';
 import { SessionFinalizationService } from '../../apps/api/src/project-foundation/session-finalization.service.js';
+import { SessionSnapshotService } from '../../apps/api/src/project-foundation/session-snapshot.service.js';
 import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
 import {
   DeterministicStreamingAsrFake,
@@ -56,6 +57,7 @@ describe('session finalization PostgreSQL orchestration', () => {
       new RealtimeRuntimeService(),
       new DeterministicStreamingAsrFake(),
       new TranscriptIngestionService(prisma, config),
+      new SessionSnapshotService(prisma),
     );
     await prisma.user.create({
       data: {
@@ -91,6 +93,7 @@ describe('session finalization PostgreSQL orchestration', () => {
     await prisma.idempotencyRecord.deleteMany({ where: { actorId } });
     await prisma.auditLog.deleteMany({ where: { actorId } });
     await prisma.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
+    await prisma.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });
     await prisma.audioObject.deleteMany({ where: { projectId } });
     await prisma.interviewSession.deleteMany({ where: { projectId } });
     await prisma.consentRecord.deleteMany({ where: { projectId } });
@@ -272,6 +275,8 @@ describe('session finalization PostgreSQL orchestration', () => {
       new ProjectAccessService(new PrismaProjectAccessReader(prisma), authorization),
       authorization,
       new AudioIntegrityService(new LocalAudioStorageAdapter(config)),
+      new SessionSnapshotService(prisma),
+      new RealtimeRuntimeService(),
     );
     const session = await prisma.interviewSession.create({
       data: {
@@ -535,6 +540,7 @@ describe('session finalization PostgreSQL orchestration', () => {
       runtime,
       adapter,
       new TranscriptIngestionService(prisma, config),
+      new SessionSnapshotService(prisma),
     );
   }
 

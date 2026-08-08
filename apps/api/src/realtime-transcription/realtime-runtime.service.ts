@@ -42,7 +42,11 @@ export class RealtimeRuntimeService {
 
   public create(sessionId: string, audioStreamId: string): SessionRuntime {
     const existing = this.sessions.get(sessionId);
-    if (existing !== undefined && Date.now() - existing.lastTouchedAt <= MAX_AGE_MS)
+    if (
+      existing !== undefined &&
+      Date.now() - existing.lastTouchedAt <= MAX_AGE_MS &&
+      (existing.audioStreamId === audioStreamId || existing.producer !== null)
+    )
       return existing;
     const runtime: SessionRuntime = {
       audioStreamId,

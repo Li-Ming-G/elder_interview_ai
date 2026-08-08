@@ -11,6 +11,7 @@ import type { RawData, WebSocket } from 'ws';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
+import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
 import { decodeClientMessage, RealtimeCodecError } from './realtime-codec.js';
 import { RealtimeAccessService } from './realtime-access.service.js';
 import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
@@ -42,6 +43,7 @@ export class RealtimeTranscriptionGateway {
     private readonly runtimes: RealtimeRuntimeService,
     private readonly adapter: StreamingAsrAdapter,
     private readonly ingestion: TranscriptIngestionService,
+    private readonly captureEvidence: CapturePcmEvidenceService,
   ) {}
 
   public handleConnection(client: WebSocket, request: AuthenticatedUpgradeRequest): void {
@@ -173,6 +175,7 @@ export class RealtimeTranscriptionGateway {
       state.actor,
       message.session_id,
       message.payload.csrf_token,
+      message.payload.audio_stream_id,
     );
     const eventStreamId = message.payload.event_stream_id;
     const resumeAfterServerSequence = message.payload.resume_after_server_sequence;
@@ -205,10 +208,14 @@ export class RealtimeTranscriptionGateway {
     } else {
       const existing = this.runtimes.find(message.session_id);
       if (existing !== null) {
-        if (existing.producer !== null)
+        if (existing.producer !== null) {
           this.fail(client, state, 'SESSION_STREAM_ALREADY_ACTIVE', 4408);
-        else this.fail(client, state, 'RESUME_WINDOW_EXPIRED', 4450, true);
-        return;
+          return;
+        }
+        if (existing.audioStreamId === message.payload.audio_stream_id) {
+          this.fail(client, state, 'RESUME_WINDOW_EXPIRED', 4450, true);
+          return;
+        }
       }
       runtime = this.runtimes.create(message.session_id, message.payload.audio_stream_id);
     }
@@ -222,6 +229,11 @@ export class RealtimeTranscriptionGateway {
         this.runtimes.release(runtime, previousProducer);
       }
       runtime.producer = client;
+      await this.access.assertActiveConnection(state.actor, runtime.sessionId);
+      if (runtime.producer !== client) {
+        this.fail(client, state, 'FORBIDDEN', 4403);
+        return;
+      }
     }
     state.joined = true;
     state.runtime = runtime;
@@ -270,7 +282,11 @@ export class RealtimeTranscriptionGateway {
     runtime.pendingFrames += 1;
     runtime.pendingBytes += 3200;
     try {
-      const results = await this.adapter.accept({ frame, sessionId: runtime.sessionId });
+      const results = await this.captureEvidence.acceptAndPersist(
+        runtime.sessionId,
+        runtime.audioStreamId,
+        () => this.adapter.accept({ frame, sessionId: runtime.sessionId }),
+      );
       for (const result of results) {
         const persisted = await this.ingestion.ingest(result);
         if (persisted.kind === 'interim') {

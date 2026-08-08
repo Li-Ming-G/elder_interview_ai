@@ -60,6 +60,7 @@ export class AudioService {
       );
       if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${projectId}`);
+      if (input.session_id !== null) await this.lock(transaction, `session:${input.session_id}`);
       await this.assertActiveAssignment(transaction, projectId, actor.id);
       await this.assertCreateGate(transaction, projectId, input);
       const created = await transaction.audioObject.create({
@@ -408,16 +409,11 @@ export class AudioService {
       throw this.notFound();
     }
     if (input.purpose === 'consent') return;
-    const session = await transaction.interviewSession.findUnique({
-      where: { id: input.session_id ?? '' },
+    throw new ConflictException({
+      code: 'INTERVIEW_AUDIO_START_REQUIRED',
+      details: {},
+      message: 'Interview audio objects are created by atomic session start',
     });
-    if (
-      session === null ||
-      session.projectId !== projectId ||
-      !['recording', 'reconnecting', 'stopping'].includes(session.status)
-    ) {
-      throw this.invalidAudioState();
-    }
   }
 
   private async assertWritable(

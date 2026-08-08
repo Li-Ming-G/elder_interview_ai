@@ -532,6 +532,7 @@
 
 - Contract correction: R1 预审发现 `NO_AUDIO_CAPTURED` 发生时依法没有 finalization，而旧公共失败字段只嵌在 finalization。采用 session 顶层 `capture_failure_code`，只允许空采集失败并与 finalization failure 互斥；不创建伪 finalization。
 - Evidence correction: realtime runtime 是进程内状态，不能在重启后证明零 PCM；generation 增加一次性 `first_pcm_accepted_at`，第一帧被 adapter 接受时写入，空录音放弃要求其为空，不引入每帧数据库写放大。
+- R1 implementation evidence: PostgreSQL barrier 证明 request→project→session→audio 同序可串行 start/stop/upload/PCM/revoke；runtime 清理必须发生在事务提交后，并把首次受影响 session ID 作为脱敏审计事实，才能让响应丢失后的幂等重放补做清理而不误伤后来会话。
 - Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
 
 ### 2026-08-08 — DEV-005R 页面内容占比讨论前置

@@ -47,6 +47,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     prisma = application().get(PrismaService);
     await prisma.consentRecord.deleteMany();
     await prisma.audioChunk.deleteMany();
+    await prisma.sessionCaptureGeneration.deleteMany();
     await prisma.audioObject.deleteMany();
     await prisma.interviewSession.deleteMany();
     await prisma.serviceTerm.deleteMany();
@@ -80,6 +81,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     if (app !== null) {
       await prisma.consentRecord.deleteMany();
       await prisma.audioChunk.deleteMany();
+      await prisma.sessionCaptureGeneration.deleteMany();
       await prisma.audioObject.deleteMany();
       await prisma.interviewSession.deleteMany();
       await prisma.serviceTerm.deleteMany();
@@ -167,7 +169,11 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: '00000000-0000-4000-8000-000000000101' });
+      .send({
+        audio_stream_id: '00000000-0000-4000-8000-000000000111',
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: '00000000-0000-4000-8000-000000000101',
+      });
     expect(earlyStart.status).toBe(409);
     expect((earlyStart.body as ErrorBody).code).toBe('PROJECT_NOT_STARTABLE');
 
@@ -224,16 +230,21 @@ describe('project, bundled consent and interview start vertical seam', () => {
     });
 
     const startRequestId = '00000000-0000-4000-8000-000000000102';
+    const startPayload = {
+      audio_stream_id: '00000000-0000-4000-8000-000000000112',
+      mime_type: 'audio/webm;codecs=opus',
+      request_id: startRequestId,
+    };
     const started = await listenerA
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: startRequestId });
+      .send(startPayload);
     const repeatedStart = await listenerA
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: startRequestId });
+      .send(startPayload);
     expect(started.body).toMatchObject({ id: sessionId, status: 'recording' });
     expect(repeatedStart.body).toEqual(started.body);
     expect(
@@ -418,13 +429,18 @@ describe('project, bundled consent and interview start vertical seam', () => {
       '00000000-0000-4000-8000-000000000301',
       '00000000-0000-4000-8000-000000000302',
     ];
+    const concurrentStreamId = '00000000-0000-4000-8000-000000000312';
     const starts = await Promise.all(
       startRequestIds.map(async (requestId) =>
         listenerA
           .post(`/api/v1/sessions/${sessionId}/start`)
           .set('Origin', ORIGIN)
           .set('X-CSRF-Token', csrfA)
-          .send({ request_id: requestId }),
+          .send({
+            audio_stream_id: concurrentStreamId,
+            mime_type: 'audio/webm;codecs=opus',
+            request_id: requestId,
+          }),
       ),
     );
     expect(starts.map((response) => response.status).sort()).toEqual([201, 409]);
@@ -440,14 +456,22 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: winnerRequestId });
+      .send({
+        audio_stream_id: concurrentStreamId,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: winnerRequestId,
+      });
     expect(replay.body).toEqual(firstSnapshot);
 
     const differentTarget = await listenerA
       .post(`/api/v1/sessions/${otherSessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: winnerRequestId });
+      .send({
+        audio_stream_id: concurrentStreamId,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: winnerRequestId,
+      });
     expect((differentTarget.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
     const listenerBUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'project-listener-b@example.test' },
@@ -459,13 +483,21 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfB)
-      .send({ request_id: winnerRequestId });
+      .send({
+        audio_stream_id: concurrentStreamId,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: winnerRequestId,
+      });
     expect((differentActor.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
     const differentAction = await listenerA
       .post(`/api/v1/consents/${consentId}/revoke`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: winnerRequestId });
+      .send({
+        audio_stream_id: concurrentStreamId,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: winnerRequestId,
+      });
     expect((differentAction.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
 
     const revokeRequestIds = [
@@ -503,7 +535,11 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/sessions/${sessionId}/start`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ request_id: winnerRequestId });
+      .send({
+        audio_stream_id: concurrentStreamId,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: winnerRequestId,
+      });
     expect(replayAfterAssignmentRevocation.status).toBe(403);
     expect((replayAfterAssignmentRevocation.body as ErrorBody).code).toBe('FORBIDDEN');
     const revokeReplayAfterAssignmentRevocation = await listenerA

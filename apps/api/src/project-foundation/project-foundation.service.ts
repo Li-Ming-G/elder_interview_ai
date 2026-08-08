@@ -22,6 +22,7 @@ import { AudioIntegrityService } from '../audio/audio-integrity.service.js';
 import { ResourceAuthorizationService } from '../auth/resource-authorization.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
+import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { evaluateInterviewStartGate } from './interview-start-policy.js';
 import { mapConsent, mapInterviewSession, mapProject, mapServiceTerm } from './project.mapper.js';
 import { ProjectAccessService, type ProjectAccessSnapshot } from './project-access.service.js';
@@ -42,6 +43,7 @@ export class ProjectFoundationService {
     private readonly authorization: ResourceAuthorizationService,
     private readonly audioIntegrity: AudioIntegrityService,
     private readonly snapshots: SessionSnapshotService,
+    private readonly runtime: RealtimeRuntimeService,
   ) {}
 
   public async createProject(
@@ -233,7 +235,13 @@ export class ProjectFoundationService {
     if (existing === null) throw this.notFound();
     await this.assertInterviewerProject(actor, existing.projectId);
     const replay = await this.findReplay<ConsentResponse>(requestId, binding);
-    if (replay !== null) return replay;
+    if (replay !== null) {
+      const interruptedSessionIds = await this.replayedInterruptedSessionIds(requestId);
+      interruptedSessionIds.forEach((sessionId) => {
+        this.runtime.interruptSession(sessionId);
+      });
+      return replay;
+    }
     const result = await this.prisma.$transaction(async (transaction) => {
       await this.lock(transaction, `request:${requestId}`);
       const repeated = await this.findReplayInTransaction<ConsentResponse>(
@@ -241,11 +249,11 @@ export class ProjectFoundationService {
         requestId,
         binding,
       );
-      if (repeated !== null) return repeated;
+      if (repeated !== null) return { interruptedSessionIds: [], response: repeated };
       await this.lock(transaction, `project:${existing.projectId}`);
       const endingSessions = await transaction.interviewSession.findMany({
         orderBy: { id: 'asc' },
-        select: { id: true },
+        select: { id: true, status: true },
         where: {
           projectId: existing.projectId,
           status: { in: ['recording', 'reconnecting', 'stopping', 'processing', 'interrupted'] },
@@ -292,6 +300,29 @@ export class ProjectFoundationService {
         },
         where: { id: project.id },
       });
+      const interruptedSessionIds = endingSessions.map(({ id }) => id);
+      for (const session of endingSessions) {
+        const activeCapture = ['recording', 'reconnecting', 'interrupted'].includes(session.status)
+          ? await transaction.sessionCaptureGeneration.findFirst({
+              orderBy: { generationNo: 'desc' },
+              where: { sessionId: session.id, status: { in: ['preparing', 'active'] } },
+            })
+          : null;
+        if (activeCapture !== null) {
+          await transaction.sessionCaptureGeneration.update({
+            data: {
+              interruptedAt: now,
+              interruptionReason: 'auth_lost',
+              status: 'interrupted',
+            },
+            where: { id: activeCapture.id },
+          });
+        }
+        await transaction.interviewSession.updateMany({
+          data: { status: 'interrupted' },
+          where: { id: session.id, status: { in: ['recording', 'reconnecting'] } },
+        });
+      }
       const response = mapConsent(revoked);
       await transaction.auditLog.create({
         data: {
@@ -300,14 +331,20 @@ export class ProjectFoundationService {
           actorType: 'user',
           entityId: revoked.id,
           entityType: 'consent_record',
-          metadata: { project_id: consent.projectId },
+          metadata: {
+            interrupted_session_ids: interruptedSessionIds,
+            project_id: consent.projectId,
+          },
           requestId,
         },
       });
       await this.writeIdempotency(transaction, requestId, binding, response);
-      return response;
+      return { interruptedSessionIds, response };
     });
-    return result;
+    result.interruptedSessionIds.forEach((sessionId) => {
+      this.runtime.interruptSession(sessionId);
+    });
+    return result.response;
   }
 
   public async createSession(
@@ -485,7 +522,11 @@ export class ProjectFoundationService {
           actorType: 'user',
           entityId: session.id,
           entityType: 'interview_session',
-          metadata: { project_id: project.id },
+          metadata: {
+            audio_stream_id: input.audio_stream_id,
+            mime_type: input.mime_type,
+            project_id: project.id,
+          },
           requestId: input.request_id,
         },
       });
@@ -507,6 +548,26 @@ export class ProjectFoundationService {
       where: { id: snapshot.capture.audio_object_id },
     });
     if (audio?.mimeType !== input.mime_type) throw this.idempotencyPayloadMismatch();
+  }
+
+  private async replayedInterruptedSessionIds(requestId: string): Promise<string[]> {
+    const audit = await this.prisma.auditLog.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { metadata: true },
+      where: { action: 'consent.revoke', requestId },
+    });
+    if (
+      audit === null ||
+      typeof audit.metadata !== 'object' ||
+      audit.metadata === null ||
+      Array.isArray(audit.metadata)
+    ) {
+      return [];
+    }
+    const ids = audit.metadata.interrupted_session_ids;
+    return Array.isArray(ids)
+      ? ids.filter((value): value is string => typeof value === 'string')
+      : [];
   }
 
   private async refreshReady(

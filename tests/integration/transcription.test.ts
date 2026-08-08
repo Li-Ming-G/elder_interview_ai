@@ -100,6 +100,7 @@ describe('final-only transcript evidence core', () => {
     await prisma.transcriptSegment.deleteMany({ where: { sessionId } });
     await prisma.speakerMapping.deleteMany({ where: { sessionId } });
     await prisma.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
+    await prisma.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });
     await prisma.audioObject.deleteMany({ where: { projectId } });
     await prisma.auditLog.deleteMany();
     await prisma.projectAssignment.deleteMany({ where: { projectId } });
@@ -345,6 +346,7 @@ async function cleanDatabase(database: PrismaService): Promise<void> {
   await database.speakerMapping.deleteMany();
   await database.consentRecord.deleteMany();
   await database.audioChunk.deleteMany();
+  await database.sessionCaptureGeneration.deleteMany();
   await database.audioObject.deleteMany();
   await database.interviewSession.deleteMany();
   await database.serviceTerm.deleteMany();

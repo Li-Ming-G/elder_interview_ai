@@ -11,14 +11,13 @@ CREATE TYPE "CaptureInterruptionReason" AS ENUM (
 );
 
 ALTER TABLE "interview_session"
-ADD COLUMN "capture_failure_code" "CaptureFailureCode";
+ADD COLUMN "capture_failure_code" "CaptureFailureCode",
+ADD CONSTRAINT "interview_session_capture_failure_terminal" CHECK (
+  "capture_failure_code" IS NULL OR "status" = 'failed'
+);
 
 CREATE UNIQUE INDEX "audio_object_id_session_id_key"
 ON "audio_object" ("id", "session_id");
-
-CREATE UNIQUE INDEX "audio_object_one_interview_per_session"
-ON "audio_object" ("session_id")
-WHERE "purpose" = 'interview' AND "session_id" IS NOT NULL;
 
 CREATE TABLE "session_capture_generation" (
   "id" UUID NOT NULL,

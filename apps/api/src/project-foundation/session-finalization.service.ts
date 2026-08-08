@@ -26,7 +26,9 @@ import type {
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { StreamingAsrAdapter } from '../realtime-transcription/streaming-asr.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
-import { mapInterviewSessionSnapshot } from './project.mapper.js';
+import { SessionSnapshotService } from './session-snapshot.service.js';
+
+type FinalizationRecoveryRequest = Exclude<RecoverSessionRequest, { action: 'resume_capture' }>;
 
 @Injectable()
 export class SessionFinalizationService {
@@ -38,6 +40,7 @@ export class SessionFinalizationService {
     private readonly runtime: RealtimeRuntimeService,
     private readonly adapter: StreamingAsrAdapter,
     private readonly ingestion: TranscriptIngestionService,
+    private readonly snapshots: SessionSnapshotService,
   ) {}
 
   public async stop(
@@ -51,7 +54,7 @@ export class SessionFinalizationService {
   public async recover(
     actor: AuthPrincipal,
     sessionId: string,
-    input: RecoverSessionRequest,
+    input: FinalizationRecoveryRequest,
   ): Promise<InterviewSessionResponse> {
     if (input.action === 'finalize_interrupted') return this.freeze(actor, sessionId, input, true);
     await this.authorization.assertRole(actor, ['interviewer']);
@@ -77,25 +80,6 @@ export class SessionFinalizationService {
       const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
       if (session === null) throw this.notFound();
       const finalization = await tx.sessionFinalization.findUnique({ where: { sessionId } });
-      if (input.action === 'resume_capture') {
-        if (finalization !== null || session.status !== 'interrupted')
-          throw this.conflict('SESSION_NOT_RECOVERABLE');
-        await this.assertCurrentGate(tx, actor, session.projectId);
-        const updated = await tx.interviewSession.update({
-          data: { status: 'reconnecting' },
-          where: { id: sessionId },
-        });
-        const snapshot = await this.snapshot(tx, updated.id);
-        await this.writeRecoveryIdempotency(
-          tx,
-          input.request_id,
-          action,
-          actor.id,
-          sessionId,
-          snapshot,
-        );
-        return { snapshot };
-      }
       if (['recording', 'reconnecting'].includes(session.status))
         throw this.conflict('SESSION_RECOVERY_NOT_REQUIRED');
       if (finalization === null) throw this.conflict('SESSION_NOT_RECOVERABLE');
@@ -199,24 +183,26 @@ export class SessionFinalizationService {
         );
         return { denied: false as const, finalizationId: existing.id, snapshot };
       }
+      const gate = await this.currentGate(tx, actor, session.projectId);
+      if (!gate) {
+        await tx.interviewSession.updateMany({
+          data: { status: 'interrupted' },
+          where: { id: sessionId, status: { in: ['recording', 'reconnecting'] } },
+        });
+        return { denied: true as const };
+      }
       const legal = interrupted
         ? session.status === 'interrupted'
         : ['recording', 'reconnecting'].includes(session.status);
       if (!legal) throw this.conflict('SESSION_NOT_STOPPABLE');
-      const gate = await this.currentGate(tx, actor, session.projectId);
       const object = await tx.audioObject.findUnique({ where: { id: input.audio_object_id } });
       if (
-        !gate ||
         object === null ||
         object.projectId !== session.projectId ||
         object.sessionId !== sessionId ||
         object.purpose !== 'interview' ||
         object.createdBy !== actor.id
       ) {
-        await tx.interviewSession.update({
-          data: { status: 'interrupted' },
-          where: { id: sessionId },
-        });
         return { denied: true as const };
       }
       const uploaded = await tx.audioChunk.findMany({ where: { audioObjectId: object.id } });
@@ -262,6 +248,14 @@ export class SessionFinalizationService {
         },
         where: { id: sessionId },
       });
+      await tx.sessionCaptureGeneration.updateMany({
+        data: { status: 'stopped', stoppedAt: captureEndedAt },
+        where: {
+          audioObjectId: object.id,
+          sessionId,
+          status: { in: ['preparing', 'active'] },
+        },
+      });
       await tx.auditLog.create({
         data: {
           action: 'interview_session.stop',
@@ -288,6 +282,7 @@ export class SessionFinalizationService {
       return { denied: false as const, finalizationId: finalization.id, snapshot };
     });
     if (outcome.denied) throw this.forbidden();
+    this.runtime.interruptSession(sessionId);
     if ('finalizationId' in outcome) await this.advance(outcome.finalizationId);
     return outcome.snapshot;
   }
@@ -413,18 +408,7 @@ export class SessionFinalizationService {
     db: Prisma.TransactionClient | PrismaService,
     sessionId: string,
   ): Promise<InterviewSessionResponse> {
-    const session = await db.interviewSession.findUniqueOrThrow({ where: { id: sessionId } });
-    const finalization = await db.sessionFinalization.findUnique({
-      include: { audioObject: true },
-      where: { sessionId },
-    });
-    const uploaded =
-      finalization === null
-        ? 0
-        : await db.audioChunk.count({
-            where: { audioObjectId: finalization.audioObjectId, uploadStatus: 'uploaded' },
-          });
-    return mapInterviewSessionSnapshot(session, finalization, uploaded);
+    return this.snapshots.read(sessionId, db);
   }
 
   private validateCommitments(input: StopSessionRequest): void {

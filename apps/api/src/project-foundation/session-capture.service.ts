@@ -15,7 +15,11 @@ import {
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { ResourceAuthorizationService } from '../auth/resource-authorization.service.js';
 import { PrismaService } from '../database/prisma.service.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import type {
+  InterviewSession,
+  Prisma,
+  SessionCaptureGeneration,
+} from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 
@@ -44,8 +48,11 @@ export class SessionCaptureService {
         sessionId,
       );
       if (replay !== null) {
-        this.assertReplayCapture(replay, input);
-        return replay;
+        this.assertReplayMetadata(replay.metadata, {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+        });
+        return replay.snapshot;
       }
       await this.assertCurrentGate(tx, actor, locked.session.projectId);
       if (
@@ -69,19 +76,20 @@ export class SessionCaptureService {
             where: { id: sessionId },
           });
         }
-        await this.audit(
-          tx,
-          'interview_session.capture.confirm',
-          actor.id,
-          sessionId,
-          input.request_id,
-          {
-            generation_no: input.generation_no,
-          },
-        );
       } else if (locked.capture.status !== 'active') {
         throw this.conflict('CAPTURE_NOT_CONFIRMABLE');
       }
+      await this.audit(
+        tx,
+        'interview_session.capture.confirm',
+        actor.id,
+        sessionId,
+        input.request_id,
+        {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+        },
+      );
       const snapshot = await this.snapshots.read(sessionId, tx);
       await this.writeReplay(
         tx,
@@ -111,8 +119,12 @@ export class SessionCaptureService {
         sessionId,
       );
       if (replay !== null) {
-        this.assertReplayCapture(replay, input, input.reason);
-        return replay;
+        this.assertReplayMetadata(replay.metadata, {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+          reason: input.reason,
+        });
+        return replay.snapshot;
       }
       this.assertOriginalActor(actor, locked.session.createdBy);
       if (
@@ -135,17 +147,21 @@ export class SessionCaptureService {
           data: { status: 'interrupted' },
           where: { id: sessionId },
         });
-        await this.audit(
-          tx,
-          'interview_session.capture.interrupted',
-          actor.id,
-          sessionId,
-          input.request_id,
-          { generation_no: input.generation_no, reason: input.reason },
-        );
       } else if (!terminalOrFrozen && locked.capture.status !== 'interrupted') {
         throw this.conflict('CAPTURE_NOT_INTERRUPTIBLE');
       }
+      await this.audit(
+        tx,
+        'interview_session.capture.interrupted',
+        actor.id,
+        sessionId,
+        input.request_id,
+        {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+          reason: input.reason,
+        },
+      );
       const current = await this.snapshots.read(sessionId, tx);
       await this.writeReplay(
         tx,
@@ -177,8 +193,12 @@ export class SessionCaptureService {
         sessionId,
       );
       if (replay !== null) {
-        this.assertReplayCapture(replay, input);
-        return replay;
+        this.assertReplayMetadata(replay.metadata, {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+          local_archive_chunk_count: input.local_archive_chunk_count,
+        });
+        return replay.snapshot;
       }
       await this.assertCurrentGate(tx, actor, locked.session.projectId);
       if (
@@ -196,8 +216,7 @@ export class SessionCaptureService {
       if (
         finalization !== null ||
         storedChunks !== 0 ||
-        locked.capture.firstPcmAcceptedAt !== null ||
-        input.local_archive_chunk_count !== 0
+        locked.capture.firstPcmAcceptedAt !== null
       ) {
         throw this.conflict('CAPTURE_EVIDENCE_EXISTS');
       }
@@ -220,7 +239,11 @@ export class SessionCaptureService {
         actor.id,
         sessionId,
         input.request_id,
-        { generation_no: input.generation_no },
+        {
+          audio_stream_id: input.audio_stream_id,
+          generation_no: input.generation_no,
+          local_archive_chunk_count: input.local_archive_chunk_count,
+        },
       );
       const current = await this.snapshots.read(sessionId, tx);
       await this.writeReplay(
@@ -263,16 +286,12 @@ export class SessionCaptureService {
         sessionId,
       );
       if (replay !== null) {
-        const expectedGeneration =
-          capture.status === 'interrupted' ? capture.generationNo + 1 : capture.generationNo;
-        if (
-          replay.capture?.audio_stream_id !== input.audio_stream_id ||
-          replay.capture.generation_no !== expectedGeneration ||
-          replay.capture.timeline_offset_ms !== input.local_archive_timeline_high_water_ms
-        ) {
-          throw this.conflict('IDEMPOTENCY_PAYLOAD_MISMATCH');
-        }
-        return replay;
+        this.assertReplayMetadata(replay.metadata, {
+          audio_stream_id: input.audio_stream_id,
+          local_archive_chunk_count: input.local_archive_chunk_count,
+          local_archive_timeline_high_water_ms: input.local_archive_timeline_high_water_ms,
+        });
+        return replay.snapshot;
       }
       const session = await tx.interviewSession.findUniqueOrThrow({ where: { id: sessionId } });
       const finalization = await tx.sessionFinalization.findUnique({ where: { sessionId } });
@@ -288,10 +307,14 @@ export class SessionCaptureService {
         orderBy: { sequenceNo: 'asc' },
         where: { audioObjectId: capture.audioObjectId, uploadStatus: 'uploaded' },
       });
-      const serverHighWater = uploaded.at(-1)?.endMs ?? 0;
+      const serverHighWater = uploaded.reduce(
+        (highest, chunk) => Math.max(highest, chunk.endMs),
+        0,
+      );
       if (
         input.local_archive_chunk_count < uploaded.length ||
-        input.local_archive_timeline_high_water_ms < serverHighWater
+        input.local_archive_timeline_high_water_ms < serverHighWater ||
+        input.local_archive_timeline_high_water_ms < capture.timelineOffsetMs
       ) {
         throw this.conflict('CAPTURE_ARCHIVE_CONFLICT');
       }
@@ -315,7 +338,10 @@ export class SessionCaptureService {
         sessionId,
         input.request_id,
         {
+          audio_stream_id: input.audio_stream_id,
           generation_no: next.generationNo,
+          local_archive_chunk_count: input.local_archive_chunk_count,
+          local_archive_timeline_high_water_ms: input.local_archive_timeline_high_water_ms,
           timeline_offset_ms: next.timelineOffsetMs,
         },
       );
@@ -332,14 +358,11 @@ export class SessionCaptureService {
     });
   }
 
-  public async markFirstPcmAccepted(sessionId: string, audioStreamId: string): Promise<void> {
-    await this.prisma.sessionCaptureGeneration.updateMany({
-      data: { firstPcmAcceptedAt: new Date() },
-      where: { audioStreamId, firstPcmAcceptedAt: null, sessionId, status: 'active' },
-    });
-  }
-
-  private async lockCapture(tx: Prisma.TransactionClient, requestId: string, sessionId: string) {
+  private async lockCapture(
+    tx: Prisma.TransactionClient,
+    requestId: string,
+    sessionId: string,
+  ): Promise<{ capture: SessionCaptureGeneration; session: InterviewSession }> {
     await this.lock(tx, `request:${requestId}`);
     const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null) throw this.notFound();
@@ -392,7 +415,7 @@ export class SessionCaptureService {
     action: string,
     actor: AuthPrincipal,
     sessionId: string,
-  ): Promise<InterviewSessionResponse | null> {
+  ): Promise<{ metadata: Prisma.JsonValue; snapshot: InterviewSessionResponse } | null> {
     const record = await tx.idempotencyRecord.findUnique({ where: { requestId } });
     if (record === null) return null;
     if (
@@ -403,18 +426,27 @@ export class SessionCaptureService {
     ) {
       throw this.conflict('IDEMPOTENCY_KEY_REUSED');
     }
-    return record.responsePayload as unknown as InterviewSessionResponse;
+    const audit = await tx.auditLog.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { metadata: true },
+      where: { action, entityId: sessionId, requestId },
+    });
+    if (audit === null) throw this.conflict('IDEMPOTENCY_PAYLOAD_MISMATCH');
+    return {
+      metadata: audit.metadata,
+      snapshot: record.responsePayload as unknown as InterviewSessionResponse,
+    };
   }
 
-  private assertReplayCapture(
-    snapshot: InterviewSessionResponse,
-    input: ConfirmCaptureActiveRequest,
-    reason?: ReportCaptureInterruptedRequest['reason'],
+  private assertReplayMetadata(
+    metadata: Prisma.JsonValue,
+    expected: Record<string, string | number>,
   ): void {
     if (
-      snapshot.capture?.generation_no !== input.generation_no ||
-      snapshot.capture.audio_stream_id !== input.audio_stream_id ||
-      (reason !== undefined && snapshot.capture.interruption_reason !== reason)
+      typeof metadata !== 'object' ||
+      metadata === null ||
+      Array.isArray(metadata) ||
+      Object.entries(expected).some(([key, value]) => metadata[key] !== value)
     ) {
       throw this.conflict('IDEMPOTENCY_PAYLOAD_MISMATCH');
     }
