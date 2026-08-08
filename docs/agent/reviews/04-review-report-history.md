@@ -396,6 +396,14 @@ P2：
 - 最终结论：`PASS`；P0=0、P1=0。旧 interview init、ACK 删除 archive Blob、全 generation PCM 判定与 resume payload 四项 4/4 关闭；ADR-017 的历史与 ADR-023 现行关系明确，R4 同时负责 CON-020/021。
 - 合并记录：PR #11 以 merge commit `c572490b29dc7f3f1ce1191a7ea4a2e38c459dc3` 合入 `main`；SPEC-DEV-005R DONE，ADR-023/024 Accepted，stacked 契约基线门禁解除。R1 仍等待全 generation PCM 实现定向复审，R2C 不重开。
 
+### REV-020 补充｜DEV-005R1 全 generation PCM 定向复审
+
+- 最终审查提交：`c19a295015efaa4a27dfa6c8bf1e48b3e90ebf17`；PR #13 base `main`、非 Draft、可合并且 head 未漂移。
+- 自动证据：CI `31245403822` 完整 verify PASS，包括 unit、migration、PostgreSQL integration、auth、build、smoke 与 Chromium E2E。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 关闭依据：`abandonEmpty()` 在既有资源锁内查询整个 session 所有 generations；任一 `firstPcmAcceptedAt` 即拒绝 `NO_AUDIO_CAPTURED`。PostgreSQL 覆盖 gen0 有 PCM、resume gen1 无 PCM 后 abandon 返回 `CAPTURE_EVIDENCE_EXISTS`，并验证 session 仍 interrupted、audio 不变、finalization 为空且两代 generation 事实不变。
+- 合并记录：PR #13 以 merge commit `656db200f7313abdf54c1492d32d594c6390f9b6` 合入 `main`；DEV-005R1 DONE。R2 的 R1 前置已满足，但仍等待 R2C PASS。
+
 ## 审查模板
 
 ```text
