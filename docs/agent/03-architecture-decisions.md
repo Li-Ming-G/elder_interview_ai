@@ -203,6 +203,7 @@
 - 安全边界：同 session 单标签锁；撤权/撤 assignment 停止新采集但不丢已产生证据；浏览器 archive 仅用于内部虚构数据验证，真实试点前必须补本地备份管理/删除。
 - 代价：增加前向 migration、浏览器敏感数据驻留、controller 生命周期和更多恢复状态；换取从 start 到 stop 的单一所有权与可验证纵向链路。当前不引 Redis/队列、云存储或跨设备接管。
 - 重新评估条件：需要跨设备接管、多进程浏览器协作或永久离线备份时，引入显式租约/同步和用户可管理的本地数据产品能力，不得把当前 session lock 静默升级为跨设备保证。
+- R3 实现补充（2026-08-08）：页面消费 controller 的单一事实 projection：持久结束 handoff 优先于 session 可恢复状态，session/finalization 来自最近一次管理服务核验，archive/delivery 与 realtime 保持独立来源。只读 GET/焦点/online 可更新 projection 但不触发业务状态；`reconcile` 明确为用户动作。管理服务终态到达时 controller 先采信服务端 snapshot，再停止本地 runtime、完成 archive 并释放资源，不用页面猜测采集仍在继续。
 
 ## ADR-024｜工作台按业务状态分配注意力，Android Chrome 作为首轮移动主设备
 
@@ -213,3 +214,4 @@
 - 代价：增加五视口、全状态和 Android 真机验收，R2/R4 范围扩大；换取移动端不静默丢音频、页面层级可验收和后续 UI Agent 不自行猜测。
 - 重新评估条件：实际试点需要 iPhone Safari、跨设备接管或后台长时录制保证时，单独讨论平台能力与产品降级，不得把 Android 证据外推为所有手机支持。
 - 真机证据补充（REV-024）：OnePlus GM1900 / Android 12 / Chrome 150 上，旋转、约 20 秒后台和约 20 秒锁屏期间，单一 controller、archive 时间轴与同一 generation 持续健康，因此这些事件本身不触发中断；刷新以 `page_recovery_detected`、运行中撤销麦克风权限以 `microphone_ended` 显式进入 `interrupted`。这是首个目标设备基线，不构成所有 Android 或 iPhone 的平台保证；R4 仍负责完整恢复与安全结束复验。
+- R3 页面证据补充（2026-08-08）：正常工作台在 1440×900 与 390×844 分别按既定比例护栏保留顶部、主转录与建议区；320×568 顶部不超过 72 px、建议不超过 120 px、主内容不低于 60%。五视口 × 七状态 Chromium 矩阵保持页面无纵向/横向滚动、转录为主滚动，手机元数据栏 52–64 px；状态面板只在业务事实需要处置时上提，结束确认仍是唯一 modal。

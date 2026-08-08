@@ -652,3 +652,15 @@
 - Implementation evidence: REV-024、`06` Android 生命周期补充、`09` 真机基线、DEV-005R2 task/handoff；本轮无业务代码修改。临时截图仅用于本地核对后清理，结构化测量已写入项目记录，未提交真实音频或 Blob。
 - Lesson: 平台生命周期事件不是业务事实；只有持续 archive、资源 identity 和服务端 snapshot 能证明继续或中断。任务应按事实所有权验收，下游 UI 缺失不能反向阻塞上游 controller，但必须保留最终纵向门禁。
 - Better future prompt: “请在目标 Android Chrome 上分别记录旋转、后台、锁屏、刷新和 track ended 前后的 controller identity、archive 连续性与服务端 snapshot；按事实冻结 continue/interrupted，再由页面任务消费，不用 visibility 直接推断。”
+
+### 2026-08-08 — DEV-005R3 工作台单一事实 projection 与安全结束 UI
+
+- User outcome: 正式工作台在同一 URL 准确呈现采集、中断和安全结束全状态；刷新不申请麦克风，手机仍以转录为主，页面不得伪造服务端成功。
+- Review mode: Learning mode；iteration-coach 的唯一独立只读预审建议先建立 controller 单一事实 projection，并让持久结束 handoff 优先于任何仍可恢复的旧 session/capture snapshot。
+- Review finding: 初次 load 的 session 与页面本地状态都不能证明持续采集；只读 GET 可以核验事实，但 POST `reconcile` 是业务动作，不能伪装为刷新。local archive 为零只构成客户端必要条件，`NO_AUDIO_CAPTURED` 仍由服务端全 generation/PCM/分片证据裁决。
+- Options considered: 在现有页面继续拼接静态 session/chip；由页面维护一套结束状态机；扩展 controller projection 并让页面只消费来源明确的事实。采用第三种。
+- Adopted decision: projection 同时持有完整 server session/finalization、核验时间/错误、本地 archive/delivery、realtime 与 persisted end handoff；优先级为 frozen handoff → server session → capture/archive/realtime。只有用户点击 resume 才申请麦克风，只有结束确认进入 modal；管理服务终态会关闭仍存的本地 runtime，但不由 UI 推断终态。
+- Implementation evidence: `interview-capture-controller.ts`、`workbench-shell.tsx`、`styles.css` 与对应 unit/Chromium；全量 unit 197、integration 41、auth 13、普通 Chromium 8/8、auth Chromium 4/4，五视口 × 七状态 35 张截图和比例/滚动/触控断言 PASS。
+- Verification boundary: 桌面 Chromium 与合成音频不能替代 Android 真机；CON-020/021 留给 R4，CON-022 动态噪声基线算法也等待目标 Android 普通音量复验。本任务只到 REVIEW。
+- Lesson: 页面可信度来自“每句话能指出事实源”，而不是状态数量更多；当结束边界已经持久化，任何可恢复提示都必须让位，否则一次过时 snapshot 就可能诱导用户向已冻结访谈追加录音。
+- Better future prompt: “请先定义页面唯一 projection、每类事实的来源/核验时间和冲突优先级，再列出每个按钮允许触发的业务副作用；刷新只能读，resume/finalize/reconcile 必须由用户明确点击并复用稳定 identity。”
