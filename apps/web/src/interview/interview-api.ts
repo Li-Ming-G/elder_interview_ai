@@ -1,11 +1,17 @@
 import type {
+  AudioChunkResponse,
   ApiErrorEnvelope,
+  ConfirmCaptureActiveRequest,
   ConsentResponse,
   DeviceCheckRequest,
   InterviewSessionResponse,
   ProjectResponse,
+  RecoverSessionRequest,
+  ReportCaptureInterruptedRequest,
   ServiceTermResponse,
+  StartSessionRequest,
 } from '@elder-interview/contracts';
+import type { ImmutableAudioChunk } from '../audio/types.js';
 
 export class InterviewApiError extends Error {
   public constructor(
@@ -29,10 +35,31 @@ export interface InterviewApi {
   createSession(projectId: string): Promise<InterviewSessionResponse>;
   deviceCheck(sessionId: string, request: DeviceCheckRequest): Promise<InterviewSessionResponse>;
   loadPreparation(projectId: string, sessionId: string | null): Promise<PreparationData>;
-  startSession(sessionId: string, requestId: string): Promise<InterviewSessionResponse>;
 }
 
-export function createInterviewApi(csrfToken: string): InterviewApi {
+export interface InterviewCaptureApi {
+  confirmCaptureActive(
+    sessionId: string,
+    request: ConfirmCaptureActiveRequest,
+  ): Promise<InterviewSessionResponse>;
+  getSession(sessionId: string): Promise<InterviewSessionResponse>;
+  recoverSession(
+    sessionId: string,
+    request: RecoverSessionRequest,
+  ): Promise<InterviewSessionResponse>;
+  reportCaptureInterrupted(
+    sessionId: string,
+    request: ReportCaptureInterruptedRequest,
+  ): Promise<InterviewSessionResponse>;
+  startSession(sessionId: string, request: StartSessionRequest): Promise<InterviewSessionResponse>;
+  uploadInterviewChunk(
+    audioObjectId: string,
+    chunk: ImmutableAudioChunk,
+    requestId: string,
+  ): Promise<AudioChunkResponse>;
+}
+
+export function createInterviewApi(csrfToken: string): InterviewApi & InterviewCaptureApi {
   async function read<T>(path: string): Promise<T> {
     return request<T>(path, { cache: 'no-store', credentials: 'same-origin' });
   }
@@ -50,10 +77,14 @@ export function createInterviewApi(csrfToken: string): InterviewApi {
   }
 
   return {
+    confirmCaptureActive: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
     createSession: async (projectId): Promise<InterviewSessionResponse> =>
       write(`/api/v1/projects/${projectId}/sessions`),
     deviceCheck: async (sessionId, deviceCheck): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
+    getSession: async (sessionId): Promise<InterviewSessionResponse> =>
+      read(`/api/v1/sessions/${sessionId}`),
     loadPreparation: async (projectId, sessionId): Promise<PreparationData> => {
       const [project, serviceTerms, consents, session] = await Promise.all([
         read<ProjectResponse>(`/api/v1/projects/${projectId}`),
@@ -68,8 +99,29 @@ export function createInterviewApi(csrfToken: string): InterviewApi {
       }
       return { consents, project, serviceTerms, session };
     },
-    startSession: async (sessionId, requestId): Promise<InterviewSessionResponse> =>
-      write(`/api/v1/sessions/${sessionId}/start`, { request_id: requestId }),
+    recoverSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/recover`, request),
+    reportCaptureInterrupted: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
+    startSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/start`, request),
+    uploadInterviewChunk: async (audioObjectId, chunk, requestId): Promise<AudioChunkResponse> =>
+      request<AudioChunkResponse>(
+        `/api/v1/audio-objects/${audioObjectId}/chunks/${String(chunk.sequenceNo)}`,
+        {
+          body: chunk.blob,
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': chunk.mimeType,
+            'X-Chunk-End-Ms': String(chunk.endedAtMs),
+            'X-Chunk-SHA256': chunk.checksumSha256,
+            'X-Chunk-Start-Ms': String(chunk.startedAtMs),
+            'X-CSRF-Token': csrfToken,
+            'X-Request-Id': requestId,
+          },
+          method: 'PUT',
+        },
+      ),
   };
 }
 

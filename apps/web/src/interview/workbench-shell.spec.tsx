@@ -7,6 +7,10 @@ import type { InterviewSessionResponse } from '@elder-interview/contracts';
 import type { InterviewApi, PreparationData } from './interview-api.js';
 import { WorkbenchShell } from './workbench-shell.js';
 import type { RealtimeState } from '../realtime-transcription/realtime-transport.js';
+import type {
+  InterviewCaptureController,
+  InterviewCaptureControllerSnapshot,
+} from './interview-capture-controller.js';
 
 afterEach(cleanup);
 
@@ -60,44 +64,55 @@ function api(result: PreparationData): InterviewApi {
     createSession: vi.fn(),
     deviceCheck: vi.fn(),
     loadPreparation: vi.fn().mockResolvedValue(result),
-    startSession: vi.fn(),
   };
 }
 
-function transportHarness(): {
+function controllerHarness(recoverError?: Error): {
+  controller: Pick<InterviewCaptureController, 'recover' | 'subscribe'>;
   emit: (state: RealtimeState) => void;
   isSubscribed: () => boolean;
-  factory: () => {
-    connect: () => void;
-    disconnect: () => void;
-    subscribe: (listener: (state: RealtimeState) => void) => () => void;
-  };
 } {
-  let listener: ((state: RealtimeState) => void) | null = null;
+  let listener: ((snapshot: InterviewCaptureControllerSnapshot) => void) | null = null;
   return {
-    emit: (state) => listener?.(state),
-    isSubscribed: () => listener !== null,
-    factory: () => ({
-      connect: vi.fn(),
-      disconnect: vi.fn(),
+    controller: {
+      recover: vi.fn(() =>
+        recoverError === undefined
+          ? Promise.resolve({} as InterviewCaptureControllerSnapshot)
+          : Promise.reject(recoverError),
+      ),
       subscribe: (next) => {
         listener = next;
         return () => {
           listener = null;
         };
       },
-    }),
+    },
+    emit: (state) => listener?.({ realtime: state } as InterviewCaptureControllerSnapshot),
+    isSubscribed: () => listener !== null,
   };
 }
 
 describe('WorkbenchShell', () => {
+  it('fails closed when capture recovery rejects instead of leaving an unhandled promise', async () => {
+    const transport = controllerHarness(new Error('CAPTURE_RECOVERY_FAILED'));
+    render(
+      <WorkbenchShell
+        api={api(data())}
+        captureController={transport.controller}
+        projectId="project-1"
+        sessionId="session-1"
+      />,
+    );
+    expect(await screen.findByText('无法进入实时工作台')).toBeTruthy();
+    expect(screen.getByText('CAPTURE_RECOVERY_FAILED')).toBeTruthy();
+  });
+
   it('fails closed when the server session is not streamable', async () => {
-    const transport = transportHarness();
+    const transport = controllerHarness();
     render(
       <WorkbenchShell
         api={api(data({ ...session, status: 'completed' }))}
-        createTransport={transport.factory}
-        csrfToken="csrf"
+        captureController={transport.controller}
         projectId="project-1"
         sessionId="session-1"
       />,
@@ -107,12 +122,11 @@ describe('WorkbenchShell', () => {
   });
 
   it('renders speaker and finality semantics and keeps ASR failure separate from recording', async () => {
-    const transport = transportHarness();
+    const transport = controllerHarness();
     render(
       <WorkbenchShell
         api={api(data())}
-        createTransport={transport.factory}
-        csrfToken="csrf"
+        captureController={transport.controller}
         projectId="project-1"
         sessionId="session-1"
       />,
@@ -156,12 +170,11 @@ describe('WorkbenchShell', () => {
   });
 
   it('pauses following while reviewing and reports only new finals', async () => {
-    const transport = transportHarness();
+    const transport = controllerHarness();
     render(
       <WorkbenchShell
         api={api(data())}
-        createTransport={transport.factory}
-        csrfToken="csrf"
+        captureController={transport.controller}
         projectId="project-1"
         sessionId="session-1"
       />,

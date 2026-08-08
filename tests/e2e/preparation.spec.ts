@@ -7,15 +7,23 @@ test('assigned fictional project passes preparation and enters only the workbenc
   page,
 }) => {
   const writes: string[] = [];
+  let captureStreamId = '99999999-9999-4999-8999-999999999999';
   await page.addInitScript((): void => {
+    const track = {
+      addEventListener: (): void => undefined,
+      removeEventListener: (): void => undefined,
+      stop: (): void => undefined,
+    };
     const stream = {
-      getTracks: (): Array<{ stop: () => undefined }> => [{ stop: () => undefined }],
+      getAudioTracks: (): (typeof track)[] => [track],
+      getTracks: (): (typeof track)[] => [track],
     };
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: { getUserMedia: () => Promise.resolve(stream) },
     });
     class FakeAudioContext {
+      public readonly audioWorklet = { addModule: (): Promise<void> => Promise.resolve() };
       public createAnalyser(): {
         connect: () => void;
         disconnect: () => void;
@@ -41,10 +49,48 @@ test('assigned fictional project passes preparation and enters only the workbenc
       public close(): Promise<void> {
         return Promise.resolve();
       }
+      public resume(): Promise<void> {
+        return Promise.resolve();
+      }
     }
     Object.defineProperty(globalThis, 'AudioContext', {
       configurable: true,
       value: FakeAudioContext,
+    });
+    class FakeAudioWorkletNode {
+      public readonly port = { close: (): void => undefined, onmessage: null };
+      public connect(): this {
+        return this;
+      }
+      public disconnect(): void {}
+    }
+    Object.defineProperty(globalThis, 'AudioWorkletNode', {
+      configurable: true,
+      value: FakeAudioWorkletNode,
+    });
+    class FakeMediaRecorder {
+      public static isTypeSupported(): boolean {
+        return true;
+      }
+      public readonly mimeType = 'audio/webm;codecs=opus';
+      public ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      public onerror: ((event: Event) => void) | null = null;
+      public onstop: ((event: Event) => void) | null = null;
+      public state: RecordingState = 'inactive';
+      public start(): void {
+        this.state = 'recording';
+      }
+      public stop(): void {
+        this.state = 'inactive';
+        this.ondataavailable?.({
+          data: new Blob([new Uint8Array([1, 2, 3])], { type: this.mimeType }),
+        });
+        this.onstop?.(new Event('stop'));
+      }
+    }
+    Object.defineProperty(globalThis, 'MediaRecorder', {
+      configurable: true,
+      value: FakeMediaRecorder,
     });
     class WorkbenchWebSocket extends EventTarget {
       public static readonly OPEN = 1;
@@ -157,11 +203,42 @@ test('assigned fictional project passes preparation and enters only the workbenc
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (request.method() === 'POST') writes.push(path);
+    if (request.method() === 'PUT' && path.includes('/audio-objects/')) {
+      const headers = request.headers();
+      const sequenceNo = Number(path.split('/').at(-1));
+      await route.fulfill({
+        json: {
+          audio_object_id: '66666666-6666-4666-8666-666666666666',
+          checksum: headers['x-chunk-sha256'],
+          end_ms: Number(headers['x-chunk-end-ms']),
+          id: '88888888-8888-4888-8888-888888888888',
+          mime_type: headers['content-type'],
+          sequence_no: sequenceNo,
+          size_bytes: request.postDataBuffer()?.byteLength ?? 0,
+          start_ms: Number(headers['x-chunk-start-ms']),
+          upload_status: 'uploaded',
+          uploaded_at: '2026-08-08T00:00:00.000Z',
+        },
+      });
+      return;
+    }
+    if (path === `/api/v1/sessions/${SESSION_ID}/start` && request.method() === 'POST') {
+      captureStreamId = (request.postDataJSON() as { audio_stream_id: string }).audio_stream_id;
+      await route.fulfill({ json: session('recording', 'preparing', captureStreamId) });
+      return;
+    }
+    if (
+      path === `/api/v1/sessions/${SESSION_ID}/capture/confirm-active` &&
+      request.method() === 'POST'
+    ) {
+      await route.fulfill({ json: session('recording', 'active', captureStreamId) });
+      return;
+    }
     const payload =
       path === `/api/v1/sessions/${SESSION_ID}` &&
       request.method() === 'GET' &&
       writes.includes(`/api/v1/sessions/${SESSION_ID}/start`)
-        ? session('recording')
+        ? session('recording', 'active', captureStreamId)
         : responseFor(path, request.method());
     await route.fulfill({
       body: JSON.stringify(payload),
@@ -202,6 +279,7 @@ test('assigned fictional project passes preparation and enters only the workbenc
     `/api/v1/projects/${PROJECT_ID}/sessions`,
     `/api/v1/sessions/${SESSION_ID}/device-check`,
     `/api/v1/sessions/${SESSION_ID}/start`,
+    `/api/v1/sessions/${SESSION_ID}/capture/confirm-active`,
   ]);
   expect(writes.some((path) => path.endsWith('/stop') || path.endsWith('/recover'))).toBe(false);
 });
@@ -276,13 +354,33 @@ function responseFor(path: string, method: string): unknown {
     return session('device_check');
   }
   if (path === `/api/v1/sessions/${SESSION_ID}/start` && method === 'POST') {
-    return session('recording');
+    return session('recording', 'preparing');
+  }
+  if (path === `/api/v1/sessions/${SESSION_ID}/capture/confirm-active` && method === 'POST') {
+    return session('recording', 'active');
   }
   throw new Error(`Unhandled test request: ${method} ${path}`);
 }
 
-function session(status: 'created' | 'device_check' | 'recording'): unknown {
+function session(
+  status: 'created' | 'device_check' | 'recording',
+  captureStatus: 'active' | 'preparing' | null = null,
+  audioStreamId = '99999999-9999-4999-8999-999999999999',
+): unknown {
   return {
+    capture:
+      captureStatus === null
+        ? null
+        : {
+            audio_object_id: '66666666-6666-4666-8666-666666666666',
+            audio_stream_id: audioStreamId,
+            generation_no: 0,
+            interrupted_at: null,
+            interruption_reason: null,
+            status: captureStatus,
+            timeline_offset_ms: 0,
+            uploaded_chunk_count: 0,
+          },
     created_at: '2026-08-07T00:00:00.000Z',
     created_by: '33333333-3333-4333-8333-333333333333',
     id: SESSION_ID,

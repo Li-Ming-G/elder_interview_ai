@@ -20,6 +20,18 @@ describe('SequentialAudioDeliveryPump', () => {
         jobs.set(job.jobId, structuredClone(job));
         return Promise.resolve();
       },
+      updateUploadJob: (
+        jobId: string,
+        update: (
+          current: Awaited<ReturnType<AudioUploadJobRunner['create']>>,
+        ) => Awaited<ReturnType<AudioUploadJobRunner['create']>>,
+      ): Promise<Awaited<ReturnType<AudioUploadJobRunner['create']>>> => {
+        const current = jobs.get(jobId);
+        if (current === undefined) return Promise.reject(new Error('UPLOAD_JOB_NOT_FOUND'));
+        const updated = update(structuredClone(current));
+        jobs.set(jobId, structuredClone(updated));
+        return Promise.resolve(structuredClone(updated));
+      },
     };
     const queue = new AudioChunkQueue(chunks, {
       checksum: async (blob): Promise<string> => `checksum:${await blob.text()}`,

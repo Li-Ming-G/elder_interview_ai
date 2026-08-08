@@ -4,10 +4,10 @@ import type { InterviewSessionResponse } from '@elder-interview/contracts';
 import type { InterviewApi, PreparationData } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
 import {
-  RealtimeTranscriptionTransport,
   type RealtimeState,
   type RealtimeTranscriptFinal,
 } from '../realtime-transcription/realtime-transport.js';
+import type { InterviewCaptureController } from './interview-capture-controller.js';
 
 const INITIAL_REALTIME_STATE: RealtimeState = {
   connection: 'connecting',
@@ -21,18 +21,11 @@ const INITIAL_REALTIME_STATE: RealtimeState = {
   resumed: false,
 };
 
-interface TransportLike {
-  connect(): void;
-  disconnect(): void;
-  subscribe(listener: (state: RealtimeState) => void): () => void;
-}
-
 interface WorkbenchShellProps {
   api: InterviewApi;
-  csrfToken: string;
+  captureController: Pick<InterviewCaptureController, 'recover' | 'subscribe'>;
   projectId: string;
   sessionId: string;
-  createTransport?: (csrfToken: string, sessionId: string) => TransportLike;
 }
 
 type LoadState =
@@ -42,10 +35,9 @@ type LoadState =
 
 export function WorkbenchShell({
   api,
-  csrfToken,
+  captureController,
   projectId,
   sessionId,
-  createTransport = defaultTransport,
 }: WorkbenchShellProps): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
   const [realtime, setRealtime] = useState(INITIAL_REALTIME_STATE);
@@ -67,15 +59,20 @@ export function WorkbenchShell({
     void load();
   }, [load]);
   useEffect(() => {
-    if (loadState.kind !== 'ready') return;
-    const transport = createTransport(csrfToken, sessionId);
-    const unsubscribe = transport.subscribe(setRealtime);
-    transport.connect();
+    return captureController.subscribe((snapshot): void => {
+      setRealtime(snapshot.realtime);
+    });
+  }, [captureController]);
+  useEffect(() => {
+    if (loadState.kind !== 'ready' || loadState.data.session === null) return;
+    let current = true;
+    void captureController.recover(loadState.data.session).catch((error: unknown) => {
+      if (current) setLoadState({ kind: 'error', message: workbenchLoadError(error) });
+    });
     return (): void => {
-      unsubscribe();
-      transport.disconnect();
+      current = false;
     };
-  }, [createTransport, csrfToken, loadState.kind, sessionId]);
+  }, [captureController, loadState]);
 
   if (loadState.kind === 'loading') return <WorkbenchLoading />;
   if (loadState.kind === 'error')
@@ -304,9 +301,6 @@ function WorkbenchFailure({
       </section>
     </main>
   );
-}
-function defaultTransport(csrfToken: string, sessionId: string): TransportLike {
-  return new RealtimeTranscriptionTransport({ csrfToken, sessionId });
 }
 function isStreamable(session: InterviewSessionResponse): boolean {
   return session.status === 'recording' || session.status === 'reconnecting';

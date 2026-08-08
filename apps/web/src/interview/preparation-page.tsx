@@ -6,9 +6,11 @@ import { InterviewApiError } from './interview-api.js';
 import type { MicrophoneChecker } from './microphone-check.js';
 import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
 import { preparationPath, workbenchPath } from './routes.js';
+import type { InterviewCaptureController } from './interview-capture-controller.js';
 
 interface PreparationPageProps {
   api: InterviewApi;
+  captureController: (sessionId: string) => Pick<InterviewCaptureController, 'start'>;
   checkMicrophone: MicrophoneChecker;
   initialSessionId: string | null;
   navigate: (path: string, replace?: boolean) => void;
@@ -28,6 +30,7 @@ type DeviceState =
 
 export function PreparationPage({
   api,
+  captureController,
   checkMicrophone,
   initialSessionId,
   navigate,
@@ -38,7 +41,6 @@ export function PreparationPage({
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionLock = useRef(false);
-  const startRequestId = useRef<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
@@ -128,13 +130,13 @@ export function PreparationPage({
     actionLock.current = true;
     setSubmitting(true);
     setActionError(null);
-    startRequestId.current ??= crypto.randomUUID();
     try {
-      const session = await api.startSession(loadState.data.session.id, startRequestId.current);
-      if (session.status !== 'recording') {
+      const sessionId = loadState.data.session.id;
+      const capture = await captureController(sessionId).start();
+      if (capture.phase !== 'active') {
         throw new InterviewApiError('UNEXPECTED_SESSION_STATE', '服务端未确认访谈已开始', 409);
       }
-      navigate(workbenchPath(projectId, session.id));
+      navigate(workbenchPath(projectId, sessionId));
     } catch (error) {
       setActionError(readableError(error, '访谈未能开始，请核对当前状态后重试'));
       setSubmitting(false);

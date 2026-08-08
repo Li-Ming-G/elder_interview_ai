@@ -72,6 +72,36 @@ async function createFrozen(runner: AudioUploadJobRunner): Promise<void> {
 }
 
 describe('AudioUploadJobRunner', () => {
+  it('never consumes a capture interruption report as an upload job', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const { jobs, runner } = harness(fetch);
+    const reportJobId = 'capture-interruption-report:v1:report-session:1:report-audio-stream';
+    await jobs.getOrCreateCaptureInterruptionReport({
+      audioObjectId: 'report-audio-object',
+      audioStreamId: 'report-audio-stream',
+      createdAt: '2026-08-08T00:00:00.000Z',
+      generationNo: 1,
+      jobId: reportJobId,
+      lastError: null,
+      projectId: PROJECT_ID,
+      reason: 'page_recovery_detected',
+      recordType: 'capture-interruption-report-v1',
+      requestId: 'stable-report-request',
+      sessionId: 'report-session',
+      status: 'pending',
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    });
+
+    await expect(runner.resume(reportJobId, 'csrf')).rejects.toThrow(
+      'UPLOAD_JOB_RECORD_TYPE_MISMATCH',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    await expect(jobs.getCaptureInterruptionReport(reportJobId)).resolves.toMatchObject({
+      requestId: 'stable-report-request',
+      status: 'pending',
+    });
+  });
+
   it('reuses persisted IDs after lost chunk and complete responses', async () => {
     const chunkRequestIds: string[] = [];
     const completeRequestIds: string[] = [];

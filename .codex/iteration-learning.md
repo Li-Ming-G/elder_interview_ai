@@ -611,3 +611,25 @@
 - Implementation evidence: `browser-capture-core.ts/.spec.ts`、`pcm-audio-worklet-producer.ts/.spec.ts`、`session-browser-lock.ts/.spec.ts`；定向 unit 9/9、全量 unit 141/141、Chromium 6/6、音频 repeat 9/9、integration 30/30、auth 13/13、auth Chromium 4/4。
 - Lesson: “停止时不等待旧 Promise”只解决当前 teardown 活性；若对象会复用，还必须用 generation identity 防止旧 Promise 在新一代启动后重新获得写状态的能力。
 - Better future prompt: “所有可复用的异步 producer 在 stop/resume 测试中必须覆盖旧 generation 的 resolve、reject 和事件迟到；旧任务不得改变新 generation 状态，证据链 finalization 不得等待辅助链路。”
+
+### 2026-08-08 — DEV-005R2 controller 的跨事实提交点与 Android 证据边界
+
+- User outcome: 把 R1 服务端采集生命周期和 R2C 浏览器核心接成正式 session-scoped controller，同一麦克风单流驱动 archive 与 realtime，并在刷新、中断和恢复后保持同一 job/audio object 的可审计事实。
+- Review mode: Learning mode；iteration-coach 的唯一独立只读预审建议用显式持久状态机、所有权锁先于副作用、沿用 IndexedDB v4 的应用层协议，以及从不可变 archive 生成安全结束交接。
+- Review finding: controller 与 delivery pump 都会更新同一 upload job；若继续 read-modify-put，后到的 delivery 写入会覆盖 confirm/resume 稳定 request ID。Android visibility/background/lock screen 的真实行为没有目标设备证据，不能靠页面事件推断。
+- Adopted decision: 在既有 v4 `upload-jobs` store 内加入事务级原子更新，不升级 schema；formal job 禁止另建 interview object；顺序固定为 lock/storage→单次麦克风→atomic start→archive/checkpoint→confirm→realtime。刷新只持久报告 interrupted，不自动申请麦克风；显式 resume 才产生新 generation。
+- Implementation evidence: unit 32 files/168 tests、普通 Chromium 7/7、auth Chromium 4/4、integration 41、auth 13、migration/status/build/smoke/format/lint/typecheck/diff 均通过；测试暴露并关闭了 upload job 覆盖竞态。
+- Verification boundary: 执行环境没有 `adb` 且未发现 Android PnP 设备；5–10 分钟、后台、锁屏、visibility、权限/设备中断全部未验证，CON-021 保持 OPEN，未修改公共 reason/snapshot。
+- Lesson: 跨本地持久化、服务端幂等与实时副作用的状态机，可靠性取决于每个提交点是否原子且可恢复；“字段彼此不同”并不意味着并发整对象写安全。平台生命周期结论也必须来自目标设备证据，而不是 CSS 或浏览器事件名称。
+- Better future prompt: “请把 controller 每个可重放步骤的稳定 request ID、持久提交点、锁顺序和 generation fencing 画成状态转换表，并用并发写、响应丢失、刷新和旧代迟到反例验证；平台 continue/interrupted 只采信目标设备观测。”
+
+### 2026-08-08 — DEV-005R2 REQUEST_CHANGES 的资源 owner 与 orphan 减权记录
+
+- User outcome: 关闭 start/resume 失败时首因覆盖与 Web Lock 泄漏，并在完整 local job 丢失时仍把服务端 active/preparing generation 持久、安全、幂等地降为 interrupted。
+- Review mode: Correction mode；独立只读预审确认三个 P1 均成立，且 P1-3 缺的是浏览器本地持久载体，不需要修改公共 reason/snapshot/API。总控随后授权 IndexedDB v4 独立 orphan report 记录。
+- Review finding: “服务端 generation 已提交”和“runtime 已接管 lock”是不同提交点，原实现用 `requiredJob()` 和 `runtime !== null` 推断 cleanup，既会覆盖 storage/MIME 首因，也会在 resume 麦克风拒绝时留下 controller-owned lock。local job missing 又不能通过伪造 MIME/job 来取得稳定 request ID。
+- Adopted decision: start/resume 显式跟踪 controller/runtime lock owner、server bound 与 runtime takeover；所有 cleanup best-effort 且最终抛 primary error。在 v4 `upload-jobs` store 以独立 `capture-interruption-report-v1` discriminant 和 session+generation+stream key 原子 get-or-create最小 report record，upload job 路径严格拒绝该类型。
+- Implementation evidence: 直接 controller/workbench/IndexedDB/upload runner 4 files/40 tests、全量 unit 32 files/182 tests、format/lint/typecheck/build PASS；覆盖真实 Web Locks 新 owner、响应丢失/刷新/并发稳定 ID、代际隔离、损坏/冲突 fail closed、终态不发送、ack 写失败幂等重放。
+- Verification boundary: Android Chrome 仍无设备，CON-021 OPEN；orphan report 只负责减权 interruption，不声称 archive/job 可 resume 或可完整 finalize，记录清理并入未来 archive cleanup。
+- Lesson: 资源 cleanup 必须依据“当前 owner”而不是“对象是否非空”；完整恢复资料丢失也不等于什么都不能做，可以凭服务端白名单 identity 执行最小减权动作，但持久记录必须与可恢复 job 类型隔离。
+- Better future prompt: “请为每个失败点列出 lock/stream/runtime/server-generation 的 owner 和提交点，并证明 cleanup 次生失败不覆盖首因；full job 丢失时只持久化 server identity + stable report ID，不构造可 resume 的假 job。”

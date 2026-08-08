@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import { AudioChunkQueue } from './audio-chunk-queue.js';
 import { IndexedDbAudioChunkStore } from './indexeddb-audio-chunk-store.js';
-import type { AudioUploadJob, BufferedAudioChunk } from './types.js';
+import type {
+  AudioUploadJob,
+  BufferedAudioChunk,
+  CaptureInterruptionReportRecord,
+} from './types.js';
 
 function queue(factory: IDBFactory): AudioChunkQueue {
   return new AudioChunkQueue(new IndexedDbAudioChunkStore(factory), {
@@ -173,7 +177,147 @@ describe('IndexedDbAudioChunkStore', () => {
     const upgraded = new IndexedDbAudioChunkStore(factory);
     expect(await upgraded.getUploadJob('v3-job')).toEqual(legacyJob);
   });
+
+  it('serializes upload-job field updates inside the existing version 4 store', async () => {
+    const store = new IndexedDbAudioChunkStore(new IDBFactory());
+    const job: AudioUploadJob = {
+      audioObjectId: null,
+      bufferSessionId: 'atomic-session',
+      chunkRequestIds: {},
+      completeRequestId: null,
+      createRequestId: null,
+      expectedChunkCount: null,
+      jobId: 'atomic-job',
+      lastError: null,
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'interview',
+      serverSessionId: 'atomic-session',
+      status: 'recording',
+    };
+    await store.putUploadJob(job);
+
+    await Promise.all([
+      store.updateUploadJob(job.jobId, (current) => ({
+        ...current,
+        chunkRequestIds: { ...current.chunkRequestIds, '0': 'stable-chunk-request' },
+      })),
+      store.updateUploadJob(job.jobId, (current) => ({
+        ...current,
+        completeRequestId: 'stable-complete-request',
+      })),
+    ]);
+
+    await expect(store.getUploadJob(job.jobId)).resolves.toMatchObject({
+      chunkRequestIds: { '0': 'stable-chunk-request' },
+      completeRequestId: 'stable-complete-request',
+    });
+  });
+
+  it('atomically creates one generation-scoped interruption report across store instances', async () => {
+    const factory = new IDBFactory();
+    const first = new IndexedDbAudioChunkStore(factory);
+    const second = new IndexedDbAudioChunkStore(factory);
+    const left = interruptionReport('request-left');
+    const right = interruptionReport('request-right');
+
+    const [firstResult, secondResult] = await Promise.all([
+      first.getOrCreateCaptureInterruptionReport(left),
+      second.getOrCreateCaptureInterruptionReport(right),
+    ]);
+
+    expect(firstResult.requestId).toBe(secondResult.requestId);
+    expect(['request-left', 'request-right']).toContain(firstResult.requestId);
+    await expect(first.getCaptureInterruptionReport(left.jobId)).resolves.toEqual(firstResult);
+  });
+
+  it('keeps upload jobs and interruption reports strictly discriminated in the same store', async () => {
+    const store = new IndexedDbAudioChunkStore(new IDBFactory());
+    const report = interruptionReport('stable-report-request');
+    const job: AudioUploadJob = {
+      audioObjectId: null,
+      bufferSessionId: 'coexist-session',
+      chunkRequestIds: {},
+      completeRequestId: null,
+      createRequestId: null,
+      expectedChunkCount: null,
+      jobId: 'coexist-upload-job',
+      lastError: null,
+      mimeType: 'audio/webm',
+      projectId: 'fictional-project',
+      purpose: 'interview',
+      serverSessionId: 'coexist-session',
+      status: 'recording',
+    };
+    await store.putUploadJob(job);
+    await store.getOrCreateCaptureInterruptionReport(report);
+
+    await expect(store.getUploadJob(job.jobId)).resolves.toEqual(job);
+    await expect(store.getCaptureInterruptionReport(report.jobId)).resolves.toEqual(report);
+    await expect(store.getUploadJob(report.jobId)).rejects.toThrow(
+      'UPLOAD_JOB_RECORD_TYPE_MISMATCH',
+    );
+    await expect(store.getCaptureInterruptionReport(job.jobId)).rejects.toThrow(
+      'CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID',
+    );
+    await expect(
+      store.getOrCreateCaptureInterruptionReport({ ...report, audioObjectId: 'different-object' }),
+    ).rejects.toThrow('CAPTURE_INTERRUPTION_REPORT_IDENTITY_CONFLICT');
+  });
+
+  it('fails closed when a corrupted report record occupies the reserved key', async () => {
+    const factory = new IDBFactory();
+    const store = new IndexedDbAudioChunkStore(factory);
+    const report = interruptionReport('stable-report-request');
+    await store.getOrCreateCaptureInterruptionReport(report);
+    await rawUploadJobPut(factory, { ...report, audioStreamId: null });
+
+    await expect(store.getCaptureInterruptionReport(report.jobId)).rejects.toThrow(
+      'CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID',
+    );
+    await expect(store.getOrCreateCaptureInterruptionReport(report)).rejects.toThrow(
+      'CAPTURE_INTERRUPTION_REPORT_RECORD_INVALID',
+    );
+  });
 });
+
+function interruptionReport(requestId: string): CaptureInterruptionReportRecord {
+  return {
+    audioObjectId: 'fictional-audio-object',
+    audioStreamId: 'fictional-audio-stream',
+    createdAt: '2026-08-08T00:00:00.000Z',
+    generationNo: 2,
+    jobId: 'capture-interruption-report:v1:fictional-session:2:fictional-audio-stream',
+    lastError: null,
+    projectId: 'fictional-project',
+    reason: 'page_recovery_detected',
+    recordType: 'capture-interruption-report-v1',
+    requestId,
+    sessionId: 'fictional-session',
+    status: 'pending',
+    updatedAt: '2026-08-08T00:00:00.000Z',
+  };
+}
+
+function rawUploadJobPut(factory: IDBFactory, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const open = factory.open('elder-interview-audio-buffer', 4);
+    open.onerror = (): void => {
+      reject(open.error ?? new Error('database open failed'));
+    };
+    open.onsuccess = (): void => {
+      const transaction = open.result.transaction('upload-jobs', 'readwrite');
+      transaction.onerror = (): void => {
+        reject(transaction.error ?? new Error('raw put failed'));
+      };
+      transaction.oncomplete = (): void => {
+        open.result.close();
+        resolve();
+      };
+      transaction.objectStore('upload-jobs').put(value);
+    };
+  });
+}
 
 function createVersionTwoDatabase(
   factory: IDBFactory,
