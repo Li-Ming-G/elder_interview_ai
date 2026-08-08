@@ -522,5 +522,6 @@
 - Adopted decision: SPEC-DEV-005R/ADR-023 正式承接批准决定；旧 DEV-005A/B/C 历史保持；旧未实施 DEV-005D 由 R3 取代；CON-020 等 R4 真实 Chromium PASS 后关闭。实现任务必须主动通知总控，提供 final head/PR/CI/命令/风险。
 - Implementation evidence: `03/04/05/06/08/09/10`、SPEC-DEV-005R、DEV-005R1/R2C/R2/R3/R4 任务卡、提示词、任务板、追踪、CON-020、ADR-023、HO-038；当前为契约候选，业务代码尚未实现。
 - Contract correction: R1 预审发现 `NO_AUDIO_CAPTURED` 发生时依法没有 finalization，而旧公共失败字段只嵌在 finalization。采用 session 顶层 `capture_failure_code`，只允许空采集失败并与 finalization failure 互斥；不创建伪 finalization。
+- Evidence correction: realtime runtime 是进程内状态，不能在重启后证明零 PCM；generation 增加一次性 `first_pcm_accepted_at`，第一帧被 adapter 接受时写入，空录音放弃要求其为空，不引入每帧数据库写放大。
 - Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
 - Better future prompt: “先把已批准的端到端决定写成正式契约，再按单一事实拥有者拆 worktree；允许纯核心模块并行，但共享 DTO、路由和中央文档只能由指定任务修改，所有任务交付到 GitHub REVIEW 后主动通知总控。”

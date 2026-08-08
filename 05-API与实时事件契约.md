@@ -245,7 +245,9 @@ POST /sessions/:id/recover
 
 `POST /sessions/:id/capture/interrupted` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "reason" }`。它是减权动作：当前 generation 为 `preparing|active` 且尚无 finalization 时，幂等写 `interrupted`、使 session 进入/保持 `interrupted` 并释放 producer。重新认证的原 actor 在 assignment 已失效后仍可报告；账号 disabled 不可。stop 已冻结或 session 已终态时只返回当前稳定 snapshot，不允许回退。普通网络/WS 故障不得调用本动作。
 
-`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、无已接受 PCM，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed`，保持 `finalization=null` 并返回顶层 `capture_failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
+`POST /sessions/:id/capture/abandon-empty` 请求为 `{ "request_id", "generation_no", "audio_stream_id", "local_archive_chunk_count": 0 }`。服务端在锁内确认 session/capture interrupted、无 finalization、audio object 无服务端分片、该 generation 的 `first_pcm_accepted_at` 为空，且客户端只声明零 archive；成功后把 generation 置 `abandoned_empty`、audio object 置 `failed`、session 置终态 `failed`，保持 `finalization=null` 并返回顶层 `capture_failure_code=NO_AUDIO_CAPTURED`。任一证据存在都必须 409，改走 resume 或 `finalize_interrupted`；服务端不得据此删除浏览器文件。
+
+业务 WebSocket 中该 generation 的第一帧 PCM 被 ASR adapter 成功接受后，服务端必须幂等写入 `first_pcm_accepted_at`；拒绝、背压或未被 adapter 接受的帧不能写。该事实不进入公共 snapshot，不包含 PCM、checksum 或正文。
 
 #### 3.5.1 公共会话结束 snapshot
 

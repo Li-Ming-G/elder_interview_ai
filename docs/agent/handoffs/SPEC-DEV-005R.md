@@ -16,6 +16,7 @@
 - DISC-005-R0/D 讨论收口，旧未实施 DEV-005D 由 R3 取代；
 - CON-020 仅记录设计已确定，继续等待真实实现证据。
 - R1 开工预审发现空录音没有 finalization、但旧公共失败字段仅存在于 finalization 的表达缝隙；已明确新增 session 顶层 `capture_failure_code=null|NO_AUDIO_CAPTURED`，与 finalization failure 互斥，禁止伪造空 finalization。
+- 总控接管草稿时发现进程内 runtime 无法在重启后证明“从未接受 PCM”；capture generation 增加只写一次的 `first_pcm_accepted_at`。空录音必须要求该字段为空，避免重启后把已有实时音频证据误判为零。
 
 ## 验证与边界
 
