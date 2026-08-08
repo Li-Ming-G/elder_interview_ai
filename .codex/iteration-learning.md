@@ -600,3 +600,14 @@
 - Implementation evidence: `apps/api/src/project-foundation/session-capture.service.ts` 与 `tests/integration/session-capture.test.ts`；PostgreSQL 定向 10/10、完整 integration 7/41、unit 26/136、auth 3/13、Chromium 4/4、build/smoke 全通过。
 - Lesson: “空”若用于终结共享聚合对象，就必须对该对象的完整历史求证，不能只检查最新一次尝试。
 - Better future prompt: “请把 NO_AUDIO_CAPTURED 定义为 session 全 capture generations 的聚合不变量，并测试早期 generation 有证据、最新 generation 为空的反例。”
+
+### 2026-08-08 — DEV-005R2C realtime teardown 与 checkpoint 活性修复
+
+- User outcome: 关闭 PR #12 中 realtime 永不完成、checkpoint 写失败和 Web Locks 请求拒绝导致原始 archive finalization 或所有权释放悬挂的失败路径，同时隔离 stop→start 后旧 PCM generation 的迟到结果。
+- Review mode: Correction mode；独立只读子 Agent 因 refresh token 被撤销而失败，本轮明确使用主 Agent 回退审查。
+- Review finding: archive final write 不能位于任何 realtime await 之后；串行持久化需要把单次失败返回给调用者，同时把内部 tail 恢复为可继续状态；复用 producer 时仅有共享 disabled 布尔值不足以隔离旧异步任务。
+- Options considered: 给整个 stop 增加超时；只让 producer.stop 不等待 delivery；archive-first cleanup 加 producer generation token。采用第三种，因为它同时保护原始证据优先、明确 teardown 上限和 resume 隔离。
+- Adopted decision: `BrowserCaptureCore` 先完成 recorder final archive，并在 finally 非阻塞停止 realtime、释放 track/lock；checkpoint 尾链吸收既往失败但当前写仍 reject；`PcmAudioWorkletProducer` 使用单调 generation，旧 frame completion 静默退出；Web Lock request 前置拒绝直接传给 acquire 且不毒化 release。
+- Implementation evidence: `browser-capture-core.ts/.spec.ts`、`pcm-audio-worklet-producer.ts/.spec.ts`、`session-browser-lock.ts/.spec.ts`；定向 unit 9/9、全量 unit 141/141、Chromium 6/6、音频 repeat 9/9、integration 30/30、auth 13/13、auth Chromium 4/4。
+- Lesson: “停止时不等待旧 Promise”只解决当前 teardown 活性；若对象会复用，还必须用 generation identity 防止旧 Promise 在新一代启动后重新获得写状态的能力。
+- Better future prompt: “所有可复用的异步 producer 在 stop/resume 测试中必须覆盖旧 generation 的 resolve、reject 和事件迟到；旧任务不得改变新 generation 状态，证据链 finalization 不得等待辅助链路。”

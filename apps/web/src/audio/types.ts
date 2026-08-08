@@ -41,15 +41,28 @@ export interface NewAudioChunk {
 export interface AudioChunkStore {
   acknowledge(sessionId: string, sequenceNo: number, checksumSha256: string): Promise<boolean>;
   get(sessionId: string, sequenceNo: number): Promise<BufferedAudioChunk | null>;
+  getArchive(sessionId: string, sequenceNo: number): Promise<ImmutableAudioChunk | null>;
+  getArchiveSnapshot(sessionId: string): Promise<AudioArchiveSnapshot>;
   getNextSequenceNo(sessionId: string): Promise<number>;
   getTimelineEndMs(sessionId: string): Promise<number>;
   list(sessionId: string): Promise<BufferedAudioChunk[]>;
+  listArchive(sessionId: string): Promise<ImmutableAudioChunk[]>;
   markFailed(sessionId: string, sequenceNo: number, errorCode: string): Promise<void>;
   markUploading(sessionId: string, sequenceNo: number): Promise<void>;
   persistImmutable(
     record: BufferedAudioChunk,
     maximumBufferedBytes: number,
   ): Promise<BufferedAudioChunk>;
+  runCanary(): Promise<void>;
+}
+
+export interface AudioArchiveSnapshot {
+  archiveByteLength: number;
+  archiveChunkCount: number;
+  archiveHighWaterSequenceNo: number;
+  deliveryAcknowledgedHighWaterSequenceNo: number;
+  pendingDeliveryCount: number;
+  timelineEndMs: number;
 }
 
 export type AudioUploadJobStatus = 'recording' | 'uploading' | 'completing' | 'complete' | 'failed';
@@ -73,6 +86,26 @@ export interface AudioUploadJob {
 export interface AudioUploadJobStore {
   getUploadJob(jobId: string): Promise<AudioUploadJob | null>;
   putUploadJob(job: AudioUploadJob): Promise<void>;
+}
+
+export type BrowserCaptureCheckpointStatus = 'failed' | 'recording' | 'starting' | 'stopped';
+
+export interface BrowserCaptureCheckpoint {
+  archiveHighWaterSequenceNo: number;
+  audioStreamId: string;
+  deliveryAcknowledgedHighWaterSequenceNo: number;
+  dirty: boolean;
+  localJobId: string;
+  mimeType: string;
+  sessionId: string;
+  status: BrowserCaptureCheckpointStatus;
+  timelineEndMs: number;
+  updatedAt: string;
+}
+
+export interface BrowserCaptureCheckpointStore {
+  getCaptureCheckpoint(localJobId: string): Promise<BrowserCaptureCheckpoint | null>;
+  putCaptureCheckpoint(checkpoint: BrowserCaptureCheckpoint): Promise<void>;
 }
 
 export function audioChunkKey(sessionId: string, sequenceNo: number): string {

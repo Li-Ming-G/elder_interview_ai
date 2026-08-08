@@ -62,6 +62,73 @@ test('native MediaRecorder and IndexedDB preserve audio queue progress across re
   expect(await numericText(reopened, 'timeline-end')).toBeGreaterThan(firstTimelineEnd);
 });
 
+test('single injected stream drives archive and 3200-byte PCM while dirty recovery preserves archive', async ({
+  page,
+}) => {
+  const sessionId = `capture-core-${Date.now().toString()}`;
+  const harnessUrl = `/?capture_core_harness=1&session_id=${encodeURIComponent(sessionId)}`;
+
+  await page.goto(harnessUrl);
+  await expect(page.getByTestId('capture-core-harness')).toBeVisible();
+  await page.getByTestId('core-start').click();
+  await expect(page.getByTestId('core-capture-status')).toHaveText('recording');
+  await expect(page.getByTestId('source-create-count')).toHaveText('1');
+  await expect.poll(async () => numericText(page, 'pcm-frame-count')).toBeGreaterThan(0);
+  await expect(page.getByTestId('pcm-frame-bytes')).toHaveText('3200');
+  await expect.poll(async () => numericText(page, 'archive-count')).toBeGreaterThan(0);
+  await expect(page.getByTestId('checkpoint-dirty')).toHaveText('true');
+  await expect(page.getByTestId('checkpoint-stream')).toHaveText(`${sessionId}:stream-0`);
+
+  const archiveBeforeReload = await numericText(page, 'archive-count');
+  const archiveHighWaterBeforeReload = await numericText(page, 'archive-high-water');
+  const timelineBeforeReload = await numericText(page, 'archive-timeline');
+  const stableJobRequest = await page.getByTestId('delivery-request-id').textContent();
+  expect(stableJobRequest).not.toBe('none');
+
+  await page.reload();
+  await expect
+    .poll(async () => numericText(page, 'archive-count'))
+    .toBeGreaterThanOrEqual(archiveBeforeReload);
+  const archiveAfterReload = await numericText(page, 'archive-count');
+  await expect(page.getByTestId('delivery-count')).toHaveText(archiveAfterReload.toString());
+  await expect
+    .poll(async () => numericText(page, 'archive-high-water'))
+    .toBeGreaterThanOrEqual(archiveHighWaterBeforeReload);
+  await expect
+    .poll(async () => numericText(page, 'archive-timeline'))
+    .toBeGreaterThanOrEqual(timelineBeforeReload);
+  await expect(page.getByTestId('checkpoint-dirty')).toHaveText('true');
+  await expect(page.getByTestId('delivery-request-id')).toHaveText(stableJobRequest ?? '');
+
+  await page.getByTestId('core-start').click();
+  await expect(page.getByTestId('core-capture-status')).toHaveText('recording');
+  await expect
+    .poll(async () => numericText(page, 'archive-count'))
+    .toBeGreaterThan(archiveAfterReload);
+  await page.getByTestId('core-stop').click();
+  await expect(page.getByTestId('core-capture-status')).toHaveText('stopped');
+  await expect(page.getByTestId('checkpoint-dirty')).toHaveText('false');
+
+  const finalArchiveCount = await numericText(page, 'archive-count');
+  const finalArchiveHighWater = await numericText(page, 'archive-high-water');
+  const finalTimeline = await numericText(page, 'archive-timeline');
+  await page.getByTestId('delivery-ack').click();
+  await expect(page.getByTestId('delivery-count')).toHaveText('0');
+  await expect(page.getByTestId('archive-count')).toHaveText(finalArchiveCount.toString());
+  await expect(page.getByTestId('delivery-high-water')).toHaveText(
+    finalArchiveHighWater.toString(),
+  );
+  const stableChunkRequest = await page.getByTestId('delivery-request-id').textContent();
+  expect(stableChunkRequest).not.toBe('none');
+
+  await page.reload();
+  await expect(page.getByTestId('archive-count')).toHaveText(finalArchiveCount.toString());
+  await expect(page.getByTestId('delivery-count')).toHaveText('0');
+  await expect(page.getByTestId('archive-high-water')).toHaveText(finalArchiveHighWater.toString());
+  await expect(page.getByTestId('archive-timeline')).toHaveText(finalTimeline.toString());
+  await expect(page.getByTestId('delivery-request-id')).toHaveText(stableChunkRequest ?? '');
+});
+
 test('persistent upload job retries the same chunk request after response loss and reload', async ({
   page,
 }) => {

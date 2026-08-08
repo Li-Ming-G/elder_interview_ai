@@ -5,8 +5,10 @@ import {
 } from './errors.js';
 import {
   audioChunkKey,
+  type AudioArchiveSnapshot,
   type AudioChunkStore,
   type BufferedAudioChunk,
+  type ImmutableAudioChunk,
   type NewAudioChunk,
 } from './types.js';
 
@@ -70,6 +72,20 @@ export class AudioChunkQueue {
   public async restore(sessionId: string): Promise<BufferedAudioChunk[]> {
     requireSessionId(sessionId);
     return this.store.list(sessionId);
+  }
+
+  public async restoreArchive(sessionId: string): Promise<ImmutableAudioChunk[]> {
+    requireSessionId(sessionId);
+    return this.store.listArchive(sessionId);
+  }
+
+  public async getArchiveSnapshot(sessionId: string): Promise<AudioArchiveSnapshot> {
+    requireSessionId(sessionId);
+    return this.store.getArchiveSnapshot(sessionId);
+  }
+
+  public async runCanary(): Promise<void> {
+    return this.store.runCanary();
   }
 
   public async getNextSequenceNo(sessionId: string): Promise<number> {

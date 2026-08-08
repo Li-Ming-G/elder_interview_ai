@@ -119,6 +119,21 @@ describe('BrowserAudioRecorder', () => {
     await recorder.stop();
   });
 
+  it('records an injected stream without requesting or stopping a second stream', async () => {
+    const { fakeRecorder, getUserMedia, queue, recorder, stopTrack } = harness();
+    const injectedStop = vi.fn();
+    const stream = { getTracks: () => [{ stop: injectedStop }] } as unknown as MediaStream;
+
+    await recorder.startWithStream({ canRecord: true, sessionId: 'fictional-session' }, stream);
+    fakeRecorder.emit('single-source');
+    await recorder.stop();
+
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(stopTrack).not.toHaveBeenCalled();
+    expect(injectedStop).not.toHaveBeenCalled();
+    expect(await queue.restoreArchive('fictional-session')).toHaveLength(2);
+  });
+
   it('continues sequence numbers after restoring pending chunks', async () => {
     const sharedStore = new InMemoryAudioChunkStore();
     const firstQueue = new AudioChunkQueue(sharedStore, {
