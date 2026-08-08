@@ -41,6 +41,7 @@
 | DEV-005D | 安全结束页薄集成（旧任务） | 无 | CANCELLED | 已由 DEV-005R3 取代 | [历史任务卡](tasks/DEV-005D.md)、HO-037 | 未实施；不撤销旧 A/B/C，结束与中断体验由新纵向任务承接 |
 | SPEC-DEV-005R | 首次访谈真实采集纵向链路重构契约 | 总控 Agent | REVIEW | A-R/B-R/C-R/D-R 已批准 | [任务卡](tasks/SPEC-DEV-005R.md)、ADR-023、CON-020 | 已形成正式候选；等待 GitHub 审查，不能自行标 DONE |
 | DEV-005R1 | 服务端采集生命周期与原子开始 | 独立任务 `019fdce6-9745-7aa0-b430-8dd0f7fcf27a` | IN_PROGRESS | SPEC-DEV-005R 候选基线；合并等待 SPEC PASS | [任务卡](tasks/DEV-005R1.md) | stacked candidate；独占共享数据/API/DTO，完成后主动通知总控复核 |
+| DISC-005R-UI | 页面内容占比与注意力层级 | 独立任务 `019fdee4-c4b0-7073-b652-0f0caea99cdc` | IN_PROGRESS | SPEC-DEV-005R、DEV-005R3 | [任务卡](tasks/DISC-005R-UI.md) | 只讨论不实现；冻结正常/中断/结束态和桌面/窄屏比例后再允许 R3 设计实现 |
 | DEV-005R2C | 浏览器采集与归档核心（并行基础） | 独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9` | IN_PROGRESS | SPEC-DEV-005R 候选基线 | [任务卡](tasks/DEV-005R2C.md) | 禁止改共享 DTO、正式路由、工作台和中央治理文档；完成后主动通知总控 |
 | DEV-005R2 | 浏览器单流采集、归档与交付控制器 | 待创建的前端音频实现任务 | BLOCKED | DEV-005R1、DEV-005R2C PASS | [任务卡](tasks/DEV-005R2.md) | 集成 R1 公共契约与 R2C 核心；正式路由接线后交 R3 |
 | DEV-005R3 | 正式工作台采集、恢复与安全结束体验 | 待创建的前端产品实现任务 | BLOCKED | DEV-005R1、DEV-005R2 PASS | [任务卡](tasks/DEV-005R3.md) | UI 必须使用 impeccable；同一工作台 URL，不伪造服务端事实 |

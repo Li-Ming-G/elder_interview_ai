@@ -521,7 +521,18 @@
 - Options considered: 所有功能一个大 PR；多 Agent 同时改共享契约；短暂 SPEC 基线后有限并行和 stacked candidates。采用第三种。
 - Adopted decision: SPEC-DEV-005R/ADR-023 正式承接批准决定；旧 DEV-005A/B/C 历史保持；旧未实施 DEV-005D 由 R3 取代；CON-020 等 R4 真实 Chromium PASS 后关闭。实现任务必须主动通知总控，提供 final head/PR/CI/命令/风险。
 - Implementation evidence: `03/04/05/06/08/09/10`、SPEC-DEV-005R、DEV-005R1/R2C/R2/R3/R4 任务卡、提示词、任务板、追踪、CON-020、ADR-023、HO-038；当前为契约候选，业务代码尚未实现。
+
 - Contract correction: R1 预审发现 `NO_AUDIO_CAPTURED` 发生时依法没有 finalization，而旧公共失败字段只嵌在 finalization。采用 session 顶层 `capture_failure_code`，只允许空采集失败并与 finalization failure 互斥；不创建伪 finalization。
 - Evidence correction: realtime runtime 是进程内状态，不能在重启后证明零 PCM；generation 增加一次性 `first_pcm_accepted_at`，第一帧被 adapter 接受时写入，空录音放弃要求其为空，不引入每帧数据库写放大。
 - Lesson: 并行的前提不是任务名称不同，而是每一份事实只有一个拥有者；先冻结所有权，再并行不会共享同一 API/路由/状态机的模块。
+
+### 2026-08-08 — DEV-005R 页面内容占比讨论前置
+
+- User outcome: 在继续开发前补齐准备页、正常工作台、中断与结束状态的内容占比和注意力层级，避免 DEV-005R3 自行猜测。
+- Review mode: Correction mode；独立只读 UX 复核确认“转录约 80%”只覆盖正常态粗略方向，尚未冻结视口口径、窄屏、五类事实布局和状态变化后的重分配。
+- Options considered: 全状态固定 80% 转录；改为左右仪表盘；保持纵向结构并按业务状态改变比例。推荐第三种。
+- Adopted decision: pending user choice；已创建独立讨论任务 `DISC-005R-UI 页面内容占比与注意力层级`，从桌面 `8/79/13`、窄屏 `9/73/18` 和 interrupted/结束态重分配候选开始逐项确认。
+- Implementation evidence: 无；本轮只启动产品讨论，DEV-005R1 后端检查点与 R2C/R2 技术边界不变，DEV-005R3 UI 实现继续等待讨论结论。
+- Lesson: 页面比例应表达用户在当前业务状态下的首要任务；正常录制时转录居中，中断或结束时安全处置必须取得视觉主导，不能让一个静态百分比贯穿所有状态。
+- Better future prompt: “请分别给正常录制、中断、保存处理中和完成状态定义桌面/窄屏的内容比例、常驻事实、折叠事实与验收视口，再开始页面实现。”
 - Better future prompt: “先把已批准的端到端决定写成正式契约，再按单一事实拥有者拆 worktree；允许纯核心模块并行，但共享 DTO、路由和中央文档只能由指定任务修改，所有任务交付到 GitHub REVIEW 后主动通知总控。”
