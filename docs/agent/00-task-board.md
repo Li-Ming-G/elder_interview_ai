@@ -40,10 +40,10 @@
 | DISC-005D | 安全结束页产品体验讨论 | 项目负责人 + 总控 Agent | DONE | DEV-005A、DEV-005B、DEV-005C PASS | [历史讨论卡](tasks/DISC-005D.md) | 旧候选已在 D-R 中复核、修订并写入 SPEC-DEV-005R；保留历史输入 |
 | DEV-005D | 安全结束页薄集成（旧任务） | 无 | CANCELLED | 已由 DEV-005R3 取代 | [历史任务卡](tasks/DEV-005D.md)、HO-037 | 未实施；不撤销旧 A/B/C，结束与中断体验由新纵向任务承接 |
 | SPEC-DEV-005R | 首次访谈真实采集纵向链路重构契约 | 总控 Agent | DONE | A-R/B-R/C-R/D-R 已批准 | [任务卡](tasks/SPEC-DEV-005R.md)、ADR-023/024、CON-020/021、PR #11 head `80ab84f`、CI `31244954185` PASS、REV-021 PASS、merge `c572490` | 四个 P1 定向关闭，stacked 契约基线已解除；不代表 DEV-005R 实现完成 |
-| DEV-005R1 | 服务端采集生命周期与原子开始 | 独立任务 `019fdce6-9745-7aa0-b430-8dd0f7fcf27a` | DONE | SPEC-DEV-005R PASS | [任务卡](tasks/DEV-005R1.md)、PR #13 head `c19a295`、CI `31245403822` PASS、REV-020 定向复审 PASS、merge `656db20` | 全 generation PCM P1 已关闭；R1 前置完成，R2 仍等待 R2C PASS |
+| DEV-005R1 | 服务端采集生命周期与原子开始 | 独立任务 `019fdce6-9745-7aa0-b430-8dd0f7fcf27a` | DONE | SPEC-DEV-005R PASS | [任务卡](tasks/DEV-005R1.md)、PR #13 head `c19a295`、CI `31245403822` PASS、REV-020 定向复审 PASS、merge `656db20` | 全 generation PCM P1 已关闭；R1 前置完成 |
 | DISC-005R-UI | 页面内容占比与注意力层级 | 独立任务 `019fdee4-c4b0-7073-b652-0f0caea99cdc` | DONE | SPEC-DEV-005R、DEV-005R3 | [任务卡](tasks/DISC-005R-UI.md)、[HO-040](handoffs/DISC-005R-UI.md) | 用户逐项确认并由总控写回；Android Chrome 为完整主设备，R2 生命周期证据登记 CON-021 |
-| DEV-005R2C | 浏览器采集与归档核心（并行基础） | 独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9` | IN_PROGRESS | SPEC-DEV-005R 候选基线 | [任务卡](tasks/DEV-005R2C.md) | 禁止改共享 DTO、正式路由、工作台和中央治理文档；完成后主动通知总控 |
-| DEV-005R2 | 浏览器单流采集、归档与交付控制器 | 待创建的前端音频实现任务 | BLOCKED | DEV-005R1、DEV-005R2C PASS | [任务卡](tasks/DEV-005R2.md)、CON-021 | 集成 R1/R2C，并以 Android Chrome 真机冻结后台/锁屏/旋转/设备中断行为 |
+| DEV-005R2C | 浏览器采集与归档核心（并行基础） | 独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9` | DONE | SPEC-DEV-005R PASS | [任务卡](tasks/DEV-005R2C.md)、PR #12 head `ae07747`、CI `31246011913` PASS、REV-022 PASS、merge `e455c13` | 四项定向修复 4/4 关闭；浏览器核心积木完成，Android Chrome 生命周期语义仍由 R2 真机证据冻结 |
+| DEV-005R2 | 浏览器单流采集、归档与交付控制器 | 待创建的前端音频实现任务 | READY | DEV-005R1、DEV-005R2C PASS | [任务卡](tasks/DEV-005R2.md)、CON-021 | 前置已满足；集成 R1/R2C，并以 Android Chrome 真机冻结后台/锁屏/旋转/设备中断行为 |
 | DEV-005R3 | 正式工作台采集、恢复与安全结束体验 | 待创建的前端产品实现任务 | BLOCKED | DEV-005R1、DEV-005R2 PASS、DISC-005R-UI DONE | [任务卡](tasks/DEV-005R3.md) | UI 必须使用 impeccable；五视口、分状态比例、高密度转录，不伪造服务端事实 |
 | DEV-005R4 | 首次访谈真实采集纵向验收与收口 | 待创建的集成验收任务 | BLOCKED | DEV-005R1、DEV-005R2、DEV-005R3 PASS | [任务卡](tasks/DEV-005R4.md)、CON-020、CON-021 | 桌面+Android Chrome 真机故障矩阵 PASS 后才可关闭父任务与冲突 |
 | DEV-006 | 结构化长期记忆 | 待分配 | BLOCKED | DEV-004 | `04`、`07`、`09` | 等待确定态转录与已批准边界过滤契约 |

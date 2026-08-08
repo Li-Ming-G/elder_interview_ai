@@ -404,6 +404,16 @@ P2：
 - 关闭依据：`abandonEmpty()` 在既有资源锁内查询整个 session 所有 generations；任一 `firstPcmAcceptedAt` 即拒绝 `NO_AUDIO_CAPTURED`。PostgreSQL 覆盖 gen0 有 PCM、resume gen1 无 PCM 后 abandon 返回 `CAPTURE_EVIDENCE_EXISTS`，并验证 session 仍 interrupted、audio 不变、finalization 为空且两代 generation 事实不变。
 - 合并记录：PR #13 以 merge commit `656db200f7313abdf54c1492d32d594c6390f9b6` 合入 `main`；DEV-005R1 DONE。R2 的 R1 前置已满足，但仍等待 R2C PASS。
 
+## REV-022｜DEV-005R2C GitHub 项目负责人定向复审
+
+- 审查 PR：[#12](https://github.com/Li-Ming-G/elder_interview_ai/pull/12)
+- 最终审查提交：`ae0774763e36c13d3e4d99b666039adf15ef0c2e`；base `main@4784080343fa2175dccf997fd79815884ce58069`，PR open、非 Draft、可合并且 head 未漂移。
+- 自动证据：CI `31246011913` 完整 verify PASS，包括 format、lint、typecheck、unit、migration、integration、auth、build、smoke、E2E 与 auth Chromium；专用音频 Chromium repeat-each=3 为 9/9。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 关闭依据：archive-first 停止顺序等待最终 Blob 持久化后才做非阻塞 realtime teardown；checkpoint 当前写失败可见而内部尾链可恢复且保留首因；Web Locks callback 前 rejection 稳定收束；producer generation 隔离旧异步 resolve/reject，不能污染新代状态。四项定向修复 4/4 关闭。
+- 范围边界：只覆盖浏览器采集与归档核心积木；未提前实现 API、Prisma、共享 DTO、正式工作台或 DEV-005R2/R3。Android Chrome 页面生命周期与长时真机证据继续由 DEV-005R2/R4 负责。
+- 合并记录：PR #12 以 merge commit `e455c13f34a61de699d6e6015c055bec6b83be28` 合入 `main`；DEV-005R2C DONE，DEV-005R2 READY。
+
 ## 审查模板
 
 ```text

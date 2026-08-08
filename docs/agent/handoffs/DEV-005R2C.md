@@ -1,10 +1,11 @@
-# DEV-005R2C｜浏览器采集与归档核心 REVIEW 交接
+# DEV-005R2C｜浏览器采集与归档核心最终交接
 
 ## 候选范围
 
 - 分支：`codex/dev-005r2c-browser-capture`
-- 基线：`origin/codex/dev-005r-contract-baseline@07de3deda85dae1d1691786480b65f09bdb88879`
-- 状态：`REVIEW`；未修改共享 DTO、API、Prisma、正式 interview 路由/工作台/准备页、全局样式或中央治理文档。
+- 最终 head：`ae0774763e36c13d3e4d99b666039adf15ef0c2e`
+- 最终基线：`main@4784080343fa2175dccf997fd79815884ce58069`
+- 状态：`DONE`；PR #12 以 merge commit `e455c13f34a61de699d6e6015c055bec6b83be28` 合入 `main`。未修改共享 DTO、API、Prisma、正式 interview 路由/工作台/准备页、全局样式或中央治理文档。
 
 ## 实现证据
 
@@ -31,6 +32,13 @@
 - 重采样采用连续线性插值，满足格式/帧长契约；长时运行的音质、功耗、厂商 MediaRecorder 分片行为仍需 Android 真机验收。
 - Web Locks 不承诺跨浏览器或跨设备所有权；服务端租约/冲突状态不在本任务范围。
 - archive 保留策略有意不随 ACK 回收；最终清理时点与容量产品策略由后续正式集成确定。
+
+## 最终审查
+
+- REV-022：项目负责人定向复审 `PASS`，P0=0、P1=0。
+- 四项修复 4/4 关闭：archive-first 停止流程、checkpoint 失败恢复与首因、Web Locks request rejection、旧 generation 异步结果隔离。
+- GitHub CI `31246011913` 完整 verify PASS；总控在最终 head 另行复跑关键 unit 3 files / 9 tests PASS，并确认换基前后 `apps/web` 与 `tests/e2e` 业务逻辑无差异。
+- 下一接收对象：DEV-005R2；其状态已解锁为 `READY`。
 
 ## REQUEST_CHANGES 定向修复候选
 

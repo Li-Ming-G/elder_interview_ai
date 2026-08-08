@@ -8,9 +8,9 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
-| SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R1/2C/2/3/4 | PR #11 已合并且契约 DONE；R1 定向修复、R2C 审查后按顺序进入 R2，CON-020/021 仍开放 |
+| SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R2/3/4 | 契约、R1、R2C 已 DONE；当前进入 R2，CON-020/021 仍开放 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
-| DEV-005R2C/2/3/4 | [HO-038](handoffs/SPEC-DEV-005R.md)、[HO-040](handoffs/DISC-005R-UI.md) | 后续独立项目任务 | R2C 等最终审查；R2 冻结 Android 生命周期，随后 R3→R4；UI 使用 impeccable |
+| DEV-005R2/3/4 | [DEV-005R2C 交接](handoffs/DEV-005R2C.md)、[HO-038](handoffs/SPEC-DEV-005R.md)、[HO-040](handoffs/DISC-005R-UI.md) | 后续独立项目任务 | R2 已 READY，负责集成 R1/R2C 并冻结 Android 生命周期；随后 R3→R4，UI 使用 impeccable |
 
 ## 最近已完成交接
 
@@ -25,7 +25,8 @@
 | SPEC-SESSION-END-001 | [HO-032](handoffs/SPEC-SESSION-END-001.md) | PR #8 合并，REV-017 最终 PASS，契约 DONE；CON-019 RESOLVED，DEV-005C READY |
 | DEV-005B | [HO-035](handoffs/DEV-005B.md) | PR #9 合并，REV-018 PASS，转录优先工作台 DONE；父 DEV-005 继续 BLOCKED |
 | DEV-005C | [HO-034](handoffs/DEV-005C.md) | PR #10 合并，REV-019 第三次定向复审 PASS，服务端安全结束 DONE；实现前新增 DISC-005D 产品讨论门槛 |
-| DEV-005R1 | [HO-039](handoffs/DEV-005R1.md) | PR #13 head `c19a295`、CI `31245403822`、REV-020 定向复审 PASS、merge `656db20`；R1 DONE，R2 等待 R2C |
+| DEV-005R1 | [HO-039](handoffs/DEV-005R1.md) | PR #13 head `c19a295`、CI `31245403822`、REV-020 定向复审 PASS、merge `656db20`；R1 DONE，前置已交给 READY 的 R2 |
+| DEV-005R2C | [任务交接](handoffs/DEV-005R2C.md) | PR #12 head `ae07747`、CI `31246011913`、REV-022 PASS、merge `e455c13`；R2C DONE，DEV-005R2 READY |
 | DOC-002 | HO-025 | 协作文档当前态与历史归档分离完成 |
 
 ## 使用规则

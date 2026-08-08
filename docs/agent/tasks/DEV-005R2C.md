@@ -2,10 +2,10 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`（独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9`）
+- 状态：`DONE`（独立任务 `019fdce6-9746-7e63-8776-03f4264bb1d9`）
 - 负责人：新的前端音频核心实现任务
 - 输入依据：`SPEC-DEV-005R`、`06`、`09`、ADR-023
-- 前置依赖：SPEC-DEV-005R 候选基线已提交；只做不依赖共享 DTO 的浏览器核心
+- 前置依赖：SPEC-DEV-005R PASS；只做不依赖共享 DTO 的浏览器核心
 - 交接对象：DEV-005R2、总控 Agent
 
 ## 目标
@@ -41,4 +41,12 @@
 - IndexedDB v4 将不可变 archive Blob 与 delivery 引用分仓，ACK 只删除 delivery，并保留 sequence、timeline、ACK/ archive 高水位、upload job 与 dirty checkpoint；
 - worklet 在音频线程完成 mono/16k/s16le 重采样并按 100ms/3200 bytes 出帧；既有 transport 保持 20 个未 ACK 帧背压；
 - 增加顺序 delivery pump、持久 request ID seam、canary/容量阈值、Web Locks 单浏览器单标签所有权及 track/recorder/write 失败回调；
-- 本地 format、lint、全仓 typecheck、unit、build 与 Chromium 均通过；等待独立审查，不宣告 `PASS/DONE`。
+- 本地 format、lint、全仓 typecheck、unit、build 与 Chromium 均通过；项目负责人已对 PR #12 final head `ae07747` 给出 REV-022 PASS，merge `e455c13`，任务收口为 `DONE`。
+
+## 最终审查与合并
+
+- 最终 head：`ae0774763e36c13d3e4d99b666039adf15ef0c2e`；base：`main@4784080343fa2175dccf997fd79815884ce58069`。
+- CI：`31246011913` 完整 verify PASS；定向 unit 3 files / 9 tests、音频 Chromium repeat-each=3 为 9/9。
+- REV-022：`PASS`，P0=0、P1=0；archive-first、checkpoint 恢复/首因、Web Locks 异常及旧 generation 隔离四项 4/4 关闭。
+- 合并：PR #12 以 merge commit `e455c13f34a61de699d6e6015c055bec6b83be28` 合入 `main`。
+- 边界：Android Chrome 后台、锁屏、旋转与设备中断行为仍由 DEV-005R2 真机证据冻结。
