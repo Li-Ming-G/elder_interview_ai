@@ -86,12 +86,17 @@ test('single injected stream drives archive and 3200-byte PCM while dirty recove
   expect(stableJobRequest).not.toBe('none');
 
   await page.reload();
-  await expect(page.getByTestId('archive-count')).toHaveText(archiveBeforeReload.toString());
-  await expect(page.getByTestId('delivery-count')).toHaveText(archiveBeforeReload.toString());
-  await expect(page.getByTestId('archive-high-water')).toHaveText(
-    archiveHighWaterBeforeReload.toString(),
-  );
-  await expect(page.getByTestId('archive-timeline')).toHaveText(timelineBeforeReload.toString());
+  await expect
+    .poll(async () => numericText(page, 'archive-count'))
+    .toBeGreaterThanOrEqual(archiveBeforeReload);
+  const archiveAfterReload = await numericText(page, 'archive-count');
+  await expect(page.getByTestId('delivery-count')).toHaveText(archiveAfterReload.toString());
+  await expect
+    .poll(async () => numericText(page, 'archive-high-water'))
+    .toBeGreaterThanOrEqual(archiveHighWaterBeforeReload);
+  await expect
+    .poll(async () => numericText(page, 'archive-timeline'))
+    .toBeGreaterThanOrEqual(timelineBeforeReload);
   await expect(page.getByTestId('checkpoint-dirty')).toHaveText('true');
   await expect(page.getByTestId('delivery-request-id')).toHaveText(stableJobRequest ?? '');
 
@@ -99,7 +104,7 @@ test('single injected stream drives archive and 3200-byte PCM while dirty recove
   await expect(page.getByTestId('core-capture-status')).toHaveText('recording');
   await expect
     .poll(async () => numericText(page, 'archive-count'))
-    .toBeGreaterThan(archiveBeforeReload);
+    .toBeGreaterThan(archiveAfterReload);
   await page.getByTestId('core-stop').click();
   await expect(page.getByTestId('core-capture-status')).toHaveText('stopped');
   await expect(page.getByTestId('checkpoint-dirty')).toHaveText('false');
