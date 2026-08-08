@@ -31,3 +31,13 @@
 - 重采样采用连续线性插值，满足格式/帧长契约；长时运行的音质、功耗、厂商 MediaRecorder 分片行为仍需 Android 真机验收。
 - Web Locks 不承诺跨浏览器或跨设备所有权；服务端租约/冲突状态不在本任务范围。
 - archive 保留策略有意不随 ACK 回收；最终清理时点与容量产品策略由后续正式集成确定。
+
+## REQUEST_CHANGES 定向修复候选
+
+- 原始 archive 终止顺序改为先等待 `MediaRecorder.stop()` 与最终 Blob 持久化，再启动不阻塞 archive 的 realtime teardown；即使 `pcmProducer.stop()` 或在途 `onFrame` 永不 settle，checkpoint、track cleanup 和 browser lock 释放仍完成。
+- `PcmAudioWorkletProducer.stop()` 同步断开 source/node/port，不再等待 delivery chain；`AudioContext.close()` 最多等待 250ms。每次 start/stop 推进 generation，旧 generation 的延迟 resolve/reject 不得触发新代 backpressure/failure，也不能 disable 新代 producer。
+- checkpoint 串行器把“本次写入结果”和“内部可继续尾链”分开；运行时写失败进入一次 `local_archive_failed`，失败 checkpoint 可重试，持续写失败也由 finally 保证 recorder final archive、track 和锁清理。cleanup 次生错误不覆盖最初 failure callback 根因。
+- `SessionBrowserLock.acquire()` 在 `locks.request()` 于 callback 前拒绝时稳定 reject；内部 request promise 吸收该拒绝，后续 `release()` 不悬挂。
+- 定向 unit：3 files / 9 tests，覆盖挂起 producer stop、挂起 onFrame/context close、旧 generation resolve/reject、checkpoint 瞬时/持续失败及 lock request reject。
+- 完整本地门禁：format、lint、全仓 typecheck、unit 29 files / 141 tests、migration deploy/status、integration 30/30、auth 13/13、build、smoke、Chromium 6/6、auth Chromium 4/4 全部通过；音频 Chromium repeat-each=3 为 9/9。
+- 独立只读子 Agent 因 Codex refresh token 被撤销而不可用；本轮按 iteration-coach 约定由主 Agent 回退审查。任务保持 `REVIEW`，等待 PR #12 新 head CI 与总控复核。

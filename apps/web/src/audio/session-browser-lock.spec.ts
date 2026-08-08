@@ -31,4 +31,16 @@ describe('SessionBrowserLock', () => {
     await expect(second.acquire()).resolves.toBe(true);
     await second.release();
   });
+
+  it('rejects without hanging when the browser lock request fails before callback', async () => {
+    const failure = new Error('synthetic lock manager failure');
+    const lock = new SessionBrowserLock('fictional-session', {
+      locks: {
+        request: (): Promise<void> => Promise.reject(failure),
+      },
+    });
+
+    await expect(lock.acquire()).rejects.toBe(failure);
+    await expect(lock.release()).resolves.toBeUndefined();
+  });
 });

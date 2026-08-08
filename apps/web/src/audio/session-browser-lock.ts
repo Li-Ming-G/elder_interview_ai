@@ -29,8 +29,11 @@ export class SessionBrowserLock {
     const locks = this.options.locks ?? asLockManager(browserLocks);
     if (locks === null) throw new Error('BROWSER_LOCK_UNAVAILABLE');
 
+    let rejectAttempt: (error: unknown) => void = () => undefined;
     let settleAttempt: (acquired: boolean) => void = () => undefined;
-    const attempt = new Promise<boolean>((resolve) => {
+    let attemptSettled = false;
+    const attempt = new Promise<boolean>((resolve, reject) => {
+      rejectAttempt = reject;
       settleAttempt = resolve;
     });
     this.requestPromise = locks
@@ -39,10 +42,12 @@ export class SessionBrowserLock {
         { ifAvailable: true, mode: 'exclusive' },
         async (lock): Promise<void> => {
           if (lock === null) {
+            attemptSettled = true;
             settleAttempt(false);
             return;
           }
           this.acquired = true;
+          attemptSettled = true;
           settleAttempt(true);
           await new Promise<void>((resolve) => {
             this.releaseHeldLock = resolve;
@@ -51,6 +56,12 @@ export class SessionBrowserLock {
           this.acquired = false;
         },
       )
+      .catch((error: unknown) => {
+        if (!attemptSettled) {
+          attemptSettled = true;
+          rejectAttempt(error);
+        }
+      })
       .finally(() => {
         this.requestPromise = null;
       });

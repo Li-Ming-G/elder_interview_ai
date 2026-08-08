@@ -74,7 +74,7 @@ export class BrowserCaptureCore {
       try {
         await this.options.pcmProducer.start(input.stream);
       } catch (error) {
-        this.options.onRealtimeFailure?.(error);
+        this.reportRealtimeFailure(error);
       }
       const checkpoint = await this.options.checkpointStore.getCaptureCheckpoint(input.localJobId);
       if (checkpoint === null) throw new Error('capture checkpoint missing');
@@ -89,14 +89,23 @@ export class BrowserCaptureCore {
   public async stop(): Promise<ImmutableAudioChunk[]> {
     const active = this.active;
     if (active === null) return [];
-    await this.options.pcmProducer.stop().catch((error: unknown) => {
-      this.options.onRealtimeFailure?.(error);
-    });
-    await this.options.recorder.stop();
-    await this.writeCheckpoint('stopped', false);
-    await this.checkpointWrite;
-    const archive = await this.options.queue.restoreArchive(active.sessionId);
-    await this.releaseActive();
+    let archive: ImmutableAudioChunk[] = [];
+    let firstError: unknown;
+    try {
+      await this.options.recorder.stop();
+      archive = await this.options.queue.restoreArchive(active.sessionId);
+      await this.writeCheckpoint('stopped', false);
+    } catch (error) {
+      firstError = error;
+    } finally {
+      this.stopRealtimeWithoutBlockingArchive();
+      try {
+        await this.releaseActive();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    if (firstError !== undefined) throw toError(firstError);
     return archive;
   }
 
@@ -113,13 +122,16 @@ export class BrowserCaptureCore {
     if (this.failing || this.active === null) return;
     this.failing = true;
     try {
-      this.options.onCaptureFailure?.(reason, error);
-      await this.options.pcmProducer.stop().catch(() => undefined);
+      try {
+        this.options.onCaptureFailure?.(reason, error);
+      } catch {
+        // Observer failures cannot prevent raw archive finalization and cleanup.
+      }
       await this.options.recorder.stop().catch(() => undefined);
-      await this.writeCheckpoint('failed', true);
-      await this.checkpointWrite;
-      await this.releaseActive();
+      await this.writeCheckpoint('failed', true).catch(() => undefined);
     } finally {
+      this.stopRealtimeWithoutBlockingArchive();
+      await this.releaseActive().catch(() => undefined);
       this.failing = false;
     }
   }
@@ -136,7 +148,9 @@ export class BrowserCaptureCore {
       return;
     }
     if (snapshot.status === 'recording' || snapshot.status === 'stopping') {
-      void this.writeCheckpoint('recording', true);
+      void this.writeCheckpoint('recording', true).catch((error: unknown) =>
+        this.failCapture('local_archive_failed', error),
+      );
       this.storageCheck ??= this.options.storageGuard
         .assertCanContinue()
         .then((assessment) => {
@@ -155,7 +169,7 @@ export class BrowserCaptureCore {
   ): Promise<void> {
     const active = this.active;
     if (active === null) return Promise.resolve();
-    this.checkpointWrite = this.checkpointWrite.then(async () => {
+    const write = this.checkpointWrite.then(async () => {
       const snapshot = await this.options.queue.getArchiveSnapshot(active.sessionId);
       await this.options.checkpointStore.putCaptureCheckpoint({
         archiveHighWaterSequenceNo: snapshot.archiveHighWaterSequenceNo,
@@ -170,19 +184,70 @@ export class BrowserCaptureCore {
         updatedAt: this.now().toISOString(),
       });
     });
-    return this.checkpointWrite;
+    this.checkpointWrite = write.catch(() => undefined);
+    return write;
   }
 
   private async releaseActive(): Promise<void> {
     const active = this.active;
     if (active === null) return;
-    this.unsubscribeRecorder?.();
+    let firstError: unknown;
+    try {
+      this.unsubscribeRecorder?.();
+    } catch (error) {
+      firstError = error;
+    }
     this.unsubscribeRecorder = null;
-    this.detachTracks(active.stream);
-    for (const track of active.stream.getTracks()) track.stop();
+    try {
+      this.detachTracks(active.stream);
+    } catch (error) {
+      firstError ??= error;
+    }
+    let tracks: MediaStreamTrack[] = [];
+    try {
+      tracks = active.stream.getTracks();
+    } catch (error) {
+      firstError ??= error;
+    }
+    for (const track of tracks) {
+      try {
+        track.stop();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
     this.active = null;
-    await this.options.browserLock.release();
+    try {
+      await this.options.browserLock.release();
+    } catch (error) {
+      firstError ??= error;
+    }
+    if (firstError !== undefined) throw toError(firstError);
   }
+
+  private stopRealtimeWithoutBlockingArchive(): void {
+    try {
+      void this.options.pcmProducer.stop().catch((error: unknown) => {
+        this.reportRealtimeFailure(error);
+      });
+    } catch (error) {
+      this.reportRealtimeFailure(error);
+    }
+  }
+
+  private reportRealtimeFailure(error: unknown): void {
+    try {
+      this.options.onRealtimeFailure?.(error);
+    } catch {
+      // Realtime observers are advisory and cannot affect raw archive ownership.
+    }
+  }
+}
+
+function toError(value: unknown): Error {
+  return value instanceof Error
+    ? value
+    : new Error('browser capture cleanup failed', { cause: value });
 }
 
 function validateStart(input: StartBrowserCaptureInput): void {
