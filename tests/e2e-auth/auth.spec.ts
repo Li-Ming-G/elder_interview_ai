@@ -128,7 +128,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
   await page.locator('form button[type="submit"]').click();
   await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
-  const sessionId = await page.evaluate(async () => {
+  const { audioStreamId, sessionId } = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
     async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
@@ -163,13 +163,29 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
       input_detected: true,
       microphone_permission: 'granted',
     });
+    const audioStreamId = crypto.randomUUID();
     await write(`/sessions/${id}/start`, {
-      audio_stream_id: crypto.randomUUID(),
+      audio_stream_id: audioStreamId,
       mime_type: 'audio/webm;codecs=opus',
       request_id: crypto.randomUUID(),
     });
-    return id;
+    return { audioStreamId, sessionId: id };
   });
+
+  await page.addInitScript((captureAudioStreamId) => {
+    const randomUuid = crypto.randomUUID.bind(crypto);
+    let captureStreamIssued = false;
+    Object.defineProperty(crypto, 'randomUUID', {
+      configurable: true,
+      value: (): `${string}-${string}-${string}-${string}-${string}` => {
+        if (!captureStreamIssued) {
+          captureStreamIssued = true;
+          return captureAudioStreamId;
+        }
+        return randomUuid();
+      },
+    });
+  }, audioStreamId);
 
   await page.goto(`/?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`);
   await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
