@@ -420,8 +420,19 @@ P2：
 - 审查对象：final head `829adf85479c22172308641fc201ac295744b47b`；base `main@efde30648158339fa336d13bcfc970e295e09eb0`，PR open、非 Draft、CLEAN 且 head 未漂移。
 - 自动证据：CI `31251923003` 完整 verify SUCCESS；总控独立重跑 controller、workbench、IndexedDB、upload runner 四个定向测试文件，`4 files / 40 tests` PASS；`git diff --check` PASS，候选 worktree clean。
 - 定向代码结论：`PASS`；P0=0、P1=0。start 前置失败首因与 browser lock、resume 新 generation 麦克风失败、local job missing 的稳定 orphan report 三项 P1 均关闭；workbench `recover()` rejection 已闭合。
-- 任务整体验收：`BLOCKED`。任务卡明确要求目标 Android Chrome 真机 5–10 分钟完整链路以及旋转、后台/锁屏、权限/麦克风/设备中断和刷新恢复；当前无设备、`adb` 不可用，不能用桌面 Chromium 替代。DEV-005R2 保持 `REVIEW`，CON-021 保持 `OPEN`，DEV-005R3 不解锁。
+- REV-023 当时任务整体验收为 `BLOCKED`：任务卡要求目标 Android Chrome 真机证据，而当时无设备、`adb` 不可用，不能用桌面 Chromium 替代。该环境门禁随后由 REV-024 supersede；本条保留历史结论。
 - 合并记录：代码候选经用户授权，以 merge commit `5527af289d8e1321e01d7a137eb2c964c8ebbe12` 合入 `main`；合并不等于 DEV-005R2 DONE。
+
+## REV-024｜DEV-005R2 Android Chrome 真机生命周期验收
+
+- 审查对象：已合入 main 的 PR #14 final head `829adf85479c22172308641fc201ac295744b47b`、merge `5527af289d8e1321e01d7a137eb2c964c8ebbe12`；本轮不修改业务代码。
+- 设备：OnePlus GM1900，Android 12 / SDK 31，Chrome `150.0.7871.188`；通过 USB ADB reverse 访问本地正式 Web/API，使用虚构项目与授权。
+- 长时证据：正式路由连续采集约 6 分 20 秒，本浏览器 archive `0..371` 共 372 片、无序号缺口，服务端 `uploaded_chunk_count=372`。旋转、约 20 秒切后台和约 20 秒锁屏均保持同一 session、audio object、audio stream 和 generation 0，未刷新、未重新请求麦克风、未创建新 capture。
+- 刷新证据：同一 local job/archive/request ID 与高水位保留；服务端 session/capture 进入 `interrupted`，reason=`page_recovery_detected`；未自动请求麦克风。
+- 麦克风中断证据：第二条正式会话撤销 Chrome 麦克风权限后，本地 archive `0..70` 共 71 片、无缺口；服务端收到 70 片并把 session/capture 置为 `interrupted`，reason=`microphone_ended`。
+- 独立复核：iteration-coach 独立只读验收采用 Correction mode，确认 R2 已满足 controller 事实层门禁；要求 R2 先实现恢复/安全结束 UI 会与 R3 依赖形成循环。P0=0、P1=0。
+- 非阻塞：当前旧 workbench 在服务端已 interrupted 时仍显示“服务端进行中”，且无显式恢复/安全结束动作，明确转 DEV-005R3；准备页低音量输入容易误判为无声，登记 CON-022 P2。
+- 结论：`PASS`。DEV-005R2 `DONE`，DEV-005R3 `READY`。CON-021 只完成 R2 行为冻结，继续 `OPEN`；R4 必须完成下一 generation resume、同一 session/object/job、累计 archive 时间轴、安全结束与 manifest 后才可关闭。
 
 ## 审查模板
 

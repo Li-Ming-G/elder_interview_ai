@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R 已经 REV-021 PASS 并合入 main，后续按 R1 定向修复、R2C 收口、R2、R3、R4 顺序推进。
+- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R、R1、R2C、R2 已完成，R2 的 OnePlus/Android Chrome 真机生命周期事实经 REV-024 通过；当前进入 R3 正式工作台恢复与安全结束体验，R4 最后做完整纵向收口。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021/022；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
 
 ## Adopted Decisions
 
@@ -99,6 +99,14 @@
 - Reason: 正常录制的首要任务是持续阅读转录，中断和结束时的首要任务则是保护证据并完成处置；固定页面比例无法表达状态变化。手机也不是桌面的应急恢复入口，而是长者访谈的完整主设备。
 - Tradeoff: R3 必须覆盖五个视口和全状态注意力层，R2/R4 必须增加 Android Chrome 真机生命周期证据；首轮不同时承诺 iPhone Safari。
 - Boundary: 比例是视觉护栏，实现使用受控 header/footer 与中间 `1fr`，不得硬编码百分比。Android 后台、锁屏、页面隐藏和音频设备中断究竟继续采集还是进入 interrupted，必须由 R2 真机证据与正式契约冻结；CON-021 未解决前 R3 不得猜测。
+
+### D-013 — Android 生命周期按采集健康事实而非页面可见性判定
+
+- Status: adopted
+- Evidence: REV-024；OnePlus GM1900 / Android 12 / Chrome 150 正式路由约 6 分 20 秒、372 片无缺口；旋转/后台/锁屏保持同一 controller，刷新与撤销麦克风权限分别以正式 reason 中断。
+- Reason: `visibilitychange`、旋转或锁屏只是平台事件，不能单独证明音频仍在采集或已经失败；archive 连续性、track/recorder 状态和 controller identity 才是可验证事实。
+- Tradeoff: 首个设备允许健康时继续，减少无意义中断；但不能把单台设备结果宣传成所有 Android 的后台保证，R4 和未来平台版本仍需复验。
+- Boundary: 刷新必须 `page_recovery_detected` 且不自动请求麦克风；track ended 必须 `microphone_ended`；R3 只展示并驱动恢复/结束，不能改写 controller 判定。
 
 ## Assumptions to Validate
 
@@ -633,3 +641,14 @@
 - Verification boundary: Android Chrome 仍无设备，CON-021 OPEN；orphan report 只负责减权 interruption，不声称 archive/job 可 resume 或可完整 finalize，记录清理并入未来 archive cleanup。
 - Lesson: 资源 cleanup 必须依据“当前 owner”而不是“对象是否非空”；完整恢复资料丢失也不等于什么都不能做，可以凭服务端白名单 identity 执行最小减权动作，但持久记录必须与可恢复 job 类型隔离。
 - Better future prompt: “请为每个失败点列出 lock/stream/runtime/server-generation 的 owner 和提交点，并证明 cleanup 次生失败不覆盖首因；full job 丢失时只持久化 server identity + stable report ID，不构造可 resume 的假 job。”
+
+### 2026-08-08 — DEV-005R2 Android Chrome 真机生命周期收口
+
+- User outcome: 在已连接手机上完成 R2 真机门禁，弄清旋转、后台、锁屏、刷新和麦克风撤权后的真实行为，并决定是否能继续 R3。
+- Review mode: Correction mode；独立只读复核指出不能要求 R2 先实现归 R3 所有的恢复/安全结束 UI，否则形成循环依赖。
+- Review finding: OnePlus GM1900 / Android 12 / Chrome 150 正式录制约 6 分 20 秒，372 片 archive 连续；旋转、后台、锁屏保持同一 generation。刷新以 `page_recovery_detected`、撤销权限以 `microphone_ended` 明确中断。旧工作台仍显示“服务端进行中”是 R3 事实展示缺口；低音量检测偏严是 P2。
+- Options considered: 因 R3 页面未完成继续阻塞 R2；直接关闭 R2 与 CON-021；R2 DONE、R3 READY，但 CON-021 留给 R4 完整恢复/结束。采用第三种。
+- Adopted decision: DEV-005R2 DONE，DEV-005R3 READY；冻结本设备生命周期基线，不外推所有 Android。CON-021 保持 OPEN 到 R4；新增 CON-022 跟踪低音量检测。
+- Implementation evidence: REV-024、`06` Android 生命周期补充、`09` 真机基线、DEV-005R2 task/handoff；本轮无业务代码修改。临时截图仅用于本地核对后清理，结构化测量已写入项目记录，未提交真实音频或 Blob。
+- Lesson: 平台生命周期事件不是业务事实；只有持续 archive、资源 identity 和服务端 snapshot 能证明继续或中断。任务应按事实所有权验收，下游 UI 缺失不能反向阻塞上游 controller，但必须保留最终纵向门禁。
+- Better future prompt: “请在目标 Android Chrome 上分别记录旋转、后台、锁屏、刷新和 track ended 前后的 controller identity、archive 连续性与服务端 snapshot；按事实冻结 continue/interrupted，再由页面任务消费，不用 visibility 直接推断。”

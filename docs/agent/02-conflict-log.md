@@ -255,7 +255,20 @@
 - 受影响任务：DEV-005R2 必须冻结 controller 行为，DEV-005R4 必须提供真机证据；DEV-005R3 只能消费已冻结事实。iPhone Safari 明确延期。不阻塞 DEV-005R1 服务端或边界独立的 DEV-005R2C 继续开发。
 - 临时处理：旋转只允许重排，禁止刷新、重新请求麦克风或创建新 capture。其他生命周期事件在 R2 真机验证后选择“可证明可靠则继续”或“不可证明则持久报告 interrupted”；不得私有发明状态或仅改文案。
 - DEV-005R2 候选证据（2026-08-08）：执行环境未安装 `adb`，PnP 查询也未发现 Android 目标设备，因此设备型号、Android 版本与 Chrome 版本均不可取得；5–10 分钟录制、visibility/后台、锁屏、权限或音频设备中断均未验证。桌面真实 Chromium harness 已证明旋转不触发刷新、重新申请麦克风或新 capture，但这不能替代 Android 证据。controller 未监听 visibility 并猜测平台结果，现有 reason/snapshot 暂未因缺乏证据而改动。
+- REV-024 真机证据（2026-08-08）：OnePlus GM1900、Android 12 / SDK 31、Chrome `150.0.7871.188` 在正式路由连续采集约 6 分 20 秒；archive `0..371` 共 372 片且无缺口。旋转、约 20 秒切后台和约 20 秒锁屏期间同一 session/object/stream/generation 持续采集。刷新后同一 job/archive/request ID 保留并以 `page_recovery_detected` 进入 `interrupted`；第二条正式会话撤销麦克风权限后保留 71 片 archive，并以 `microphone_ended` 进入 `interrupted`。现有 reason/snapshot 足以表达本次事实，无需扩枚举。
+- 当前处理：R2 的平台事实门禁已满足并 `DONE`。该单机证据不外推为所有 Android 的无条件后台保证；controller 以 track、recorder、archive 与 identity 健康事实决定继续，不能只看 visibility。CON-021 保持 `OPEN`，R4 必须在 R3 页面上复验显式 resume 到下一 generation、同一 session/object/job、累计时间轴和安全结束 manifest 后关闭。
 - 关闭条件：目标 Android Chrome 真机覆盖 5–10 分钟录制、旋转、后台/锁屏、权限/设备中断和刷新恢复；正式契约明确每类事件的继续/中断结果，必要的 reason/snapshot 变更先同步文档与共享契约，并获得项目负责人 PASS。
+
+### CON-022｜准备页低音量输入检测在 Android Chrome 上容易误判无声
+
+- 状态：`OPEN`
+- 发现时间：2026-08-08
+- 发现者：项目负责人 / DEV-005R2 真机验收
+- 涉及文件与章节：`03` §7、`09` §10.2、`apps/web/src/interview/microphone-check.ts`、DEV-005R3/R4
+- 问题：OnePlus GM1900 的准备页真机检测中，较小但可听见的说话音量被判定为“没有声音输入”，提高音量后才能通过。当前检测仅短时采样并使用固定振幅阈值，可能把真实可用麦克风误判为失败。
+- 风险：P2 可用性问题；不会绕过授权或导致录音静默丢失，但可能阻止倾听员开始访谈，并诱导用户不必要地大声说话。
+- 当前处理：不取消“检测到输入”门禁，也不把预计时长只读或本地 fixture 乱码混入本缺陷。DEV-005R3 应改善采样时长、实时反馈或重试说明，并用普通说话音量验证；如需改变判定算法，增加单元与 Android 真机证据。
+- 关闭条件：目标 Android Chrome 上普通近距离说话可稳定通过，安静/无输入仍失败，失败说明和重新检测可操作；R4 记录设备、环境与结果。
 
 ## 登记模板
 

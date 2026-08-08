@@ -19,7 +19,7 @@
 | DEV-005C | REV-019 | PR #10 / final head `36f534a` / CI `31174226564` PASS / merge `9691dad` | DONE | 第三次定向复审 PASS；P0/P1=0，三个 P2 保留但不阻塞当前范围；DEV-005D 的技术前置已成立，现等待新增 DISC-005D 产品讨论门槛 |
 | DEV-005R1 | REV-020 | PR #13 / final head `c19a295` / CI `31245403822` PASS / merge `656db20` | DONE | 定向复审 PASS，REV-021 发现的全 generation PCM P1 已关闭；P0/P1=0，R1 前置已满足 |
 | DEV-005R2C | REV-022 | PR #12 / final head `ae07747` / CI `31246011913` PASS / merge `e455c13` | DONE | 四项定向修复 4/4 关闭；P0/P1=0。仅浏览器核心积木，Android Chrome 生命周期与正式路由集成仍归 DEV-005R2 |
-| DEV-005R2 | REV-023 | PR #14 / final head `829adf8` / CI `31251923003` PASS / merge `5527af2` | BLOCKED | 三项 P1 与相邻 Promise 闭合定向代码复审 PASS，P0/P1=0；Android Chrome 真机 5–10 分钟及生命周期矩阵无设备可执行，任务保持 REVIEW、CON-021 OPEN、R3 不解锁 |
+| DEV-005R2 | REV-024 | PR #14 / final head `829adf8` / merge `5527af2` / Android OnePlus GM1900 | DONE | REV-023 代码 P0/P1=0；真机约6分20秒、372片无缺口，旋转/后台/锁屏继续，刷新和麦克风撤权按正式原因显式 interrupted。R3 READY；CON-021 留到 R4 完整恢复/结束，CON-022 为非阻塞 P2 |
 | SPEC-DEV-005R | REV-021 | PR #11 / final head `80ab84f` / CI `31244954185` PASS / merge `c572490` | DONE | 定向复审 PASS，四个 P1 4/4 关闭；解除 stacked 契约基线门禁，父 DEV-005R 与实现任务继续开放 |
 
 ## 阅读规则
@@ -30,4 +30,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-023`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-024`。

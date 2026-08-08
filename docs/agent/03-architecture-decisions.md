@@ -212,3 +212,4 @@
 - 行为边界：只有结束确认使用 modal；关键异常提升但不抢焦点；R3 只预留建议 replace/undo 状态，不实现 DEV-007。旋转只重排；后台、锁屏和设备中断的继续/中断结果必须由 R2 真机证据冻结，见 CON-021。
 - 代价：增加五视口、全状态和 Android 真机验收，R2/R4 范围扩大；换取移动端不静默丢音频、页面层级可验收和后续 UI Agent 不自行猜测。
 - 重新评估条件：实际试点需要 iPhone Safari、跨设备接管或后台长时录制保证时，单独讨论平台能力与产品降级，不得把 Android 证据外推为所有手机支持。
+- 真机证据补充（REV-024）：OnePlus GM1900 / Android 12 / Chrome 150 上，旋转、约 20 秒后台和约 20 秒锁屏期间，单一 controller、archive 时间轴与同一 generation 持续健康，因此这些事件本身不触发中断；刷新以 `page_recovery_detected`、运行中撤销麦克风权限以 `microphone_ended` 显式进入 `interrupted`。这是首个目标设备基线，不构成所有 Android 或 iPhone 的平台保证；R4 仍负责完整恢复与安全结束复验。

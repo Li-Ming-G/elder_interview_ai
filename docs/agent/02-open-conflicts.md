@@ -14,6 +14,8 @@
 | CON-014 | 说话人校准是否为 session start 硬门禁 | 保持 DEV-004C 关闭；内部虚构数据允许 `unknown` 回退 |
 | CON-018 | “没用，换一个”的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞 DEV-005A 页面外壳 |
 | CON-020 | 正式工作台没有 stop 所需的唯一录音上传作业所有权 | 先由 DISC-005-R0/B-R 决定验证等级、生命周期与恢复责任；不改写旧 A/B/C，阻塞原 DEV-005D 和完整 DEV-005 闭环 |
+| CON-021 | Android Chrome 后台与设备生命周期 | R2 已在 OnePlus/Android 12/Chrome 150 冻结旋转、后台、锁屏、刷新与麦克风撤权事实；R4 完整复验 resume/安全结束后关闭 |
+| CON-022 | 准备页低音量输入容易被误判为无声 | R3 改善检测反馈/采样体验并保留输入门禁；R4 在目标 Android Chrome 复验普通说话音量 |
 
 ## 使用规则
 
