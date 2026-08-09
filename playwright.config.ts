@@ -1,16 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const webPort = Number(process.env.E2E_WEB_PORT ?? 4173);
+const baseURL = `http://127.0.0.1:${String(webPort)}`;
+
 export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   testDir: './tests/e2e',
   webServer: {
-    command:
-      'node apps/web/node_modules/vite/bin/vite.js preview apps/web --host 127.0.0.1 --port 4173 --strictPort',
+    command: `node apps/web/node_modules/vite/bin/vite.js preview apps/web --host 127.0.0.1 --port ${String(webPort)} --strictPort`,
     reuseExistingServer: false,
     timeout: 60_000,
-    url: 'http://127.0.0.1:4173',
+    url: baseURL,
   },
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
   },
 });

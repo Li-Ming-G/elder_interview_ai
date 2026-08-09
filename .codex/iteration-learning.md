@@ -695,3 +695,13 @@
 - Implementation evidence: 本轮仅完成任务派发和治理登记，尚无 R4 验收结果；CON-020/021/022 保持 OPEN。
 - Lesson: 纵向验收要证明刷新前后属于同一业务对象，允许变化的 generation/stream 与必须不变的 session/object/job 要分别记录。
 - Better future prompt: “请记录 Android 刷新恢复前后的 session、audio object、local job、generation、stream 和 archive 高水位，证明只有 generation/stream 合法变化；再以同一对象完成 stop、manifest 和终态。”
+
+### 2026-08-09 — DEV-005R4 恢复代时间轴校正与正式纵向候选
+
+- User outcome: 用桌面与目标 Android 的正式无 query 路由证明首次访谈从准备、单流采集、刷新显式恢复到安全结束，并把普通音量检测与服务端真实终态纳入同一审查包。
+- Review mode: Correction mode；iteration-coach 的唯一独立只读复核发现 `timeline_offset_ms` 已持久化但未作用于恢复代实时转录事件、落库和 drain，若不修复会让 generation 1 转录从接近 0ms 重叠历史时间轴。
+- Correction: 在服务端可信 ASR 边界统一映射 start/end；浏览器 wire PCM 继续保持 generation-relative，服务端持久化/广播/drain 使用 session timeline。未修改公共 API、数据库、枚举或 interruption reason。
+- Evidence: integration 验证 generation 1 wire PCM `0..100ms` 而 interim/final/drain 从 offset 开始；桌面 5 分钟正式链路与 OnePlus/Android 约 8分21秒正式链路都保持唯一 object。Android 恢复 offset 与首个 generation 1 转录 start 同为 `436604ms`，最终 491/491 manifest、ASR drained、session completed。
+- Boundary: 真实供应商、云存储、生产部署、跨设备恢复、iPhone Safari、完整回顾/导出/删除均未扩展；本地只使用虚构内容，不提交 audio Blob。候选只到 REVIEW，CON-020/021/022 仍 OPEN，最终 PASS 只由项目负责人在 GitHub 对 final head 手动给出。
+- Lesson: capture generation 的 PCM 线时钟与 session 业务时间轴是两个边界；offset 必须由服务端在消费 ASR 结果时统一应用，不能要求浏览器伪造累计 PCM，也不能只把 offset 存进数据库而不消费。
+- Better future prompt: “在恢复链路中同时断言 wire PCM 从 0 重置、服务端转录从 offset 延续，并分别记录原始 generation clock 与 session timeline，避免把持久化字段误当作已生效行为。”

@@ -280,6 +280,75 @@ describe('authenticated realtime transcription WebSocket', () => {
     expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
   });
 
+  it('keeps resumed PCM generation-relative while persisting and publishing on the session timeline', async () => {
+    await withIsolatedRecordingSession(async () => {
+      await prisma.projectAssignment.updateMany({
+        data: { revokedAt: null },
+        where: { projectId, userId },
+      });
+      const audio = await prisma.audioObject.create({
+        data: {
+          createdBy: userId,
+          mimeType: 'audio/webm;codecs=opus',
+          projectId,
+          purpose: 'interview',
+          sessionId: activeSessionId,
+        },
+      });
+      await prisma.sessionCaptureGeneration.create({
+        data: {
+          audioObjectId: audio.id,
+          audioStreamId: randomUUID(),
+          generationNo: 0,
+          interruptedAt: new Date(),
+          interruptionReason: 'page_recovery_detected',
+          sessionId: activeSessionId,
+          status: 'interrupted',
+          timelineOffsetMs: 0,
+        },
+      });
+      const audioStreamId = randomUUID();
+      await prisma.sessionCaptureGeneration.create({
+        data: {
+          audioObjectId: audio.id,
+          audioStreamId,
+          confirmedActiveAt: new Date(),
+          generationNo: 1,
+          sessionId: activeSessionId,
+          status: 'active',
+          timelineOffsetMs: 6_000,
+        },
+      });
+
+      const client = await connect(url, cookie);
+      const inbox = new Inbox(client);
+      client.send(JSON.stringify(join(csrf, audioStreamId)));
+      await inbox.next();
+
+      client.send(JSON.stringify(frame(0, audioStreamId)));
+      expect(await inbox.next()).toMatchObject({
+        payload: { end_ms: 6_100, start_ms: 6_000 },
+        type: 'asr.interim',
+      });
+      expect((await inbox.next()).type).toBe('audio.ack');
+
+      client.send(JSON.stringify(frame(1, audioStreamId)));
+      expect(await inbox.next()).toMatchObject({
+        payload: { end_ms: 6_200, start_ms: 6_000 },
+        type: 'asr.final',
+      });
+      expect((await inbox.next()).type).toBe('audio.ack');
+      expect(
+        await prisma.transcriptSegment.findFirstOrThrow({
+          where: { sessionId: activeSessionId },
+        }),
+      ).toMatchObject({ endMs: 6_200, startMs: 6_000 });
+
+      client.close(1000);
+      await inbox.closed();
+    });
+  });
+
   async function expectJoinFailure(code: string, closeCode: number): Promise<void> {
     const client = await connect(url, cookie);
     const inbox = new Inbox(client);

@@ -6,6 +6,11 @@ import { PrismaService } from '../database/prisma.service.js';
 
 export type RealtimeSessionMode = 'produce' | 'resume-only';
 
+export interface RealtimeJoinAccess {
+  mode: RealtimeSessionMode;
+  timelineOffsetMs: number | null;
+}
+
 @Injectable()
 export class RealtimeAccessService {
   public constructor(
@@ -24,7 +29,7 @@ export class RealtimeAccessService {
     sessionId: string,
     csrfToken: string,
     audioStreamId: string,
-  ): Promise<RealtimeSessionMode> {
+  ): Promise<RealtimeJoinAccess> {
     if (!(await this.sessions.verifyCsrf(actor.sessionId, csrfToken))) {
       throw new ForbiddenException({
         code: 'INVALID_CSRF_TOKEN',
@@ -36,7 +41,7 @@ export class RealtimeAccessService {
     if (mode === 'produce') {
       const capture = await this.prisma.sessionCaptureGeneration.findFirst({
         orderBy: { generationNo: 'desc' },
-        select: { audioStreamId: true, status: true },
+        select: { audioStreamId: true, status: true, timelineOffsetMs: true },
         where: { sessionId },
       });
       if (
@@ -50,8 +55,9 @@ export class RealtimeAccessService {
           message: 'Session is not streamable',
         });
       }
+      return { mode, timelineOffsetMs: capture.timelineOffsetMs };
     }
-    return mode;
+    return { mode, timelineOffsetMs: null };
   }
 
   public async assertFrame(
