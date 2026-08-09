@@ -215,3 +215,17 @@
 - 重新评估条件：实际试点需要 iPhone Safari、跨设备接管或后台长时录制保证时，单独讨论平台能力与产品降级，不得把 Android 证据外推为所有手机支持。
 - 真机证据补充（REV-024）：OnePlus GM1900 / Android 12 / Chrome 150 上，旋转、约 20 秒后台和约 20 秒锁屏期间，单一 controller、archive 时间轴与同一 generation 持续健康，因此这些事件本身不触发中断；刷新以 `page_recovery_detected`、运行中撤销麦克风权限以 `microphone_ended` 显式进入 `interrupted`。这是首个目标设备基线，不构成所有 Android 或 iPhone 的平台保证；R4 仍负责完整恢复与安全结束复验。
 - R3 页面证据补充（2026-08-08）：正常工作台在 1440×900 与 390×844 分别按既定比例护栏保留顶部、主转录与建议区；320×568 顶部不超过 72 px、建议不超过 120 px、主内容不低于 60%。五视口 × 七状态 Chromium 矩阵保持页面无纵向/横向滚动、转录为主滚动，手机元数据栏 52–64 px；状态面板只在业务事实需要处置时上提，结束确认仍是唯一 modal。
+
+## ADR-025｜说话人映射按 provider stream 隔离，角色值与用户确认可信度分离
+
+- 状态：Proposed（等待 SPEC-DEV-004C 项目负责人 GitHub 审查）
+- 决定：原子 start 先建立正式录音/ASR，随后在同一正式 `speaker_stream_id` 内进行用户确认校准；校准不是录音硬门禁。`speaker_stream_id` 独立表示 provider speaker namespace，不等于 capture generation、`audio_stream_id` 或短时 `event_stream_id`。角色值与 authority 分离，只有用户确认校准或人工修正形成的 trusted effective role 可进入角色相关下游消费。
+- 控制内容：服务端 calibration attempt 权威标记校准控制片段；客户端不能自行标记。控制片段保留原始证据，但排除故事记忆、真实已问问题、普通摘要和普通 AI 上下文。
+- 不可变边界：begin/resolve 作为有序控制 marker 进入当前服务端 PCM 串行泵，在前方帧完成、后方帧继续前事务性冻结 sequence/session-timeline 半开区间。final 按同 speaker stream 的标准化时间重叠归类，不按到达时 attempt 状态归类；跨边界 final 整段保守排除。
+- 修正边界：默认单段；批量只限同一 speaker stream/provider label/明确范围，使用持久稳定 preview、默认排除既有单段修正并全成全败。原始角色永不覆盖；成功修正产生 session revision 与受影响 segment membership。
+- 下游边界：DEV-004C 只生产可信角色、revision 和 membership；独立 `SPEC-DEV-006` 必须先冻结跨 session watermark、job/segment/output provenance、stale 状态和查询过滤，DEV-006/007 再实现派生结果失效、重算与失败态。人工确认事实和人工边界不能被自动重算覆盖或解除。
+- 传输投影：GET、begin、resolve、`session.ready` 和 `speaker.calibration.updated` 使用同一 canonical `SpeakerCalibrationSnapshot`；同 request ID、当前 GET 与 WS replay 保持相同 shape，但分别表达首次响应、当前事实和原事件事实。
+- 原因：现有 `(session_id, speaker_provider_id)` 会在 provider/runtime 重建后把同名短 label 误套到新命名空间；现有 `corrected ?? original` 又无法区分 provider 推测和用户确认。两者会把倾听员话语错误写成长者记忆，属于 DEV-006 前必须关闭的数据污染风险。
+- 代价：需要前向 migration、WS 1.1、校准 attempt、角色 authority、控制内容类型、修正 operation/membership 和更多并发测试；复杂批量 UI 延后到完整回顾页。
+- 边界：内部 fake 只验证状态、隔离、幂等和消费门禁，不承诺真实供应商准确率、声纹、多人 diarization 或跨会话身份。
+- 重新评估条件：真实供应商证明其 namespace 生命周期不同、需要多人/重叠语音或跨会话身份时，单独扩展 identity 模型；不得复用短 provider label 绕过本决策。

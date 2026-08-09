@@ -460,12 +460,177 @@ manifest 响应返回对象状态、purpose、project/session、chunk count、to
 ### 3.7 转录
 
 ```http
-GET   /sessions/:id/transcripts
-PATCH /transcripts/:id
-POST  /sessions/:id/speaker-remap
+GET  /sessions/:id/transcripts
+GET  /sessions/:id/speaker-calibration
+POST /sessions/:id/speaker-calibrations
+POST /speaker-calibrations/:id/resolve
+PATCH /transcripts/:id/speaker-role
+POST /sessions/:id/speaker-remaps/preview
+POST /sessions/:id/speaker-remaps/execute
 ```
 
-DEV-004A 只建立服务端确定态转录存储与内部查询 seam，不开放上述 REST 路由，也不得新增公开“注入测试转录”接口。`GET` 的分页响应、`PATCH` 的并发修订语义以及 speaker-remap 的范围、幂等和审计契约，分别在对应子任务开工前补齐；未补齐前这些路径不得按占位描述实现。
+DEV-004A 的内部 final ingestion 继续保持非公开；本节只读取正式 final 并对角色证据执行受控动作，不开放转录文字、provider payload、segment ID 或 speaker label 注入接口。
+
+#### 3.7.1 转录查询与可信角色
+
+`GET /sessions/:id/transcripts` 使用 `start_ms asc, id asc` 的稳定游标分页，默认 100、最大 500。每个片段至少返回：
+
+```json
+{
+  "id": "uuid",
+  "speaker_stream_id": "uuid-or-null",
+  "speaker_provider_id": "speaker_1-or-null",
+  "original_speaker_role": "elder",
+  "original_speaker_role_authority": "unconfirmed",
+  "corrected_speaker_role": null,
+  "effective_speaker_role": "elder",
+  "trusted_effective_speaker_role": "unknown",
+  "speaker_role_revision": 0,
+  "content_kind": "conversation",
+  "start_ms": 12000,
+  "end_ms": 18400,
+  "original_text": "...",
+  "corrected_text": null
+}
+```
+
+普通响应不返回 provider payload。`effective_speaker_role` 用于有权用户查看当前人工修正后的标签；`trusted_effective_speaker_role` 才是 DEV-006/007 的角色相关消费依据。`content_kind=speaker_calibration` 的正文可以在有权回看中显示，但必须标明校准控制内容并从普通 AI/摘要消费排除。
+
+#### 3.7.2 校准 attempt
+
+`GET`、begin/resolve 成功响应、`session.ready.payload.speaker_calibration` 与 `speaker.calibration.updated.payload` 统一使用同一个 `SpeakerCalibrationSnapshot`，不得各自裁剪出互不兼容的状态：
+
+```json
+{
+  "session_id": "uuid",
+  "speaker_role_revision": 3,
+  "status": "collecting",
+  "speaker_stream": {
+    "id": "uuid",
+    "capture_generation_id": "uuid",
+    "audio_stream_id": "uuid",
+    "status": "active"
+  },
+  "attempt": {
+    "id": "uuid",
+    "attempt_no": 2,
+    "status": "collecting",
+    "boundary": {
+      "start_sequence_no": 120,
+      "end_sequence_no_exclusive": null,
+      "start_timeline_ms": 12000,
+      "end_timeline_ms": null
+    },
+    "observed_provider_labels": ["speaker_1", "speaker_2"],
+    "confirmed_mappings": [],
+    "started_at": "2026-08-09T13:00:00+08:00",
+    "resolved_at": null
+  },
+  "updated_at": "2026-08-09T13:00:02+08:00"
+}
+```
+
+规则：
+
+- 顶层 `status` 为 `not_started|collecting|confirmed|failed|skipped`；没有 active speaker stream 时 `status=not_started`、`speaker_stream=null`、`attempt=null`；有 active stream 但尚未开始 attempt 时同为 `not_started`，但返回该 stream；
+- `attempt` 是当前 stream 最新 attempt。`observed_provider_labels` 只来自已持久化的本 attempt final membership，按首次出现时间、再按 label 字典序稳定去重，最大 8 个；不返回 provider payload、供应商置信度原文或转录正文；
+- `confirmed_mappings` 仅在 confirmed 时返回两个 `{speaker_provider_id, speaker_role, authority:"user_confirmed"}`；其他状态为空；
+- `speaker_role_revision` 与服务端 session 当前事实一致；`updated_at` 是该 snapshot 所含事实的最新持久更新时间；
+- 此 DTO 是 canonical projection。客户端收到 REST 响应、WS replay 或 `session.ready` 后可直接替换本地校准投影；事件窗口失效、进程重启或怀疑游标过期时必须重新 GET，不得从零散事件自行拼接。
+
+开始或重试：
+
+```http
+POST /sessions/:id/speaker-calibrations
+{
+  "request_id": "uuid",
+  "speaker_stream_id": "uuid"
+}
+```
+
+只允许当前有效 auth session、assignment、最新授权、项目未受限、session 为 `recording|reconnecting` 且 speaker stream 当前 active。begin/retry 只适用于该流 `not_started|failed|skipped`；已经 confirmed 时返回当前 snapshot，不创建重新校准 attempt，本轮角色变更走 C2 人工修正。服务端必须把 begin marker 插入当前 producer 的 PCM 串行泵：在 marker 前全部已排队帧处理完成、后续帧尚未处理时，以服务端下一期望 sequence 与 generation timeline offset，在 marker 回调的同一数据库事务中提交 attempt 与半开区间起点；提交后才允许后续帧继续并返回 canonical snapshot。同一流已有 collecting 时相同业务目标返回当前 snapshot，不创建第二个控制范围。没有可用 producer、stream 已更换、事务失败或 marker 在有界时间内无法提交时失败关闭，不创建 attempt。
+
+完成 attempt：
+
+```http
+POST /speaker-calibrations/:id/resolve
+{
+  "request_id": "uuid",
+  "action": "confirm",
+  "mappings": [
+    { "speaker_provider_id": "speaker_1", "speaker_role": "interviewer" },
+    { "speaker_provider_id": "speaker_2", "speaker_role": "elder" }
+  ]
+}
+```
+
+`action` 为 `confirm|fail|skip`：
+
+- `confirm` 在排入 marker 前先验证两个 label 已持久观察；无效时不插入 end marker，attempt 继续 collecting；
+- resolve 随后把 end marker 插入同一 PCM 串行泵，在 marker 前全部已排队帧处理完成后，于一个数据库事务内重新验证权限/stream/label，并同时提交 `end_sequence_no_exclusive`、session `end_timeline_ms`、终态、映射/revision 与审计；事务提交后才允许后续 PCM 继续。事务失败不留下已提交终点或半终态；
+- `confirm` 必须恰好提供两个不同、在 end marker 冻结前已经由本 attempt final membership 持久化观察到的 provider label，并分别映射 `elder`、`interviewer`；服务端在同一事务确认 attempt、追加两个 `source=calibration` 用户确认映射、递增 session role revision并写审计；
+- `fail|skip` 的 `mappings` 必须为空；可以关闭没有 PCM 或没有两个 final label 的空/不完整区间，不创建可信映射，录音和转录继续；
+- attempt、session 或 speaker stream 归属/状态变化返回稳定冲突，不得把旧流确认应用到新流；
+- 相同 request ID 重放返回首次 canonical snapshot；不同 payload 返回 `IDEMPOTENCY_PAYLOAD_MISMATCH`；begin 与 resolve 的成功 HTTP data 均为完整 `SpeakerCalibrationSnapshot`。
+
+首次业务提交成功后才发布 `speaker.calibration.updated`；事件发布失败不回滚已持久化 attempt/mapping。相同 request ID 重放的是该请求首次保存的 snapshot，GET 返回调用时当前 snapshot，WS replay 返回原事件中保存的 snapshot；三者 shape 相同但时间语义不得混淆。
+
+客户端不能提交边界、sequence、timeline 或哪些片段属于校准控制内容。final ingestion 只使用服务端标准化 session `start_ms/end_ms` 与持久 attempt 半开区间做重叠判断；与 final 到达时 attempt 的状态无关。非零重叠整体写入 attempt membership 和 `content_kind=speaker_calibration`；完全无重叠才写 conversation。begin 前 PCM 的 delayed final 不会被误纳入，resolve 前 PCM 的 delayed final 在 resolve 后到达仍会被正确排除。
+
+#### 3.7.3 单段角色修正
+
+```http
+PATCH /transcripts/:id/speaker-role
+{
+  "request_id": "uuid",
+  "corrected_speaker_role": "elder",
+  "expected_speaker_role_revision": 0
+}
+```
+
+只允许 `elder|interviewer|unknown`。服务端校验 assignment、授权/项目限制、final segment 归属和乐观版本；成功时只写 `corrected_speaker_role/corrected_by/corrected_at`，追加 correction operation/membership、递增 session role revision并写审计。不得修改 original role、authority、text、content kind、provider label 或 stream。版本漂移返回 409 `SPEAKER_ROLE_VERSION_CONFLICT`，不产生部分副作用。
+
+#### 3.7.4 批量预览与原子执行
+
+预览请求：
+
+```http
+POST /sessions/:id/speaker-remaps/preview
+{
+  "request_id": "uuid",
+  "speaker_stream_id": "uuid",
+  "speaker_provider_id": "speaker_1",
+  "corrected_speaker_role": "elder",
+  "segment_start_id": "uuid",
+  "segment_end_id": "uuid",
+  "exclude_individual_corrections": true
+}
+```
+
+响应返回 `preview_id`、`preview_hash`、最终 `segment_count`、规范化 `segment_start_id/segment_end_id`、闭区间候选数量、排除数量和 `expires_at`；不返回 provider payload 或超出当前权限的正文。两个端点必须是同一 session、同一 speaker stream、同一 provider label 且尚无单段人工修正的 final，并分别解析为稳定排序键 `(start_ms, id)`；目标范围是两个排序键之间包含两端的闭区间。start 键大于 end 键、端点归属/label 不同、端点已不可见或端点本身会被默认排除时返回 `SPEAKER_REMAP_RANGE_INVALID`。闭区间形成后再从内部候选应用 `exclude_individual_corrections=true`；本轮该字段必须为 `true`。
+
+执行请求：
+
+```http
+POST /sessions/:id/speaker-remaps/execute
+{
+  "request_id": "uuid",
+  "preview_id": "uuid",
+  "preview_hash": "64-char-lowercase-hex"
+}
+```
+
+服务端在同一事务重新验证 preview 身份、权限、到期时间、完整目标 membership 与每段角色版本。任一成员漂移、越权、删除或出现单段人工修正，整批返回 409 `SPEAKER_REMAP_PREVIEW_STALE`；不得跳过冲突成员后部分成功。成功后一次写完全部 corrected role、operation/membership、session role revision 和审计。
+
+单段与批量修正允许作用于存在 final 且普通资源权限仍有效的 `recording|reconnecting|interrupted|stopping|processing|completed|failed` session；项目 restricted/deleted、授权失效、assignment 失效或删除 scope 命中时失败关闭。复杂批量 UI 属于完整回顾切片；本节服务端契约不授权把它塞入首次工作台。
+
+#### 3.7.5 派生失效边界
+
+角色确认或修正响应返回新的 `speaker_role_revision` 和受影响 operation ID。DEV-004C/C2 只负责持久化 session revision、operation 与受影响 segment membership，不实现或猜测下游 job/output 状态。
+
+DEV-006 开工前必须先完成 `SPEC-DEV-006` 并经项目负责人 PASS。该下游 SPEC 至少冻结：每个 AI job 实际消费的逐 session role revision 水位、输入 segment provenance、memory/suggestion/session-note 与 job 的输出关系、旧自动派生结果的不可用/待重算/重算失败状态与普通查询过滤，以及人工事实/边界的 review-required 语义。项目级记忆可能聚合多个 session，不得只给现有 `ai_job.session_id` 增加一个单值 revision 后声称已经闭合。DEV-006 与 DEV-007 只能按该正式 consumer seam 实现各自失效、重算、重试和失败展示。
+
+错误码至少冻结：`SPEAKER_STREAM_NOT_ACTIVE`、`SPEAKER_CALIBRATION_STREAM_UNAVAILABLE`、`SPEAKER_CALIBRATION_BOUNDARY_TIMEOUT`、`SPEAKER_CALIBRATION_CONFLICT`、`SPEAKER_CALIBRATION_LABELS_INVALID`、`SPEAKER_ROLE_VERSION_CONFLICT`、`SPEAKER_REMAP_RANGE_INVALID`、`SPEAKER_REMAP_PREVIEW_STALE`、`SPEAKER_ROLE_UPDATE_FORBIDDEN`。错误不得回显正文、provider payload、权限内部信息或供应商原文。
 
 ### 3.8 标记
 
@@ -555,6 +720,9 @@ GET  /exports/:id
 - 撤回授权；
 - 创建删除申请；
 - 推进删除申请状态。
+- 开始和解决说话人校准 attempt；
+- 单段说话人修正；
+- 批量说话人修正预览与执行。
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
@@ -587,6 +755,8 @@ DEV-004B 拆为：
 
 B1 契约与共享类型提交前不得并行实现 B2。AudioWorklet、真实麦克风、真实 ASR 供应商、持久 outbox、故障区间和离线补录均不在 B1/B2 当前范围。
 
+DEV-004C1 在 B1/B2 已通过的内部协议上引入 `speaker_stream_id`、角色可信度和校准状态。共享协议整体升级为 `schema_version=1.1`，前后端在同一任务切换；历史 `1.0` 证据保留但不作为新校准客户端兼容承诺。`speaker_stream_id` 由服务端创建并持久化，既不是 capture `audio_stream_id`，也不是短时恢复 `event_stream_id`。
+
 ### 5.1 客户端上行信封
 
 ```json
@@ -594,7 +764,7 @@ B1 契约与共享类型提交前不得并行实现 B2。AudioWorklet、真实�
   "type": "session.join",
   "event_id": "uuid",
   "session_id": "uuid",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "payload": {}
 }
 ```
@@ -613,7 +783,7 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
   "server_sequence": 12,
   "session_id": "uuid",
   "timestamp": "2026-08-01T13:22:00+08:00",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "payload": {}
 }
 ```
@@ -627,9 +797,9 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 - `event.ack`
 - `heartbeat`
 
-`speaker.calibration`、`suggestion.request`、`marker.create` 和 `session.stop` 保留为后续方向，B1 不实现。
+校准与修正写操作使用 §3.7 的 REST 幂等接口，不允许客户端通过 WebSocket 注入 provider label、角色、片段范围或转录正文。`suggestion.request`、`marker.create` 和 `session.stop` 仍不属于本实时上行协议。
 
-### 5.4 DEV-004B1 服务端下行事件
+### 5.4 正式服务端下行事件
 
 - `session.ready`
 - `audio.ack`
@@ -637,9 +807,10 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 - `asr.final`
 - `asr.status`
 - `heartbeat.ack`
+- `speaker.calibration.updated`
 - `error`
 
-其他下行事件保留为后续方向，B1 不实现。
+其中 `speaker.calibration.updated` 由 DEV-004C1 在 1.1 协议实现；其余列出的事件沿用 B1/B2。未列出的下行事件仍保留为后续方向。
 
 ### 5.5 握手、join 与权限
 
@@ -680,10 +851,83 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 ```json
 {
   "audio_stream_id": "uuid",
+  "speaker_calibration": {
+    "session_id": "uuid",
+    "speaker_role_revision": 3,
+    "status": "collecting",
+    "speaker_stream": {
+      "id": "uuid",
+      "capture_generation_id": "uuid",
+      "audio_stream_id": "uuid",
+      "status": "active"
+    },
+    "attempt": {
+      "id": "uuid",
+      "attempt_no": 2,
+      "status": "collecting",
+      "boundary": {
+        "start_sequence_no": 120,
+        "end_sequence_no_exclusive": null,
+        "start_timeline_ms": 12000,
+        "end_timeline_ms": null
+      },
+      "observed_provider_labels": ["speaker_1", "speaker_2"],
+      "confirmed_mappings": [],
+      "started_at": "2026-08-09T13:00:00+08:00",
+      "resolved_at": null
+    },
+    "updated_at": "2026-08-09T13:00:02+08:00"
+  },
   "resumed": false,
   "highest_audio_sequence_acked": -1,
   "resume_window_seconds": 300,
   "resume_window_events": 512
+}
+```
+
+新 provider/runtime speaker namespace 建立时，服务端创建新的 `speaker_stream_id`，并发布 `speaker.calibration.updated`。该事件 payload 必须是 §3.7.2 完整 canonical snapshot，不得只发状态字符串；begin/resolve、观察到新的持久 final label、stream 更换和 role revision 变化后均发布最新 snapshot。事件参与既有 server sequence/replay；短时 replay 仍使用原 speaker stream，provider namespace 重建即使发生在同一 capture generation，也必须使用新 ID并重新确认。若 replay 窗口失效，客户端 GET canonical snapshot。
+
+`speaker.calibration.updated` 示例：
+
+```json
+{
+  "type": "speaker.calibration.updated",
+  "event_id": "uuid",
+  "event_stream_id": "uuid",
+  "server_sequence": 13,
+  "session_id": "uuid",
+  "timestamp": "2026-08-09T13:00:02+08:00",
+  "schema_version": "1.1",
+  "payload": {
+    "session_id": "uuid",
+    "speaker_role_revision": 3,
+    "status": "confirmed",
+    "speaker_stream": {
+      "id": "uuid",
+      "capture_generation_id": "uuid",
+      "audio_stream_id": "uuid",
+      "status": "active"
+    },
+    "attempt": {
+      "id": "uuid",
+      "attempt_no": 2,
+      "status": "confirmed",
+      "boundary": {
+        "start_sequence_no": 120,
+        "end_sequence_no_exclusive": 168,
+        "start_timeline_ms": 12000,
+        "end_timeline_ms": 16800
+      },
+      "observed_provider_labels": ["speaker_1", "speaker_2"],
+      "confirmed_mappings": [
+        { "speaker_provider_id": "speaker_1", "speaker_role": "interviewer", "authority": "user_confirmed" },
+        { "speaker_provider_id": "speaker_2", "speaker_role": "elder", "authority": "user_confirmed" }
+      ],
+      "started_at": "2026-08-09T13:00:00+08:00",
+      "resolved_at": "2026-08-09T13:00:02+08:00"
+    },
+    "updated_at": "2026-08-09T13:00:02+08:00"
+  }
 }
 ```
 
@@ -753,11 +997,15 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
   "event_id": "uuid",
   "session_id": "uuid",
   "timestamp": "2026-08-01T13:22:00+08:00",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "payload": {
     "segment_id": "uuid",
+    "speaker_stream_id": "uuid",
     "speaker_provider_id": "speaker_1",
     "speaker_role": "elder",
+    "speaker_role_authority": "user_confirmed",
+    "trusted_speaker_role": "elder",
+    "content_kind": "conversation",
     "start_ms": 12000,
     "end_ms": 18400,
     "text": "后来我就去了洛阳。",
@@ -775,7 +1023,7 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
   "event_id": "uuid",
   "session_id": "uuid",
   "timestamp": "2026-08-01T13:22:08+08:00",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "payload": {
     "primary": {
       "id": "uuid",
