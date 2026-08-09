@@ -515,6 +515,16 @@ P2：
 - 范围边界：结论仅覆盖当前没有 deletion producer 的内部 MVP 角色修正核心。session/segment deletion scope 为 `NOT IMPLEMENTED / NOT VERIFIED`，CON-023 保持 `OPEN`；未来 DEV-008 必须接入统一 scope guard，并处理 correction preview/operation 外键及并发顺序。复杂批量 UI、AI stale/recompute consumer、真实 provider 与生产设施不在本次 PASS 范围。
 - 后续状态：父 DEV-004 因缺失区间/补转录验收尚未收口而继续 `IN_PROGRESS`；SPEC-DEV-006/DEV-006 继续 `BLOCKED`，等待专项产品讨论和契约 PASS。
 
+## REV-030｜DEV-004 父任务内部 MVP 范围收口
+
+- 审查对象：main `004dacc75dc59e32e0472b04396acbc18082e7b1`；CI `31311278529` completed / success。该 head 已包含 DEV-004A/B1/B2/C1/C2 的全部已审实现与 REV-029 治理收口。
+- 范围决定：项目负责人明确“现阶段无需考虑补转录，先尽快把能用的产品做出来”。该决定解释为延期而非取消：故障区间持久化、真实供应商重连和离线补转录移至 `HARDEN-ASR-001`，不再作为当前内部 MVP/DEV-004 的关闭门槛。
+- 独立预审：iteration-coach 只读复核采用 Correction mode，确认后置补转录符合“核心假设优先”的正式阶段顺序；要求保留原始录音、manifest、安全结束、降级可见和不伪造 final 的硬门禁，并把未来义务保留为明确任务。
+- 聚合证据：DEV-004A REV-012、B1 REV-013、B2 REV-014、SPEC-DEV-004C REV-027、C1 REV-028、C2 REV-029 均已 PASS；当前代码可通过确定性 fake/虚构数据完成实时 interim/final、确定态幂等落库、流级可信角色、校准控制内容排除、单段/批量修正 producer seam，并在 ASR 故障时保持原始录音与安全结束。
+- 结论：`PASS`，DEV-004 在“内部可用 MVP、无离线补转录”边界下 `DONE`。这不是完整 MVP、真实供应商或真实试点 PASS。
+- 未关闭边界：真实 ASR、持久故障区间、离线补转录与对应回顾/导出一致性由 `HARDEN-ASR-001` 后置；CON-013、CON-023 及真实试点门禁不因本结论关闭。
+- 后续：立即进入 DISC-006；SPEC-DEV-006 仍须讨论定稿和项目负责人审查，DEV-006/007 不因本次父任务关闭而自动开始实现。
+
 ## 审查模板
 
 ```text

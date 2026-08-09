@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈页面闭环 DEV-005 及 SPEC-DEV-005R、R1、R2C、R2、R3、R4 已完成。下一阶段按任务板决定；真实供应商、云存储、iPhone Safari 与生产部署尚未验证。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005 与内部可信转录/说话人 DEV-004 已完成。当前进入 DISC-006，随后以 SPEC-DEV-006/DEV-006 验证结构化长期记忆，再推进单问题追问；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018。CON-014 已由 SPEC-DEV-004C REV-027 PASS 正式关闭。
+- Open questions: “拾光”是否为正式品牌名；DISC-006 的最小记忆与候选/确认/冲突/跨会话行为；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -116,6 +116,14 @@
 - Tradeoff: 增加持久 `speaker_stream_id`、authority、PCM 串行边界、统一 snapshot、服务端 calibration attempt、控制内容类型、修正 revision/membership 和批量稳定预览；换取可审计的可信角色门禁与范围化失效。
 - Boundary: 校准发生在原子 start 后同一正式录音/ASR 链路，失败或跳过不影响录音；DEV-004C 只产出角色事实与失效 producer seam，跨 session AI consumer 必须先经 `SPEC-DEV-006`，再由 DEV-006/007 实现重算。真实供应商准确率、声纹、跨会话身份和多人 diarization 不在当前范围。
 
+### D-015 — 补转录后置，内部 MVP 先验证记忆与追问
+
+- Status: adopted
+- Evidence: 项目负责人于 2026-08-09 明确“现阶段无需考虑补转录，先尽快把能用的产品做出来”；`00/03/06/09/10`、DEV-004、HARDEN-ASR-001 与任务板同步；iteration-coach 独立只读复核支持该分层。
+- Reason: 当前核心未知是结构化记忆和单问题追问能否帮助倾听员，而不是生产级 ASR 缺失区间能否自动补齐。原始录音与安全结束已经允许转录降级，补转录继续作为前置只会延迟核心价值验证。
+- Tradeoff: 内部演示可能存在明确的转录缺口，不能宣称完整转录、真实供应商可靠性或真实试点就绪；换取 DISC-006/DEV-006/007 更快开始。
+- Boundary: ASR 故障仍不得影响原始录音、manifest 或安全结束，必须显示 `degraded|not_started` 且不得伪造 final。故障区间持久化、真实供应商重连与离线补转录由 HARDEN-ASR-001 在完整 MVP/真实试点前另行契约和验收。
+
 ## Assumptions to Validate
 
 ### A-001 — “拾光长者传记项目”与正式文档中的“AI 辅助长者访谈系统”是同一项目
@@ -129,6 +137,17 @@
 - Status: confirmed
 
 ## Iteration Log
+
+### 2026-08-09 — 补转录后置与 DEV-006 讨论解锁
+
+- User outcome: 停止让补转录占用当前迭代，尽快做出能验证记忆与追问价值的内部产品。
+- Review mode: Correction mode；独立只读复核确认方向符合阶段优先级，但要求延期而非删除，并保留未来可靠性任务和现有数据安全硬门禁。
+- Review finding: DEV-004 任务卡一处写“补转录另行拆分”，另一处又把“可补转录”作为父任务验收，造成错误进度信号；DEV-006 的真实前置本来就是产品讨论与 SPEC-DEV-006，而非补转录。
+- Options considered: 继续 DEV-004 IN_PROGRESS；直接删除补转录义务；按内部 MVP/完整 MVP 分层关闭 DEV-004并建立后置可靠性任务。采用第三种。
+- Adopted decision: DEV-004 按内部可用 MVP 收口；HARDEN-ASR-001 TODO；DISC-006 READY，SPEC-DEV-006/DEV-006 继续按讨论→契约→实现推进。
+- Implementation evidence: 同步 `00/03/06/09/10`、任务板、追踪、REV-030、DEV-004/HARDEN-ASR-001/DISC-006 任务卡与 DISC-006 提示词；本轮仅治理与范围文档，不新增业务代码。
+- Lesson: 可靠性需求不应被删除，但也不应因为最终产品需要它，就自动成为当前核心假设验证的前置条件。
+- Better future prompt: “请把补转录保留为真实供应商/试点前的后置可靠性任务；当前只要求原始录音完整、安全结束和转录降级可见，并立即推进长期记忆产品讨论。”
 
 ### 2026-08-09 — DEV-004C1 实现任务下发审查
 
