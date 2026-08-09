@@ -10,6 +10,7 @@ import type {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { InterviewApi, InterviewCaptureApi, PreparationData } from './interview-api.js';
+import { InterviewApiError } from './interview-api.js';
 import type {
   CaptureStopHandoff,
   InterviewCaptureController,
@@ -93,6 +94,66 @@ describe('WorkbenchShell', () => {
     expect(screen.queryByRole('button', { name: '继续同一次访谈' })).toBeNull();
     expect(screen.queryByRole('button', { name: '安全结束已有音频' })).toBeNull();
     expect(screen.getByRole('button', { name: '重新核对' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '离开工作台' })).toBeTruthy();
+  });
+
+  it('offers a real login return after an initial authenticated load expires', async () => {
+    const authError = new InterviewApiError('AUTH_REQUIRED', '登录已失效，请重新登录', 401);
+    const harness = createHarness(recordingSession());
+    const onReturnToLogin = vi.fn();
+    harness.api.loadPreparation.mockRejectedValueOnce(authError);
+    vi.mocked(harness.controller.verifyServerSession).mockRejectedValueOnce(authError);
+    renderWorkbench(harness, onReturnToLogin);
+
+    const returnToLogin = await screen.findByRole('button', { name: '返回登录' });
+    expect(harness.controller.verifyServerSession).toHaveBeenCalledTimes(1);
+    expect(harness.controller.resume).not.toHaveBeenCalled();
+    expect(harness.controller.stopAndFreeze).not.toHaveBeenCalled();
+    fireEvent.click(returnToLogin);
+    expect(onReturnToLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed and offers safe leave without promising login recovery for a load 403', async () => {
+    const authorityError = new InterviewApiError('FORBIDDEN', '无法访问此项目', 403);
+    const harness = createHarness(recordingSession());
+    const navigate = vi.fn();
+    harness.api.loadPreparation.mockRejectedValueOnce(authorityError);
+    vi.mocked(harness.controller.verifyServerSession).mockRejectedValueOnce(authorityError);
+    renderWorkbench(harness, vi.fn(), navigate);
+
+    const leave = await screen.findByRole('button', { name: '离开工作台' });
+    expect(screen.queryByRole('button', { name: '返回登录' })).toBeNull();
+    expect(harness.controller.resume).not.toHaveBeenCalled();
+    expect(harness.controller.stopAndFreeze).not.toHaveBeenCalled();
+    fireEvent.click(leave);
+    expect(navigate).toHaveBeenCalledWith('/', true);
+  });
+
+  it('fails closed and exposes login return when a running verification receives 401', async () => {
+    const authError = new InterviewApiError('AUTH_REQUIRED', '登录已失效，请重新登录', 401);
+    const harness = createHarness(recordingSession());
+    const onReturnToLogin = vi.fn();
+    renderWorkbench(harness, onReturnToLogin);
+    await screen.findByText('当前对话');
+    vi.mocked(harness.controller.verifyServerSession).mockImplementationOnce(() => {
+      harness.emit(
+        snapshot(interruptedSession(), {
+          lastError: 'AUTHORITY_LOST',
+          phase: 'interrupted',
+          serverVerificationError: 'AUTH_REQUIRED',
+        }),
+      );
+      return Promise.reject(authError);
+    });
+
+    fireEvent(globalThis.window, new Event('online'));
+    const returnToLogin = await screen.findByRole('button', { name: '返回登录' });
+    expect(screen.queryByRole('button', { name: '继续同一次访谈' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '安全结束已有音频' })).toBeNull();
+    expect(harness.controller.resume).not.toHaveBeenCalled();
+    expect(harness.controller.stopAndFreeze).not.toHaveBeenCalled();
+    fireEvent.click(returnToLogin);
+    expect(onReturnToLogin).toHaveBeenCalledTimes(1);
   });
 
   it('fails closed for a session that has not been confirmed as recording', async () => {
@@ -120,23 +181,48 @@ describe('WorkbenchShell', () => {
     expect(details.textContent).toContain('管理服务持久 snapshot');
   });
 
-  it('uses the only modal for ending, defaults focus to continue, supports Escape, and restores focus', async () => {
-    const harness = createHarness(recordingSession());
+  it('explains a delivery failure without misreporting the local archive as failed', async () => {
+    const harness = createHarness(recordingSession(), { deliveryError: 'NETWORK_UNAVAILABLE' });
     renderWorkbench(harness);
-    const trigger = await screen.findByRole('button', { name: '结束访谈' });
-    fireEvent.click(trigger);
 
-    const dialog = screen.getByRole('dialog');
-    expect(screen.getByText('确定结束本次访谈？')).toBeTruthy();
-    await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: '继续访谈' }));
-    });
-    fireEvent(dialog, new Event('cancel', { bubbles: false, cancelable: true }));
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull();
-    });
-    expect(document.activeElement).toBe(trigger);
+    expect(await screen.findByText('本浏览器仍在保存 · 管理服务交付暂不可用')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '保存状态' }));
+    const details = screen.getByRole('region', { name: '保存状态明细' });
+    expect(details.textContent).toContain('本浏览器录音仍保留 · 管理服务交付暂不可用，等待重试');
+    expect(details.textContent).not.toContain('本浏览器保存失败');
   });
+
+  it.each([
+    ['normal', '结束访谈', 'button'],
+    ['normal', '结束访谈', 'escape'],
+    ['interrupted', '安全结束已有音频', 'button'],
+    ['interrupted', '安全结束已有音频', 'escape'],
+    ['empty', '结束无音频会话', 'button'],
+    ['empty', '结束无音频会话', 'escape'],
+  ] as const)(
+    'restores focus to the %s end trigger %s after %s cancellation',
+    async (mode, triggerName, cancellation) => {
+      const harness = endModeHarness(mode);
+      renderWorkbench(harness);
+      const trigger = await screen.findByRole('button', { name: triggerName });
+      fireEvent.click(trigger);
+
+      const dialog = screen.getByRole('dialog');
+      expect(screen.getByText('确定结束本次访谈？')).toBeTruthy();
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: '继续访谈' }));
+      });
+      if (cancellation === 'button') {
+        fireEvent.click(screen.getByRole('button', { name: '继续访谈' }));
+      } else {
+        fireEvent(dialog, new Event('cancel', { bubbles: false, cancelable: true }));
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
+      expect(document.activeElement).toBe(trigger);
+    },
+  );
 
   it('submits one real frozen stop chain and never completes from a timer', async () => {
     const harness = createHarness(recordingSession());
@@ -196,6 +282,74 @@ describe('WorkbenchShell', () => {
     expect(await screen.findByText(/没有找到已冻结的结束交接/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续安全保存' })).toBeNull();
     expect(screen.getByRole('button', { name: '继续处理收尾' })).toBeTruthy();
+  });
+
+  it('rotates reconcile IDs after authoritative success but preserves them after unknown failure', async () => {
+    const harness = createHarness(endingSession('stopping'), {
+      endHandoff: END_HANDOFF,
+      phase: 'stopped',
+    });
+    harness.api.recoverSession
+      .mockResolvedValueOnce(endingSession('stopping'))
+      .mockResolvedValueOnce(endingSession('processing'));
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
+    await waitFor(() => {
+      expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
+    });
+    const firstId = harness.api.recoverSession.mock.calls[0]?.[1].request_id;
+
+    fireEvent.click(screen.getByRole('button', { name: '继续安全保存' }));
+    await waitFor(() => {
+      expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    await screen.findByText('正在完成转录处理');
+    const secondId = harness.api.recoverSession.mock.calls[1]?.[1].request_id;
+    expect(secondId).not.toBe(firstId);
+
+    const retryHarness = createHarness(endingSession('stopping'), {
+      endHandoff: END_HANDOFF,
+      phase: 'stopped',
+    });
+    retryHarness.api.recoverSession
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', '暂时无法连接服务', 0))
+      .mockResolvedValueOnce(endingSession('stopping'));
+    cleanup();
+    renderWorkbench(retryHarness);
+    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
+    await screen.findByText(/暂时无法连接服务/);
+    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    await waitFor(() => {
+      expect(retryHarness.api.recoverSession).toHaveBeenCalledTimes(2);
+    });
+    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(
+      retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id,
+    );
+  });
+
+  it.each([
+    ['processing', '安全离开'],
+    ['completed', '完成并离开'],
+    ['failed', '保留现状并离开'],
+  ] as const)('uses truthful leave copy for %s', async (status, label) => {
+    const harness = createHarness(endingSession(status), {
+      endHandoff: END_HANDOFF,
+      phase: status === 'failed' ? 'failed' : 'stopped',
+    });
+    renderWorkbench(harness);
+    expect(await screen.findByRole('button', { name: label })).toBeTruthy();
+    if (status !== 'completed') {
+      expect(screen.queryByRole('button', { name: '完成并离开' })).toBeNull();
+    }
+  });
+
+  it('does not claim completion for a blocked workbench', async () => {
+    const harness = createHarness(session('device_check', { capture: null }), { phase: 'idle' });
+    renderWorkbench(harness);
+    expect(await screen.findByRole('button', { name: '离开工作台' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '完成并离开' })).toBeNull();
   });
 
   it('renders NO_AUDIO_CAPTURED as a distinct terminal fact', async () => {
@@ -302,16 +456,39 @@ function createHarness(
   return { api, controller, emit };
 }
 
-function renderWorkbench(harness: ReturnType<typeof createHarness>): void {
+function renderWorkbench(
+  harness: ReturnType<typeof createHarness>,
+  onReturnToLogin = vi.fn(),
+  navigate = vi.fn(),
+): void {
   render(
     <WorkbenchShell
       api={harness.api}
       captureController={harness.controller}
-      navigate={vi.fn()}
+      navigate={navigate}
+      onReturnToLogin={onReturnToLogin}
       projectId={PROJECT_ID}
       sessionId={SESSION_ID}
     />,
   );
+}
+
+function endModeHarness(
+  mode: 'empty' | 'interrupted' | 'normal',
+): ReturnType<typeof createHarness> {
+  if (mode === 'normal') return createHarness(recordingSession());
+  if (mode === 'interrupted') return createHarness(interruptedSession(), { phase: 'interrupted' });
+  return createHarness(interruptedSession(), {
+    archive: {
+      archiveByteLength: 0,
+      archiveChunkCount: 0,
+      archiveHighWaterSequenceNo: -1,
+      deliveryAcknowledgedHighWaterSequenceNo: -1,
+      pendingDeliveryCount: 0,
+      timelineEndMs: 0,
+    },
+    phase: 'interrupted',
+  });
 }
 
 function createApi(serverSession: InterviewSessionResponse): MockApi {

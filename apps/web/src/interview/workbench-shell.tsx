@@ -30,13 +30,14 @@ interface WorkbenchShellProps {
     | 'verifyServerSession'
   >;
   navigate: (path: string, replace?: boolean) => void;
+  onReturnToLogin: () => void;
   projectId: string;
   sessionId: string;
 }
 
 type LoadState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { authenticationRequired: boolean; kind: 'error'; message: string }
   | { data: PreparationData; kind: 'ready' };
 
 type EndMode = 'normal' | 'interrupted' | 'empty';
@@ -56,6 +57,7 @@ export function WorkbenchShell({
   api,
   captureController,
   navigate,
+  onReturnToLogin,
   projectId,
   sessionId,
 }: WorkbenchShellProps): React.JSX.Element {
@@ -66,8 +68,9 @@ export function WorkbenchShell({
   const [actionError, setActionError] = useState<string | null>(null);
   const [statusExpanded, setStatusExpanded] = useState(true);
   const [saveExpanded, setSaveExpanded] = useState(false);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const actionLock = useRef(false);
-  const endTrigger = useRef<HTMLButtonElement>(null);
+  const endTrigger = useRef<HTMLElement | null>(null);
   const reconcileRequestId = useRef<string | null>(null);
   const abandonRequestId = useRef<string | null>(null);
 
@@ -77,9 +80,19 @@ export function WorkbenchShell({
       const data = await api.loadPreparation(projectId, sessionId);
       if (data.session === null) throw new Error('SESSION_SNAPSHOT_MISSING');
       await captureController.recover(data.session);
+      setAuthenticationRequired(false);
       setLoadState({ data, kind: 'ready' });
     } catch (error) {
-      setLoadState({ kind: 'error', message: workbenchLoadError(error) });
+      const authRequired = isAuthenticationRequired(error);
+      if (isAuthorityFailure(error)) {
+        await captureController.verifyServerSession().catch(() => undefined);
+      }
+      setAuthenticationRequired(authRequired);
+      setLoadState({
+        authenticationRequired: authRequired,
+        kind: 'error',
+        message: workbenchLoadError(error),
+      });
     }
   }, [api, captureController, projectId, sessionId]);
 
@@ -91,8 +104,9 @@ export function WorkbenchShell({
   const verify = useCallback(async (): Promise<void> => {
     try {
       await captureController.verifyServerSession();
-    } catch {
+    } catch (error) {
       // The controller preserves the last verified snapshot and publishes the verification error.
+      if (isAuthenticationRequired(error)) setAuthenticationRequired(true);
     }
   }, [captureController]);
 
@@ -256,6 +270,9 @@ export function WorkbenchShell({
       };
       const session = await api.recoverSession(sessionId, request);
       captureController.observeServerSession(session);
+      if (reconcileRequestId.current === request.request_id) {
+        reconcileRequestId.current = null;
+      }
     } catch (error) {
       setActionError(readableActionError(error, '管理服务暂时无法继续收束，请稍后重新核对'));
     } finally {
@@ -265,9 +282,27 @@ export function WorkbenchShell({
 
   if (loadState.kind === 'loading') return <WorkbenchLoading />;
   if (loadState.kind === 'error')
-    return <WorkbenchFailure message={loadState.message} retry={load} />;
+    return (
+      <WorkbenchFailure
+        message={loadState.message}
+        onLeave={() => {
+          navigate('/', true);
+        }}
+        onReturnToLogin={loadState.authenticationRequired ? onReturnToLogin : null}
+        retry={load}
+      />
+    );
   if (snapshot.serverSession === null) {
-    return <WorkbenchFailure message="无法确认当前访谈会话。" retry={load} />;
+    return (
+      <WorkbenchFailure
+        message="无法确认当前访谈会话。"
+        onLeave={() => {
+          navigate('/', true);
+        }}
+        onReturnToLogin={null}
+        retry={load}
+      />
+    );
   }
 
   const projectName = safeProjectName(loadState.data.project.display_name);
@@ -295,17 +330,20 @@ export function WorkbenchShell({
       canResume={canResume}
       endMode={endMode}
       endTrigger={endTrigger}
+      authenticationRequired={authenticationRequired}
       navigate={navigate}
       onCloseEnd={() => {
         setEndMode(null);
       }}
       onConfirmEnd={() => void confirmEnd()}
       onContinueFrozen={() => void continueFrozenEnd()}
-      onEnd={(mode) => {
+      onEnd={(mode, trigger) => {
+        endTrigger.current = trigger;
         setEndMode(mode);
       }}
       onRecheck={() => void verify()}
       onReconcile={() => void reconcile()}
+      onReturnToLogin={onReturnToLogin}
       onResume={() => void resumeInterview()}
       projectId={projectId}
       projectName={projectName}
@@ -322,18 +360,20 @@ export function WorkbenchShell({
 
 interface WorkbenchViewProps {
   actionError: string | null;
+  authenticationRequired: boolean;
   canAbandon: boolean;
   canFinalizeExisting: boolean;
   canResume: boolean;
   endMode: EndMode | null;
-  endTrigger: React.RefObject<HTMLButtonElement | null>;
+  endTrigger: React.RefObject<HTMLElement | null>;
   navigate: (path: string, replace?: boolean) => void;
   onCloseEnd: () => void;
   onConfirmEnd: () => void;
   onContinueFrozen: () => void;
-  onEnd: (mode: EndMode) => void;
+  onEnd: (mode: EndMode, trigger: HTMLButtonElement) => void;
   onRecheck: () => void;
   onReconcile: () => void;
+  onReturnToLogin: () => void;
   onResume: () => void;
   projectId: string;
   projectName: string;
@@ -349,6 +389,7 @@ interface WorkbenchViewProps {
 function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
   const {
     actionError,
+    authenticationRequired,
     canAbandon,
     canFinalizeExisting,
     canResume,
@@ -361,6 +402,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     onEnd,
     onRecheck,
     onReconcile,
+    onReturnToLogin,
     onResume,
     projectId,
     projectName,
@@ -442,10 +484,9 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
         {state === 'recording' ? (
           <button
             className="button button--danger workbench-end"
-            onClick={() => {
-              onEnd('normal');
+            onClick={(event) => {
+              onEnd('normal', event.currentTarget);
             }}
-            ref={endTrigger}
             type="button"
           >
             结束访谈
@@ -460,12 +501,13 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             canFinalizeExisting={canFinalizeExisting}
             canResume={canResume}
             expanded={statusExpanded}
-            onAbandon={() => {
-              onEnd('empty');
+            authenticationRequired={authenticationRequired}
+            onAbandon={(trigger) => {
+              onEnd('empty', trigger);
             }}
             onContinueFrozen={onContinueFrozen}
-            onFinalize={() => {
-              onEnd('interrupted');
+            onFinalize={(trigger) => {
+              onEnd('interrupted', trigger);
             }}
             onLeave={() => {
               navigate('/');
@@ -478,6 +520,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             }}
             onRecheck={onRecheck}
             onReconcile={onReconcile}
+            onReturnToLogin={onReturnToLogin}
             onResume={onResume}
             onRestore={() => {
               setStatusExpanded(true);
@@ -578,7 +621,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
         <EndInterviewDialog
           onCancel={onCloseEnd}
           onConfirm={onConfirmEnd}
-          restoreFocus={endTrigger}
+          restoreFocus={endTrigger.current}
         />
       )}
     </main>
@@ -586,6 +629,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
 }
 
 function SessionStatePanel({
+  authenticationRequired,
   canAbandon,
   canFinalizeExisting,
   canResume,
@@ -598,6 +642,7 @@ function SessionStatePanel({
   onPrepareAgain,
   onRecheck,
   onReconcile,
+  onReturnToLogin,
   onResume,
   onRestore,
   saveDetails,
@@ -605,18 +650,20 @@ function SessionStatePanel({
   state,
   validConsent,
 }: {
+  authenticationRequired: boolean;
   canAbandon: boolean;
   canFinalizeExisting: boolean;
   canResume: boolean;
   expanded: boolean;
-  onAbandon: () => void;
+  onAbandon: (trigger: HTMLButtonElement) => void;
   onContinueFrozen: () => void;
-  onFinalize: () => void;
+  onFinalize: (trigger: HTMLButtonElement) => void;
   onLeave: () => void;
   onMinimize: () => void;
   onPrepareAgain: () => void;
   onRecheck: () => void;
   onReconcile: () => void;
+  onReturnToLogin: () => void;
   onResume: () => void;
   onRestore: () => void;
   saveDetails: () => void;
@@ -695,12 +742,24 @@ function SessionStatePanel({
           </button>
         ) : null}
         {state === 'interrupted' && canFinalizeExisting ? (
-          <button className="button button--secondary" onClick={onFinalize} type="button">
+          <button
+            className="button button--secondary"
+            onClick={(event) => {
+              onFinalize(event.currentTarget);
+            }}
+            type="button"
+          >
             安全结束已有音频
           </button>
         ) : null}
         {state === 'interrupted' && canAbandon ? (
-          <button className="button button--secondary" onClick={onAbandon} type="button">
+          <button
+            className="button button--secondary"
+            onClick={(event) => {
+              onAbandon(event.currentTarget);
+            }}
+            type="button"
+          >
             结束无音频会话
           </button>
         ) : null}
@@ -722,12 +781,22 @@ function SessionStatePanel({
         <button className="button button--secondary" onClick={onRecheck} type="button">
           重新核对
         </button>
+        {state === 'interrupted' && authenticationRequired ? (
+          <button className="button button--secondary" onClick={onReturnToLogin} type="button">
+            返回登录
+          </button>
+        ) : null}
+        {state === 'interrupted' && snapshot.lastError === 'AUTHORITY_LOST' ? (
+          <button className="button button--secondary" onClick={onLeave} type="button">
+            离开工作台
+          </button>
+        ) : null}
         {state === 'processing' ||
         state === 'completed' ||
         state === 'failed' ||
         state === 'blocked' ? (
           <button className="button button--secondary" onClick={onLeave} type="button">
-            {state === 'processing' ? '安全离开' : '完成并离开'}
+            {leaveWorkbenchLabel(state)}
           </button>
         ) : null}
         {state === 'no_audio' ? (
@@ -750,7 +819,7 @@ function EndInterviewDialog({
 }: {
   onCancel: () => void;
   onConfirm: () => void;
-  restoreFocus: React.RefObject<HTMLButtonElement | null>;
+  restoreFocus: HTMLElement | null;
 }): React.JSX.Element {
   const dialog = useRef<HTMLDialogElement>(null);
   const continueButton = useRef<HTMLButtonElement>(null);
@@ -761,7 +830,7 @@ function EndInterviewDialog({
     const node = dialog.current;
     if (node !== null && typeof node.showModal === 'function' && !node.open) node.showModal();
     continueButton.current?.focus();
-    return (): void => restoreFocus.current?.focus();
+    return (): void => restoreFocus?.focus();
   }, [restoreFocus]);
   return (
     <dialog
@@ -817,8 +886,9 @@ function SaveFacts({
       verified: null,
     },
     {
-      detail:
-        snapshot.serverVerificationError !== null
+      detail: hasNonAuthorityDeliveryFailure(snapshot)
+        ? '本浏览器录音仍保留 · 管理服务交付暂不可用，等待重试'
+        : snapshot.serverVerificationError !== null
           ? '管理服务暂不可核对，保留上次事实'
           : finalization === null
             ? `已接收 ${String(session?.capture?.uploaded_chunk_count ?? 0)} 段，manifest 尚未冻结`
@@ -907,9 +977,13 @@ function WorkbenchLoading(): React.JSX.Element {
 
 function WorkbenchFailure({
   message,
+  onLeave,
+  onReturnToLogin,
   retry,
 }: {
   message: string;
+  onLeave: () => void;
+  onReturnToLogin: (() => void) | null;
   retry: () => Promise<void>;
 }): React.JSX.Element {
   return (
@@ -920,6 +994,14 @@ function WorkbenchFailure({
         <p role="alert">{message}</p>
         <button className="button button--secondary" onClick={() => void retry()} type="button">
           重新核对
+        </button>
+        {onReturnToLogin === null ? null : (
+          <button className="button button--secondary" onClick={onReturnToLogin} type="button">
+            返回登录
+          </button>
+        )}
+        <button className="button button--secondary" onClick={onLeave} type="button">
+          离开工作台
         </button>
       </section>
     </main>
@@ -1028,6 +1110,9 @@ function safetySummary(
       ? `采集已中断 · 本浏览器保留 ${String(archive.archiveChunkCount)} 段`
       : '采集已中断 · 尚未发现本地录音';
   }
+  if (hasNonAuthorityDeliveryFailure(snapshot)) {
+    return '本浏览器仍在保存 · 管理服务交付暂不可用';
+  }
   if (snapshot.serverVerificationError !== null && snapshot.phase === 'active') {
     return '本浏览器仍在保存 · 管理服务暂不可核对';
   }
@@ -1049,6 +1134,40 @@ function safetySummary(
   return state === 'processing' || state === 'completed'
     ? '管理服务已确认录音完整'
     : '录音已停止 · 正在核对保存';
+}
+
+function leaveWorkbenchLabel(state: WorkbenchState): string {
+  if (state === 'completed') return '完成并离开';
+  if (state === 'processing') return '安全离开';
+  if (state === 'failed') return '保留现状并离开';
+  return '离开工作台';
+}
+
+function isAuthenticationRequired(error: unknown): boolean {
+  return (
+    error instanceof InterviewApiError && (error.status === 401 || error.code === 'AUTH_REQUIRED')
+  );
+}
+
+function isAuthorityFailure(error: unknown): boolean {
+  return (
+    error instanceof InterviewApiError &&
+    (error.status === 401 ||
+      error.status === 403 ||
+      ['AUTH_REQUIRED', 'FORBIDDEN', 'CONSENT_REQUIRED', 'SERVICE_TERM_REQUIRED'].includes(
+        error.code,
+      ))
+  );
+}
+
+function hasNonAuthorityDeliveryFailure(snapshot: InterviewCaptureControllerSnapshot): boolean {
+  return (
+    snapshot.deliveryError !== null &&
+    snapshot.lastError !== 'AUTHORITY_LOST' &&
+    !['AUTH_REQUIRED', 'FORBIDDEN', 'CONSENT_REQUIRED', 'SERVICE_TERM_REQUIRED'].includes(
+      snapshot.deliveryError,
+    )
+  );
 }
 
 function interruptionDetail(snapshot: InterviewCaptureControllerSnapshot): string {

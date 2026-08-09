@@ -38,13 +38,15 @@ test('real controller facts drive the complete workbench state and responsive sc
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
 
   await page.setViewportSize({ height: 844, width: 390 });
-  await page.getByRole('button', { name: '安全结束已有音频' }).click();
+  const interruptedEndTrigger = page.getByRole('button', { name: '安全结束已有音频' });
+  await interruptedEndTrigger.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('button', { name: '继续访谈' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
-  await page.getByRole('button', { name: '安全结束已有音频' }).click();
+  await expect(interruptedEndTrigger).toBeFocused();
+  await interruptedEndTrigger.click();
   await page.getByRole('button', { name: '确认结束' }).click();
   await expect(page.getByRole('heading', { name: '正在安全保存录音' })).toBeVisible();
   await captureStateMatrix(page, 'stopping');
@@ -60,6 +62,13 @@ test('real controller facts drive the complete workbench state and responsive sc
     server.setState(state);
     await triggerReadOnlyVerification(page);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    if (state === 'completed') {
+      await expect(page.getByRole('button', { name: '完成并离开' })).toBeVisible();
+    }
+    if (state === 'failed') {
+      await expect(page.getByRole('button', { name: '保留现状并离开' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '完成并离开' })).toHaveCount(0);
+    }
     await captureStateMatrix(page, state);
     await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
   }

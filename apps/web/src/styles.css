@@ -595,7 +595,8 @@ p {
 .workbench-action-error {
   margin-bottom: 0.5rem;
   padding: 0.65rem 0.8rem;
-  border-left: 3px solid var(--danger);
+  border: 1px solid color-mix(in oklch, var(--danger) 42%, transparent);
+  border-radius: 0.5rem;
   color: var(--danger);
   background: var(--danger-soft);
 }

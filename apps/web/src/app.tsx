@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import type { AuthUser, CsrfResponse, LoginResponse } from '@elder-interview/contracts';
 
 import { createInterviewApi } from './interview/interview-api.js';
@@ -17,6 +17,7 @@ export function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pathname, setPathname] = useState(globalThis.location.pathname);
+  const captureControllers = useRef(new Map<string, InterviewCaptureController>());
 
   useEffect(() => {
     function onPopState(): void {
@@ -59,9 +60,8 @@ export function App(): React.JSX.Element {
   );
   const captureController = useMemo(() => {
     if (interviewApi === null || csrfToken === null) return null;
-    const controllers = new Map<string, InterviewCaptureController>();
     return (projectId: string, sessionId: string): InterviewCaptureController => {
-      const existing = controllers.get(sessionId);
+      const existing = captureControllers.current.get(sessionId);
       if (existing !== undefined) return existing;
       const controller = createBrowserInterviewCaptureController({
         api: interviewApi,
@@ -69,7 +69,7 @@ export function App(): React.JSX.Element {
         projectId,
         sessionId,
       });
-      controllers.set(sessionId, controller);
+      captureControllers.current.set(sessionId, controller);
       return controller;
     };
   }, [csrfToken, interviewApi]);
@@ -113,6 +113,7 @@ export function App(): React.JSX.Element {
         response = await sendLogout(token);
       }
       if (!response.ok) throw new Error('logout_failed');
+      captureControllers.current.clear();
       setUser(null);
       setCsrfToken(null);
     } catch {
@@ -124,6 +125,14 @@ export function App(): React.JSX.Element {
     if (replace) globalThis.history.replaceState(null, '', path);
     else globalThis.history.pushState(null, '', path);
     setPathname(path);
+  }
+
+  function returnToLogin(): void {
+    captureControllers.current.clear();
+    setUser(null);
+    setCsrfToken(null);
+    setError(null);
+    navigate('/', true);
   }
 
   if (loading) {
@@ -200,6 +209,7 @@ export function App(): React.JSX.Element {
         api={interviewApi}
         captureController={captureController(route.projectId, route.sessionId)}
         navigate={navigate}
+        onReturnToLogin={returnToLogin}
         projectId={route.projectId}
         sessionId={route.sessionId}
       />
