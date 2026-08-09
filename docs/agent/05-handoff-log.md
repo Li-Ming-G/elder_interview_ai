@@ -8,7 +8,7 @@
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
 | SPEC-DEV-004C / DEV-004 | [当前交接](handoffs/SPEC-DEV-004C.md)、REV-027、PR #17 | DEV-004C2 实现任务 | SPEC DONE、ADR-025 Accepted、CON-014 RESOLVED；C1 已由 REV-028 收口为 DONE，C2 READY。DEV-006 另受专项产品讨论与 SPEC-DEV-006 门禁 |
-| DEV-004C1 / DEV-004C2 | [C2 REVIEW 交接](handoffs/DEV-004C2.md)、[C1 最终交接](handoffs/DEV-004C1.md)、[PR #18](https://github.com/Li-Ming-G/elder_interview_ai/pull/18)、REV-028 | 总控 exact-head 复审整理 / 项目负责人审查 | C1 已 DONE；C2 REVIEW。project restricted/deleted 已实现但不代表 deletion scope；scope `NOT IMPLEMENTED / NOT VERIFIED`、CON-023 OPEN，DEV-008 必须回接。SPEC-DEV-006/DEV-006 继续 BLOCKED |
+| DEV-004C1 / DEV-004C2 | [C2 最终交接](handoffs/DEV-004C2.md)、[C1 最终交接](handoffs/DEV-004C1.md)、[PR #19](https://github.com/Li-Ming-G/elder_interview_ai/pull/19)、REV-028/029 | DEV-004 父任务收口 / SPEC-DEV-006 产品讨论 | C1/C2 均 DONE；C2 final head `757bf52`、CI `31310993567`、merge `83cdfef`。deletion scope `NOT IMPLEMENTED / NOT VERIFIED`、CON-023 OPEN，DEV-008 必须回接；父 DEV-004 仍有缺失区间/补转录验收未收口，SPEC-DEV-006/DEV-006 继续 BLOCKED |
 | SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R2/3/4 | 契约、R1、R2C 已 DONE；当前进入 R2，CON-020/021 仍开放 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
 | DEV-005R4 / DEV-005 | [最终交接](handoffs/DEV-005R4.md)、[PR #16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)、REV-026 | DEV-006/007 后续任务、总控 | R4 与父 DEV-005 DONE；final head `2fab0ea`、CI `31294084873`、merge `7477dca`，CON-020/021/022 RESOLVED。真实供应商、云存储、iPhone 与生产范围后置 |

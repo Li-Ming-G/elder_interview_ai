@@ -502,6 +502,19 @@ P2：
 - 合并与状态：PR #18 merge `99b090dd10b12e4ae72537e9d32c89aed7576663`；DEV-004C1 DONE、DEV-004C2 READY。父 DEV-004 继续 IN_PROGRESS；SPEC-DEV-006/DEV-006 仍等待专项产品讨论与契约 PASS。
 - 范围边界：Android 真机、C2 修正、真实 provider、跨 session AI provenance/stale/recompute 与生产设施不在本次 PASS 范围。
 
+## REV-029｜DEV-004C2 PR #19 定向复审
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #19，分支 `codex/dev-004c2-speaker-corrections`。
+- 首轮审查对象：exact head `7f2934b8f5276d1ce18bfcac57c55d9574c245af`，base `main@2eeacacd19e247db92d3c0859f32455e6f879a25`；CI `31310356069` SUCCESS。
+- 首轮结论：`REQUEST_CHANGES`，P0=0、P1=1。服务端幂等记录成立，但真实工作台每次点击保存都生成新 UUID；首次请求提交而响应未知时，重试无法复用原 request ID，会被当作新写入并转成版本冲突。现有测试只覆盖正常保存和明确冲突重读。
+- 定向修复：mounted 页面内的 correction attempt 绑定 segment、所选角色、expected revision 与 request ID；网络/响应未知后的同一业务重试复用原 ID，权威成功后轮换，改角色或取消后清除旧 attempt。
+- 最终审查对象：exact final head `757bf52e39400aa8e84a37c10124deedce8a291b`，base 未漂移；CI `31310993567` completed / success，完整 verify 门禁通过。
+- 独立证据：总控复跑 `workbench-shell.spec.tsx` 1 file / 34 tests PASS、`git diff --check` PASS；实现侧完整 unit 225、PostgreSQL integration 57、auth 13、Chromium 9 与 migration/build/smoke 等由 exact-head CI 通过。新增测试直接覆盖未知响应 ID 复用、成功后轮换、改角色/取消后不复用。
+- 审查归属：用户明确临时委派总控代行手动复审；实现任务始终保持 REVIEW，未自行宣布 PASS/DONE。
+- 最终结论：`PASS`，P0=0、P1=0；PR #19 以 merge commit `83cdfef12347a41c38530b6c723a379352171459` 合入 main，DEV-004C2 `DONE`。
+- 范围边界：结论仅覆盖当前没有 deletion producer 的内部 MVP 角色修正核心。session/segment deletion scope 为 `NOT IMPLEMENTED / NOT VERIFIED`，CON-023 保持 `OPEN`；未来 DEV-008 必须接入统一 scope guard，并处理 correction preview/operation 外键及并发顺序。复杂批量 UI、AI stale/recompute consumer、真实 provider 与生产设施不在本次 PASS 范围。
+- 后续状态：父 DEV-004 因缺失区间/补转录验收尚未收口而继续 `IN_PROGRESS`；SPEC-DEV-006/DEV-006 继续 `BLOCKED`，等待专项产品讨论和契约 PASS。
+
 ## 审查模板
 
 ```text
