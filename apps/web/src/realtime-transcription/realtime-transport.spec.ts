@@ -93,26 +93,45 @@ describe('RealtimeTranscriptionTransport', () => {
     socket.message(
       server('asr.final', 3, {
         end_ms: 200,
+        effective_speaker_role: 'elder',
         finality: 'final',
         segment_id: 'segment-1',
         speaker_role: 'elder',
+        speaker_role_authority: 'unconfirmed',
+        speaker_role_revision: 0,
+        speaker_stream_id: '60000000-0000-4000-8000-000000000006',
+        content_kind: 'conversation',
         start_ms: 100,
         text: 'final',
+        trusted_effective_speaker_role: 'unknown',
+        trusted_speaker_role: 'unknown',
       }),
     );
     socket.message(
       server('asr.final', 4, {
         end_ms: 200,
+        effective_speaker_role: 'elder',
         finality: 'final',
         segment_id: 'segment-1',
         speaker_role: 'elder',
+        speaker_role_authority: 'unconfirmed',
+        speaker_role_revision: 0,
+        speaker_stream_id: '60000000-0000-4000-8000-000000000006',
+        content_kind: 'conversation',
         start_ms: 100,
         text: 'final',
+        trusted_effective_speaker_role: 'unknown',
+        trusted_speaker_role: 'unknown',
       }),
     );
     expect(latest(states).interim).toBeNull();
     expect(latest(states).finals).toEqual([
-      expect.objectContaining({ segmentId: 'segment-1', text: 'final' }),
+      expect.objectContaining({
+        segmentId: 'segment-1',
+        speakerRole: 'elder',
+        text: 'final',
+        trustedSpeakerRole: 'unknown',
+      }),
     ]);
     expect(messages(socket).filter(({ type }) => type === 'event.ack')).toHaveLength(5);
   });

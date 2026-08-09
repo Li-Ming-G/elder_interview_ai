@@ -62,4 +62,26 @@ describe('RealtimeRuntimeService', () => {
     expect(service.interruptCapture(sessionId, oldStreamId)).toBe(false);
     expect(service.isProducerLeaseCurrent(newRuntime, newProducer, lease)).toBe(true);
   });
+
+  it('retains a calibration event for replay when live publication fails', async () => {
+    const service = new RealtimeRuntimeService();
+    const sessionId = randomUUID();
+    const runtime = await service.create(sessionId, randomUUID(), randomUUID(), new CausalQueue());
+    service.subscribe(runtime, () => {
+      throw new Error('synthetic socket write failure');
+    });
+    service.publishCalibration(runtime, {
+      attempt: null,
+      session_id: sessionId,
+      speaker_role_revision: 0,
+      speaker_stream: null,
+      status: 'not_started',
+      updated_at: '2026-08-09T00:00:00.000Z',
+    });
+    expect(service.replayAfter(runtime, -1)?.[0]?.envelope).toMatchObject({
+      server_sequence: 0,
+      type: 'speaker.calibration.updated',
+    });
+    expect(runtime.subscriber).toBeNull();
+  });
 });

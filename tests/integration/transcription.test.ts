@@ -238,8 +238,8 @@ describe('final-only transcript evidence core', () => {
   it('isolates internal queries by current assignment and never returns provider payload', async () => {
     await ingestion.ingest(result());
     const segments = await query.listFinalSegments(actorA, sessionId);
-    expect(segments.length).toBeGreaterThan(0);
-    expect(segments[0]).not.toHaveProperty('providerPayload');
+    expect(segments.items.length).toBeGreaterThan(0);
+    expect(segments.items[0]).not.toHaveProperty('providerPayload');
     await expect(query.listFinalSegments(actorB, sessionId)).rejects.toBeInstanceOf(
       ForbiddenException,
     );

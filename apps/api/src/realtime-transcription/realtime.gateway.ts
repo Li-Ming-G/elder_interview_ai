@@ -12,6 +12,7 @@ import type { RawData, WebSocket } from 'ws';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
 import { SpeakerCalibrationSnapshotService } from '../transcription/speaker-calibration-snapshot.service.js';
+import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { mapAsrResultToSessionTimeline } from './asr-timeline.js';
 import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
 import { decodeClientMessage, RealtimeCodecError } from './realtime-codec.js';
@@ -335,12 +336,14 @@ export class RealtimeTranscriptionGateway {
           );
         } else if (!runtime.publishedFinalSegmentIds.has(persisted.segment.id)) {
           runtime.publishedFinalSegmentIds.add(persisted.segment.id);
+          const speakerRole = projectTrustedSpeakerRole(persisted.segment);
           this.sendStored(
             client,
             this.runtimes.append(runtime, 'asr.final', {
               end_ms: persisted.segment.endMs,
               finality: 'final',
               segment_id: persisted.segment.id,
+              effective_speaker_role: speakerRole.effectiveSpeakerRole,
               speaker_provider_id: persisted.segment.speakerProviderId,
               speaker_role: persisted.segment.originalSpeakerRole,
               speaker_role_authority: persisted.segment.originalRoleAuthority,
@@ -349,6 +352,8 @@ export class RealtimeTranscriptionGateway {
               content_kind: persisted.segment.contentKind,
               start_ms: persisted.segment.startMs,
               text: persisted.segment.originalText,
+              trusted_effective_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
+              trusted_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
             }),
           );
           const label = persisted.segment.speakerProviderId;

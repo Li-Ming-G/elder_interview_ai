@@ -423,6 +423,9 @@ export interface InterviewWsAsrFinalPayload {
   speaker_provider_id: string | null;
   speaker_role: 'elder' | 'interviewer' | 'unknown';
   speaker_role_authority: 'unconfirmed' | 'user_confirmed';
+  effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_speaker_role: 'elder' | 'interviewer' | 'unknown';
   speaker_stream_id: string;
   speaker_role_revision: number;
   content_kind: 'conversation' | 'speaker_calibration';
@@ -430,6 +433,28 @@ export interface InterviewWsAsrFinalPayload {
   end_ms: number;
   text: string;
   finality: 'final';
+}
+
+export interface TranscriptSegmentResponse {
+  id: string;
+  speaker_stream_id: string;
+  speaker_provider_id: string | null;
+  original_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  original_speaker_role_authority: 'unconfirmed' | 'user_confirmed';
+  corrected_speaker_role: 'elder' | 'interviewer' | 'unknown' | null;
+  effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  speaker_role_revision: number;
+  content_kind: 'conversation' | 'speaker_calibration';
+  start_ms: number;
+  end_ms: number;
+  original_text: string;
+  corrected_text: string | null;
+}
+
+export interface TranscriptPageResponse {
+  items: TranscriptSegmentResponse[];
+  next_cursor: string | null;
 }
 
 export interface InterviewWsAsrStatusPayload {

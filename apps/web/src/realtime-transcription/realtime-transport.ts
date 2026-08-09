@@ -30,6 +30,7 @@ export interface RealtimeTranscriptFinal {
   speakerRoleAuthority?: 'unconfirmed' | 'user_confirmed';
   speakerRoleRevision?: number;
   speakerStreamId?: string;
+  trustedSpeakerRole?: 'elder' | 'interviewer' | 'unknown';
   startMs: number;
   text: string;
 }
@@ -325,6 +326,7 @@ export class RealtimeTranscriptionTransport {
     } else if (message.type === 'asr.final') {
       const payload = message.payload as {
         end_ms: number;
+        effective_speaker_role: RealtimeTranscriptFinal['speakerRole'];
         segment_id: string;
         speaker_role: RealtimeTranscriptFinal['speakerRole'];
         speaker_role_authority: NonNullable<RealtimeTranscriptFinal['speakerRoleAuthority']>;
@@ -333,18 +335,21 @@ export class RealtimeTranscriptionTransport {
         content_kind: NonNullable<RealtimeTranscriptFinal['contentKind']>;
         start_ms: number;
         text: string;
+        trusted_effective_speaker_role: NonNullable<RealtimeTranscriptFinal['trustedSpeakerRole']>;
+        trusted_speaker_role: NonNullable<RealtimeTranscriptFinal['trustedSpeakerRole']>;
       };
       if (!this.finals.has(payload.segment_id)) {
         this.finals.set(payload.segment_id, {
           contentKind: payload.content_kind,
           endMs: payload.end_ms,
           segmentId: payload.segment_id,
-          speakerRole: payload.speaker_role,
+          speakerRole: payload.effective_speaker_role,
           speakerRoleAuthority: payload.speaker_role_authority,
           speakerRoleRevision: payload.speaker_role_revision,
           speakerStreamId: payload.speaker_stream_id,
           startMs: payload.start_ms,
           text: payload.text,
+          trustedSpeakerRole: payload.trusted_speaker_role,
         });
         this.patch({ finals: [...this.finals.values()], interim: null });
       }

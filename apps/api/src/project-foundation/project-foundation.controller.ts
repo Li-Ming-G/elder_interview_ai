@@ -4,10 +4,12 @@ import type {
   ProjectResponse,
   ServiceTermResponse,
   SpeakerCalibrationSnapshot,
+  TranscriptPageResponse,
 } from '@elder-interview/contracts';
-import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
+import { TranscriptQueryService } from '../transcription/transcript-query.service.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
 import { SessionCaptureService } from './session-capture.service.js';
@@ -27,6 +29,7 @@ import {
   validateRecoverSession,
   validateBeginSpeakerCalibration,
   validateResolveSpeakerCalibration,
+  validateTranscriptPageQuery,
   validateUuid,
 } from './project.validation.js';
 
@@ -38,6 +41,7 @@ export class ProjectFoundationController {
     private readonly finalization: SessionFinalizationService,
     private readonly captures: SessionCaptureService,
     private readonly speakerCalibration: SpeakerCalibrationService,
+    private readonly transcripts: TranscriptQueryService,
   ) {}
 
   @Post('projects')
@@ -167,6 +171,19 @@ export class ProjectFoundationController {
     @Req() request: AuthenticatedRequest,
   ): Promise<SpeakerCalibrationSnapshot> {
     return this.speakerCalibration.get(await this.actors.from(request), validateUuid(id));
+  }
+
+  @Get('sessions/:id/transcripts')
+  public async getTranscripts(
+    @Param('id') id: string,
+    @Query() query: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<TranscriptPageResponse> {
+    return this.transcripts.listFinalSegments(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateTranscriptPageQuery(query),
+    );
   }
 
   @Post('sessions/:id/speaker-calibrations')

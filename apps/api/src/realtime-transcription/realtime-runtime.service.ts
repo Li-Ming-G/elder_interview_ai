@@ -220,7 +220,13 @@ export class RealtimeRuntimeService {
 
   public publishCalibration(runtime: SessionRuntime, snapshot: SpeakerCalibrationSnapshot): void {
     const event = this.append(runtime, 'speaker.calibration.updated', snapshot);
-    runtime.subscriber?.(event);
+    try {
+      runtime.subscriber?.(event);
+    } catch {
+      // The canonical event is already in the replay window. A failed live socket write must not
+      // roll back the committed marker or let delivery failure create a second event on retry.
+      runtime.subscriber = null;
+    }
   }
 
   public enqueueMarker<T>(

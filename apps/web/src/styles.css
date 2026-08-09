@@ -456,6 +456,7 @@ p {
 .speaker-calibration {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   justify-content: space-between;
   width: min(100%, 80rem);
   min-height: 4.25rem;

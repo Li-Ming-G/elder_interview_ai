@@ -50,6 +50,7 @@ export class SpeakerCalibrationSnapshotService {
                 memberships: {
                   orderBy: { transcriptSegment: { startMs: 'asc' } },
                   select: {
+                    createdAt: true,
                     transcriptSegment: {
                       select: { id: true, speakerProviderId: true, startMs: true },
                     },
@@ -85,7 +86,12 @@ export class SpeakerCalibrationSnapshotService {
             },
           })
         : [];
-    const updatedAt = [session.updatedAt, stream?.updatedAt, attempt?.updatedAt]
+    const updatedAt = [
+      session.updatedAt,
+      stream?.updatedAt,
+      attempt?.updatedAt,
+      ...(attempt?.memberships.map(({ createdAt }) => createdAt) ?? []),
+    ]
       .filter((value): value is Date => value instanceof Date)
       .reduce((latest, value) => (value > latest ? value : latest), session.updatedAt);
     return {
@@ -130,6 +136,7 @@ export class SpeakerCalibrationSnapshotService {
 
 function stableLabels(
   memberships: Array<{
+    createdAt: Date;
     transcriptSegment: { id: string; speakerProviderId: string | null; startMs: number };
   }>,
 ): string[] {

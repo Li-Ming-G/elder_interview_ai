@@ -161,6 +161,16 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
       body: { code: 'SPEAKER_CALIBRATION_LABELS_INVALID' },
     });
     const ingestion = app.get(TranscriptIngestionService);
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'unconfirmed',
+        sessionId: session.id,
+        source: 'provider',
+        speakerProviderId: 'speaker_1',
+        speakerRole: 'elder',
+        speakerStreamId: runtime.speakerStreamId,
+      },
+    });
     for (const [index, label] of ['speaker_1', 'speaker_2'].entries()) {
       await ingestion.ingest({
         endMs: index * 100 + 100,
@@ -222,6 +232,80 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
       (await assignedAgent.get(`/api/v1/sessions/${session.id}/speaker-calibration`)).body,
     ).toMatchObject({ speaker_role_revision: 1, status: 'confirmed' });
 
+    for (const [index, label] of ['speaker_1', 'speaker_2'].entries()) {
+      await ingestion.ingest({
+        endMs: 400,
+        ingestKey: `http-after-confirm-${String(index)}`,
+        kind: 'final',
+        sessionId: session.id,
+        source: 'fixture',
+        speakerProviderId: label,
+        speakerStreamId: runtime.speakerStreamId,
+        startMs: 300,
+        text: `synthetic post-confirm segment ${String(index)}`,
+      });
+    }
+    expect((await request(server).get(`/api/v1/sessions/${session.id}/transcripts`)).status).toBe(
+      401,
+    );
+    expect((await outsiderAgent.get(`/api/v1/sessions/${session.id}/transcripts`)).status).toBe(
+      403,
+    );
+    const transcriptItems: Array<{
+      effective_speaker_role: string;
+      id: string;
+      original_speaker_role: string;
+      original_speaker_role_authority: string;
+      start_ms: number;
+      trusted_effective_speaker_role: string;
+    }> = [];
+    let cursor: string | null = null;
+    do {
+      const page = await assignedAgent
+        .get(`/api/v1/sessions/${session.id}/transcripts`)
+        .query({ ...(cursor === null ? {} : { cursor }), limit: 1 });
+      expect(page.status).toBe(200);
+      const body = page.body as {
+        items: typeof transcriptItems;
+        next_cursor: string | null;
+      };
+      transcriptItems.push(...body.items);
+      cursor = body.next_cursor;
+    } while (cursor !== null);
+    expect(transcriptItems).toHaveLength(4);
+    expect(transcriptItems.map(({ id, start_ms: startMs }) => [startMs, id])).toEqual(
+      [...transcriptItems]
+        .sort((left, right) => left.start_ms - right.start_ms || left.id.localeCompare(right.id))
+        .map(({ id, start_ms: startMs }) => [startMs, id]),
+    );
+    expect(transcriptItems).toContainEqual(
+      expect.objectContaining({
+        effective_speaker_role: 'elder',
+        original_speaker_role: 'elder',
+        original_speaker_role_authority: 'unconfirmed',
+        trusted_effective_speaker_role: 'unknown',
+      }),
+    );
+    expect(transcriptItems).toContainEqual(
+      expect.objectContaining({
+        effective_speaker_role: 'elder',
+        original_speaker_role: 'elder',
+        original_speaker_role_authority: 'user_confirmed',
+        trusted_effective_speaker_role: 'elder',
+      }),
+    );
+    await prisma.elderProject.update({
+      data: { status: 'restricted', statusBeforeRestriction: 'active' },
+      where: { id: project.id },
+    });
+    expect((await assignedAgent.get(`/api/v1/sessions/${session.id}/transcripts`)).status).toBe(
+      403,
+    );
+    await prisma.elderProject.update({
+      data: { status: 'active', statusBeforeRestriction: null },
+      where: { id: project.id },
+    });
+
     await prisma.consentRecord.updateMany({
       data: { revokedAt: new Date(), status: 'revoked' },
       where: { projectId: project.id },
@@ -229,6 +313,9 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
     expect(
       (await assignedAgent.get(`/api/v1/sessions/${session.id}/speaker-calibration`)).status,
     ).toBe(403);
+    expect((await assignedAgent.get(`/api/v1/sessions/${session.id}/transcripts`)).status).toBe(
+      403,
+    );
     expect(outsiderLogin.status).toBe(200);
   });
 });

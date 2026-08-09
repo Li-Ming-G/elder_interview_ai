@@ -127,6 +127,26 @@ export function validateResolveSpeakerCalibration(
   };
 }
 
+export function validateTranscriptPageQuery(query: Record<string, unknown>): {
+  cursor: string | null;
+  limit: number;
+} {
+  const cursor = query.cursor;
+  const limit = query.limit;
+  if (
+    (cursor !== undefined &&
+      (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 512)) ||
+    (limit !== undefined &&
+      (typeof limit !== 'string' ||
+        !/^\d+$/.test(limit) ||
+        Number(limit) < 1 ||
+        Number(limit) > 500))
+  ) {
+    throw validationError();
+  }
+  return { cursor: typeof cursor === 'string' ? cursor : null, limit: Number(limit ?? 100) };
+}
+
 export function validateConfirmCaptureActive(
   body: Record<string, unknown>,
 ): ConfirmCaptureActiveRequest {

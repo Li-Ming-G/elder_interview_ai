@@ -239,10 +239,32 @@ describe('authenticated realtime transcription WebSocket', () => {
       type: 'speaker.calibration.updated',
       server_sequence: 1,
     });
+    const speakerStream = await prisma.speakerStream.findFirstOrThrow({
+      where: { sessionId, status: 'active' },
+    });
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'unconfirmed',
+        sessionId,
+        source: 'provider',
+        speakerProviderId: 'speaker_1',
+        speakerRole: 'elder',
+        speakerStreamId: speakerStream.id,
+      },
+    });
 
     client.send(JSON.stringify(frame(0, audioStreamId)));
     expect((await inbox.next()).type).toBe('asr.interim');
-    expect((await inbox.next()).type).toBe('asr.final');
+    expect(await inbox.next()).toMatchObject({
+      payload: {
+        effective_speaker_role: 'elder',
+        speaker_role: 'elder',
+        speaker_role_authority: 'unconfirmed',
+        trusted_effective_speaker_role: 'unknown',
+        trusted_speaker_role: 'unknown',
+      },
+      type: 'asr.final',
+    });
     expect(await inbox.next()).toMatchObject({
       type: 'audio.ack',
       payload: {
@@ -251,9 +273,29 @@ describe('authenticated realtime transcription WebSocket', () => {
     });
     expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
 
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'user_confirmed',
+        createdBy: userId,
+        sessionId,
+        source: 'calibration',
+        speakerProviderId: 'speaker_2',
+        speakerRole: 'elder',
+        speakerStreamId: speakerStream.id,
+      },
+    });
     client.send(JSON.stringify(frame(1, audioStreamId)));
     const final = await inbox.next();
-    expect(final).toMatchObject({ type: 'asr.final', payload: { finality: 'final' } });
+    expect(final).toMatchObject({
+      type: 'asr.final',
+      payload: {
+        effective_speaker_role: 'elder',
+        finality: 'final',
+        speaker_role_authority: 'user_confirmed',
+        trusted_effective_speaker_role: 'elder',
+        trusted_speaker_role: 'elder',
+      },
+    });
     const segmentId = (final.payload as { segment_id: string }).segment_id;
     expect(await prisma.transcriptSegment.findUnique({ where: { id: segmentId } })).not.toBeNull();
     expect((await inbox.next()).type).toBe('audio.ack');

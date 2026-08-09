@@ -13,12 +13,14 @@ import {
 } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
 import { SpeakerCalibrationSnapshotService } from '../../apps/api/src/transcription/speaker-calibration-snapshot.service.js';
 import { TranscriptIngestionService } from '../../apps/api/src/transcription/transcript-ingestion.service.js';
+import { projectTrustedSpeakerRole } from '../../apps/api/src/transcription/trusted-speaker-role.js';
 
 describe('speaker calibration causal boundary and trusted role core', () => {
   let prisma: PrismaService;
   let runtimes: RealtimeRuntimeService;
   let calibration: SpeakerCalibrationService;
   let ingestion: TranscriptIngestionService;
+  let snapshots: SpeakerCalibrationSnapshotService;
   let actor: AuthPrincipal;
 
   beforeAll(async () => {
@@ -33,7 +35,7 @@ describe('speaker calibration causal boundary and trusted role core', () => {
     prisma = new PrismaService(config);
     await prisma.$connect();
     runtimes = new RealtimeRuntimeService(prisma);
-    const snapshots = new SpeakerCalibrationSnapshotService(prisma);
+    snapshots = new SpeakerCalibrationSnapshotService(prisma);
     calibration = new SpeakerCalibrationService(prisma, runtimes, snapshots);
     ingestion = new TranscriptIngestionService(prisma, config);
   });
@@ -237,6 +239,90 @@ describe('speaker calibration causal boundary and trusted role core', () => {
     expect(next.speakerStreamId).not.toBe(fixture.runtime.speakerStreamId);
     expect(nextSnapshot).toMatchObject({ status: 'not_started', speaker_role_revision: 1 });
     expect(nextSnapshot.attempt).toBeNull();
+  });
+
+  it('publishes marker and observed-label snapshots in causal order with immutable replay facts', async () => {
+    const fixture = await createFixture(prisma, runtimes, actor);
+    const published: Array<{
+      payload: unknown;
+      server_sequence: number;
+      type: string;
+    }> = [];
+    runtimes.subscribe(fixture.runtime, (event) => published.push(event));
+
+    const beginPromise = calibration.begin(actor, fixture.sessionId, {
+      request_id: randomUUID(),
+      speaker_stream_id: fixture.runtime.speakerStreamId,
+    });
+    await waitFor(
+      async () =>
+        (await prisma.speakerCalibrationAttempt.count({
+          where: { sessionId: fixture.sessionId },
+        })) > 0,
+    );
+    const followingPcm = runtimes.enqueue(fixture.runtime, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const persisted = await ingestion.ingest({
+        endMs: 100,
+        ingestKey: 'causal-label-after-begin',
+        kind: 'final',
+        sessionId: fixture.sessionId,
+        source: 'fixture',
+        speakerProviderId: 'speaker_1',
+        speakerStreamId: fixture.runtime.speakerStreamId,
+        startMs: 0,
+        text: 'synthetic causal label',
+      });
+      if (persisted.kind !== 'final') throw new Error('expected persisted final');
+      const role = projectTrustedSpeakerRole(persisted.segment);
+      const finalEvent = runtimes.append(fixture.runtime, 'asr.final', {
+        content_kind: persisted.segment.contentKind,
+        effective_speaker_role: role.effectiveSpeakerRole,
+        end_ms: persisted.segment.endMs,
+        finality: 'final' as const,
+        segment_id: persisted.segment.id,
+        speaker_provider_id: persisted.segment.speakerProviderId,
+        speaker_role: persisted.segment.originalSpeakerRole,
+        speaker_role_authority: persisted.segment.originalRoleAuthority,
+        speaker_role_revision: persisted.segment.speakerRoleRevision,
+        speaker_stream_id: persisted.segment.speakerStreamId,
+        start_ms: persisted.segment.startMs,
+        text: persisted.segment.originalText,
+        trusted_effective_speaker_role: role.trustedEffectiveSpeakerRole,
+        trusted_speaker_role: role.trustedEffectiveSpeakerRole,
+      });
+      published.push(finalEvent);
+      runtimes.publishCalibration(fixture.runtime, await snapshots.get(fixture.runtime.sessionId));
+    });
+
+    const began = await beginPromise;
+    await followingPcm;
+    expect(published.map(({ server_sequence: sequence }) => sequence)).toEqual([0, 1, 2]);
+    expect(published.map(({ type }) => type)).toEqual([
+      'speaker.calibration.updated',
+      'asr.final',
+      'speaker.calibration.updated',
+    ]);
+    const markerSnapshot = published[0]?.payload as {
+      observed_provider_labels?: string[];
+      attempt?: { observed_provider_labels: string[] };
+      updated_at: string;
+    };
+    const observedSnapshot = published[2]?.payload as {
+      attempt: { observed_provider_labels: string[] };
+      updated_at: string;
+    };
+    expect(markerSnapshot.attempt?.observed_provider_labels).toEqual([]);
+    expect(observedSnapshot.attempt.observed_provider_labels).toEqual(['speaker_1']);
+    expect(Date.parse(observedSnapshot.updated_at)).toBeGreaterThan(Date.parse(began.updated_at));
+    const replay = runtimes.replayAfter(fixture.runtime, -1);
+    expect(
+      (replay?.[0]?.envelope.payload as { attempt: { observed_provider_labels: string[] } }).attempt
+        .observed_provider_labels,
+    ).toEqual([]);
+    expect(
+      (await calibration.get(actor, fixture.sessionId)).attempt?.observed_provider_labels,
+    ).toEqual(['speaker_1']);
   });
 
   it('cancels a marker that misses its queue deadline before execution', async () => {
@@ -491,4 +577,12 @@ async function clean(prisma: PrismaService): Promise<void> {
   await prisma.authSession.deleteMany();
   await prisma.authLoginThrottle.deleteMany();
   await prisma.user.deleteMany();
+}
+
+async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (!(await predicate())) {
+    if (Date.now() >= deadline) throw new Error('timed out waiting for persisted marker');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }

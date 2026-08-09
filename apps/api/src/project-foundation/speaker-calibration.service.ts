@@ -52,13 +52,15 @@ export class SpeakerCalibrationService {
         sessionId,
         input.speaker_stream_id,
         Date.now() + MARKER_TIMEOUT_MS,
-        async (runtime, remainingMs) =>
-          this.prisma.$transaction(
+        async (runtime, remainingMs) => {
+          const marker = await this.prisma.$transaction(
             (transaction) => this.beginInTransaction(transaction, actor, runtime, input, action),
             { maxWait: remainingMs, timeout: remainingMs },
-          ),
+          );
+          if (!marker.replayed) this.runtimes.publishCalibration(runtime, marker.snapshot);
+          return marker;
+        },
       );
-      if (!result.replayed) this.runtimes.publishCalibration(result.runtime, result.snapshot);
       return result.snapshot;
     } catch (error) {
       throw this.mapMarkerError(error);
@@ -85,14 +87,16 @@ export class SpeakerCalibrationService {
         attempt.sessionId,
         attempt.speakerStreamId,
         Date.now() + MARKER_TIMEOUT_MS,
-        async (runtime, remainingMs) =>
-          this.prisma.$transaction(
+        async (runtime, remainingMs) => {
+          const marker = await this.prisma.$transaction(
             (transaction) =>
               this.resolveInTransaction(transaction, actor, runtime, attemptId, input, action),
             { maxWait: remainingMs, timeout: remainingMs },
-          ),
+          );
+          if (!marker.replayed) this.runtimes.publishCalibration(runtime, marker.snapshot);
+          return marker;
+        },
       );
-      if (!result.replayed) this.runtimes.publishCalibration(result.runtime, result.snapshot);
       return result.snapshot;
     } catch (error) {
       throw this.mapMarkerError(error);
@@ -114,7 +118,7 @@ export class SpeakerCalibrationService {
       runtime.sessionId,
       action,
     );
-    if (replay !== null) return { replayed: true, runtime, snapshot: replay };
+    if (replay !== null) return { replayed: true, snapshot: replay };
     await this.assertGate(transaction, actor, runtime.sessionId);
     await this.assertCurrentStream(transaction, runtime);
     const latest = await transaction.speakerCalibrationAttempt.findFirst({
@@ -150,7 +154,7 @@ export class SpeakerCalibrationService {
       snapshot,
       'speaker_calibration.begin',
     );
-    return { replayed: false, runtime, snapshot };
+    return { replayed: false, snapshot };
   }
 
   private async resolveInTransaction(
@@ -169,7 +173,7 @@ export class SpeakerCalibrationService {
       attemptId,
       action,
     );
-    if (replay !== null) return { replayed: true, runtime, snapshot: replay };
+    if (replay !== null) return { replayed: true, snapshot: replay };
     await this.assertGate(transaction, actor, runtime.sessionId);
     await this.assertCurrentStream(transaction, runtime);
     const attempt = await transaction.speakerCalibrationAttempt.findUnique({
@@ -236,7 +240,7 @@ export class SpeakerCalibrationService {
       snapshot,
       `speaker_calibration.${input.action}`,
     );
-    return { replayed: false, runtime, snapshot };
+    return { replayed: false, snapshot };
   }
 
   private async assertObservedLabels(
@@ -419,7 +423,6 @@ export class SpeakerCalibrationService {
 
 interface MarkerResult {
   replayed: boolean;
-  runtime: SessionRuntime;
   snapshot: SpeakerCalibrationSnapshot;
 }
 
