@@ -475,6 +475,24 @@ P2：
 - 通过依据：PCM 串行 marker 冻结不可变校准半开区间；独立 `SPEC-DEV-006` 冻结未来跨 session consumer seam；REST、`session.ready` 与 WS 1.1 统一使用 `SpeakerCalibrationSnapshot`。
 - 治理结果：PR #17 以 merge commit `0b6c3575104425b3907d94df894dd5d1f02006d1` 合入 main；SPEC-DEV-004C DONE、ADR-025 Accepted、CON-014 RESOLVED、DEV-004C1 READY。DEV-004C2、SPEC-DEV-006、DEV-006 不提前解锁。
 
+## REV-028｜DEV-004C1 PR #18 项目负责人首轮审查
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #18，分支 `codex/dev-004c1-speaker-calibration`。
+- 被审 exact head：`4d18bcf5826aacad97494342d965b9a28d538497`。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=3。
+- P1-1：缺正式 stable `(start_ms,id)` transcript GET 与 GET/WS 共用 trusted-role projection，WS/DTO effective/trusted 字段及权限/授权/restricted 反例证据不完整。
+- P1-2：begin/resolve 的 canonical snapshot event 在 marker queue 外发布，membership 未推进 snapshot `updated_at`，缺 marker→PCM/final→label event 的真实并发、sequence、replay/current snapshot 证据。
+- P1-3：旧 Chromium workbench matrix 没有实际 calibration snapshot，不能证明新面板在 390×844、320×568 的 collecting+双 label、confirmed、failed/skipped→retry、44px、focus/live region、无溢出与 mic 不增加。
+- 治理：状态保持 REVIEW；不补 Android 真机，不扩 C2/DEV-006/真实 provider；修复后生成新 exact head 与 CI，再由项目负责人手动定向复审。开发 Agent 不合并、不宣告 PASS/DONE。
+
+### 定向修复候选（待项目负责人复审）
+
+- 修复 commit：`87d725c`；仍在 PR #18 原分支，最终 exact head 由其后的治理提交与 PR 动态 head 锁定。
+- P1-1：stable transcript GET、唯一 trusted-role projection、REST/WS effective/trusted 字段与权限/授权/restricted 证据已补齐。
+- P1-2：marker commit→canonical event→后方 PCM 已在同一 causal queue 线性化；subscriber 写失败保留 replay event；membership 推进 snapshot `updated_at`，并发/replay/current 事实已由真实 PostgreSQL 覆盖。
+- P1-3：snapshot-driven 390×844、320×568 真实面板覆盖 collecting+双 label、confirmed、failed/skipped→retry；无溢出、44px、focus/live region、录音态与 mic count 回归通过。
+- 本地全门禁：unit 219、PostgreSQL integration 49、auth 13、普通 Chromium 9、auth Chromium 4，format/lint/typecheck/build/smoke/migration status 均通过。此处仅登记修复候选，不构成新的审查结论；REV-028 的 `REQUEST_CHANGES` 历史保持有效，直至项目负责人手动复审。
+
 ## 审查模板
 
 ```text

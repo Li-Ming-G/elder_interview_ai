@@ -778,3 +778,14 @@
 - Verification boundary: 本机无可用 ADB/Android CDP，本轮只有桌面 Chromium 小视口证据，不能冒充 Android 真机。真实 provider、C2 修正、DEV-006 memory/stale/recompute 均未实现；候选只到 REVIEW。
 - Lesson: 跨异步边界的可信事实必须共享一个可证明的完成点；“收到/ACK/到达”都比业务提交更早，不能作为不可逆角色 authority 的边界。角色值、namespace 和确认 authority 必须分开建模。
 - Better future prompt: “请先列出 producer work 何时才算完成，再让所有边界 marker 进入同一有界串行器；为 namespace、角色值和确认 authority 分配独立字段，并用 transaction/DB constraint 证明 timeout、重建与 replay 不产生半事实。”
+
+### 2026-08-09 — DEV-004C1 PR #18 三项 P1 定向修复
+
+- User outcome: 不重做主体架构，补齐 trusted role 的正式读模型、canonical snapshot 的队列/时间语义，以及真正渲染校准面板的小屏 Chromium 证据。
+- Review mode: Correction mode；沿用本 material iteration 已执行的唯一独立只读复核，不重复启动第二次审查角色。项目负责人正式 `REQUEST_CHANGES` 绑定旧 head `4d18bcf5826aacad97494342d965b9a28d538497`，P0=0、P1=3。
+- Review finding: 持久 evidence 已具备 original role/authority，但缺统一 trusted projection 和正式分页出口；marker transaction 虽在 causal queue 中，事件 append 却在 queue 外；snapshot 读取 membership label 却没有把 membership 持久时间计入 `updated_at`；旧 E2E 的 ready payload 没有 calibration，因此并未渲染新面板。
+- Adopted decision: 新增唯一 `projectTrustedSpeakerRole` 供 transcript DTO 与 WS final 共用；GET 使用 opaque `(start_ms,id)` cursor。marker commit 后在同一 queue 同步 append canonical event，live socket write 失败只断开 subscriber，已存 replay event 和 DB 事实保留。snapshot `updated_at` 取 session/stream/attempt/membership 最新持久时间。
+- Implementation evidence: targeted unit/contract 27、真实 PostgreSQL/API/WS 21、Chromium workbench 2 均通过。新增 snapshot-driven 390×844、320×568 用例发现 320px 下 calibration flex item 被压缩、内容溢出后由 transcript heading 拦截 retry；以 `flex: 0 0 auto` 修复并回归无溢出、44px、focus/live region、mic count 不增加。
+- Verification boundary: 不补 Android 真机；不扩 C2、DEV-006、真实 provider。状态仍为 REVIEW，最终结论只由项目负责人对新 exact head 手动复审。
+- Lesson: 组件“存在于 DOM”不等于交互证据成立；固定高度工作台里可压缩的状态面板可能视觉可见却被后续层覆盖。因果事件也同理：DB commit 后在 queue 外调用 publish 看似紧随其后，但不能证明后方 producer work 尚未越过。
+- Better future prompt: “请同时证明持久事实、事件 append 与后方 producer work 的线性顺序，并让小屏 E2E 用真实状态 payload 点击每个关键动作；断言命中目标且无覆盖层拦截，而不只检查 DOM、截图或旧矩阵。”
