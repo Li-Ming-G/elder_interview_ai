@@ -130,6 +130,17 @@
 
 ## Iteration Log
 
+### 2026-08-09 — DEV-004C1 实现任务下发审查
+
+- User outcome: 在 SPEC-DEV-004C PASS 后启动独立 worktree 任务实现正式流说话人校准与可信角色核心，完成后交项目负责人 GitHub 手动审查。
+- Review mode: Correction mode；独立只读复核确认当前阶段可开工，但要求提示词补强共享因果队列、provider namespace 生命周期、旧数据 migration 与 REVIEW 交付边界。
+- Review finding: 主要风险不是页面缺少校准按钮，而是 begin/resolve 若未与 producer PCM、ASR final ingestion 和持久化共享有界串行顺序，仍会让 delayed final 污染普通内容；runtime 真重建若被误当 transport replay，同名短 label 会跨 namespace 继承。
+- Options considered: 按后端/前端拆成并行实现；由一个独立 worktree 任务完成 migration、WS 1.1、服务端 marker、统一 snapshot 和最小前端纵向链路。采用后者，避免共享契约和 migration 漂移。
+- Adopted decision: DEV-004C1 单任务纵向实现；提示词明确 marker 等待的是队列前方业务副作用提交，不得用 ACK/按钮时间近似；provider runtime 真重建必须新建 speaker stream，event replay 不得新建；实现只到 REVIEW，由项目负责人手动审查。
+- Implementation evidence: 仅完成任务下发准备与 `DEV-004C1` READY 状态一致性修复；业务实现由新 worktree 任务执行，当前没有 C1 代码或 migration 证据。
+- Lesson: 同步控制动作接入异步媒体链路时，关键是共享因果顺序，而不是共享一个状态字段或 mutex。
+- Better future prompt: “begin/resolve 必须与 producer PCM、ASR final 持久化共享一个有界串行队列，队列前方业务副作用全部提交后才能冻结 marker；不得用请求时间或 ACK 高水位近似。”
+
 ### 2026-08-02 — 首次总控基线审计
 - User outcome: 建立可信、可追溯、可继续推进的协作基线，并判断是否可开发或并行。
 - Review mode: Correction mode
