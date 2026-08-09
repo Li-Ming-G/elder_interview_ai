@@ -121,3 +121,5 @@
 - F：冻结索引、legacy 失败安全默认、幂等、锁序、动态查询、删除传播与两次访谈验收矩阵。
 
 当前仅形成审查候选，未获项目负责人 GitHub 结论，不得标记 PASS/DONE 或解锁 DEV-006。PR、exact final head 与 CI 在最终交接中绑定。
+
+审查入口：[非 Draft PR #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)。

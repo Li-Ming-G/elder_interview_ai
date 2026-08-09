@@ -6,7 +6,7 @@
 - 状态：REVIEW
 - 分支：`codex/spec-dev-006-memory-consumer-contract`
 - 基线：`main@92e12fc089c46758e76c73018af6ac241de950d8`（CI 31319680465 attempt 2 SUCCESS）
-- PR / exact final head / CI：候选推送后在本文件与源总控任务消息绑定
+- PR：[GitHub #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)（非 Draft）；exact final head / CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
 - 审查权：项目负责人 GitHub 手动审查；本任务不自行 PASS/DONE/merge
 
 ## 已完成
@@ -38,7 +38,8 @@
 
 ## 验证
 
-- format、diff、引用/术语一致性和仓库完整 CI 结果在最终候选更新；
+- 本地通过：`pnpm format:check`、lint、typecheck、build、unit 225/225、PostgreSQL integration 57/57、auth 13/13、migration deploy/status、Chromium E2E 9/9；Markdown 相对链接、ADR/CON/REV 引用、术语与 docs-only diff 检查通过；
+- 本机 4173 被另一工作区 Vite preview 占用，未终止未知进程，因此固定端口的 smoke/auth E2E 不在本地重复宣称；由 PR #20 隔离 GitHub CI 对 final head 完整执行；
 - iteration-coach 恰好一次独立只读复核：Learning mode；其零 eligible scope、text revision、两阶段并发、动态 eligibility、单一 QuestionEvidenceModule、删除清理和 legacy 失败安全建议已吸收。
 
 ## 未完成与风险
