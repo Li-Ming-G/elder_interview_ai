@@ -23,7 +23,8 @@
 | DEV-005R3 | REV-025 | PR #15 / final head `481ee25` / CI `31289795181` PASS / merge `8d5c4c5` | DONE | 项目负责人手动 GitHub 复核 PASS，P0/P1=0；六项定向修复全部关闭。仅覆盖 R3 工作台与安全结束实现，CON-020/021/022 继续开放，R4 READY |
 | DEV-005R4 / DEV-005 | REV-026 | PR #16 / final head `2fab0ea` / CI `31294084873` PASS / merge `7477dca` | DONE | 项目负责人手动 GitHub 复核 PASS，P0/P1=0；桌面与目标 Android 的刷新恢复、安全结束和终态通过，CON-020/021/022 RESOLVED。单台 Android、test ASR/no-cloud storage 范围 |
 | SPEC-DEV-005R | REV-021 | PR #11 / final head `80ab84f` / CI `31244954185` PASS / merge `c572490` | DONE | 定向复审 PASS，四个 P1 4/4 关闭；解除 stacked 契约基线门禁，父 DEV-005R 与实现任务继续开放 |
-| SPEC-DEV-004C | REV-027 | PR #17 / final head `2a65b1f` / CI `31298277051` PASS / merge `0b6c357` | DONE | 定向复审 PASS，P0/P1=0；三项 P1 全部关闭。ADR-025 Accepted、CON-014 RESOLVED、C1 READY；C2、SPEC-DEV-006、DEV-006 继续 BLOCKED |
+| SPEC-DEV-004C | REV-027 | PR #17 / final head `2a65b1f` / CI `31298277051` PASS / merge `0b6c357` | DONE | 定向复审 PASS，P0/P1=0；三项 P1 全部关闭。ADR-025 Accepted、CON-014 RESOLVED；后续 C1 已由 REV-028 收口，C2 READY；SPEC-DEV-006/DEV-006 继续 BLOCKED |
+| DEV-004C1 | REV-028 | PR #18 / final head `a984587` / CI `31305357363` PASS / merge `99b090d` | DONE | 用户明确委派总控代行定向复审；P0/P1=0，旧三项 P1 全部关闭。C2 READY；SPEC-DEV-006/DEV-006 仍等待专项产品讨论与契约门禁 |
 
 ## 阅读规则
 
@@ -33,4 +34,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-027`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-028`。

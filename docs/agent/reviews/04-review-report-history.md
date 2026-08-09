@@ -493,6 +493,15 @@ P2：
 - P1-3：snapshot-driven 390×844、320×568 真实面板覆盖 collecting+双 label、confirmed、failed/skipped→retry；无溢出、44px、focus/live region、录音态与 mic count 回归通过。
 - 本地全门禁：unit 219、PostgreSQL integration 49、auth 13、普通 Chromium 9、auth Chromium 4，format/lint/typecheck/build/smoke/migration status 均通过。此处仅登记修复候选，不构成新的审查结论；REV-028 的 `REQUEST_CHANGES` 历史保持有效，直至项目负责人手动复审。
 
+### REV-028 定向复审
+
+- 审查对象：PR #18 final head `a984587e86ba7824c789dad2fe0e2fa847abbd3d`，base `main@f4ca690f9bbdc63bdf9e2502cfe5c88b50f38ffd`；CI `31305357363` completed / success。
+- 审查归属：用户在本轮明确把 GitHub 手动复审临时委派给总控；总控按 evidence-driven re-review + visual 模式执行，不将开发 Agent 自检视为审查结论。
+- 结论：`PASS`，P0=0、P1=0。旧三项 P1 3/3 CLOSED：正式 transcript/trusted-role 投影、canonical snapshot 因果/时间语义、真实小屏 calibration panel 证据均成立。
+- 独立证据：相关 unit 4 files / 27 tests PASS；Chromium calibration 小屏用例 1/1 PASS，并人工核对 320×568、390×844 collecting/failed/skipped 图。PostgreSQL 本机因未注入 `TEST_DATABASE_URL` 未复跑；exact-head CI 已以真实 PostgreSQL 完整通过 integration 9 files / 49 tests。
+- 合并与状态：PR #18 merge `99b090dd10b12e4ae72537e9d32c89aed7576663`；DEV-004C1 DONE、DEV-004C2 READY。父 DEV-004 继续 IN_PROGRESS；SPEC-DEV-006/DEV-006 仍等待专项产品讨论与契约 PASS。
+- 范围边界：Android 真机、C2 修正、真实 provider、跨 session AI provenance/stale/recompute 与生产设施不在本次 PASS 范围。
+
 ## 审查模板
 
 ```text

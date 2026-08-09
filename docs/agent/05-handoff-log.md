@@ -7,8 +7,8 @@
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
 | DEV-001B | HO-006 补充 | 总控 / 独立安全审查 | CON-008、增强 Chromium、独立复审；保持 REVIEW |
-| SPEC-DEV-004C / DEV-004 | [当前交接](handoffs/SPEC-DEV-004C.md)、REV-027、PR #17 | DEV-004C1 实现任务；后续 DEV-004C2 | final head `2a65b1f`、CI `31298277051`、merge `0b6c357`；SPEC DONE、ADR-025 Accepted、CON-014 RESOLVED、C1 READY。C2 等 C1 PASS；DEV-006 另受 SPEC-DEV-006 门禁 |
-| DEV-004C1 | [候选交接](handoffs/DEV-004C1.md)、[PR #18](https://github.com/Li-Ming-G/elder_interview_ai/pull/18) | 项目负责人 GitHub 手动复审；复审后才可交接 DEV-004C2 | 旧 exact head `4d18bcf5826aacad97494342d965b9a28d538497` 正式 `REQUEST_CHANGES`（P0=0、P1=3）；定向修复 commit `87d725c` 与本地全门禁已完成，状态保持 REVIEW。新 exact head/CI 以 PR 与总控回传为准；不合并、不宣告 PASS/DONE |
+| SPEC-DEV-004C / DEV-004 | [当前交接](handoffs/SPEC-DEV-004C.md)、REV-027、PR #17 | DEV-004C2 实现任务 | SPEC DONE、ADR-025 Accepted、CON-014 RESOLVED；C1 已由 REV-028 收口为 DONE，C2 READY。DEV-006 另受专项产品讨论与 SPEC-DEV-006 门禁 |
+| DEV-004C1 / DEV-004C2 | [最终交接](handoffs/DEV-004C1.md)、[PR #18](https://github.com/Li-Ming-G/elder_interview_ai/pull/18)、REV-028 | 待创建的 DEV-004C2 独立实现任务 | 用户明确委派总控代行定向复审；final head `a984587`、CI `31305357363`、P0/P1=0、merge `99b090d`，C1 DONE、C2 READY。DEV-006 仍等待专项产品讨论与 SPEC-DEV-006 PASS |
 | SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R2/3/4 | 契约、R1、R2C 已 DONE；当前进入 R2，CON-020/021 仍开放 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
 | DEV-005R4 / DEV-005 | [最终交接](handoffs/DEV-005R4.md)、[PR #16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)、REV-026 | DEV-006/007 后续任务、总控 | R4 与父 DEV-005 DONE；final head `2fab0ea`、CI `31294084873`、merge `7477dca`，CON-020/021/022 RESOLVED。真实供应商、云存储、iPhone 与生产范围后置 |

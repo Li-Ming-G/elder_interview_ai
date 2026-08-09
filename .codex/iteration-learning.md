@@ -789,3 +789,12 @@
 - Verification boundary: 不补 Android 真机；不扩 C2、DEV-006、真实 provider。状态仍为 REVIEW，最终结论只由项目负责人对新 exact head 手动复审。
 - Lesson: 组件“存在于 DOM”不等于交互证据成立；固定高度工作台里可压缩的状态面板可能视觉可见却被后续层覆盖。因果事件也同理：DB commit 后在 queue 外调用 publish 看似紧随其后，但不能证明后方 producer work 尚未越过。
 - Better future prompt: “请同时证明持久事实、事件 append 与后方 producer work 的线性顺序，并让小屏 E2E 用真实状态 payload 点击每个关键动作；断言命中目标且无覆盖层拦截，而不只检查 DOM、截图或旧矩阵。”
+
+### 2026-08-09 — DEV-004C1 REV-028 代行定向复审
+
+- User outcome: 用户外出期间明确把 PR #18 手动审查临时委派给总控；不需要产品决定时持续推进，但不得越过仍需用户讨论的 DEV-006 门禁。
+- Review mode: evidence-driven re-review + visual；只复核旧三项 P1 与相邻回归，不重新审完整 C1。
+- Review finding: trusted role 已由一个服务端 helper 同时投影 REST/WS；marker commit、canonical event 和后方 PCM/final 共享 runtime causal queue；membership 时间进入 snapshot `updated_at`；实际小屏用例确实渲染 calibration snapshot，而非旧工作台空状态。
+- Verification evidence: exact-head CI `31305357363` 全门禁 PASS；总控独立复跑 unit 27/27、Chromium calibration 1/1，并检查 4 张 320/390 宽实际渲染图。PostgreSQL 本机因未注入 `TEST_DATABASE_URL` 未复跑，不伪报本地通过。
+- Adopted decision: REV-028 PASS，PR #18 merge `99b090d`，C1 DONE、C2 READY；SPEC-DEV-006/DEV-006 仍等待专项产品讨论，父 DEV-004 保持 IN_PROGRESS。
+- Lesson: 审查授权可以临时转移，但产品决策权不会随之自动扩大；能够从已冻结契约机械推出的 C2 可以继续，尚需讨论的跨 session AI consumer 模型必须停在讨论门槛。
