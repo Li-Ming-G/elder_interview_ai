@@ -808,3 +808,13 @@
 - Implementation evidence: Codex 已建立独立 worktree `C:\Users\TR\.codex\worktrees\4034\elder_interview_ai` 并开始任务；此时尚无业务实现、提交或 PR，状态仅为 IN_PROGRESS。
 - Lesson: 上游可以先稳定地产生“哪些证据在何版本被修正”，而不必猜每个下游消费者如何失效；把 producer seam 和 consumer policy 分开能维持可追溯性又避免错误模型先入为主。
 - Better future prompt: “实现角色修正 producer seam：只产出 corrected role、operation、segment membership 和 session revision；批量全成全败；不要修改任何 AI 派生表或实现重算。”
+
+### 2026-08-09 — DEV-004C2 与 deletion scope 的实现顺序纠正
+
+- User outcome: 在不静默降低正式删除安全要求的前提下，避免 C2 为尚未启动的 DEV-008 先造半套删除系统。
+- Review finding: `04/05/08` 已冻结未来 deletion request/scope 语义，但当前 Prisma/服务没有 producer、transition 或 read model；DEV-008 仍被 CON-006/007 阻塞。原 C2 提示词把未来能力误写成“现有基础设施”。
+- Options considered: C2 新增最小 deletion 表/read seam；用 no-op guard 冒充覆盖；登记执行顺序缺口并保留正式要求。采用第三种。
+- Adopted decision: CON-023 OPEN。C2 只验证现有 assignment、授权、project restricted/deleted；不新增 deletion 半模型。DEV-008 实现正式子系统时必须回接 C2 单段/preview/execute 的锁后 scope guard 和并发测试。
+- Implementation evidence: 已更新任务板、C2 任务卡、冲突索引/日志与交接，并向独立实现任务发出边界纠正；尚未产生 deletion 业务代码。
+- Lesson: “契约已设计”不等于“基础设施已存在”。消费者提前创建没有合法生产者的数据表，通常不是安全加固，而是难以验证的假能力；应保留最终不变量，同时明确实施依赖和回接门禁。
+- Better future prompt: “若 deletion scope producer 已实现，则复用统一 guard；若尚未实现，登记延期集成并保持正式要求，不要为当前任务创建孤立删除模型。”

@@ -283,6 +283,19 @@
 - 最终解决（2026-08-09）：REV-026 确认普通近距离音量多次通过、安静输入失败且可重新检测，满足正式关闭条件；PR merge `7477dca` 后状态改为 `RESOLVED`。
 - 关闭条件：目标 Android Chrome 上普通近距离说话可稳定通过，安静/无输入仍失败，失败说明和重新检测可操作；R4 记录设备、环境与结果。
 
+### CON-023｜C2 删除 scope 门禁缺少可执行的 deletion_request producer/read model
+
+- 状态：`OPEN`
+- 发现时间：2026-08-09
+- 发现者：DEV-004C2 实现任务 / 总控 Agent
+- 涉及文件与章节：`04` §4.13/§4.18/§4.22、`05` §3.4/§3.7.4、`08` §14、`09` §8.2、DEV-004C2、DEV-008、CON-006/007
+- 冲突内容：正式契约要求角色修正在命中非终态 project/session/segment_range 删除 scope 时失败关闭，但当前 Prisma 与服务层尚未实现 `content_marker`、`deletion_request`、transition 或统一 scope 查询；现有运行时只有项目 `restricted|deleted`、授权和 assignment 门禁。删除子系统归属仍为 BLOCKED 的 DEV-008，且 CON-006/007 要求其开工前先冻结备份清理状态和摘要密钥轮换。
+- 风险：若 C2 自行新增没有合法创建/处理链路的 read-only 表或 no-op guard，会制造“已支持删除门禁”的假能力；若未来 DEV-008 上线后忘记回接，session/segment 删除申请期间仍可能发生角色修正。
+- 当前处理：C2 不新增 deletion schema、marker、API 或占位 guard；完整实现并验证当前真实存在的 auth、assignment、最新授权、project `restricted|deleted` 门禁。由于当前不存在可创建 deletion request 的运行时入口，session/segment scope 命中测试明确记为未验证但不阻塞内部 MVP 的 C2 核心。
+- 正式要求：`05` 的 deletion scope 失败关闭语义保持不变，不因本次执行顺序调整而删除或降级。
+- 关闭条件：DEV-008 实现正式 deletion request producer/read model 与统一 scope guard，并让 C2 单段修正、批量 preview、批量 execute 在锁后复核 project/session/冻结 segment_range scope；补 scope 命中、创建/修正并发、幂等和不泄密测试后关闭。
+- 需要谁决策：DEV-008 开工前由总控与数据治理/安全角色先解决 CON-006/007；C2 无需等待该决定，可继续其余已冻结范围。
+
 ## 登记模板
 
 ```text
