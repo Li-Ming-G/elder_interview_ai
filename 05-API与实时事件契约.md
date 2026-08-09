@@ -590,6 +590,8 @@ PATCH /transcripts/:id/speaker-role
 
 只允许 `elder|interviewer|unknown`。服务端校验 assignment、授权/项目限制、final segment 归属和乐观版本；成功时只写 `corrected_speaker_role/corrected_by/corrected_at`，追加 correction operation/membership、递增 session role revision并写审计。不得修改 original role、authority、text、content kind、provider label 或 stream。版本漂移返回 409 `SPEAKER_ROLE_VERSION_CONFLICT`，不产生部分副作用。
 
+成功响应返回 `operation_id`、新的 `speaker_role_revision` 与 §3.7.1 的完整 canonical `segment`，供客户端替换当前行；不得返回 provider payload。
+
 #### 3.7.4 批量预览与原子执行
 
 预览请求：
@@ -607,7 +609,7 @@ POST /sessions/:id/speaker-remaps/preview
 }
 ```
 
-响应返回 `preview_id`、`preview_hash`、最终 `segment_count`、规范化 `segment_start_id/segment_end_id`、闭区间候选数量、排除数量和 `expires_at`；不返回 provider payload 或超出当前权限的正文。两个端点必须是同一 session、同一 speaker stream、同一 provider label 且尚无单段人工修正的 final，并分别解析为稳定排序键 `(start_ms, id)`；目标范围是两个排序键之间包含两端的闭区间。start 键大于 end 键、端点归属/label 不同、端点已不可见或端点本身会被默认排除时返回 `SPEAKER_REMAP_RANGE_INVALID`。闭区间形成后再从内部候选应用 `exclude_individual_corrections=true`；本轮该字段必须为 `true`。
+响应返回 `preview_id`、`preview_hash`、`corrected_speaker_role`、最终 `segment_count`、规范化 `segment_start_id/segment_end_id`、`candidate_segment_count`、`excluded_segment_count` 和 `expires_at`；不返回 provider payload 或超出当前权限的正文。两个端点必须是同一 session、同一 speaker stream、同一 provider label 且尚无单段人工修正的 final，并分别解析为稳定排序键 `(start_ms, id)`；目标范围是两个排序键之间包含两端的闭区间。start 键大于 end 键、端点归属/label 不同、端点已不可见或端点本身会被默认排除时返回 `SPEAKER_REMAP_RANGE_INVALID`。闭区间形成后再从内部候选应用 `exclude_individual_corrections=true`；本轮该字段必须为 `true`。
 
 执行请求：
 
@@ -620,7 +622,7 @@ POST /sessions/:id/speaker-remaps/execute
 }
 ```
 
-服务端在同一事务重新验证 preview 身份、权限、到期时间、完整目标 membership 与每段角色版本。任一成员漂移、越权、删除或出现单段人工修正，整批返回 409 `SPEAKER_REMAP_PREVIEW_STALE`；不得跳过冲突成员后部分成功。成功后一次写完全部 corrected role、operation/membership、session role revision 和审计。
+服务端在同一事务重新验证 preview 身份、权限、到期时间、完整目标 membership 与每段角色版本。任一成员漂移、越权、删除或出现单段人工修正，整批返回 409 `SPEAKER_REMAP_PREVIEW_STALE`；不得跳过冲突成员后部分成功。成功后一次写完全部 corrected role、operation/membership、session role revision 和审计。响应返回 `operation_id`、`preview_id`、`preview_hash`、新的 `speaker_role_revision` 与最终 `segment_count`；不返回批量正文。
 
 单段与批量修正允许作用于存在 final 且普通资源权限仍有效的 `recording|reconnecting|interrupted|stopping|processing|completed|failed` session；项目 restricted/deleted、授权失效、assignment 失效或删除 scope 命中时失败关闭。复杂批量 UI 属于完整回顾切片；本节服务端契约不授权把它塞入首次工作台。
 

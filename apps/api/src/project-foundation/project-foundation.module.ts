@@ -16,6 +16,7 @@ import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 import { SpeakerCalibrationService } from './speaker-calibration.service.js';
+import { SpeakerCorrectionService } from './speaker-correction.service.js';
 
 @Module({})
 // Nest requires a module token for the dynamic module returned below.
@@ -45,6 +46,7 @@ export function createProjectFoundationModule(
       SessionFinalizationService,
       SessionSnapshotService,
       SpeakerCalibrationService,
+      SpeakerCorrectionService,
     ],
   };
 }

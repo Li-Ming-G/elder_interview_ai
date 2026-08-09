@@ -292,6 +292,7 @@
 - 冲突内容：正式契约要求角色修正在命中非终态 project/session/segment_range 删除 scope 时失败关闭，但当前 Prisma 与服务层尚未实现 `content_marker`、`deletion_request`、transition 或统一 scope 查询；现有运行时只有项目 `restricted|deleted`、授权和 assignment 门禁。删除子系统归属仍为 BLOCKED 的 DEV-008，且 CON-006/007 要求其开工前先冻结备份清理状态和摘要密钥轮换。
 - 风险：若 C2 自行新增没有合法创建/处理链路的 read-only 表或 no-op guard，会制造“已支持删除门禁”的假能力；若未来 DEV-008 上线后忘记回接，session/segment 删除申请期间仍可能发生角色修正。
 - 当前处理：C2 不新增 deletion schema、marker、API 或占位 guard；完整实现并验证当前真实存在的 auth、assignment、最新授权、project `restricted|deleted` 门禁。由于当前不存在可创建 deletion request 的运行时入口，session/segment scope 命中测试明确记为未验证但不阻塞内部 MVP 的 C2 核心。
+- DEV-004C2 定向审查补充（2026-08-09）：`speaker_remap_preview.segment_start_id/segment_end_id` 外键使用 `ON DELETE RESTRICT`。未来 DEV-008 实现 session/segment 删除时必须显式处理 correction preview/operation 引用及其并发顺序，不能把当前 project `restricted|deleted` 门禁冒充 deletion scope；C2 本轮不修改外键，也不新增删除模型或临时 guard。
 - 正式要求：`05` 的 deletion scope 失败关闭语义保持不变，不因本次执行顺序调整而删除或降级。
 - 关闭条件：DEV-008 实现正式 deletion request producer/read model 与统一 scope guard，并让 C2 单段修正、批量 preview、批量 execute 在锁后复核 project/session/冻结 segment_range scope；补 scope 命中、创建/修正并发、幂等和不泄密测试后关闭。
 - 需要谁决策：DEV-008 开工前由总控与数据治理/安全角色先解决 CON-006/007；C2 无需等待该决定，可继续其余已冻结范围。

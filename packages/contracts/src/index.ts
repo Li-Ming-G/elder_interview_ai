@@ -457,6 +457,53 @@ export interface TranscriptPageResponse {
   next_cursor: string | null;
 }
 
+export type CorrectedSpeakerRole = 'elder' | 'interviewer' | 'unknown';
+
+export interface CorrectTranscriptSpeakerRoleRequest extends IdempotentRequest {
+  corrected_speaker_role: CorrectedSpeakerRole;
+  expected_speaker_role_revision: number;
+}
+
+export interface SpeakerRoleCorrectionResponse {
+  operation_id: string;
+  speaker_role_revision: number;
+  segment: TranscriptSegmentResponse;
+}
+
+export interface PreviewSpeakerRemapRequest extends IdempotentRequest {
+  speaker_stream_id: string;
+  speaker_provider_id: string;
+  corrected_speaker_role: CorrectedSpeakerRole;
+  segment_start_id: string;
+  segment_end_id: string;
+  exclude_individual_corrections: true;
+}
+
+export interface SpeakerRemapPreviewResponse {
+  preview_id: string;
+  preview_hash: string;
+  corrected_speaker_role: CorrectedSpeakerRole;
+  segment_start_id: string;
+  segment_end_id: string;
+  candidate_segment_count: number;
+  excluded_segment_count: number;
+  segment_count: number;
+  expires_at: string;
+}
+
+export interface ExecuteSpeakerRemapRequest extends IdempotentRequest {
+  preview_id: string;
+  preview_hash: string;
+}
+
+export interface SpeakerRemapExecuteResponse {
+  operation_id: string;
+  preview_id: string;
+  preview_hash: string;
+  speaker_role_revision: number;
+  segment_count: number;
+}
+
 export interface InterviewWsAsrStatusPayload {
   status: 'connected' | 'unavailable';
   code?: 'ASR_UNAVAILABLE';

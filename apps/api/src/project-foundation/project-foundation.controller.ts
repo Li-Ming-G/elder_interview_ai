@@ -4,9 +4,12 @@ import type {
   ProjectResponse,
   ServiceTermResponse,
   SpeakerCalibrationSnapshot,
+  SpeakerRoleCorrectionResponse,
+  SpeakerRemapPreviewResponse,
+  SpeakerRemapExecuteResponse,
   TranscriptPageResponse,
 } from '@elder-interview/contracts';
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
 
 import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { TranscriptQueryService } from '../transcription/transcript-query.service.js';
@@ -15,6 +18,7 @@ import { ProjectRequestActorService } from './project-request-actor.service.js';
 import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
 import { SpeakerCalibrationService } from './speaker-calibration.service.js';
+import { SpeakerCorrectionService } from './speaker-correction.service.js';
 import {
   validateAbandonEmptyCapture,
   validateConfirmCaptureActive,
@@ -31,6 +35,9 @@ import {
   validateResolveSpeakerCalibration,
   validateTranscriptPageQuery,
   validateUuid,
+  validateCorrectTranscriptSpeakerRole,
+  validatePreviewSpeakerRemap,
+  validateExecuteSpeakerRemap,
 } from './project.validation.js';
 
 @Controller()
@@ -42,6 +49,7 @@ export class ProjectFoundationController {
     private readonly captures: SessionCaptureService,
     private readonly speakerCalibration: SpeakerCalibrationService,
     private readonly transcripts: TranscriptQueryService,
+    private readonly speakerCorrections: SpeakerCorrectionService,
   ) {}
 
   @Post('projects')
@@ -209,6 +217,45 @@ export class ProjectFoundationController {
       await this.actors.from(request),
       validateUuid(id),
       validateResolveSpeakerCalibration(body),
+    );
+  }
+
+  @Patch('transcripts/:id/speaker-role')
+  public async correctTranscriptSpeakerRole(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerRoleCorrectionResponse> {
+    return this.speakerCorrections.correctOne(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateCorrectTranscriptSpeakerRole(body),
+    );
+  }
+
+  @Post('sessions/:id/speaker-remaps/preview')
+  public async previewSpeakerRemap(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerRemapPreviewResponse> {
+    return this.speakerCorrections.preview(
+      await this.actors.from(request),
+      validateUuid(id),
+      validatePreviewSpeakerRemap(body),
+    );
+  }
+
+  @Post('sessions/:id/speaker-remaps/execute')
+  public async executeSpeakerRemap(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerRemapExecuteResponse> {
+    return this.speakerCorrections.execute(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateExecuteSpeakerRemap(body),
     );
   }
 

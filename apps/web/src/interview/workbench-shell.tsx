@@ -5,6 +5,8 @@ import type {
   StopSessionRequest,
   SpeakerCalibrationMapping,
   SpeakerCalibrationSnapshot,
+  TranscriptSegmentResponse,
+  CorrectedSpeakerRole,
 } from '@elder-interview/contracts';
 
 import type {
@@ -12,6 +14,7 @@ import type {
   InterviewCaptureApi,
   PreparationData,
   SpeakerCalibrationApi,
+  SpeakerCorrectionApi,
 } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
@@ -24,7 +27,10 @@ import type {
 import { preparationPath } from './routes.js';
 
 interface WorkbenchShellProps {
-  api: InterviewApi & InterviewCaptureApi & Partial<SpeakerCalibrationApi>;
+  api: InterviewApi &
+    InterviewCaptureApi &
+    Partial<SpeakerCalibrationApi> &
+    Partial<SpeakerCorrectionApi>;
   captureController: Pick<
     InterviewCaptureController,
     | 'flushDelivery'
@@ -447,6 +453,7 @@ export function WorkbenchShell({
       state={state}
       statusExpanded={statusExpanded}
       validConsent={validConsent}
+      speakerCorrections={api}
     />
   );
 }
@@ -484,6 +491,7 @@ interface WorkbenchViewProps {
   state: WorkbenchState;
   statusExpanded: boolean;
   validConsent: boolean;
+  speakerCorrections: Partial<SpeakerCorrectionApi>;
 }
 
 function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
@@ -517,6 +525,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     state,
     statusExpanded,
     validConsent,
+    speakerCorrections,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -703,7 +712,12 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             ) : null}
             <ol className="transcript-list" data-testid="workbench-finals">
               {snapshot.realtime.finals.map((segment) => (
-                <TranscriptLine key={segment.segmentId} segment={segment} />
+                <TranscriptLine
+                  key={segment.segmentId}
+                  segment={segment}
+                  sessionId={session.id}
+                  speakerCorrections={speakerCorrections}
+                />
               ))}
             </ol>
             {snapshot.realtime.interim === null || endingState ? null : (
@@ -1183,16 +1197,106 @@ function SaveFacts({
   );
 }
 
-function TranscriptLine({ segment }: { segment: RealtimeTranscriptFinal }): React.JSX.Element {
+function TranscriptLine({
+  segment,
+  sessionId,
+  speakerCorrections,
+}: {
+  segment: RealtimeTranscriptFinal;
+  sessionId: string;
+  speakerCorrections: Partial<SpeakerCorrectionApi>;
+}): React.JSX.Element {
   const labels = { elder: '长者', interviewer: '倾听员', unknown: '待确认' } as const;
   const accessibleLabels = {
     elder: '长者',
     interviewer: '倾听员',
     unknown: '说话人待确认',
   } as const;
+  const [canonical, setCanonical] = useState<TranscriptSegmentResponse | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<CorrectedSpeakerRole>(segment.speakerRole);
+  const [announcement, setAnnouncement] = useState('');
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const pendingCorrectionAttempt = useRef<{
+    correctedRole: CorrectedSpeakerRole;
+    expectedRevision: number;
+    requestId: string;
+    segmentId: string;
+  } | null>(null);
+  const effectiveRole = canonical?.effective_speaker_role ?? segment.speakerRole;
+  const revision = canonical?.speaker_role_revision ?? segment.speakerRoleRevision;
+
+  useEffect(() => {
+    if (!editing) setSelectedRole(effectiveRole);
+  }, [editing, effectiveRole]);
+
+  useEffect(() => {
+    if (editing) selectRef.current?.focus();
+  }, [editing]);
+
+  async function saveCorrection(): Promise<void> {
+    if (
+      busy ||
+      revision === undefined ||
+      typeof speakerCorrections.correctTranscriptSpeakerRole !== 'function'
+    ) {
+      return;
+    }
+    const pendingAttempt = pendingCorrectionAttempt.current;
+    const attempt =
+      pendingAttempt?.segmentId === segment.segmentId &&
+      pendingAttempt.correctedRole === selectedRole &&
+      pendingAttempt.expectedRevision === revision
+        ? pendingAttempt
+        : {
+            correctedRole: selectedRole,
+            expectedRevision: revision,
+            requestId: crypto.randomUUID(),
+            segmentId: segment.segmentId,
+          };
+    pendingCorrectionAttempt.current = attempt;
+    setBusy(true);
+    setAnnouncement('正在保存角色修正');
+    try {
+      const response = await speakerCorrections.correctTranscriptSpeakerRole(attempt.segmentId, {
+        corrected_speaker_role: attempt.correctedRole,
+        expected_speaker_role_revision: attempt.expectedRevision,
+        request_id: attempt.requestId,
+      });
+      pendingCorrectionAttempt.current = null;
+      setCanonical(response.segment);
+      setEditing(false);
+      setAnnouncement(`角色已修正为${accessibleLabels[response.segment.effective_speaker_role]}`);
+    } catch (error) {
+      if (
+        error instanceof InterviewApiError &&
+        error.code === 'SPEAKER_ROLE_VERSION_CONFLICT' &&
+        typeof speakerCorrections.getTranscriptSegment === 'function'
+      ) {
+        try {
+          const latest = await speakerCorrections.getTranscriptSegment(
+            sessionId,
+            segment.segmentId,
+          );
+          pendingCorrectionAttempt.current = null;
+          setCanonical(latest);
+          setSelectedRole(latest.effective_speaker_role);
+          setAnnouncement('角色已由其他操作更新，已重新读取服务端事实，请核对后再保存');
+        } catch (reloadError) {
+          setAnnouncement(readableActionError(reloadError, '无法重新读取最新角色，请稍后重试'));
+        }
+      } else {
+        setAnnouncement(readableActionError(error, '角色修正暂时未保存，请稍后重试'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <li
-      className={`transcript-line transcript-line--${segment.speakerRole}`}
+      className={`transcript-line transcript-line--${effectiveRole}`}
       data-segment-id={segment.segmentId}
     >
       <div className="transcript-meta">
@@ -1200,15 +1304,73 @@ function TranscriptLine({ segment }: { segment: RealtimeTranscriptFinal }): Reac
           aria-label={
             segment.contentKind === 'speaker_calibration'
               ? '说话人校准控制片段'
-              : accessibleLabels[segment.speakerRole]
+              : accessibleLabels[effectiveRole]
           }
           className="speaker-label"
         >
-          {segment.contentKind === 'speaker_calibration' ? '校准片段' : labels[segment.speakerRole]}
+          {segment.contentKind === 'speaker_calibration' ? '校准片段' : labels[effectiveRole]}
         </span>
         <time>{formatOffset(segment.startMs)}</time>
       </div>
-      <p>{segment.text}</p>
+      <div className="transcript-content">
+        <p>{segment.text}</p>
+        {typeof speakerCorrections.correctTranscriptSpeakerRole !== 'function' ||
+        revision === undefined ? null : editing ? (
+          <div className="speaker-correction" aria-label="修正本段说话人角色">
+            <label htmlFor={`speaker-role-${segment.segmentId}`}>角色</label>
+            <select
+              disabled={busy}
+              id={`speaker-role-${segment.segmentId}`}
+              onChange={(event) => {
+                const nextRole = event.target.value as CorrectedSpeakerRole;
+                if (nextRole !== selectedRole) pendingCorrectionAttempt.current = null;
+                setSelectedRole(nextRole);
+              }}
+              ref={selectRef}
+              value={selectedRole}
+            >
+              <option value="elder">长者</option>
+              <option value="interviewer">倾听员</option>
+              <option value="unknown">待确认</option>
+            </select>
+            <button
+              className="button button--secondary speaker-correction__save"
+              disabled={busy}
+              onClick={() => void saveCorrection()}
+              type="button"
+            >
+              {busy ? '保存中' : '保存'}
+            </button>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => {
+                pendingCorrectionAttempt.current = null;
+                setEditing(false);
+                setSelectedRole(effectiveRole);
+                setAnnouncement('');
+              }}
+              type="button"
+            >
+              取消
+            </button>
+          </div>
+        ) : (
+          <button
+            className="speaker-correction__trigger"
+            onClick={() => {
+              setEditing(true);
+              setAnnouncement('');
+            }}
+            type="button"
+          >
+            修正角色
+          </button>
+        )}
+        <span className="sr-only" aria-live="polite">
+          {announcement}
+        </span>
+      </div>
     </li>
   );
 }

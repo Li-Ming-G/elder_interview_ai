@@ -12,6 +12,9 @@ import type {
   StopSessionRequest,
   BeginSpeakerCalibrationRequest,
   ResolveSpeakerCalibrationRequest,
+  CorrectTranscriptSpeakerRoleRequest,
+  PreviewSpeakerRemapRequest,
+  ExecuteSpeakerRemapRequest,
 } from '@elder-interview/contracts';
 import { UnprocessableEntityException } from '@nestjs/common';
 
@@ -147,6 +150,45 @@ export function validateTranscriptPageQuery(query: Record<string, unknown>): {
   return { cursor: typeof cursor === 'string' ? cursor : null, limit: Number(limit ?? 100) };
 }
 
+export function validateCorrectTranscriptSpeakerRole(
+  body: Record<string, unknown>,
+): CorrectTranscriptSpeakerRoleRequest {
+  return {
+    corrected_speaker_role: speakerRole(body.corrected_speaker_role),
+    expected_speaker_role_revision: nonnegativeInteger(body.expected_speaker_role_revision),
+    request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validatePreviewSpeakerRemap(
+  body: Record<string, unknown>,
+): PreviewSpeakerRemapRequest {
+  if (body.exclude_individual_corrections !== true) throw validationError();
+  const speakerProviderId = requiredText(body.speaker_provider_id, 200);
+  return {
+    corrected_speaker_role: speakerRole(body.corrected_speaker_role),
+    exclude_individual_corrections: true,
+    request_id: validateUuid(body.request_id),
+    segment_end_id: validateUuid(body.segment_end_id),
+    segment_start_id: validateUuid(body.segment_start_id),
+    speaker_provider_id: speakerProviderId,
+    speaker_stream_id: validateUuid(body.speaker_stream_id),
+  };
+}
+
+export function validateExecuteSpeakerRemap(
+  body: Record<string, unknown>,
+): ExecuteSpeakerRemapRequest {
+  if (typeof body.preview_hash !== 'string' || !/^[0-9a-f]{64}$/.test(body.preview_hash)) {
+    throw validationError();
+  }
+  return {
+    preview_hash: body.preview_hash,
+    preview_id: validateUuid(body.preview_id),
+    request_id: validateUuid(body.request_id),
+  };
+}
+
 export function validateConfirmCaptureActive(
   body: Record<string, unknown>,
 ): ConfirmCaptureActiveRequest {
@@ -260,6 +302,11 @@ function nonnegativeInteger(value: unknown): number {
     throw validationError();
   }
   return value;
+}
+
+function speakerRole(value: unknown): 'elder' | 'interviewer' | 'unknown' {
+  if (!['elder', 'interviewer', 'unknown'].includes(String(value))) throw validationError();
+  return value as 'elder' | 'interviewer' | 'unknown';
 }
 
 function validationError(): UnprocessableEntityException {

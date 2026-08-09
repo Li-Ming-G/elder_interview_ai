@@ -7,10 +7,17 @@ import type {
   SessionCaptureSnapshot,
   SessionFinalizationSnapshot,
   SpeakerCalibrationSnapshot,
+  SpeakerRoleCorrectionResponse,
+  TranscriptSegmentResponse,
 } from '@elder-interview/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { InterviewApi, InterviewCaptureApi, PreparationData } from './interview-api.js';
+import type {
+  InterviewApi,
+  InterviewCaptureApi,
+  PreparationData,
+  SpeakerCorrectionApi,
+} from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import type {
   CaptureStopHandoff,
@@ -398,6 +405,185 @@ describe('WorkbenchShell', () => {
     expect(await screen.findByRole('button', { name: /回到最新 · 1 条新内容/ })).toBeTruthy();
   });
 
+  it('corrects one persisted final inline without touching the capture controller', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        finals: [
+          {
+            endMs: 2_000,
+            segmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            speakerRole: 'unknown',
+            speakerRoleRevision: 0,
+            startMs: 1_000,
+            text: '那时我们住在河边。',
+          },
+        ],
+      },
+    });
+    renderWorkbench(harness);
+    fireEvent.click(await screen.findByRole('button', { name: '修正角色' }));
+    const select = screen.getByRole('combobox', { name: '角色' });
+    expect(document.activeElement).toBe(select);
+    fireEvent.change(select, { target: { value: 'elder' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledWith(
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        expect.objectContaining({
+          corrected_speaker_role: 'elder',
+          expected_speaker_role_revision: 0,
+        }),
+      );
+    });
+    expect(await screen.findByText('角色已修正为长者')).toBeTruthy();
+    expect(harness.controller.resume).not.toHaveBeenCalled();
+  });
+
+  it('reuses the correction request id after an unknown network result and rotates it after success', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        finals: [
+          {
+            endMs: 2_000,
+            segmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            speakerRole: 'unknown',
+            speakerRoleRevision: 0,
+            startMs: 1_000,
+            text: '那时我们住在河边。',
+          },
+        ],
+      },
+    });
+    harness.api.correctTranscriptSpeakerRole.mockRejectedValueOnce(
+      new InterviewApiError('NETWORK_UNAVAILABLE', 'response unknown', 0),
+    );
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: '修正角色' }));
+    fireEvent.change(screen.getByRole('combobox', { name: '角色' }), {
+      target: { value: 'elder' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled).toBe(false);
+    });
+    const firstRequestId = harness.api.correctTranscriptSpeakerRole.mock.calls[0]?.[1].request_id;
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(2);
+    });
+    const retriedRequestId = harness.api.correctTranscriptSpeakerRole.mock.calls[1]?.[1].request_id;
+    expect(retriedRequestId).toBe(firstRequestId);
+    expect(await screen.findByText('角色已修正为长者')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '修正角色' }));
+    fireEvent.change(screen.getByRole('combobox', { name: '角色' }), {
+      target: { value: 'interviewer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(3);
+    });
+    expect(harness.api.correctTranscriptSpeakerRole.mock.calls[2]?.[1].request_id).not.toBe(
+      firstRequestId,
+    );
+  });
+
+  it('does not reuse a pending correction attempt after changing the role or cancelling', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        finals: [
+          {
+            endMs: 2_000,
+            segmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            speakerRole: 'unknown',
+            speakerRoleRevision: 0,
+            startMs: 1_000,
+            text: '那时我们住在河边。',
+          },
+        ],
+      },
+    });
+    harness.api.correctTranscriptSpeakerRole
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', 'unknown one', 0))
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', 'unknown two', 0))
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', 'unknown three', 0));
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: '修正角色' }));
+    const select = screen.getByRole('combobox', { name: '角色' });
+    fireEvent.change(select, { target: { value: 'elder' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled).toBe(false);
+    });
+    const firstRequestId = harness.api.correctTranscriptSpeakerRole.mock.calls[0]?.[1].request_id;
+
+    fireEvent.change(select, { target: { value: 'interviewer' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: '保存' }).disabled).toBe(false);
+    });
+    const changedRoleRequestId =
+      harness.api.correctTranscriptSpeakerRole.mock.calls[1]?.[1].request_id;
+    expect(changedRoleRequestId).not.toBe(firstRequestId);
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    fireEvent.click(screen.getByRole('button', { name: '修正角色' }));
+    fireEvent.change(screen.getByRole('combobox', { name: '角色' }), {
+      target: { value: 'elder' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.correctTranscriptSpeakerRole).toHaveBeenCalledTimes(3);
+    });
+    const afterCancelRequestId =
+      harness.api.correctTranscriptSpeakerRole.mock.calls[2]?.[1].request_id;
+    expect(afterCancelRequestId).not.toBe(firstRequestId);
+    expect(afterCancelRequestId).not.toBe(changedRoleRequestId);
+  });
+
+  it('rereads canonical server facts after a role revision conflict instead of forcing overwrite', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        finals: [
+          {
+            endMs: 2_000,
+            segmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            speakerRole: 'unknown',
+            speakerRoleRevision: 0,
+            startMs: 1_000,
+            text: '那时我们住在河边。',
+          },
+        ],
+      },
+    });
+    harness.api.correctTranscriptSpeakerRole.mockRejectedValueOnce(
+      new InterviewApiError('SPEAKER_ROLE_VERSION_CONFLICT', 'conflict', 409),
+    );
+    renderWorkbench(harness);
+    fireEvent.click(await screen.findByRole('button', { name: '修正角色' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => {
+      expect(harness.api.getTranscriptSegment).toHaveBeenCalledWith(
+        SESSION_ID,
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      );
+    });
+    expect(await screen.findByText(/已重新读取服务端事实/)).toBeTruthy();
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '角色' }).value).toBe(
+      'interviewer',
+    );
+  });
+
   it('keeps recording explicit while confirming, skipping, and retrying speaker calibration', async () => {
     const resolveSpeakerCalibration = vi.fn(() =>
       Promise.resolve(calibrationSnapshot('confirmed')),
@@ -451,7 +637,7 @@ describe('WorkbenchShell', () => {
   });
 });
 
-type CompleteApi = InterviewApi & InterviewCaptureApi;
+type CompleteApi = InterviewApi & InterviewCaptureApi & SpeakerCorrectionApi;
 type MockApi = { [Key in keyof CompleteApi]: ReturnType<typeof vi.fn<CompleteApi[Key]>> };
 type ControllerPort = Pick<
   InterviewCaptureController,
@@ -545,19 +731,53 @@ function endModeHarness(
 }
 
 function createApi(serverSession: InterviewSessionResponse): MockApi {
+  const segment = transcriptSegment();
+  const correction: SpeakerRoleCorrectionResponse = {
+    operation_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    segment: { ...segment, corrected_speaker_role: 'elder', effective_speaker_role: 'elder' },
+    speaker_role_revision: 1,
+  };
   return {
     abandonEmptyCapture: vi.fn(() => Promise.resolve(serverSession)),
     completeInterviewAudio: vi.fn(() => Promise.resolve(MANIFEST)),
+    correctTranscriptSpeakerRole: vi.fn(() => Promise.resolve(correction)),
     confirmCaptureActive: vi.fn(),
     createSession: vi.fn(),
     deviceCheck: vi.fn(),
     getSession: vi.fn(() => Promise.resolve(serverSession)),
+    getTranscriptSegment: vi.fn(() =>
+      Promise.resolve({
+        ...segment,
+        corrected_speaker_role: 'interviewer',
+        effective_speaker_role: 'interviewer',
+        speaker_role_revision: 1,
+      }),
+    ),
     loadPreparation: vi.fn(() => Promise.resolve(preparation(serverSession))),
     recoverSession: vi.fn(() => Promise.resolve(endingSession('stopping'))),
     reportCaptureInterrupted: vi.fn(),
     startSession: vi.fn(),
     stopSession: vi.fn(() => Promise.resolve(endingSession('stopping'))),
     uploadInterviewChunk: vi.fn(),
+  };
+}
+
+function transcriptSegment(): TranscriptSegmentResponse {
+  return {
+    content_kind: 'conversation',
+    corrected_speaker_role: null,
+    corrected_text: null,
+    effective_speaker_role: 'unknown',
+    end_ms: 2_000,
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    original_speaker_role: 'unknown',
+    original_speaker_role_authority: 'unconfirmed',
+    original_text: '那时我们住在河边。',
+    speaker_provider_id: 'speaker_1',
+    speaker_role_revision: 0,
+    speaker_stream_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    start_ms: 1_000,
+    trusted_effective_speaker_role: 'unknown',
   };
 }
 

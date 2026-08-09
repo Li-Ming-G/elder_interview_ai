@@ -42,6 +42,9 @@ export class TranscriptIngestionService {
     const serializedPayload = serializedProviderPayload(result.providerPayload);
     try {
       const segment = await this.prisma.$transaction(async (transaction) => {
+        // C2 corrections and final ingestion share the session lock. Whichever commits first
+        // defines the facts the other operation must reread; this closes late-final phantoms.
+        await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${result.sessionId}, 0))`;
         const session = await transaction.interviewSession.findUnique({
           select: {
             project: {
