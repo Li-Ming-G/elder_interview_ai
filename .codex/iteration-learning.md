@@ -766,3 +766,15 @@
 - Implementation evidence: 定向修改 `04/05/06/07/09/10`、ADR-025、REV-027、任务板/追踪/交接及 SPEC/C1/C2 卡，并新增 `SPEC-DEV-006` 门禁卡；仍仅文档，没有业务代码或 migration。
 - Lesson: 异步结果的分类必须绑定输入发生时的不可变边界，不能绑定结果到达时的状态；跨聚合域的版本水位必须逐来源表达，单一“当前版本”字段常会制造假安全。
 - Better future prompt: “请分别冻结输入发生边界、结果到达语义和下游消费水位；若派生结果跨多个 session，先设计逐 session provenance/stale SPEC，不要给触发 session 加一个 revision 就宣称闭合。”
+
+### 2026-08-09 — DEV-004C1 正式流说话人校准候选
+
+- User outcome: 在唯一正式录音/PCM/ASR 链路内建立持久 speaker namespace、可追溯校准控制区间和仅由用户确认成立的 trusted role，同时让 fail/skip/retry 不损害原始录音。
+- Review mode: Learning mode；iteration-coach 恰好一次独立只读复核确认可以实施，并要求复用 session runtime 的同一 causal executor，把 marker 前“完成”定义到 adapter 返回、final ingestion/membership 和必要事件事实提交，而不是另加 REST mutex 或用 ACK/到达时间近似边界。
+- Review finding: 若 PCM 与 marker 由两套串行器保护，即使各自有锁也无法证明跨域先后；正确的不变量是同一 runtime queue 的 work completion 语义。UI 的低负担不能改变正式语义，只能减少操作与视觉噪音。
+- Options considered: REST mutex；独立 calibration queue；复用现有 runtime causal queue。采用第三种，并以有界 deadline + interactive transaction timeout 保证零半终态。namespace 选择复用 generation/audio/event ID 或独立持久 ID，采用独立 `speaker_stream_id`。
+- Adopted decision: provider/runtime 真重建关闭旧 speaker stream 并新建；begin/resolve 冻结 generation-derived 半开区间；final 按同 stream 时间区间归属；confirm 原子写两条 `user_confirmed` mapping 且 revision +1；fail/skip 保持 recording 并允许 retry；所有渠道共用唯一 snapshot mapper。
+- Implementation evidence: PR #18、实现主体 `9ddf2c6`；unit 214、PostgreSQL integration 48、auth 13、普通 Chromium 8、auth Chromium 4、空库与旧 DEV-004A/B migration 均通过。`$impeccable` 仅影响克制层级、44px 触控、焦点/live region/reduced motion 和小屏布局，没有改变正式产品语义。
+- Verification boundary: 本机无可用 ADB/Android CDP，本轮只有桌面 Chromium 小视口证据，不能冒充 Android 真机。真实 provider、C2 修正、DEV-006 memory/stale/recompute 均未实现；候选只到 REVIEW。
+- Lesson: 跨异步边界的可信事实必须共享一个可证明的完成点；“收到/ACK/到达”都比业务提交更早，不能作为不可逆角色 authority 的边界。角色值、namespace 和确认 authority 必须分开建模。
+- Better future prompt: “请先列出 producer work 何时才算完成，再让所有边界 marker 进入同一有界串行器；为 namespace、角色值和确认 authority 分配独立字段，并用 transaction/DB constraint 证明 timeout、重建与 replay 不产生半事实。”
