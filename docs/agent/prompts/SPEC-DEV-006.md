@@ -43,4 +43,3 @@
 - commit、push，创建非 Draft PR；
 - 状态只到 `REVIEW`，绑定 exact final head 和 CI；
 - 主动通知总控转交项目负责人 GitHub 手动审查。
-
