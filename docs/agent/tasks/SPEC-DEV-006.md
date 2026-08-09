@@ -2,8 +2,9 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配的独立契约任务
+- 状态：`REVIEW`
+- 负责人：独立契约任务 `019fe70b-103e-7ff2-b916-9a9bcb0ea1c0`
+- 分支：`codex/spec-dev-006-memory-consumer-contract`
 - 前置依赖：DEV-004C1/C2 DONE、DISC-006 DONE、ADR-026 Accepted、CON-024 RESOLVED
 - 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、SPEC-DEV-004C、DEV-004C1/C2、DISC-006 决定包、CON-018/023
 - 允许修改：上述正式规范、ADR/冲突/任务/追踪/审查与交接文档；必要时可只读检查 Prisma、API、Web 和测试现状
@@ -109,3 +110,14 @@
 - current memory、实际问题目录和过程记录均有 provenance、版本、权限与删除闭环；
 - AI 失败不会影响录音/转录，也不会伪造基础题或后台重试成功；
 - 项目负责人绑定 GitHub exact final head 明确 PASS 后，本任务才可 `DONE`，随后 DEV-006 才能进入 `READY`。
+
+## 审查候选摘要
+
+- A：以 `ai_job_session_scope` 保存全部评估 session（含零 eligible），以 `ai_job_input_segment/memory` 保存实际 membership；冻结 text/role revision、authority、content kind 与 digest，采用 freeze-call-recheck 两阶段并发协议；
+- B：用 append-only claim/evidence、versioned resolution/member 和权威 eligibility 分离历史、current 与未来资格；冲突不覆盖，明确更正只切未来 current；
+- C：display snapshot、future eligibility、display visibility 三分；普通修正保留正文但禁止未来消费，硬边界即时中性撤下；
+- D：`QuestionEvidenceModule` 单一拥有 generation/display/actual-question 证据，DEV-006 发布可靠 actual-question catalog，DEV-007 只通过 seam 写展示/换题；
+- E：失败显示不可用、一次动作一个 attempt、每 job 至多一次 Schema repair、显式重试保留链路；过程记录引用业务证据而不复制完整正文；
+- F：冻结索引、legacy 失败安全默认、幂等、锁序、动态查询、删除传播与两次访谈验收矩阵。
+
+当前仅形成审查候选，未获项目负责人 GitHub 结论，不得标记 PASS/DONE 或解锁 DEV-006。PR、exact final head 与 CI 在最终交接中绑定。

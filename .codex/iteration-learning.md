@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004 与 DISC-006 产品讨论已完成。当前先由 SPEC-DEV-006 冻结后台 current memory、跨会话证据、问题快照/未来资格和会后实际问题契约，再进入 DEV-006 实现与单问题追问；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004 与 DISC-006 已完成。SPEC-DEV-006 已形成 REVIEW 候选，等待项目负责人在非 Draft PR exact head 上手动审查；DEV-006 继续 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；SPEC-DEV-006 尚需冻结 current memory、跨 session watermark/provenance、actual-question catalog、过程记录和 DEV-006/007 所有权；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；SPEC-DEV-006 尚待项目负责人审查；SPEC-AI-QUESTION-001 尚需冻结 replace/undo、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -131,6 +131,14 @@
 - Reason: 当前核心验证是后台记忆能否改善“下一问”和第二次访谈开场，而不是先建设记忆管理 UI。已经展示的问题是一次屏幕快照，普通事实修正不必让现场界面突然跳动；但安全边界和未来生成资格必须由服务端立即强制。
 - Tradeoff: 普通说话人、文字或记忆修正后，屏幕上的旧问题可能短暂基于旧理解，直到倾听员换题或正常更新；换取更稳定的现场体验。该快照不得再作为未来生成、跨会话继承或当前记忆事实。
 - Boundary: `restricted`、`do_not_ask`、活动 deletion scope、授权或访问失效属于硬边界，必须立即隐藏问题正文，刷新、GET 和 WS replay 也不得恢复；只显示中性的“继续倾听”或“AI 暂不可用”，且不自动生成替代问题。DEV-006 开工仍依赖 SPEC-DEV-006 项目负责人 PASS。
+
+### D-017 — 跨会话 AI 输入用 scope + membership 证明，资格由查询动态裁决
+
+- Status: proposed；SPEC-DEV-006 REVIEW，等待项目负责人 GitHub 审查后决定是否 adopted。
+- Evidence: `04` §§4.28-4.43、`05` §§3.9-3.10、`07` §5.8-5.9、ADR-027；iteration-coach 恰好一次独立只读复核。
+- Reason: 单一 session revision 既不能证明项目 job 检查过哪些 session，也不能证明实际消费了哪些文字/角色版本；异步 invalidation 也不能承担隐私查询放行。
+- Tradeoff: 增加 scope/membership/dependency 表、动态 anti-join/policy 查询和 deletion 编排；换取跨 session provenance、修正即时失效、在途写回丢弃和历史快照稳定。
+- Boundary: display snapshot、future eligibility、visibility 分开；QuestionEvidenceModule 是唯一 question history owner；CON-023 在 producer/read model/C2 回接前仍 NOT IMPLEMENTED/NOT VERIFIED。项目负责人 PASS 前不得启动 DEV-006。
 
 ## Assumptions to Validate
 
@@ -867,3 +875,15 @@
 - Verification boundary: project restricted/deleted 已实现；session/segment deletion scope `NOT IMPLEMENTED / NOT VERIFIED`，相关 `09` 项不列 PASS。复杂批量 UI、AI stale/recompute、真实 provider 和完整删除链路未实现；状态仅 REVIEW。
 - Lesson: “完整集合”是并发语义，不只是响应计数；若范围生产者不与执行共享锁，保存再多成员也无法证明没有 phantom。安全契约缺生产者时应明确延期集成，而不是用永远不命中的 guard 制造合规幻觉。
 - Better future prompt: “请让范围内新增/删除与执行共享锁并在锁后重建完整集合；preview 持久全部候选、版本和排除结果。若安全 scope 尚无合法 producer，明确 NOT IMPLEMENTED/NOT VERIFIED 和回接任务，不要创建 no-op guard。”
+
+### 2026-08-09 — SPEC-DEV-006 跨会话消费契约候选
+
+- User outcome: 在不实现业务代码的前提下，给 DEV-006 一套可直接下发的后台 current memory、问题证据、跨会话消费、并发、删除与过程记录契约，并防止 DEV-006/007 各建 question history。
+- Review mode: Learning mode；iteration-coach 恰好一次独立只读复核，重点挑战跨 session provenance、snapshot/eligibility、删除清理和模块所有权。
+- Review finding: “实际输入 membership”不能证明哪些 session 已被评估，必须另存包含零 eligible 的 session scope；角色 revision 也不能证明正文没变，segment 还需 text revision/digest。外部调用不能跨事务持锁，必须 freeze 后释放、写回再锁并复核。物化 invalidation 可以滞后，普通查询不能滞后。
+- Options considered: 单一 job session/revision；只保存实际 segment；scope + membership + 动态 eligibility。采用第三种。问题历史考虑 DEV-006/007 各自拥有、独立子任务、共享 QuestionEvidenceModule；采用共享模块，DEV-006 建基座/catalog，DEV-007 仅消费 seam。
+- Adopted decision: claim/evidence 与 resolution/member 分离；display snapshot/future eligibility/visibility 三分；actual question 与 suggestion outcome 分离；AI job 使用 freeze-call-recheck；legacy 缺 provenance 数据失败安全；删除 provenance 不得以 FK RESTRICT 阻塞清理。
+- Implementation evidence: 更新 `02/04/05/07/08/09/10`、ADR-027、CON-018/023、任务板/追踪/审查索引、SPEC-DEV-006/DEV-006/SPEC-AI 任务卡、handoff 和本 journal；没有修改业务代码、Prisma schema、migration 或运行时 contracts。
+- Verification boundary: 契约仅到 REVIEW；CON-018 的 replace/undo/相似度和 CON-023 的 deletion runtime 仍 OPEN；真实模型、固定保留期限、质量百分比和生产部署未决定。项目负责人必须在非 Draft PR exact final head/CI 上给结论。
+- Lesson: provenance 至少要回答“评估过什么范围”和“实际消费了什么”，并为正文与角色分别版本化；历史展示事实、未来消费资格和当前可见性也不能折叠成一个 status。
+- Better future prompt: “为每个跨会话 job 同时冻结全 scope（包括零输入）和实际 membership；模型调用后按同一锁序复核所有版本与 policy。把 display、eligibility、visibility 以及 actual question/outcome 分开，并让一个模块拥有完整问题证据历史。”
