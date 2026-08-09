@@ -13,7 +13,6 @@
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
 | CON-018 | “没用，换一个”的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞 DEV-005A 页面外壳 |
 | CON-023 | C2 删除 scope 门禁缺少可执行的 deletion_request producer/read model | C2 不造半模型，先覆盖现有 project restricted/deleted；DEV-008 实现正式删除子系统时必须回接 C2 并补 scope/并发测试 |
-| CON-024 | 已展示问题快照与正式边界即时撤回规则冲突 | 等待项目负责人确认：普通事实修正可保留屏幕快照；`restricted`、`do_not_ask`、活动 deletion scope 与权限失效是否必须立即撤下正文 |
 
 ## 使用规则
 

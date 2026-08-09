@@ -1,36 +1,111 @@
-# SPEC-DEV-006｜AI 派生结果的角色版本与失效消费契约
+# SPEC-DEV-006｜后台当前记忆、问题证据与跨会话消费契约
 
 ## 基本信息
 
-- 状态：`BLOCKED`
-- 负责人：待分配
-- 前置依赖：DEV-004C1 项目负责人 PASS、DISC-006 DONE
-- 输入依据：`04`、`05`、`07`、`09`、SPEC-DEV-004C、DEV-004C1、未来 DEV-006 讨论决定
-- 交接对象：DEV-006、DEV-007、DEV-004C2 集成验收、项目负责人 GitHub 审查
+- 状态：`READY`
+- 负责人：待分配的独立契约任务
+- 前置依赖：DEV-004C1/C2 DONE、DISC-006 DONE、ADR-026 Accepted、CON-024 RESOLVED
+- 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、SPEC-DEV-004C、DEV-004C1/C2、DISC-006 决定包、CON-018/023
+- 允许修改：上述正式规范、ADR/冲突/任务/追踪/审查与交接文档；必要时可只读检查 Prisma、API、Web 和测试现状
+- 禁止修改：业务代码、Prisma schema、migration、共享运行时 contracts、真实模型配置、生产设施
+- 交接对象：DEV-006、SPEC-AI-QUESTION-001、DEV-007、会后实际问题整理实现任务、项目负责人 GitHub 审查
 
 ## 目标
 
-在 DEV-006 开工前，冻结 AI job 对角色证据的逐 session 消费水位、跨 session 输入 provenance、派生输出当前有效性、角色修正后的范围化失效与查询过滤，使实现 Agent 无需自行发明单 session revision 或 stale 状态。
+把 DISC-006 的用户行为转为一套可执行、可迁移、可幂等、可删除、可审计的正式 consumer 契约，使后续 Agent 无需自行发明：
+
+1. 后台 current memory 与跨会话 current view；
+2. AI job 的逐 session role revision 水位和实际输入 segment provenance；
+3. 记忆冲突、明确更正、unknown/范围值和未来资格；
+4. 已展示问题快照与 future eligibility 的分离；
+5. 会后实际问题整理和跨会话防重复；
+6. AI 失败、显式重试和过程记录；
+7. `restricted|do_not_ask|deletion|权限失效` 的即时撤下与 scope 传播；
+8. DEV-006、DEV-007 及会后问题整理的唯一所有权边界。
 
 ## 必须冻结
 
-1. 一个 job 消费多个 session 时，各 session 的 `speaker_role_revision` watermark；
-2. job 与实际输入 final segment 的持久 membership，unknown、校准控制内容和无权限片段不得进入；
-3. memory item、question suggestion、session note 等派生输出与 job/segment 的 provenance；
-4. `current|invalidated|waiting_recompute|recompute_failed|review_required|superseded` 或等价状态和合法转换；
-5. correction operation membership 命中后的原子失效、普通查询/AI 上下文立即排除、重算成功/失败语义；
-6. 人工确认事实和人工边界只提示复核、不自动覆盖或解除；
-7. 跨 session 项目记忆聚合、并发、幂等、审计、删除与测试责任。
+### A. Job、输入和版本
 
-## 禁止范围
+- 一个 job 聚合多个 session 时，各 session 的 `speaker_role_revision` watermark；
+- job 与实际输入 final segment 的持久 membership；trusted elder/interviewer 分流，unknown、校准控制内容、无权限、restricted 和 deletion scope 命中片段不得进入；
+- 模型、提示词、Schema、上下文构建版本、触发原因、输入哈希、供应商请求 ID、延迟、成功/失败/未判断；
+- 响应丢失、重复启动、并发修正/删除/生成的幂等和锁/事务顺序。
 
-- 本任务不实现 DEV-006/007 业务代码或真实模型；
-- 不用 `ai_job.session_id` 加单一 revision 冒充跨 session 水位；
-- 不把 DEV-004C 的 producer membership 写成 AI 重算已完成；
-- 不在专项产品讨论和项目负责人 GitHub PASS 前把 DEV-006 解锁。
+### B. Current memory
 
-## 验收与交接
+- 第一版最小类型：人物与关系、地点、事件、时间/时间范围、重要选择与原因线索、未讲完故事，以及后台 unknown/冲突；
+- AI 自动记忆无需普通 UI 人工确认即可成为 current memory，但必须保存 evidence、generation job、版本、来源与状态；
+- 冲突保留多份证据并使建议优先澄清；明确更正产生新的 current value，旧值只保留历史且失去 future eligibility；不确定时保存范围或 unknown；
+- 项目级跨 session current view、查询过滤、并发 upsert/冲突合并和删除 scope 传播；
+- 人工确认事实和边界只能进入 review-required 或等价状态，AI 不得自动覆盖或解除。
 
-- 正式更新 `04/05/07/09` 及受影响任务卡、追踪和 ADR；
-- 给出可执行的模型、API/内部 seam、状态机、并发和测试矩阵；
-- 项目负责人绑定最终 GitHub head 明确 PASS 后才可 `DONE`，随后 DEV-006 才可进入 READY。
+### C. 派生失效与显示快照
+
+- memory、suggestion、actual-question、session note 等输出与 job/segment 的 provenance；
+- `current|invalidated|waiting_recompute|recompute_failed|review_required|superseded` 或等价状态和合法转换；
+- correction operation membership 命中后的原子 future eligibility 失效、普通 current view/未来生成/跨会话立即排除，以及失败不恢复旧资格；
+- 已展示 suggestion 作为不可变快照保存其问题、原因、证据、当时 memory/role/boundary/version 与显示时间；普通修正不自动撤下、不自动重算；
+- `restricted`、`do_not_ask`、活动 deletion scope、授权/访问失效时，普通查询、WS replay、刷新 snapshot 即时停止返回正文，只返回中性状态且不自动生成替代问题；
+- 受限审计只保存必要 ID/版本/时间/撤下原因，技术日志不复制正文。
+
+### D. 会后实际问题整理
+
+- 从可信 interviewer final 提取所有真实问题，包括倾听员自发问题；
+- 与系统 suggestion 展示和换题历史形成 `actual_asked|explicitly_replaced|not_observed|unjudged` 或等价分类；
+- 只有 actual asked 进入下一次访谈防重复；其他分类不降低未来资格，除非未来专项决定明确；
+- ASR degraded/not_started、角色不可信、证据不足或 job 失败时保持 unjudged，不更新此前可靠目录；
+- 任务触发、显式重试、幂等、输入 membership、结果 provenance、语义匹配版本和成本记录；
+- 明确由 DEV-006、DEV-007 或独立子任务中的一个模块拥有写模型，其他模块只消费正式 seam。
+
+### E. AI 请求、失败与过程记录
+
+- 当前建议、继续倾听、AI 暂不可用的最小状态；
+- “换一个”一次点击只启动一次带稳定 request ID 的新 attempt；响应未知复用，权威结束后下一动作轮换；不做后台无限重试或基础题自动替代；
+- 会后分析失败不更新可靠结果，允许未来显式重试；
+- 可还原“原始片段 → 当时记忆 → 问题 → 实际问法 → 回答/更正 → 跨会话继承 → 版本调整”的过程记录；
+- 过程记录访问、保留、删除、审计和技术日志最小化。
+
+### F. API、状态机与迁移
+
+- 正式表/字段/枚举/约束/索引、前向迁移和 legacy 数据安全默认值；
+- current memory、job/输出、actual-question 与过程记录的服务端内部 seam 或 REST/WS DTO；
+- 刷新、replay、分页、稳定排序和 canonical response；
+- 删除、授权撤回、assignment 撤销与修正并发的失败关闭；
+- 与 `SPEC-AI-QUESTION-001` 的字段/事件/所有权对接，避免两套 suggestion history。
+
+## 明确不做
+
+- 不实现 DEV-006/007 业务代码、UI、migration 或真实模型；
+- 不建设记忆列表、冲突列表、人工确认页、完整回顾、向量库、知识图谱或自动传记；
+- 不选择真实 LLM 供应商、语义阈值或提示词正文；
+- 不用 `ai_job.session_id` 加一个单值 revision 冒充跨 session 水位；
+- 不把 C2 revision/membership 写成 AI 重算已完成；
+- 不降低 CON-023 的 deletion scope 最终门禁，也不造 no-op guard 或孤立删除半模型；
+- 不把首轮定性试用误写成真实试点质量通过。
+
+## 交付物
+
+1. `04/05/07/08/09/10` 的完整正式契约；必要时同步 `01/03` 但不得改变已批准产品行为；
+2. 可执行的数据模型、状态机、API/内部 seam、幂等、并发、删除与迁移设计；
+3. DEV-006、SPEC-AI-QUESTION-001/DEV-007 和会后实际问题整理的任务所有权/依赖拆分；
+4. PostgreSQL、API、服务、并发、失败注入与两次访谈验收矩阵；
+5. 更新任务板、追踪、ADR/冲突、审查索引、交接和 iteration journal；
+6. 非 Draft GitHub PR，绑定 exact final head、完整 CI 和项目负责人手动审查包。
+
+## 验证方式
+
+- `pnpm format:check`；
+- `git diff --check`；
+- Markdown 内链与任务/ADR/CON/REV 引用存在性检查；
+- 契约术语一致性检查：current memory、displayed snapshot、future eligibility、actual asked、unjudged、hard boundary；
+- 审查 diff 不得包含业务代码、migration 或运行时 contract 实现；
+- GitHub CI 对 exact final head 完整通过。
+
+## 验收标准
+
+- 后续实现 Agent 不需要自行决定产品状态、字段语义、跨 session 水位、失效/查询过滤、实际问题归属或硬撤下规则；
+- 普通修正保留快照与硬安全边界即时撤下在数据、API、AI、安全、测试中一致；
+- current memory、实际问题目录和过程记录均有 provenance、版本、权限与删除闭环；
+- AI 失败不会影响录音/转录，也不会伪造基础题或后台重试成功；
+- 项目负责人绑定 GitHub exact final head 明确 PASS 后，本任务才可 `DONE`，随后 DEV-006 才能进入 `READY`。

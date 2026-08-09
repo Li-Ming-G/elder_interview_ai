@@ -664,6 +664,17 @@ POST /sessions/:id/suggestions/request
 
 原规划的通用 `POST /suggestions/:id/actions` 已冻结，不属于首轮实现范围；DEV-007 不得据此实现采用、已问、忽略、稍后或改写动作。
 
+DISC-006 冻结的产品语义必须由 `SPEC-DEV-006` 与 `SPEC-AI-QUESTION-001` 在 DEV-006/007 开工前共同映射为唯一正式契约：
+
+- 查询/生成结果只表达当前问题、继续倾听或 AI 暂不可用；普通 UI 不返回记忆/冲突/置信度管理列表；
+- “换一个”每次用户动作只启动一个带稳定 `request_id` 的新 AI attempt；响应未知重试复用原 ID，权威成功或明确失败后下一次动作使用新 ID；不做后台无限重试或基础题自动替代；
+- 响应必须区分不可变 `displayed_snapshot` 与 `future_eligibility`。普通事实/说话人修正可以保留当前屏幕快照，但新生成和跨会话查询必须排除旧 eligibility；
+- `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，服务端普通查询、WebSocket replay 与恢复 snapshot 都不得返回已撤下的问题正文；只返回中性状态和最小撤下原因，不自动生成替代问题；
+- 会后实际问题整理需要单一内部/API seam，至少冻结启动、查询、显式重试、幂等、job 状态、`actual_asked|explicitly_replaced|not_observed|unjudged` 或等价分类、证据引用和分析版本；ASR/角色证据不足时不得作否定结论；
+- 第二次会话只消费当前有效记忆、有效人工边界和“实际问过”问题；明确换掉、未观察到问出和未判断都不能冒充已问。
+
+具体路由、DTO、REST/WS 分工和问题所有权尚未冻结，本段不能被直接当作机器可读实现契约。
+
 ### 3.10 记忆
 
 ```http
@@ -672,6 +683,14 @@ PATCH /memory/:id
 POST  /memory/:id/confirm
 POST  /memory/:id/reject
 ```
+
+上述 confirm/reject 入口是旧候选，不属于第一版普通产品 UI 的必需能力。第一版自动记忆可以直接成为后台 current memory，但服务端仍必须保存 segment provenance、生成/Schema/上下文版本、逐 session role revision watermarks、冲突/更正和 future eligibility。`SPEC-DEV-006` 必须决定旧入口是保留为内部/未来兼容 seam、修改还是明确后置，并冻结：
+
+- 当前有效记忆查询和跨会话 current view；
+- 冲突、明确更正、unknown/范围值与旧版本排除；
+- job/segment/output provenance 与范围化失效；
+- 过程记录、访问权限、保留/删除和普通响应正文最小化；
+- DEV-006、DEV-007 与会后实际问题整理的唯一所有权边界。
 
 ### 3.11 工作记录
 
@@ -739,6 +758,8 @@ GET  /exports/:id
 - AI job 在入队/调用前和任何结果持久化或展示前都必须重新读取当前非终态 deletion scope；segment_range 以创建时冻结的 start/end 快照匹配，不读取可变 marker 范围；命中 scope 的在途 job 取消，无法取消供应商调用时丢弃结果；不得更新 memory、question suggestion、boundary candidate 或 session note，也不得展示；
 - 阻止普通导出；
 - 查询接口只向有权处理者返回必要状态，不返回无权查看的正文。
+
+已经展示过的 suggestion 不因成为历史快照而绕过本节。命中 `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，普通 suggestion 查询、事件恢复和页面 snapshot 必须立即停止返回正文；可在受限审计中保留曾展示的 ID、版本、时间和结果分类，但不得复制问题正文到技术日志。单独 `sensitive` 或普通事实修正不触发该硬撤下规则，只改变后续生成 eligibility。
 
 ## 5. WebSocket
 

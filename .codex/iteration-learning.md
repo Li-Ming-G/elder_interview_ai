@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005 与内部可信转录/说话人 DEV-004 已完成。当前进入 DISC-006，随后以 SPEC-DEV-006/DEV-006 验证结构化长期记忆，再推进单问题追问；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004 与 DISC-006 产品讨论已完成。当前先由 SPEC-DEV-006 冻结后台 current memory、跨会话证据、问题快照/未来资格和会后实际问题契约，再进入 DEV-006 实现与单问题追问；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；DISC-006 已展示问题在硬安全边界命中后的撤回语义（CON-024）；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023/024。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；SPEC-DEV-006 尚需冻结 current memory、跨 session watermark/provenance、actual-question catalog、过程记录和 DEV-006/007 所有权；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -124,6 +124,14 @@
 - Tradeoff: 内部演示可能存在明确的转录缺口，不能宣称完整转录、真实供应商可靠性或真实试点就绪；换取 DISC-006/DEV-006/007 更快开始。
 - Boundary: ASR 故障仍不得影响原始录音、manifest 或安全结束，必须显示 `degraded|not_started` 且不得伪造 final。故障区间持久化、真实供应商重连与离线补转录由 HARDEN-ASR-001 在完整 MVP/真实试点前另行契约和验收。
 
+### D-016 — 第一版记忆在后台工作，问题快照与未来资格分离
+
+- Status: adopted
+- Evidence: 项目负责人完成 DISC-006 并批准 CON-024 推荐拆分；`01/03/04/05/07/08/09/10`、ADR-026、DISC/SPEC/DEV 任务卡与追踪已同步。
+- Reason: 当前核心验证是后台记忆能否改善“下一问”和第二次访谈开场，而不是先建设记忆管理 UI。已经展示的问题是一次屏幕快照，普通事实修正不必让现场界面突然跳动；但安全边界和未来生成资格必须由服务端立即强制。
+- Tradeoff: 普通说话人、文字或记忆修正后，屏幕上的旧问题可能短暂基于旧理解，直到倾听员换题或正常更新；换取更稳定的现场体验。该快照不得再作为未来生成、跨会话继承或当前记忆事实。
+- Boundary: `restricted`、`do_not_ask`、活动 deletion scope、授权或访问失效属于硬边界，必须立即隐藏问题正文，刷新、GET 和 WS replay 也不得恢复；只显示中性的“继续倾听”或“AI 暂不可用”，且不自动生成替代问题。DEV-006 开工仍依赖 SPEC-DEV-006 项目负责人 PASS。
+
 ## Assumptions to Validate
 
 ### A-001 — “拾光长者传记项目”与正式文档中的“AI 辅助长者访谈系统”是同一项目
@@ -143,9 +151,9 @@
 - User outcome: 采用 questions-only 的后台最小记忆，尽快验证记忆能否改善当前下一问和第二次开场，同时保留完整过程记录。
 - Review mode: Correction mode；独立只读复核认可主体方向，但确认“硬边界命中后仍保留已展示问题”与现行删除、restricted、do_not_ask 和权限失败关闭规则直接冲突。
 - Review finding: “已展示屏幕快照”可以和“未来生成 eligibility”分离，但软件不能用倾听员现场判断权替代自身的删除、禁问和访问控制义务。普通事实修正与硬安全边界必须分开建模。
-- Options considered: 所有变化都保留当前问题；所有变化都立即撤下；普通事实修正保留快照、硬安全边界立即撤下。独立复核推荐第三种，等待项目负责人确认。
-- Adopted decision: pending user choice；已登记 CON-024，并保持 DISC-006/SPEC-DEV-006/DEV-006 阻塞，未修改业务代码或正式消费契约。
-- Implementation evidence: `docs/agent/02-open-conflicts.md`、`02-conflict-log.md`、`tasks/DISC-006.md` 与任务板记录单一待决点。
+- Options considered: 所有变化都保留当前问题；所有变化都立即撤下；普通事实修正保留快照、硬安全边界立即撤下。独立复核推荐第三种，项目负责人已批准。
+- Adopted decision: 普通说话人/文字/记忆修正只取消旧结果的未来资格，已展示问题保留到换题或正常更新；`restricted|do_not_ask|active deletion scope|consent/access loss` 立即隐藏正文，不自动生成替代问题。CON-024 已解决，DISC-006 完成，SPEC-DEV-006 可进入契约设计，DEV-006 仍等待 SPEC PASS。
+- Implementation evidence: 已同步 `01/03/04/05/07/08/09/10`、ADR-026、`02-conflict-log.md`、DISC/SPEC/DEV 任务卡、任务板、追踪、交接与启动提示词；本轮仅冻结产品与契约输入，没有业务代码、数据库或运行时实现。
 - Lesson: 现场 UX 的“不要跳动”与数据治理的“不得继续展示”不是同一等级的规则；可以保留历史展示事实，但不能继续向无权或已禁问场景呈现正文。
 - Better future prompt: “普通事实修正后保留当前问题直到用户换题；若命中 restricted、do_not_ask、活动 deletion scope 或权限失效，则立即隐藏正文，只保留受限审计，不自动生成替代问题。”
 
