@@ -665,10 +665,10 @@
 - Lesson: 页面可信度来自“每句话能指出事实源”，而不是状态数量更多；当结束边界已经持久化，任何可恢复提示都必须让位，否则一次过时 snapshot 就可能诱导用户向已冻结访谈追加录音。
 - Better future prompt: “请先定义页面唯一 projection、每类事实的来源/核验时间和冲突优先级，再列出每个按钮允许触发的业务副作用；刷新只能读，resume/finalize/reconcile 必须由用户明确点击并复用稳定 identity。”
 
-### 2026-08-09 — DEV-005R3 首轮 REQUEST_CHANGES 的尝试边界与认证失效修复
+### 2026-08-09 — DEV-005R3 总控内部预检的尝试边界与认证失效修复
 
 - User outcome: 不推翻既有工作台与后端契约，定向关闭 reconcile 永久重放旧 stopping、认证失效无法真正回登录、三类结束入口焦点丢失、假完成文案、delivery 事实误导和侧边告警线。
-- Review mode: Learning mode；iteration-coach 的唯一独立只读预审确认六项均为已复现缺陷，方向与 SPEC-DEV-005R/ADR-023/024 一致；补充指出 load 401 可能复用准备页留下的活跃 controller，不能只清 React 身份状态。
+- Review mode: Learning mode；iteration-coach 的唯一独立只读校正确认总控交付完整性/内部预检清单中的六项均为已复现缺陷，方向与 SPEC-DEV-005R/ADR-023/024 一致；补充指出 load 401 可能复用准备页留下的活跃 controller，不能只清 React 身份状态。该内部清单与校正均不是项目负责人的正式 GitHub 审查结论，不登记 REV。
 - Review finding: 幂等 ID 的生命周期不是按钮或组件生命周期，而是一次业务尝试生命周期；结果未知时必须重用，权威结果已知后必须轮换。AUTHORITY_LOST 又混合 401 与 403/授权失效，UI 不能把所有失败都解释成“重新登录即可恢复”。
 - Options considered: 每次点击都生成新 ID；整个页面永久复用一个 ID；按 attempt 在未知结果时保留、成功后释放。采用第三种。认证方面采用 controller 权威核验清理 + App 内存身份清空；401 提供返回登录，403/授权失效只提供安全离开。
 - Adopted decision: reconcile 成功投影 snapshot 后条件清空本次 ID，catch 保留；App 持有可清空 controller registry，load/verify 401 提供真实登录 seam；结束 modal 恢复实际 `event.currentTarget`；deliveryError 只在非 authority 且 archive 正常时表达“本地仍保存、管理服务交付异常”。

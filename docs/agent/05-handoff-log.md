@@ -10,7 +10,7 @@
 | DEV-004 | HO-031 | 总控 / DEV-004C 或正式工作台后续角色 | DEV-004B2 已 DONE；DEV-004C 仍受 CON-014，长时 runtime 清理继续延期 |
 | SPEC-DEV-005R | [HO-038](handoffs/SPEC-DEV-005R.md) / REV-021 | DEV-005R2/3/4 | 契约、R1、R2C 已 DONE；当前进入 R2，CON-020/021 仍开放 |
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
-| DEV-005R3/4 | [DEV-005R3 实现交接](handoffs/DEV-005R3.md)、[PR #15](https://github.com/Li-Ming-G/elder_interview_ai/pull/15)、[DEV-005R2 交接](handoffs/DEV-005R2.md) | 总控整理 R3 新 final head 审查包并转交项目负责人手动审查；PASS 后交 R4 做 Android 完整恢复/安全结束 | 首轮 head `db9579c4` 的 REQUEST_CHANGES 已由修复提交 `433e098a` 定向关闭并通过全门禁，当前仍仅 REVIEW；总控核对不是独立审查或 PASS，CON-020/021 不关闭，CON-022 等 Android 普通音量复验 |
+| DEV-005R3/4 | [DEV-005R3 实现交接](handoffs/DEV-005R3.md)、[PR #15](https://github.com/Li-Ming-G/elder_interview_ai/pull/15)、[DEV-005R2 交接](handoffs/DEV-005R2.md) | 总控整理 R3 新 final head 审查包并转交项目负责人手动审查；PASS 后交 R4 做 Android 完整恢复/安全结束 | 总控对 head `db9579c4` 的交付完整性/内部预检清单已由修复提交 `433e098a` 定向关闭并通过全门禁；该清单不是正式审查结论、不登记 REV，当前仍仅 REVIEW。CON-020/021 不关闭，CON-022 等 Android 普通音量复验 |
 
 ## 最近已完成交接
 
