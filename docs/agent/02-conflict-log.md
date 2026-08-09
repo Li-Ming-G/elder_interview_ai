@@ -170,8 +170,10 @@
 - 涉及文件与章节：`03` §7-8、`04` interview_session 状态、`05` §3.5/§5、`06` §7、DEV-004C
 - 冲突内容：业务流程把说话人校准放在正式访谈前，但现有 session 状态和 start 门禁只要求 device check，没有 calibration 状态、完成凭据或重校准规则。直接实现会导致前后端各自解释是否可开始录音。
 - 受影响任务：DEV-004C 的校准 UI、映射写入和正式 start 门禁；不阻塞 DEV-004A final-only 存储核心，也不阻塞以 `unknown` 回退的内部虚构数据验证。
-- 临时处理：DEV-004A 不实现校准或修改 start；没有当前映射时持久化 `original_speaker_role=unknown`。
-- 需要谁决策：项目负责人 + 产品/后端/前端；DEV-004C 开工前同步 `03` 至 `06`、状态机、API 和测试。
+- 已批准决定：校准不是 session start 或原始录音硬门禁；原子 start 后在同一正式 `speaker_stream_id` 内校准，只有倾听员确认才形成可信角色。失败或跳过时录音继续，片段保持 `unknown`，角色相关记忆、已问问题和建议上下文失败关闭；每个新 speaker stream 必须重新确认。
+- 正式写回边界：`speaker_stream_id` 独立于 capture generation、`audio_stream_id` 和 `event_stream_id`；角色值与用户确认 authority 分离；校准控制内容由服务端 attempt 权威标记；修正采用单段默认、稳定预览批量原子执行，并只产生 revision/membership 失效 seam，AI 重算由 DEV-006/007 实现。
+- 当前处理：DISC-004C 已完成，SPEC-DEV-004C 进入 `REVIEW`；DEV-004C1/C2 保持 `BLOCKED`。在项目负责人对同步后的 `01/03/04/05/06/07/09`、ADR-025 和任务卡给出 GitHub PASS 前，本冲突继续保持 `OPEN`。
+- 关闭条件：SPEC-DEV-004C 项目负责人审查 PASS，正式规范、ADR、任务卡和测试责任无冲突；关闭 CON-014 只表示契约可执行，不代表 C1/C2 已实现或父 DEV-004 完成。
 
 ### CON-015｜原始与修正说话人角色缺少分离表达
 

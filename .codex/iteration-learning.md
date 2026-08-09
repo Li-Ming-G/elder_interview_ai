@@ -5,7 +5,7 @@
 - Current stage: 探索期 MVP 核心纵向链路验证；首次访谈页面闭环 DEV-005 及 SPEC-DEV-005R、R1、R2C、R2、R3、R4 已完成。下一阶段按任务板决定；真实供应商、云存储、iPhone Safari 与生产部署尚未验证。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021/022；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/014/018。CON-014 的产品决定已定稿并写回候选契约，但须项目负责人 GitHub 审查后才能关闭。
 
 ## Adopted Decisions
 
@@ -107,6 +107,14 @@
 - Reason: `visibilitychange`、旋转或锁屏只是平台事件，不能单独证明音频仍在采集或已经失败；archive 连续性、track/recorder 状态和 controller identity 才是可验证事实。
 - Tradeoff: 首个设备允许健康时继续，减少无意义中断；但不能把单台设备结果宣传成所有 Android 的后台保证，R4 和未来平台版本仍需复验。
 - Boundary: 刷新必须 `page_recovery_detected` 且不自动请求麦克风；track ended 必须 `microphone_ended`；R3 只展示并驱动恢复/结束，不能改写 controller 判定。
+
+### D-014 — 说话人角色的值、来源流与可信度必须分别建模
+
+- Status: proposed，等待 SPEC-DEV-004C 项目负责人 GitHub 审查。
+- Evidence: 项目负责人已在 DISC-004C 逐项定稿；候选同步到 `01/03/04/05/06/07/09`、ADR-025、CON-014 与 SPEC/C1/C2 任务卡。
+- Reason: 同一个 provider 短 label 在重建后的流中可能代表不同的人；provider 自动返回 `elder` 也不等于倾听员确认。若只保存角色值或只按 session 关联映射，会把错误角色带入长期记忆和已问问题判断。
+- Tradeoff: 增加持久 `speaker_stream_id`、authority、服务端 calibration attempt、控制内容类型、修正 revision/membership 和批量稳定预览；换取可审计的可信角色门禁与范围化失效。
+- Boundary: 校准发生在原子 start 后同一正式录音/ASR 链路，失败或跳过不影响录音；DEV-004C 只产出角色事实与失效 seam，DEV-006/007 负责自己的重算。真实供应商准确率、声纹、跨会话身份和多人 diarization 不在当前范围。
 
 ## Assumptions to Validate
 
@@ -721,7 +729,18 @@
 - Review mode: Correction mode；独立只读复核指出“校准是否为 start 硬门禁”的二选一过窄，真正目标是既不阻塞原始录音，又不让错误角色污染长期记忆。
 - Review finding: 正式 provider speaker identity 只在 start 后的正式 ASR 流成立；准备页临时流不能可靠校准。刷新后新流也不能静默继承旧短 ID。现有原始角色、修正角色和映射历史边界可复用。
 - Options considered: start 前临时流硬校准；校准作为录音硬门禁；start 后同一正式流确认，失败则 unknown 且限制下游消费。推荐第三种，最终决定等待用户讨论。
-- Adopted decision: pending user choice；创建 DISC-004C 独立讨论，不启动实现。
+- Adopted decision: 此启动记录已被下方“DISC-004C 定稿与正式写回”取代；讨论阶段未启动实现。
 - Implementation evidence: 已新增讨论任务卡、提示词和任务板入口，并启动独立讨论任务 `019fe4e1-8537-7a13-9831-8ef10df1e7df`；无业务实现。
 - Lesson: 校准的核心不是让页面显示两个名字，而是定义角色可信度何时足以进入不可逆的派生数据；原始录音安全与角色语义门禁应分离。
 - Better future prompt: “请先讨论正式流内的角色确认、失败时 unknown 回退、新流重新确认和 unknown 对长期记忆的消费限制；原始录音不得因校准失败停止。”
+
+### 2026-08-09 — DISC-004C 定稿与正式写回
+
+- User outcome: 把已逐项确认的说话人校准、人工修正和下游消费决定转成可审查、可实施且不污染长期记忆的正式契约。
+- Review mode: Correction mode；独立只读复核重点检查标识符范围、角色可信度、控制内容权威来源、批量并发和 DEV-006/007 职责越界。
+- Review finding: capture generation、`audio_stream_id`、WebSocket `event_stream_id` 都不能代表 provider speaker namespace；角色枚举值也不能代表用户确认。批量修正若只在执行时重新查范围会产生 TOCTOU，DEV-004C 若直接承诺 AI 重算则越过尚未实现的消费者。
+- Options considered: 继续按 session 复用短 speaker label；按 generation 隔离；新增独立持久 `speaker_stream_id`。选择第三种，并将角色值与 authority 分离；修正拆为稳定 preview + 原子 execute；C 只产生 revision/membership seam。
+- Adopted decision: 原子 start 后同正式流校准，用户确认才形成可信角色；失败/跳过录音继续且角色消费失败关闭；每个新 speaker stream 重确认；服务端权威标记控制句；任务拆为 SPEC、C1 校准/门禁、C2 修正/seam，复杂批量 UI 后置。
+- Implementation evidence: 已写回 `01/03/04/05/06/07/08/09/10`、ADR-025、CON-014、任务板、追踪矩阵和 SPEC/C1/C2 任务卡；只修改文档，未执行 migration、代码或业务测试。
+- Lesson: 下游能否相信一条角色信息，取决于“谁在什么生产者生命周期内以什么权限确认”，而不是字段看起来是否为 `elder`；标识符作用域和语义 authority 必须显式建模。
+- Better future prompt: “请分别冻结 provider speaker namespace、角色值、确认 authority、控制内容来源和派生失效责任；不要用 generation 或事件流 ID 代替 speaker stream，也不要让上游任务代替下游消费者实现重算。”

@@ -11,7 +11,7 @@
 | CON-008 | production 用户来源启停与最终安全验收 | DEV-001B 保持 REVIEW；不阻塞内部虚构身份原型 |
 | CON-012 | consent audio object 跨 `consent_text_version` 复用规则 | 真实试点前确认并固化约束与测试 |
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
-| CON-014 | 说话人校准是否为 session start 硬门禁 | 保持 DEV-004C 关闭；内部虚构数据允许 `unknown` 回退 |
+| CON-014 | 说话人校准是否为 session start 硬门禁 | 项目负责人已决定 start 后同正式流校准、失败/跳过以 unknown 失败关闭角色消费；SPEC-DEV-004C 正在审查，正式 PASS 前保持 OPEN |
 | CON-018 | “没用，换一个”的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞 DEV-005A 页面外壳 |
 
 ## 使用规则
