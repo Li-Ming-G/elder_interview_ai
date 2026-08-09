@@ -74,6 +74,7 @@ export class CausalQueue {
       void this.enqueue(async () => {
         started = true;
         clearTimeout(timer);
+        if (settled) throw new CausalQueueTimeoutError();
         const remaining = deadline - Date.now();
         if (remaining <= 0) throw new CausalQueueTimeoutError();
         return work(remaining);
