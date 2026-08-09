@@ -3,11 +3,18 @@
 ## 基本信息
 
 - 任务：SPEC-DEV-006｜后台当前记忆、问题证据与跨会话消费契约
-- 状态：REVIEW
+- 状态：DONE
 - 分支：`codex/spec-dev-006-memory-consumer-contract`
 - 基线：`main@92e12fc089c46758e76c73018af6ac241de950d8`（CI 31319680465 attempt 2 SUCCESS）
 - PR：[GitHub #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)（非 Draft）；exact final head / CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
-- 审查权：项目负责人 GitHub 手动审查；本任务不自行 PASS/DONE/merge
+- 审查权：项目负责人已对 final head 手动定向复审 PASS；PR 已合并
+
+## 最终接收
+
+- 项目负责人对 exact final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c`、CI `31326717132` 给出 `PASS`，P0=0、P1=0；
+- 三项旧 P1 均关闭：逐业务输出 derived 关联、三类 retention root/child 生命周期、SPEC-AI 前置状态；
+- PR #20 以 merge commit `6289c87009d4377ff190de74ad582e72597ba55a` 合入 main；
+- DEV-006 与 SPEC-AI-QUESTION-001 可进入 READY；CON-018/023 继续 OPEN，deletion runtime 仍 NOT IMPLEMENTED / NOT VERIFIED。
 
 ## 正式 REQUEST_CHANGES 历史
 
@@ -53,8 +60,8 @@
 
 ## 未完成与风险
 
-- 等待项目负责人对定向修复后的非 Draft PR exact final head 手动复审；状态只能到 REVIEW；旧 REQUEST_CHANGES 继续有效；
-- SPEC-AI-QUESTION-001 与 DEV-006 均保持 BLOCKED；不得因本轮候选或绿色 CI 提前解锁；
+- 项目负责人定向复审与 PR 合并已经完成；旧 REQUEST_CHANGES 作为历史事实继续有效，但不再阻塞当前任务；
+- SPEC-AI-QUESTION-001 与 DEV-006 已按独立治理收口进入 READY；各自仍须完成实现/契约任务和项目负责人审查；
 - CON-018 OPEN：replace/undo、节流、相似度、最终 suggestion REST/WS 由 SPEC-AI-QUESTION-001 冻结；
 - CON-023 OPEN：deletion producer/read model、C2 回接与并发测试尚未实现，coverage 为 `NOT IMPLEMENTED / NOT VERIFIED`；
 - `text_revision` 与新表均是后续 DEV-006 migration 目标，当前 runtime 不具备这些能力；

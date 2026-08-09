@@ -536,6 +536,13 @@ P2：
 - 定向修复边界：仅同步正式规范与治理文档；不改业务代码、Prisma、migration 或 runtime contracts，不实现 CON-018/023，不选供应商，不扩产品功能。修复候选必须生成新 exact head 与完整 CI，再由项目负责人只复审这三项。
 - 历史保留：本记录的 old head、CI SUCCESS 与 REQUEST_CHANGES 永久保留；后续修复候选或 PASS 不覆盖本次事实。
 
+### REV-031 定向复审与最终接收
+
+- 定向复审 exact head：`4759633ed1e3d9031c8bbe32892d61293f9ec01c`；CI `31326717132` completed / success；PR OPEN、非 Draft、mergeable 且 head 无漂移。
+- 正式结论：`PASS`；P0=0、P1=0。逐业务输出 `ai_derived_output`、三类 retention root/child 生命周期和 SPEC-AI 前置状态三项旧 P1 全部关闭。
+- 合并：PR #20 以 merge commit `6289c87009d4377ff190de74ad582e72597ba55a` 合入 main；SPEC-DEV-006 DONE、ADR-027 Accepted，DEV-006 与 SPEC-AI-QUESTION-001 READY。
+- 边界：CON-018/023 继续 OPEN；deletion runtime 仍 NOT IMPLEMENTED / NOT VERIFIED；真实供应商、真实数据、固定保留期限和质量百分比门槛未通过。
+
 ## 审查模板
 
 ```text

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - 负责人：待分配的 AI/后端契约 Agent
 - 前置依赖：`SPEC-FE-001 DONE`；`SPEC-DEV-006 项目负责人 PASS 并合并`
 - 交接对象：总控 Agent、DEV-007A 实现任务对话
@@ -11,7 +11,7 @@
 
 在不恢复旧采用生命周期的前提下，冻结“一个当前最佳问题或继续倾听”、“没用，换一个”与“一层撤销上次更换”的最小数据、API、幂等、节流和相似问题排除契约。
 
-PR #20 当前仍在项目负责人 REQUEST_CHANGES 修复期。本任务不得因候选契约或绿色 CI 提前改为 READY；只有 PR #20 获项目负责人 PASS 并合并后的单独治理收口，才可切回 READY。
+PR #20 已由项目负责人对 final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c` 定向复审 `PASS`，并以 merge commit `6289c87009d4377ff190de74ad582e72597ba55a` 合入 main；本任务的共享 question evidence 前置已满足，现可进入契约设计。
 
 ## 输入依据
 

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立契约任务 `019fe70b-103e-7ff2-b916-9a9bcb0ea1c0`
 - 分支：`codex/spec-dev-006-memory-consumer-contract`
 - 前置依赖：DEV-004C1/C2 DONE、DISC-006 DONE、ADR-026 Accepted、CON-024 RESOLVED
@@ -124,6 +124,6 @@
 - E：失败显示不可用、一次动作一个 attempt、每 job 至多一次 Schema repair、显式重试保留链路；过程记录引用业务证据而不复制完整正文；三类 retention root 统一到期隐藏/清理/重试；
 - F：冻结索引、legacy 失败安全默认、幂等、锁序、动态查询、删除传播与两次访谈验收矩阵。
 
-当前仅形成 REQUEST_CHANGES 后的定向修复候选，未获项目负责人 PASS，不得标记 PASS/DONE 或解锁 DEV-006/SPEC-AI-QUESTION-001。新 exact final head 与 CI 在最终交接中绑定。
+项目负责人已对定向修复 final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c`、CI `31326717132` 给出 `PASS`，P0/P1=0；PR #20 以 merge commit `6289c87009d4377ff190de74ad582e72597ba55a` 合入 main。旧 head REQUEST_CHANGES 历史继续保留；DEV-006 与 SPEC-AI-QUESTION-001 可在本次治理收口后进入 `READY`，CON-018/023 不因本结论关闭。
 
 审查入口：[非 Draft PR #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)。

@@ -244,7 +244,7 @@
 
 ## ADR-027｜跨会话 AI 消费采用范围水位、实际 membership 与动态资格
 
-- 状态：Proposed（SPEC-DEV-006 REVIEW；项目负责人对 PR #20 旧 head `2b6a5da1e67ef2b0e91457969a089ba79f09f465` 正式 REQUEST_CHANGES，等待修复后 exact-head 定向复审）
+- 状态：Accepted（REV-031；PR #20 final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c`、CI `31326717132` PASS，merge `6289c87009d4377ff190de74ad582e72597ba55a`）
 - 决定：项目级 AI job 同时保存“评估过哪些 session/version”的 scope 行与“实际消费哪些 segment/memory”的 membership。零 eligible segment 的 session 仍写 scope；segment membership 冻结 text/role revision、trusted role/authority、content kind 与 digest。禁止用 trigger session 或单一 session revision 冒充跨会话水位。
 - 记忆模型：不可变 claim/evidence、版本化 current resolution/member 与动态 future eligibility 分离。可信 elder 自动 claim 可 current；冲突形成 conflict set；明确更正只切换未来 current，原始证据保留；自动结果不得覆盖 human-confirmed authority。
 - 问题模型：`QuestionEvidenceModule` 单一拥有 generation/display/actual-question 证据。displayed snapshot、future eligibility 和 display visibility 是三种事实；actual question 与 suggestion outcome 分离。DEV-006 建共享基座和可靠 actual-question catalog，DEV-007 只经 seam 编排生成、展示与换题。
