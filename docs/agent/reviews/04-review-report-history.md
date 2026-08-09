@@ -434,6 +434,17 @@ P2：
 - 非阻塞：当前旧 workbench 在服务端已 interrupted 时仍显示“服务端进行中”，且无显式恢复/安全结束动作，明确转 DEV-005R3；准备页低音量输入容易误判为无声，登记 CON-022 P2。
 - 结论：`PASS`。DEV-005R2 `DONE`，DEV-005R3 `READY`。CON-021 只完成 R2 行为冻结，继续 `OPEN`；R4 必须完成下一 generation resume、同一 session/object/job、累计 archive 时间轴、安全结束与 manifest 后才可关闭。
 
+## REV-025｜DEV-005R3 GitHub 项目负责人正式复核
+
+- 审查 PR：[#15](https://github.com/Li-Ming-G/elder_interview_ai/pull/15)
+- 审查对象：final head `481ee2593f27c62e3d137842edfd15fe11ad157c`；base `main@bc7ea83fe042b3d12a90b3787323166f0f0308e2`，PR open、非 Draft、可合并且 head 未漂移。
+- 审查归属：项目负责人手动 GitHub 复核。总控此前对 `db9579c4` 的交付完整性/内部预检只作为修复输入，不是正式审查、不登记独立 REV。
+- 自动证据：CI `31289795181` 完整 verify PASS，包括 format、lint、typecheck、unit、migration、integration、auth、build、smoke、Chromium E2E 与 auth Chromium。
+- 关闭依据：reconcile request ID 按业务 attempt 在未知结果时复用、权威成功后轮换；401 经 controller 失败关闭并真正返回登录；normal/interrupted/empty 三入口取消与 Escape 精确恢复焦点；只有 completed 使用完成语义；delivery failure 与本地 archive 事实分离；普通错误提示使用完整轻边框与软背景。六项定向复核全部关闭。
+- 最终结论：`PASS`；P0=0、P1=0。
+- 范围边界：只覆盖 DEV-005R3 工作台与安全结束实现。Android 完整恢复、长时采集、安全结束 manifest 与普通音量验证仍归 DEV-005R4；CON-020/021/022 保持 `OPEN`，父 DEV-005 继续执行中。
+- 合并记录：PR #15 以 merge commit `8d5c4c5fda34a7e80e9c170aba289c3568332a07` 合入 `main`；DEV-005R3 `DONE`，DEV-005R4 `READY`。
+
 ## 审查模板
 
 ```text

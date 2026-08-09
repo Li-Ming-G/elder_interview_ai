@@ -244,6 +244,7 @@
 - 需要谁决策：项目负责人在 DISC-005-R0 与后续 B-R 中决定产品验证等级和用户可观察恢复行为；总控在全部阶段讨论后统一收敛正式产品与技术规范。
 - 关闭条件：新的跨阶段方案明确正式工作台从 start 到 stop 如何持有/恢复唯一录音上传作业，能产出与 DEV-005C 匹配的不可变 stop 输入，并形成真实浏览器纵向验收；对应实现与项目负责人审查另行关闭，不以讨论通过冒充代码完成。
 - 设计收口进展（2026-08-07）：项目负责人批准 R0 与 A-R/B-R/C-R/D-R；`SPEC-DEV-005R` 已把 session-scoped controller、atomic start、唯一 object、capture generation、archive/delivery 分离、显式恢复和同页结束体验写成正式候选。冲突继续 `OPEN`；只有 DEV-005R4 证明正式路由从 start 到同一对象 stop/manifest 且获得 GitHub PASS 后才关闭。
+- REV-025 进展（2026-08-09）：正式工作台与安全结束页面已获项目负责人 PASS 并合入 `main`，R4 前置成立。CON-020 仍保持 `OPEN`；必须由 R4 在正式路由证明恢复后仍复用同一 session/audio object/local job，并完成冻结 commitments、上传、manifest 与终态后关闭。
 
 ### CON-021｜Android Chrome 后台与设备生命周期的采集事实尚无真机证据
 
@@ -257,6 +258,7 @@
 - DEV-005R2 候选证据（2026-08-08）：执行环境未安装 `adb`，PnP 查询也未发现 Android 目标设备，因此设备型号、Android 版本与 Chrome 版本均不可取得；5–10 分钟录制、visibility/后台、锁屏、权限或音频设备中断均未验证。桌面真实 Chromium harness 已证明旋转不触发刷新、重新申请麦克风或新 capture，但这不能替代 Android 证据。controller 未监听 visibility 并猜测平台结果，现有 reason/snapshot 暂未因缺乏证据而改动。
 - REV-024 真机证据（2026-08-08）：OnePlus GM1900、Android 12 / SDK 31、Chrome `150.0.7871.188` 在正式路由连续采集约 6 分 20 秒；archive `0..371` 共 372 片且无缺口。旋转、约 20 秒切后台和约 20 秒锁屏期间同一 session/object/stream/generation 持续采集。刷新后同一 job/archive/request ID 保留并以 `page_recovery_detected` 进入 `interrupted`；第二条正式会话撤销麦克风权限后保留 71 片 archive，并以 `microphone_ended` 进入 `interrupted`。现有 reason/snapshot 足以表达本次事实，无需扩枚举。
 - 当前处理：R2 的平台事实门禁已满足并 `DONE`。该单机证据不外推为所有 Android 的无条件后台保证；controller 以 track、recorder、archive 与 identity 健康事实决定继续，不能只看 visibility。CON-021 保持 `OPEN`，R4 必须在 R3 页面上复验显式 resume 到下一 generation、同一 session/object/job、累计时间轴和安全结束 manifest 后关闭。
+- REV-025 进展（2026-08-09）：R3 已正式 PASS，页面已具备显式恢复与安全结束入口；这只解除 R4 前置，不构成手机端恢复/结束证据。CON-021 继续 `OPEN`。
 - 关闭条件：目标 Android Chrome 真机覆盖 5–10 分钟录制、旋转、后台/锁屏、权限/设备中断和刷新恢复；正式契约明确每类事件的继续/中断结果，必要的 reason/snapshot 变更先同步文档与共享契约，并获得项目负责人 PASS。
 
 ### CON-022｜准备页低音量输入检测在 Android Chrome 上容易误判无声
@@ -269,6 +271,7 @@
 - 风险：P2 可用性问题；不会绕过授权或导致录音静默丢失，但可能阻止倾听员开始访谈，并诱导用户不必要地大声说话。
 - 当前处理：不取消“检测到输入”门禁，也不把预计时长只读或本地 fixture 乱码混入本缺陷。DEV-005R3 应改善采样时长、实时反馈或重试说明，并用普通说话音量验证；如需改变判定算法，增加单元与 Android 真机证据。
 - DEV-005R3 候选进展（2026-08-08）：检测窗口由 1.4 秒固定幅度阈值改为 3.6 秒，先采 600 ms 噪声基线，再要求连续三帧越过动态阈值；页面区分“完全无输入”与“声音太弱”，两者都不放宽真实输入门禁，并增加 retry/unit/Chromium 合成输入证据。当前仍为 `OPEN`：桌面/合成输入不能替代 OnePlus/Android Chrome 的普通说话音量复验，关闭权留给 R4/项目负责人。
+- REV-025 进展（2026-08-09）：DEV-005R3 页面与算法实现已获项目负责人正式 PASS 并合入 `main`。本结论不替代 Android 普通说话音量证据；CON-022 保持 `OPEN`，由 R4 在目标设备复验后决定是否关闭或继续调整。
 - 关闭条件：目标 Android Chrome 上普通近距离说话可稳定通过，安静/无输入仍失败，失败说明和重新检测可操作；R4 记录设备、环境与结果。
 
 ## 登记模板

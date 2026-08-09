@@ -675,3 +675,12 @@
 - Implementation evidence: `433e098a19787bc24c4f2832f395eaf7e295f9d0`；full unit 212、integration 41、auth 13、普通 Chromium 8/8、auth Chromium 4/4，工作台五视口 × 七状态截图与 interrupted Escape 焦点回归通过；未改后端/Prisma/contracts。
 - Lesson: 可重放写操作要明确区分“transport outcome unknown”和“authoritative outcome known”；前者复用同一 identity 防重复副作用，后者释放 identity 让下一次用户意图真正启动新业务尝试。认证错误也必须按可恢复手段分型，而不是由一个聚合错误码决定文案。
 - Better future prompt: “请为每个用户发起的 reconcile attempt 分配稳定 request ID：transport outcome unknown 时保留，validated authoritative response 后释放；同时把 401 与 403/授权失效分别定义为回登录和只读安全离开。”
+
+### 2026-08-09 — DEV-005R3 项目负责人正式 PASS 与 R4 解锁
+
+- User outcome: 由项目负责人手动复核最终 GitHub head，确认工作台与安全结束实现可以合并，同时不把页面 PASS 误写成 Android 整链路完成。
+- Review mode: 项目负责人 GitHub 手动审查；总控只核对审查包身份并登记结论，不另行宣布独立审查结果。
+- Adopted decision: REV-025 PASS 严格绑定 PR #15 head `481ee2593f27c62e3d137842edfd15fe11ad157c` 与 CI `31289795181`；合并 `8d5c4c5` 后 DEV-005R3 DONE、DEV-005R4 READY。
+- Implementation evidence: 六项定向修复关闭，P0/P1=0；完整 verify、五视口七状态与对应 unit/Chromium 证据已由项目负责人复核。
+- Verification boundary: CON-020/021/022 均保持 OPEN；R4 仍需目标 Android Chrome 的显式恢复、同一资源 identity、累计 archive、PCM offset、安全结束 manifest、真实终态与普通音量证据。
+- Lesson: 子任务页面实现 PASS 只能解除其直接依赖，不能替代父纵向链路的设备与数据闭环门禁。
