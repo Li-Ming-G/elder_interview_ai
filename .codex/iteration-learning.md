@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R、R1、R2C、R2、R3 已完成；R4 已启动，负责桌面与 Android Chrome 完整恢复、安全结束、manifest、终态和普通音量的最终纵向收口。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈页面闭环 DEV-005 及 SPEC-DEV-005R、R1、R2C、R2、R3、R4 已完成。下一阶段按任务板决定；真实供应商、云存储、iPhone Safari 与生产部署尚未验证。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021/022；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -703,5 +703,14 @@
 - Correction: 在服务端可信 ASR 边界统一映射 start/end；浏览器 wire PCM 继续保持 generation-relative，服务端持久化/广播/drain 使用 session timeline。未修改公共 API、数据库、枚举或 interruption reason。
 - Evidence: integration 验证 generation 1 wire PCM `0..100ms` 而 interim/final/drain 从 offset 开始；桌面 5 分钟正式链路与 OnePlus/Android 约 8分21秒正式链路都保持唯一 object。Android 恢复 offset 与首个 generation 1 转录 start 同为 `436604ms`，最终 491/491 manifest、ASR drained、session completed。
 - Boundary: 真实供应商、云存储、生产部署、跨设备恢复、iPhone Safari、完整回顾/导出/删除均未扩展；本地只使用虚构内容，不提交 audio Blob。候选只到 REVIEW，CON-020/021/022 仍 OPEN，最终 PASS 只由项目负责人在 GitHub 对 final head 手动给出。
+
+### 2026-08-09 — DEV-005R4 与首次访谈页面闭环正式收口
+
+- User outcome: 对 R4 final head 完成人工 GitHub 审查，在证据充分且无 P0/P1 后关闭首次访谈纵向父任务与三个剩余冲突。
+- Review mode: 项目负责人手动 GitHub 复核；总控只登记结果和执行合并。
+- Adopted decision: REV-026 PASS 严格绑定 PR #16 head `2fab0ead66e6b52d1b95dec0ef3708a78a5d5d26` 与 CI `31294084873`；merge `7477dca` 后 R4/DEV-005 DONE，CON-020/021/022 RESOLVED。
+- Implementation evidence: 桌面 5 分钟、OnePlus Android 约 8分21秒，刷新恢复 identity、双时钟、491/491 manifest、ASR drained、completed 与普通音量/安静输入证据均经项目负责人复核；P0/P1=0。
+- Verification boundary: 单台目标 Android、内部虚构内容、test ASR/no-cloud storage；不外推所有 Android，不包含 iPhone、真实供应商、云存储、跨设备恢复或生产部署。
+- Lesson: 父纵向任务只有在业务对象不变量、原始证据、恢复代时间轴与服务端终态同时闭合时才能完成；页面成功或单个子任务 PASS 都不足以替代整链路证据。
 - Lesson: capture generation 的 PCM 线时钟与 session 业务时间轴是两个边界；offset 必须由服务端在消费 ASR 结果时统一应用，不能要求浏览器伪造累计 PCM，也不能只把 offset 存进数据库而不消费。
 - Better future prompt: “在恢复链路中同时断言 wire PCM 从 0 重置、服务端转录从 offset 延续，并分别记录原始 generation clock 与 session timeline，避免把持久化字段误当作已生效行为。”

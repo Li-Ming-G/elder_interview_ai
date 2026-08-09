@@ -234,7 +234,7 @@
 
 ### CON-020｜正式工作台缺少访谈录音作业所有权与 stop 输入
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-07
 - 发现者：DISC-005D 总控验收 / iteration-coach 独立只读复核
 - 涉及文件与章节：`00` §4/§9、`01` §8/§11、`03` §9/§12、`05` §3.5.2/§3.6、`06` §2/§3.5/§10、`09` 场景 A、DEV-005A/B/C/D
@@ -246,10 +246,11 @@
 - 设计收口进展（2026-08-07）：项目负责人批准 R0 与 A-R/B-R/C-R/D-R；`SPEC-DEV-005R` 已把 session-scoped controller、atomic start、唯一 object、capture generation、archive/delivery 分离、显式恢复和同页结束体验写成正式候选。冲突继续 `OPEN`；只有 DEV-005R4 证明正式路由从 start 到同一对象 stop/manifest 且获得 GitHub PASS 后才关闭。
 - REV-025 进展（2026-08-09）：正式工作台与安全结束页面已获项目负责人 PASS 并合入 `main`，R4 前置成立。CON-020 仍保持 `OPEN`；必须由 R4 在正式路由证明恢复后仍复用同一 session/audio object/local job，并完成冻结 commitments、上传、manifest 与终态后关闭。
 - DEV-005R4 REVIEW 候选（2026-08-09）：桌面真实 Chromium 5 分钟与 Android 正式路由约 8分21秒均从准备页进入同一真实 MediaStream 的 archive/PCM；Android 刷新恢复前后复用同一 session/audio object/local job，唯一 audio object 最终形成 491/491 complete manifest、ASR drained 与 session completed。该证据已满足候选关闭条件，但冲突继续 `OPEN`，只由项目负责人绑定非 Draft PR final head PASS 后关闭。
+- 最终解决（2026-08-09）：项目负责人对 PR #16 final head `2fab0ead66e6b52d1b95dec0ef3708a78a5d5d26` 给出 REV-026 `PASS`，确认同一正式 object 从 start、刷新恢复到 commitments、491/491 manifest 与 completed 的纵向证据成立；PR merge `7477dca` 后状态改为 `RESOLVED`。
 
 ### CON-021｜Android Chrome 后台与设备生命周期的采集事实尚无真机证据
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-08
 - 发现者：DISC-005R-UI 项目负责人讨论 / iteration-coach 独立只读复核 / 总控 Agent
 - 涉及文件与章节：`01` §8、`03` §9/§12、`05` capture actions、`06` §9/§11、`09` §10.2/场景 A、DEV-005R2/R3/R4
@@ -261,11 +262,12 @@
 - 当前处理：R2 的平台事实门禁已满足并 `DONE`。该单机证据不外推为所有 Android 的无条件后台保证；controller 以 track、recorder、archive 与 identity 健康事实决定继续，不能只看 visibility。CON-021 保持 `OPEN`，R4 必须在 R3 页面上复验显式 resume 到下一 generation、同一 session/object/job、累计时间轴和安全结束 manifest 后关闭。
 - REV-025 进展（2026-08-09）：R3 已正式 PASS，页面已具备显式恢复与安全结束入口；这只解除 R4 前置，不构成手机端恢复/结束证据。CON-021 继续 `OPEN`。
 - DEV-005R4 REVIEW 候选（2026-08-09）：同一 OnePlus/Android 12/Chrome 150 在 R3 正式工作台额外复验旋转与约 10 秒后台返回不刷新、不重新取麦、不创建新 capture；刷新后真实进入 `page_recovery_detected`，稳定恢复页 gUM/MediaRecorder 为 0，用户显式恢复后 generation `0→1`、stream 更新，archive/timeline 累计延续并安全结束。R2 的锁屏/撤权证据继续复用。冲突保持 `OPEN` 等项目负责人 final head PASS。
+- 最终解决（2026-08-09）：REV-026 确认 R2 生命周期证据与 R4 正式工作台恢复/结束证据共同满足当前单目标设备范围；PR merge `7477dca` 后状态改为 `RESOLVED`。结论不外推所有 Android，iPhone Safari 仍延期。
 - 关闭条件：目标 Android Chrome 真机覆盖 5–10 分钟录制、旋转、后台/锁屏、权限/设备中断和刷新恢复；正式契约明确每类事件的继续/中断结果，必要的 reason/snapshot 变更先同步文档与共享契约，并获得项目负责人 PASS。
 
 ### CON-022｜准备页低音量输入检测在 Android Chrome 上容易误判无声
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-08
 - 发现者：项目负责人 / DEV-005R2 真机验收
 - 涉及文件与章节：`03` §7、`09` §10.2、`apps/web/src/interview/microphone-check.ts`、DEV-005R3/R4
@@ -275,6 +277,7 @@
 - DEV-005R3 候选进展（2026-08-08）：检测窗口由 1.4 秒固定幅度阈值改为 3.6 秒，先采 600 ms 噪声基线，再要求连续三帧越过动态阈值；页面区分“完全无输入”与“声音太弱”，两者都不放宽真实输入门禁，并增加 retry/unit/Chromium 合成输入证据。当前仍为 `OPEN`：桌面/合成输入不能替代 OnePlus/Android Chrome 的普通说话音量复验，关闭权留给 R4/项目负责人。
 - REV-025 进展（2026-08-09）：DEV-005R3 页面与算法实现已获项目负责人正式 PASS 并合入 `main`。本结论不替代 Android 普通说话音量证据；CON-022 保持 `OPEN`，由 R4 在目标设备复验后决定是否关闭或继续调整。
 - DEV-005R4 REVIEW 候选（2026-08-09）：OnePlus GM1900 / Android 12 / Chrome 150 在室内约 30–50cm 由用户多次以普通说话音量确认可用；安静/无输入仍正式判定失败并禁用开始按钮，随后正常输入可恢复。未放宽输入门禁，未再修改检测算法。冲突继续 `OPEN` 等项目负责人 final head PASS。
+- 最终解决（2026-08-09）：REV-026 确认普通近距离音量多次通过、安静输入失败且可重新检测，满足正式关闭条件；PR merge `7477dca` 后状态改为 `RESOLVED`。
 - 关闭条件：目标 Android Chrome 上普通近距离说话可稳定通过，安静/无输入仍失败，失败说明和重新检测可操作；R4 记录设备、环境与结果。
 
 ## 登记模板

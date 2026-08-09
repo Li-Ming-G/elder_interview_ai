@@ -445,6 +445,17 @@ P2：
 - 范围边界：只覆盖 DEV-005R3 工作台与安全结束实现。Android 完整恢复、长时采集、安全结束 manifest 与普通音量验证仍归 DEV-005R4；CON-020/021/022 保持 `OPEN`，父 DEV-005 继续执行中。
 - 合并记录：PR #15 以 merge commit `8d5c4c5fda34a7e80e9c170aba289c3568332a07` 合入 `main`；DEV-005R3 `DONE`，DEV-005R4 `READY`。
 
+## REV-026｜DEV-005R4 与父 DEV-005 GitHub 项目负责人正式复核
+
+- 审查 PR：[#16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)
+- 审查对象：final head `2fab0ead66e6b52d1b95dec0ef3708a78a5d5d26`；base `main@57e26a04fda7a7a393f27689aae97dbb8e20814c`，PR open、非 Draft、可合并且 head 未漂移。
+- 自动证据：CI `31294084873` 完整 verify SUCCESS，包括 format、lint、typecheck、unit、migration、integration、auth、build、smoke、普通 Chromium E2E 与 auth Chromium。
+- 复核结论：`PASS`；P0=0、P1=0。确认恢复代 `timeline_offset_ms` 只作用于服务端 ASR 结果映射，wire PCM 仍为 generation-relative；刷新后 session/object/job 不变，generation/stream 合法更新；archive 累计、PCM 重置、安全结束顺序、ACK/archive 分离与唯一 audio object 均成立。
+- 纵向证据：桌面 Chromium 151 正式路由 5 分钟；OnePlus GM1900 / Android 12 / Chrome 150 正式路由约 8分21秒，刷新显式恢复后 491/491 manifest、ASR drained、session completed。普通近距离音量多次通过，安静输入失败且可重试。
+- 状态决定：DEV-005R4 `DONE`、父 DEV-005 `DONE`、CON-020/021/022 `RESOLVED`。
+- 范围边界：当前只覆盖单台目标 Android、内部虚构内容、test ASR/no-cloud storage；iPhone Safari、真实供应商、云存储、跨设备恢复和生产部署不在本结论内。
+- 合并记录：PR #16 以 merge commit `7477dcaf6268aaf06834e2a02408cff5d490e5a6` 合入 `main`。
+
 ## 审查模板
 
 ```text

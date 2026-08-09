@@ -13,9 +13,6 @@
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
 | CON-014 | 说话人校准是否为 session start 硬门禁 | 保持 DEV-004C 关闭；内部虚构数据允许 `unknown` 回退 |
 | CON-018 | “没用，换一个”的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞 DEV-005A 页面外壳 |
-| CON-020 | 正式工作台没有 stop 所需的唯一录音上传作业所有权 | R4 已取得同一 object 从正式 start、刷新恢复到 491 段 manifest/completed 的 REVIEW 候选；保持 OPEN，等待项目负责人绑定 PR final head PASS |
-| CON-021 | Android Chrome 后台与设备生命周期 | R2 生命周期证据与 R4 正式页面 resume/安全结束候选已齐；保持 OPEN，等待项目负责人绑定 PR final head PASS |
-| CON-022 | 准备页低音量输入容易被误判为无声 | R4 已在 OnePlus/Android 12/Chrome 150 复验普通音量多次可用、安静失败；保持 OPEN，等待项目负责人绑定 PR final head PASS |
 
 ## 使用规则
 
