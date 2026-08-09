@@ -2,11 +2,12 @@
 
 ## 当前状态
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 分支：`codex/spec-dev-004c-speaker-calibration`
 - 基线：`main@eda0b49e7291f6a7fe8a211a85766fb8da00ab6f`
+- 最终审查：PR #17 head `2a65b1f19c65cdeacdef21658fded789640e6710`，CI `31298277051` PASS，merge `0b6c3575104425b3907d94df894dd5d1f02006d1`
 - 输入讨论：`DISC-004C`，任务 `019fe4e1-8537-7a13-9831-8ef10df1e7df`，项目负责人已明确“定稿”
-- 接收对象：项目负责人 GitHub 手动审查；通过后依次交给 DEV-004C1、DEV-004C2
+- 接收对象：DEV-004C1 实现任务；C1 PASS 后交给 DEV-004C2 与 SPEC-DEV-006
 
 ## 完成内容
 
@@ -28,7 +29,7 @@
 
 - 未修改业务代码、Prisma schema、数据库 migration、共享运行时 contracts 或测试代码。
 - 未实现真实 ASR 供应商、声纹、跨会话身份、多说话人 diarization、AI 记忆或建议重算。
-- 未关闭 CON-014，未将 DEV-004C1/C2 解锁，未宣布 DEV-004 或 DEV-006 完成。
+- 已按项目负责人 PASS 关闭 CON-014 并解锁 DEV-004C1；未解锁 DEV-004C2、SPEC-DEV-006 或 DEV-006，未宣布 DEV-004 完成。
 
 ## 验证与审查
 
@@ -41,11 +42,17 @@
 - 项目负责人审查严格绑定 PR #17 head `6983ee042c573bd833cc26f91f92751d19eb4b9c` 与 CI `31297150204`。
 - 结论 `REQUEST_CHANGES`，P0=0、P1=3：final 到达态不能定义控制内容；下游没有可执行的 revision/stale consumer seam；WS 1.1 与 REST 缺统一 snapshot。
 - 已采用定向路线：PCM 串行 marker 冻结不可变半开区间；新增独立 `SPEC-DEV-006` 硬门禁而不在 C 中偷设计跨 session AI 表；统一 `SpeakerCalibrationSnapshot`；补稳定总序闭区间。
-- 修订完成前后均不改变本任务 `REVIEW`、CON-014 `OPEN`、C1/C2 `BLOCKED`。
+- 修订期间保持本任务 `REVIEW`、CON-014 `OPEN`、C1/C2 `BLOCKED`，直至项目负责人完成定向复审。
+
+### REV-027 定向复审与合并
+
+- 项目负责人严格绑定 final head `2a65b1f19c65cdeacdef21658fded789640e6710` 与 CI `31298277051`，结论 `PASS`，P0=0、P1=0。
+- 三项 P1 3/3 CLOSED；批量 `(start_ms,id)` 闭区间歧义同步关闭。
+- PR #17 以 merge commit `0b6c3575104425b3907d94df894dd5d1f02006d1` 合入 main。
+- 治理收口：SPEC-DEV-004C DONE、ADR-025 Accepted、CON-014 RESOLVED、DEV-004C1 READY；C2、SPEC-DEV-006、DEV-006 保持 BLOCKED。
 
 ## 后续顺序
 
-1. 项目负责人审查 SPEC-DEV-004C。
-2. 审查 PASS 后治理收口并下发 DEV-004C1。
-3. C1 PASS 后先完成并审查 `SPEC-DEV-006`；只有两者均 PASS，DEV-006 才可推进。DEV-004C2 实现修正与 producer 失效 seam。
-4. C2 通过后再判断父 DEV-004 是否满足当前内部 MVP 范围的完成条件。
+1. 下发并实现 DEV-004C1。
+2. C1 PASS 后先完成并审查 `SPEC-DEV-006`；只有两者均 PASS，DEV-006 才可推进。DEV-004C2 实现修正与 producer 失效 seam。
+3. C2 通过后再判断父 DEV-004 是否满足当前内部 MVP 范围的完成条件。

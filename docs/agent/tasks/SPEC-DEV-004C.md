@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：总控 Agent
 - 分支：`codex/spec-dev-004c-speaker-calibration`
 - 输入依据：DISC-004C 已定稿决定包、`01/03/04/05/06/07/08/09/10`、ADR-025、CON-014、DEV-004A/B1/B2 与 DEV-005 已通过事实
@@ -54,12 +54,13 @@
 - 文档引用与冲突状态核对；
 - 项目负责人对最终 GitHub head 手动审查。
 
-## REV-027 首轮审查
+## REV-027 审查
 
 - 绑定 PR #17 head：`6983ee042c573bd833cc26f91f92751d19eb4b9c`；CI `31297150204` PASS。
 - 结论：`REQUEST_CHANGES`，P0=0、P1=3。
 - 定向修订范围：不可变校准音频边界；独立 SPEC-DEV-006 consumer 门禁；统一 calibration snapshot/WS 1.1 payload；批量稳定排序闭区间。
-- 当前仍为 `REVIEW`，CON-014 仍 OPEN，DEV-004C1/C2 仍 BLOCKED。
+- 定向复审绑定 final head `2a65b1f19c65cdeacdef21658fded789640e6710` 与 CI `31298277051`，结论 `PASS`，P0=0、P1=0，三项 P1 3/3 CLOSED。
+- PR #17 以 merge commit `0b6c3575104425b3907d94df894dd5d1f02006d1` 合入 main；本任务 DONE、ADR-025 Accepted、CON-014 RESOLVED、DEV-004C1 READY。DEV-004C2、SPEC-DEV-006、DEV-006 保持原门禁。
 
 ## 验收标准
 
@@ -71,4 +72,4 @@
 
 ## 当前结论边界
 
-本任务只形成可审查契约候选。进入 `REVIEW` 不代表契约已通过，也不代表 DEV-004C 开发已经开始。
+本任务的正式契约已通过项目负责人 GitHub 审查并合入 main。DONE 只代表契约前置完成，不代表 DEV-004C1/C2 已实现、DEV-004 已完成或 DEV-006 已解锁。

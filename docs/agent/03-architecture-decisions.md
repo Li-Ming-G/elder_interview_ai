@@ -218,7 +218,7 @@
 
 ## ADR-025｜说话人映射按 provider stream 隔离，角色值与用户确认可信度分离
 
-- 状态：Proposed（等待 SPEC-DEV-004C 项目负责人 GitHub 审查）
+- 状态：Accepted（REV-027 对 PR #17 final head `2a65b1f` PASS，merge `0b6c357`）
 - 决定：原子 start 先建立正式录音/ASR，随后在同一正式 `speaker_stream_id` 内进行用户确认校准；校准不是录音硬门禁。`speaker_stream_id` 独立表示 provider speaker namespace，不等于 capture generation、`audio_stream_id` 或短时 `event_stream_id`。角色值与 authority 分离，只有用户确认校准或人工修正形成的 trusted effective role 可进入角色相关下游消费。
 - 控制内容：服务端 calibration attempt 权威标记校准控制片段；客户端不能自行标记。控制片段保留原始证据，但排除故事记忆、真实已问问题、普通摘要和普通 AI 上下文。
 - 不可变边界：begin/resolve 作为有序控制 marker 进入当前服务端 PCM 串行泵，在前方帧完成、后方帧继续前事务性冻结 sequence/session-timeline 半开区间。final 按同 speaker stream 的标准化时间重叠归类，不按到达时 attempt 状态归类；跨边界 final 整段保守排除。

@@ -467,6 +467,14 @@ P2：
 - 非阻塞补充：批量 start/end ID 明确为稳定 `(start_ms,id)` 总序闭区间。
 - 治理边界：不得合并；SPEC 保持 REVIEW、CON-014 OPEN、DEV-004C1/C2 BLOCKED。修复后三项定向复审，不重审完整 DISC-004C。
 
+### REV-027 定向复审
+
+- 审查对象：PR #17 final head `2a65b1f19c65cdeacdef21658fded789640e6710`，base `main@eda0b49e7291f6a7fe8a211a85766fb8da00ab6f`。
+- CI：`31298277051` completed / success，完整 verify 门禁通过。
+- 结论：`PASS`，P0=0、P1=0；原三项 P1 3/3 CLOSED，批量稳定总序闭区间歧义同步关闭。
+- 通过依据：PCM 串行 marker 冻结不可变校准半开区间；独立 `SPEC-DEV-006` 冻结未来跨 session consumer seam；REST、`session.ready` 与 WS 1.1 统一使用 `SpeakerCalibrationSnapshot`。
+- 治理结果：PR #17 以 merge commit `0b6c3575104425b3907d94df894dd5d1f02006d1` 合入 main；SPEC-DEV-004C DONE、ADR-025 Accepted、CON-014 RESOLVED、DEV-004C1 READY。DEV-004C2、SPEC-DEV-006、DEV-006 不提前解锁。
+
 ## 审查模板
 
 ```text

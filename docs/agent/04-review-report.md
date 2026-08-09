@@ -23,7 +23,7 @@
 | DEV-005R3 | REV-025 | PR #15 / final head `481ee25` / CI `31289795181` PASS / merge `8d5c4c5` | DONE | 项目负责人手动 GitHub 复核 PASS，P0/P1=0；六项定向修复全部关闭。仅覆盖 R3 工作台与安全结束实现，CON-020/021/022 继续开放，R4 READY |
 | DEV-005R4 / DEV-005 | REV-026 | PR #16 / final head `2fab0ea` / CI `31294084873` PASS / merge `7477dca` | DONE | 项目负责人手动 GitHub 复核 PASS，P0/P1=0；桌面与目标 Android 的刷新恢复、安全结束和终态通过，CON-020/021/022 RESOLVED。单台 Android、test ASR/no-cloud storage 范围 |
 | SPEC-DEV-005R | REV-021 | PR #11 / final head `80ab84f` / CI `31244954185` PASS / merge `c572490` | DONE | 定向复审 PASS，四个 P1 4/4 关闭；解除 stacked 契约基线门禁，父 DEV-005R 与实现任务继续开放 |
-| SPEC-DEV-004C | REV-027 | PR #17 / head `6983ee0` / CI `31297150204` PASS | REQUEST_CHANGES | P0=0、P1=3：校准控制内容缺不可变音频边界；下游 revision/stale consumer 无可执行门禁；WS 1.1/REST 缺统一 snapshot。CON-014 OPEN，C1/C2 BLOCKED |
+| SPEC-DEV-004C | REV-027 | PR #17 / final head `2a65b1f` / CI `31298277051` PASS / merge `0b6c357` | DONE | 定向复审 PASS，P0/P1=0；三项 P1 全部关闭。ADR-025 Accepted、CON-014 RESOLVED、C1 READY；C2、SPEC-DEV-006、DEV-006 继续 BLOCKED |
 
 ## 阅读规则
 

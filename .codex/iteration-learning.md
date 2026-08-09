@@ -5,7 +5,7 @@
 - Current stage: 探索期 MVP 核心纵向链路验证；首次访谈页面闭环 DEV-005 及 SPEC-DEV-005R、R1、R2C、R2、R3、R4 已完成。下一阶段按任务板决定；真实供应商、云存储、iPhone Safari 与生产部署尚未验证。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/014/018。CON-014 的产品决定已定稿并写回候选契约，但须项目负责人 GitHub 审查后才能关闭。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018。CON-014 已由 SPEC-DEV-004C REV-027 PASS 正式关闭。
 
 ## Adopted Decisions
 
@@ -110,8 +110,8 @@
 
 ### D-014 — 说话人角色的值、来源流与可信度必须分别建模
 
-- Status: proposed，等待 SPEC-DEV-004C 项目负责人 GitHub 审查。
-- Evidence: 项目负责人已在 DISC-004C 逐项定稿；候选同步到 `01/03/04/05/06/07/09`、ADR-025、CON-014 与 SPEC/C1/C2 任务卡。
+- Status: adopted；SPEC-DEV-004C REV-027 对 PR #17 final head `2a65b1f` PASS，merge `0b6c357`。
+- Evidence: 项目负责人已在 DISC-004C 逐项定稿；正式契约同步到 `01/03/04/05/06/07/09`、ADR-025、CON-014 与 SPEC/C1/C2 任务卡，并经项目负责人 GitHub 定向复审通过。
 - Reason: 同一个 provider 短 label 在重建后的流中可能代表不同的人；provider 自动返回 `elder` 也不等于倾听员确认。若只保存角色值或只按 session 关联映射，会把错误角色带入长期记忆和已问问题判断。
 - Tradeoff: 增加持久 `speaker_stream_id`、authority、PCM 串行边界、统一 snapshot、服务端 calibration attempt、控制内容类型、修正 revision/membership 和批量稳定预览；换取可审计的可信角色门禁与范围化失效。
 - Boundary: 校准发生在原子 start 后同一正式录音/ASR 链路，失败或跳过不影响录音；DEV-004C 只产出角色事实与失效 producer seam，跨 session AI consumer 必须先经 `SPEC-DEV-006`，再由 DEV-006/007 实现重算。真实供应商准确率、声纹、跨会话身份和多人 diarization 不在当前范围。
