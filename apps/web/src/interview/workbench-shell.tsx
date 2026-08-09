@@ -1218,6 +1218,12 @@ function TranscriptLine({
   const [selectedRole, setSelectedRole] = useState<CorrectedSpeakerRole>(segment.speakerRole);
   const [announcement, setAnnouncement] = useState('');
   const selectRef = useRef<HTMLSelectElement>(null);
+  const pendingCorrectionAttempt = useRef<{
+    correctedRole: CorrectedSpeakerRole;
+    expectedRevision: number;
+    requestId: string;
+    segmentId: string;
+  } | null>(null);
   const effectiveRole = canonical?.effective_speaker_role ?? segment.speakerRole;
   const revision = canonical?.speaker_role_revision ?? segment.speakerRoleRevision;
 
@@ -1237,14 +1243,28 @@ function TranscriptLine({
     ) {
       return;
     }
+    const pendingAttempt = pendingCorrectionAttempt.current;
+    const attempt =
+      pendingAttempt?.segmentId === segment.segmentId &&
+      pendingAttempt.correctedRole === selectedRole &&
+      pendingAttempt.expectedRevision === revision
+        ? pendingAttempt
+        : {
+            correctedRole: selectedRole,
+            expectedRevision: revision,
+            requestId: crypto.randomUUID(),
+            segmentId: segment.segmentId,
+          };
+    pendingCorrectionAttempt.current = attempt;
     setBusy(true);
     setAnnouncement('正在保存角色修正');
     try {
-      const response = await speakerCorrections.correctTranscriptSpeakerRole(segment.segmentId, {
-        corrected_speaker_role: selectedRole,
-        expected_speaker_role_revision: revision,
-        request_id: crypto.randomUUID(),
+      const response = await speakerCorrections.correctTranscriptSpeakerRole(attempt.segmentId, {
+        corrected_speaker_role: attempt.correctedRole,
+        expected_speaker_role_revision: attempt.expectedRevision,
+        request_id: attempt.requestId,
       });
+      pendingCorrectionAttempt.current = null;
       setCanonical(response.segment);
       setEditing(false);
       setAnnouncement(`角色已修正为${accessibleLabels[response.segment.effective_speaker_role]}`);
@@ -1259,6 +1279,7 @@ function TranscriptLine({
             sessionId,
             segment.segmentId,
           );
+          pendingCorrectionAttempt.current = null;
           setCanonical(latest);
           setSelectedRole(latest.effective_speaker_role);
           setAnnouncement('角色已由其他操作更新，已重新读取服务端事实，请核对后再保存');
@@ -1301,7 +1322,9 @@ function TranscriptLine({
               disabled={busy}
               id={`speaker-role-${segment.segmentId}`}
               onChange={(event) => {
-                setSelectedRole(event.target.value as CorrectedSpeakerRole);
+                const nextRole = event.target.value as CorrectedSpeakerRole;
+                if (nextRole !== selectedRole) pendingCorrectionAttempt.current = null;
+                setSelectedRole(nextRole);
               }}
               ref={selectRef}
               value={selectedRole}
@@ -1322,6 +1345,7 @@ function TranscriptLine({
               className="text-button"
               disabled={busy}
               onClick={() => {
+                pendingCorrectionAttempt.current = null;
                 setEditing(false);
                 setSelectedRole(effectiveRole);
                 setAnnouncement('');
