@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R、R1、R2C、R2 已完成，R2 的 OnePlus/Android Chrome 真机生命周期事实经 REV-024 通过；当前进入 R3 正式工作台恢复与安全结束体验，R4 最后做完整纵向收口。
+- Current stage: 探索期 MVP 核心纵向链路验证；SPEC-DEV-005R、R1、R2C、R2、R3 已完成；R4 已启动，负责桌面与 Android Chrome 完整恢复、安全结束、manifest、终态和普通音量的最终纵向收口。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/018/020/021/022；进入真实身份/试点前解决未知账号登录失败的合法审计 actor/载体（CON-008）。
@@ -684,3 +684,14 @@
 - Implementation evidence: 六项定向修复关闭，P0/P1=0；完整 verify、五视口七状态与对应 unit/Chromium 证据已由项目负责人复核。
 - Verification boundary: CON-020/021/022 均保持 OPEN；R4 仍需目标 Android Chrome 的显式恢复、同一资源 identity、累计 archive、PCM offset、安全结束 manifest、真实终态与普通音量证据。
 - Lesson: 子任务页面实现 PASS 只能解除其直接依赖，不能替代父纵向链路的设备与数据闭环门禁。
+
+### 2026-08-09 — DEV-005R4 独立验收任务启动
+
+- User outcome: 继续完成首次访谈最后一段真机纵向验收，在需要手机操作时由新任务逐步指导，并把最终 GitHub 审查留给项目负责人。
+- Review mode: Learning mode；独立只读复核确认无前置阻塞，并指出 R4 应围绕资源 identity 不变量取证，而不是把页面截图当作链路完成。
+- Review finding: R1/R2/R3 已 DONE，R4 READY；尚缺刷新后下一 generation 的同一 session/object/job、累计 archive、PCM offset、安全结束 manifest/终态及 Android 普通音量证据。单设备共享数据库和证据顺序不适合并行拆分。
+- Options considered: 总控直接临时操作；并行拆成自动化与真机两个任务；建立一个独立 worktree 的 R4 任务统一组织证据。采用第三种。
+- Adopted decision: 启动任务 `019fe468-6cb3-7cf0-b327-4a46e2d7aae9`；先桌面准备，再一次一个动作请求用户完成真机步骤；只允许任务内最小修复，公共契约不足时回报总控；候选只能到 REVIEW。
+- Implementation evidence: 本轮仅完成任务派发和治理登记，尚无 R4 验收结果；CON-020/021/022 保持 OPEN。
+- Lesson: 纵向验收要证明刷新前后属于同一业务对象，允许变化的 generation/stream 与必须不变的 session/object/job 要分别记录。
+- Better future prompt: “请记录 Android 刷新恢复前后的 session、audio object、local job、generation、stream 和 archive 高水位，证明只有 generation/stream 合法变化；再以同一对象完成 stop、manifest 和终态。”
