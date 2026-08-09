@@ -525,6 +525,17 @@ P2：
 - 未关闭边界：真实 ASR、持久故障区间、离线补转录与对应回顾/导出一致性由 `HARDEN-ASR-001` 后置；CON-013、CON-023 及真实试点门禁不因本结论关闭。
 - 后续：立即进入 DISC-006；SPEC-DEV-006 仍须讨论定稿和项目负责人审查，DEV-006/007 不因本次父任务关闭而自动开始实现。
 
+## REV-031｜SPEC-DEV-006 PR #20 项目负责人首轮审查
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #20，分支 `codex/spec-dev-006-memory-consumer-contract`。
+- 被审 exact head：`2b6a5da1e67ef2b0e91457969a089ba79f09f465`；CI `31321844664` completed / success。绿色 CI 只证明门禁执行成功，不替代契约审查结论。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=3。SPEC-DEV-006 保持 `REVIEW`，不得合并或自行宣布 PASS/DONE。
+- P1-1：`ai_derived_output` 与 memory claim、generated session note、需要资格判断的 context snapshot 等业务输出缺确定关联和 cardinality；实现无法判断一个 job 的五条 claim 应是一条还是五条资格记录，也缺范围化失效/删除语义。
+- P1-2：规范要求“每条记录 expires_at”，但物理模型仅部分记录持有期限；缺 retention root、child 生命周期继承、先隐藏后清理、CASCADE/显式幂等顺序与失败重试契约。
+- P1-3：任务板把 `SPEC-AI-QUESTION-001` 提前置为 READY，与其自身等待 SPEC-DEV-006 PASS 的前置冲突。项目负责人对 PR #20 PASS 并合并前必须保持 BLOCKED，前置固定为 `SPEC-FE-001 DONE + SPEC-DEV-006 项目负责人 PASS/merge`。
+- 定向修复边界：仅同步正式规范与治理文档；不改业务代码、Prisma、migration 或 runtime contracts，不实现 CON-018/023，不选供应商，不扩产品功能。修复候选必须生成新 exact head 与完整 CI，再由项目负责人只复审这三项。
+- 历史保留：本记录的 old head、CI SUCCESS 与 REQUEST_CHANGES 永久保留；后续修复候选或 PASS 不覆盖本次事实。
+
 ## 审查模板
 
 ```text

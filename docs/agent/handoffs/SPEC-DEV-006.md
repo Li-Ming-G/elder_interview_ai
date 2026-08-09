@@ -9,6 +9,14 @@
 - PR：[GitHub #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)（非 Draft）；exact final head / CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
 - 审查权：项目负责人 GitHub 手动审查；本任务不自行 PASS/DONE/merge
 
+## 正式 REQUEST_CHANGES 历史
+
+- 项目负责人对 PR #20 old exact head `2b6a5da1e67ef2b0e91457969a089ba79f09f465`、CI `31321844664` SUCCESS 给出正式 `REQUEST_CHANGES`，P0=0、P1=3；该事实永久保留，不由后续候选覆盖；
+- P1-1：补齐逐业务输出 `ai_derived_output` 一对一关联、范围化失效和 question dependency；五条 claim 明确为五条资格记录，actual-question analysis 整版为一条 catalog 资格记录；
+- P1-2：改为 `ai_job|question_display_snapshot|memory_retention_root` 三类 retention root，children 继承 root deadline；冻结先隐藏后清理、跨 root detach、CASCADE/显式幂等顺序、失败续跑和最小审计；
+- P1-3：`SPEC-AI-QUESTION-001` 恢复 `BLOCKED`，前置固定为 `SPEC-FE-001 DONE + SPEC-DEV-006 项目负责人 PASS/merge`；只有未来 PASS/merge 后治理收口才可单独切回 READY；
+- 本轮仍为 docs-only 定向修复；新 exact head/CI 在 push 后追加到本交接并交项目负责人只复审三项。
+
 ## 已完成
 
 - 完成任务卡 A-F 的正式数据、API/内部 seam、AI、安全、测试与研发边界契约；
@@ -17,6 +25,7 @@
 - 分离 displayed snapshot、future eligibility、display visibility；
 - 指定 `QuestionEvidenceModule` 为 generation/display/actual-question 唯一 owner，DEV-006/007 不再各建 history；
 - 冻结 freeze-call-recheck、幂等/显式重试、legacy 失败安全默认、过程记录保留/访问/删除与完整验收矩阵；
+- 冻结逐业务输出一条 derived row、三类 dependency expected count/manifest、actual catalog 整版失效，以及三类 retention root 的完整生命周期；
 - 明确 CON-018 仍等待 replace/undo/相似度专项，CON-023 仍为 runtime 缺口。
 
 ## 关键设计
@@ -38,13 +47,14 @@
 
 ## 验证
 
-- 本地通过：`pnpm format:check`、lint、typecheck、build、unit 225/225、PostgreSQL integration 57/57、auth 13/13、migration deploy/status、Chromium E2E 9/9；Markdown 相对链接、ADR/CON/REV 引用、术语与 docs-only diff 检查通过；
-- 本机 4173 被另一工作区 Vite preview 占用，未终止未知进程，因此固定端口的 smoke/auth E2E 不在本地重复宣称；由 PR #20 隔离 GitHub CI 对 final head 完整执行；
-- iteration-coach 恰好一次独立只读复核：Learning mode；其零 eligible scope、text revision、两阶段并发、动态 eligibility、单一 QuestionEvidenceModule、删除清理和 legacy 失败安全建议已吸收。
+- 本次定向修复本地通过：`pnpm format:check`、lint、typecheck、build、unit 225/225、PostgreSQL integration 57/57、auth 13/13、migration deploy/status、改用未占用 4175 的 Chromium E2E 9/9；`git diff --check`、Markdown 相对链接、ADR/CON/REV 引用、术语与 docs-only diff 检查通过；
+- 本机 4173 被另一工作区 Vite preview 占用，未终止不属于本 worktree 的进程，因此固定端口的 smoke/auth E2E 不在本地重复宣称；由 PR #20 隔离 GitHub CI 对 final head 完整执行；
+- 本次 REQUEST_CHANGES 定向修复按 iteration-coach 恰好一次独立只读复核：Correction mode；其逐业务输出 cardinality、actual catalog 整版失效、question dependency、retention root/child 继承、缺依赖失败关闭和治理状态建议已吸收。
 
 ## 未完成与风险
 
-- 等待项目负责人对非 Draft PR exact final head 手动审查；状态只能到 REVIEW；
+- 等待项目负责人对定向修复后的非 Draft PR exact final head 手动复审；状态只能到 REVIEW；旧 REQUEST_CHANGES 继续有效；
+- SPEC-AI-QUESTION-001 与 DEV-006 均保持 BLOCKED；不得因本轮候选或绿色 CI 提前解锁；
 - CON-018 OPEN：replace/undo、节流、相似度、最终 suggestion REST/WS 由 SPEC-AI-QUESTION-001 冻结；
 - CON-023 OPEN：deletion producer/read model、C2 回接与并发测试尚未实现，coverage 为 `NOT IMPLEMENTED / NOT VERIFIED`；
 - `text_revision` 与新表均是后续 DEV-006 migration 目标，当前 runtime 不具备这些能力；

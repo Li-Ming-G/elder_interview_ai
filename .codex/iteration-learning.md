@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004 与 DISC-006 已完成。SPEC-DEV-006 已形成 REVIEW 候选，等待项目负责人在非 Draft PR exact head 上手动审查；DEV-006 继续 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004 与 DISC-006 已完成。项目负责人对 SPEC-DEV-006 PR #20 old head `2b6a5da` 正式 REQUEST_CHANGES（P0=0/P1=3），当前进行 docs-only 定向修复并保持 REVIEW；DEV-006 与 SPEC-AI-QUESTION-001 均 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；SPEC-DEV-006 尚待项目负责人审查；SPEC-AI-QUESTION-001 尚需冻结 replace/undo、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；SPEC-DEV-006 三项 P1 待 exact-head 定向复审；SPEC-AI-QUESTION-001 等待 SPEC-DEV-006 项目负责人 PASS/merge 后才可 READY，并仍需冻结 replace/undo、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -887,3 +887,15 @@
 - Verification boundary: 契约仅到 REVIEW；CON-018 的 replace/undo/相似度和 CON-023 的 deletion runtime 仍 OPEN；真实模型、固定保留期限、质量百分比和生产部署未决定。项目负责人必须在非 Draft PR exact final head/CI 上给结论。
 - Lesson: provenance 至少要回答“评估过什么范围”和“实际消费了什么”，并为正文与角色分别版本化；历史展示事实、未来消费资格和当前可见性也不能折叠成一个 status。
 - Better future prompt: “为每个跨会话 job 同时冻结全 scope（包括零输入）和实际 membership；模型调用后按同一锁序复核所有版本与 policy。把 display、eligibility、visibility 以及 actual question/outcome 分开，并让一个模块拥有完整问题证据历史。”
+
+### 2026-08-10 — SPEC-DEV-006 PR #20 三项 P1 定向修复
+
+- User outcome: 保留 old head/CI/REQUEST_CHANGES 历史，只关闭 derived-output 业务关联、retention 物理根和 SPEC-AI 前置状态三项 P1；不扩实现、供应商或 deletion runtime。
+- Review mode: Correction mode；本 material correction 恰好一次独立只读复核，重点挑战“一次 job 五条 claim”的基数、actual catalog 失效范围、依赖删除后的空集放行、retention owner 与治理状态。
+- Review finding: 仅有 `ai_job_id/output_type` 无法证明 derived row 属于哪个业务输出；actual question 若逐条绑定会把一次 analysis 的可靠性错误拆散。让所有 child 自带 `expires_at` 会产生漂移，也无法解释展示快照为何可独立于 candidate 保留。任务板 READY 与任务卡等待 SPEC PASS 是直接状态冲突。
+- Options considered: 一个 job/output-type output-set；每个业务输出逐项 derived；actual questions 逐条 derived。采用逐项模型，同时把 whole actual-question analysis 视为一个 catalog 业务输出。retention 考虑每条 child deadline、通用 root 表、三类显式 root；采用 `ai_job|question_display_snapshot|memory_retention_root`，降低 owner 歧义并保留展示事实独立生命周期。
+- Adopted decision: automatic claim/resolution、question/boundary candidate、generated note、context snapshot 一对一 derived；5 claims=5 rows。actual analysis 整版一条 catalog row，任一 dependency 命中整版撤下。三类 dependency 保存 expected count/manifest，缺行/空 FK/剩余子集失败关闭。到期先 hidden/detach，再幂等 purge；失败保持隐藏。SPEC-AI 在 PR #20 项目负责人 PASS/merge 前保持 BLOCKED。
+- Implementation evidence: 定向同步 `04/05/07/08/09/10`、ADR-027、任务板/追踪/REV-031、SPEC-DEV-006/DEV-006/SPEC-AI 任务卡、handoff 与本 journal；仍未修改业务代码、Prisma schema、migration 或运行时 contracts。
+- Verification boundary: old head `2b6a5da1e67ef2b0e91457969a089ba79f09f465`、CI `31321844664` SUCCESS 与 REQUEST_CHANGES P0=0/P1=3 永久有效；修复候选保持 REVIEW，等待新 exact head/CI 和项目负责人只复审三项。CON-018/023 继续 OPEN。
+- Lesson: 资格记录必须有明确业务聚合身份，否则“依赖失效”没有可执行范围；保留期也必须沿 owner 树传播，而不是在每张 child 表复制 deadline。动态状态源必须反映审查门禁，不能用未来预期替代当前事实。
+- Better future prompt: “先列出每种受资格控制业务输出及其最小失效聚合，再冻结一对一 identity、expected dependency manifest 和 retention owner；对跨 root 清理明确先隐藏、detach、再 purge，并让任务板状态严格等待项目负责人 PASS/merge。”

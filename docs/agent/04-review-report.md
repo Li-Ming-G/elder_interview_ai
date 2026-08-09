@@ -27,7 +27,7 @@
 | DEV-004C1 | REV-028 | PR #18 / final head `a984587` / CI `31305357363` PASS / merge `99b090d` | DONE | 用户明确委派总控代行定向复审；P0/P1=0，旧三项 P1 全部关闭。C2 与父 DEV-004 后续均已 DONE；DISC-006 READY，SPEC-DEV-006/DEV-006 等待讨论与契约 |
 | DEV-004C2 | REV-029 | PR #19 / final head `757bf52` / CI `31310993567` PASS / merge `83cdfef` | DONE | 用户明确委派总控代行定向复审；P0/P1=0，客户端稳定 correction request ID 的唯一 P1 已关闭。deletion scope 未实现/未验证，CON-023 OPEN；父 DEV-004 后续由 REV-030 收口 |
 | DEV-004 | REV-030 | main `004dacc` / CI `31311278529` PASS / 产品范围决定 | DONE | 项目负责人决定当前内部 MVP 不以补转录为门槛；A/B/C 全部既有审查通过，原始录音、manifest、安全结束、降级可见与不伪造 final 仍是硬门禁。补转录后置 HARDEN-ASR-001，DISC-006 READY |
-| SPEC-DEV-006 | — | PR #20 / exact final head 与 CI 待源任务交接绑定 | REVIEW | 高风险数据/API/AI/隐私契约候选；iteration-coach 恰好一次独立只读复核已吸收，项目负责人尚未给出 GitHub 结论。不得据本行宣称 PASS/DONE 或解锁 DEV-006 |
+| SPEC-DEV-006 | REV-031 | PR #20 / old exact head `2b6a5da1e67ef2b0e91457969a089ba79f09f465` / CI `31321844664` SUCCESS | REVIEW / REQUEST_CHANGES | 项目负责人正式 P0=0/P1=3：逐业务输出 derived 关联、retention root/child 生命周期、SPEC-AI 前置状态。定向修复等待新 exact head/CI 复审；不得宣称 PASS/DONE 或解锁 DEV-006/SPEC-AI |
 
 ## 阅读规则
 
@@ -37,4 +37,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-030`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-031`。

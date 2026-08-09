@@ -691,6 +691,7 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 - DEV-007 经上述 seam 写 generation/display/replace 事实和读防重复集合，不得直接写 actual question；
 - `recordDisplay` 只在 candidate eligibility 与动态 policy 校验仍成立时原子创建 immutable snapshot 并切换 display state；
 - `publishActualQuestionAnalysis` 只有 judgeable 结果可以原子替换 current reliable catalog；unjudged/failed 只更新分析状态，不覆盖可靠目录；
+- 写回每个独立业务输出时必须同时创建它自己的一条 `ai_derived_output` 和完整 dependency manifest：五条 memory claim 就是五条业务记录与五条资格记录；一个 actual-question analysis 版本只有一条 catalog 资格记录，任一 dependency 失效时整版撤下，不按 question 局部保留；
 - 第一版不暴露 memory/冲突/置信度管理响应，也不提供采用、已问、忽略、稍后或改写动作。
 
 普通问题投影统一为：
@@ -715,10 +716,26 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 1. 输入冻结事务按 `request_id/trigger identity -> project -> session_id 升序` 获取资源锁，重读权限、授权、项目/边界/deletion 状态；写 job、全部 session scope、实际 segment/memory membership 后提交；
 2. 供应商调用期间不持数据库锁；最多一次 primary call 和一次仅处理 JSON/Schema 的 format repair；
 3. 写回事务按相同资源顺序重锁，重新验证 policy revision、全部 scope/membership/version/digest、权限、授权、边界与 deletion scope；任一漂移则取消 job 并丢弃供应商结果；
-4. 成功输出、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；`succeeded` 不绕过后续动态 eligibility；
+4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
 5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。
 
 稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`；外部响应不带供应商原文、内部权限详情或正文。
+
+#### 3.9.3 资格与 retention 内部 seam
+
+```text
+AiOutputEligibilityReader.isEligible(ai_derived_output_id, actor)
+AiOutputEligibilityReader.listEligibleByBusinessType(project_id, output_type, actor)
+AiRetentionService.hideExpired(root_kind, root_id, cleanup_request_id)
+AiRetentionService.purgeHidden(root_kind, root_id, cleanup_request_id)
+```
+
+- eligibility reader 必须先校验 expected dependency count 与 canonical manifest，再逐项校验 segment、memory 和 question dependency；依赖行被删除、目标 FK 置空或只剩子集均返回 false；
+- `actual_question_catalog` 以 analysis 为唯一业务输出，reader 只返回整版 current published catalog；任何 dependency 命中都撤下整版，禁止降级成部分集合；
+- retention root 仅为 `ai_job|question_display_snapshot|memory_retention_root`。`actual_question_analysis` 和所有生成业务输出继承 `ai_job`；展示事件继承 snapshot；非 AI 人工/迁移记忆继承 memory root；child DTO 不接收或返回自有 retention deadline；
+- deletion reader 命中任一 job input 时以整个 `ai_job` root 为隐私清理单元；普通 correction/policy invalidation 仍按单个业务输出执行。candidate job 清理只 detach 独立 snapshot root，是否清理 snapshot 必须再按 snapshot 自身复制正文/证据是否命中 scope 判断；
+- `hideExpired` 以 `(root_kind, root_id, expires_at, retention_policy_version)` 幂等，先把 root 置 hidden、断开 current/published/display projection 并使下游失效；`purgeHidden` 按 §04 清理 owned child 和跨 root membership。失败保持隐藏、记录最小错误分类并可用同一 key 续跑，不能恢复 eligibility；
+- 普通 reader、cursor 首页/续页和将来 WS replay 都先过滤 root 非 active、已到期、活动 deletion scope、授权/assignment 失效；已签发 cursor 不构成继续读取授权。
 
 ### 3.10 记忆
 
@@ -736,6 +753,7 @@ POST  /memory/:id/reject
 - 明确更正后只返回新 resolution；旧 claim/evidence 继续可追溯但 future ineligible；
 - `restricted|活动 deletion scope|授权/访问失效|policy reader 不可用` 时排除正文并失败关闭；`do_not_ask` 通过边界控制信封约束 question producer，不成为 memory 值；
 - 第二次会话上下文必须把实际使用的 resolution membership 与 actual-question membership 固化为 `interview_context_snapshot`。
+- 自动 claim/resolution 逐项使用自己的 derived row；human-confirmed/system-migration 记忆不伪造 AI 资格记录，而是绑定 `memory_retention_root` 并继续接受授权、边界、deletion 与期限过滤。
 
 内部 reader 不构成面向普通用户的新 API。未来若增加诊断或人工修订 API，必须另行冻结授权、正文最小化和审计。
 
