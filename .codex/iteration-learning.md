@@ -722,6 +722,6 @@
 - Review finding: 正式 provider speaker identity 只在 start 后的正式 ASR 流成立；准备页临时流不能可靠校准。刷新后新流也不能静默继承旧短 ID。现有原始角色、修正角色和映射历史边界可复用。
 - Options considered: start 前临时流硬校准；校准作为录音硬门禁；start 后同一正式流确认，失败则 unknown 且限制下游消费。推荐第三种，最终决定等待用户讨论。
 - Adopted decision: pending user choice；创建 DISC-004C 独立讨论，不启动实现。
-- Implementation evidence: 本轮仅新增讨论任务卡、提示词和任务板入口，无业务实现。
+- Implementation evidence: 已新增讨论任务卡、提示词和任务板入口，并启动独立讨论任务 `019fe4e1-8537-7a13-9831-8ef10df1e7df`；无业务实现。
 - Lesson: 校准的核心不是让页面显示两个名字，而是定义角色可信度何时足以进入不可逆的派生数据；原始录音安全与角色语义门禁应分离。
 - Better future prompt: “请先讨论正式流内的角色确认、失败时 unknown 回退、新流重新确认和 unknown 对长期记忆的消费限制；原始录音不得因校准失败停止。”
