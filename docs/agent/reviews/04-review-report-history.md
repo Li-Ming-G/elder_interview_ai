@@ -456,6 +456,17 @@ P2：
 - 范围边界：当前只覆盖单台目标 Android、内部虚构内容、test ASR/no-cloud storage；iPhone Safari、真实供应商、云存储、跨设备恢复和生产部署不在本结论内。
 - 合并记录：PR #16 以 merge commit `7477dcaf6268aaf06834e2a02408cff5d490e5a6` 合入 `main`。
 
+## REV-027｜SPEC-DEV-004C GitHub 项目负责人首轮审查
+
+- 审查对象：PR #17 head `6983ee042c573bd833cc26f91f92751d19eb4b9c`，base `main@eda0b49e7291f6a7fe8a211a85766fb8da00ab6f`。
+- CI：`31297150204` 完整 verify PASS；compare 仅 22 个文档/治理文件，无业务代码、Prisma、migration 或运行时实现。
+- 结论：`REQUEST_CHANGES`；P0=0、P1=3。
+- P1-1：final 到达时是否 collecting 不能定义校准控制内容；必须由服务端冻结不可变 PCM sequence/session-timeline 边界，并以重叠判断 delayed final。
+- P1-2：`speaker_role_revision` 已定义，但下游没有 consumed watermark、provenance 或 stale 状态；必须冻结最小 consumer seam，或以独立下游 SPEC 阻塞 DEV-006。
+- P1-3：WS 1.1 `speaker.calibration.updated` 与 begin/resolve 缺 canonical response payload；必须统一 snapshot 与 replay/GET 时点语义。
+- 非阻塞补充：批量 start/end ID 明确为稳定 `(start_ms,id)` 总序闭区间。
+- 治理边界：不得合并；SPEC 保持 REVIEW、CON-014 OPEN、DEV-004C1/C2 BLOCKED。修复后三项定向复审，不重审完整 DISC-004C。
+
 ## 审查模板
 
 ```text

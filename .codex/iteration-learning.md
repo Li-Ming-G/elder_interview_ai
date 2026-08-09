@@ -113,8 +113,8 @@
 - Status: proposed，等待 SPEC-DEV-004C 项目负责人 GitHub 审查。
 - Evidence: 项目负责人已在 DISC-004C 逐项定稿；候选同步到 `01/03/04/05/06/07/09`、ADR-025、CON-014 与 SPEC/C1/C2 任务卡。
 - Reason: 同一个 provider 短 label 在重建后的流中可能代表不同的人；provider 自动返回 `elder` 也不等于倾听员确认。若只保存角色值或只按 session 关联映射，会把错误角色带入长期记忆和已问问题判断。
-- Tradeoff: 增加持久 `speaker_stream_id`、authority、服务端 calibration attempt、控制内容类型、修正 revision/membership 和批量稳定预览；换取可审计的可信角色门禁与范围化失效。
-- Boundary: 校准发生在原子 start 后同一正式录音/ASR 链路，失败或跳过不影响录音；DEV-004C 只产出角色事实与失效 seam，DEV-006/007 负责自己的重算。真实供应商准确率、声纹、跨会话身份和多人 diarization 不在当前范围。
+- Tradeoff: 增加持久 `speaker_stream_id`、authority、PCM 串行边界、统一 snapshot、服务端 calibration attempt、控制内容类型、修正 revision/membership 和批量稳定预览；换取可审计的可信角色门禁与范围化失效。
+- Boundary: 校准发生在原子 start 后同一正式录音/ASR 链路，失败或跳过不影响录音；DEV-004C 只产出角色事实与失效 producer seam，跨 session AI consumer 必须先经 `SPEC-DEV-006`，再由 DEV-006/007 实现重算。真实供应商准确率、声纹、跨会话身份和多人 diarization 不在当前范围。
 
 ## Assumptions to Validate
 
@@ -744,3 +744,14 @@
 - Implementation evidence: 已写回 `01/03/04/05/06/07/08/09/10`、ADR-025、CON-014、任务板、追踪矩阵和 SPEC/C1/C2 任务卡；只修改文档，未执行 migration、代码或业务测试。
 - Lesson: 下游能否相信一条角色信息，取决于“谁在什么生产者生命周期内以什么权限确认”，而不是字段看起来是否为 `elder`；标识符作用域和语义 authority 必须显式建模。
 - Better future prompt: “请分别冻结 provider speaker namespace、角色值、确认 authority、控制内容来源和派生失效责任；不要用 generation 或事件流 ID 代替 speaker stream，也不要让上游任务代替下游消费者实现重算。”
+
+### 2026-08-09 — SPEC-DEV-004C REV-027 三项接缝修订
+
+- User outcome: 定向关闭 PR #17 中控制句 delayed final、下游 revision/stale 无载体和 WS 1.1 payload 未冻结三项 P1，不推翻已认可的流级 identity 与可信角色方向。
+- Review mode: Correction mode；唯一独立只读复核确认三项 P1 均成立，并指出项目记忆可跨多个 session，给现有 `ai_job.session_id` 增加单值 revision 仍是错误模型。
+- Review finding: final 到达时间不是音频归属边界；必须用服务端 PCM 有序控制点冻结生产时序。C 只知道 revision producer，不足以设计跨 session AI consumer。REST 与 WS 同名状态若没有 canonical snapshot，会在刷新/replay 后分叉。
+- Options considered: 在本 PR 直接扩展全部 AI job/派生表；增加独立 SPEC-DEV-006 门禁。采用后者，避免把尚未讨论的跨 session 记忆与建议状态机塞进 C。
+- Adopted decision: begin/resolve 作为 PCM 串行泵 marker，事务性冻结 sequence/session-timeline 半开区间；delayed/cross-boundary final 按重叠失败关闭。GET、begin、resolve、session.ready、WS updated 统一 snapshot。DEV-006 改为依赖 C1 PASS + SPEC-DEV-006 PASS；批量端点按 `(start_ms,id)` 闭区间。
+- Implementation evidence: 定向修改 `04/05/06/07/09/10`、ADR-025、REV-027、任务板/追踪/交接及 SPEC/C1/C2 卡，并新增 `SPEC-DEV-006` 门禁卡；仍仅文档，没有业务代码或 migration。
+- Lesson: 异步结果的分类必须绑定输入发生时的不可变边界，不能绑定结果到达时的状态；跨聚合域的版本水位必须逐来源表达，单一“当前版本”字段常会制造假安全。
+- Better future prompt: “请分别冻结输入发生边界、结果到达语义和下游消费水位；若派生结果跨多个 session，先设计逐 session provenance/stale SPEC，不要给触发 session 加一个 revision 就宣称闭合。”

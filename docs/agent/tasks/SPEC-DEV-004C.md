@@ -23,6 +23,9 @@
 6. 默认单段修正；批量只限同一 stream/label/明确范围，先持久预览，排除既有单段人工修正，执行全成全败。
 7. DEV-004C 只产生 correction revision 与受影响 membership。DEV-006/007 负责各自派生结果的实际失效、重算和失败态。
 8. 原始角色、原始转录、授权、审计和人工边界不可覆盖或自动解除。
+9. 校准控制内容由服务端 PCM 串行泵冻结不可变 sequence/session-timeline 半开区间；迟到 final 按区间重叠归类，不按到达时 attempt 状态归类。
+10. GET、begin、resolve、session.ready 与 WS updated 共享唯一 `SpeakerCalibrationSnapshot`。
+11. DEV-006 仍受独立 `SPEC-DEV-006` 硬门禁；C1 PASS 不再单独解锁 DEV-006 实现。
 
 ## 正式修改范围
 
@@ -50,6 +53,13 @@
 - `git diff --check`；
 - 文档引用与冲突状态核对；
 - 项目负责人对最终 GitHub head 手动审查。
+
+## REV-027 首轮审查
+
+- 绑定 PR #17 head：`6983ee042c573bd833cc26f91f92751d19eb4b9c`；CI `31297150204` PASS。
+- 结论：`REQUEST_CHANGES`，P0=0、P1=3。
+- 定向修订范围：不可变校准音频边界；独立 SPEC-DEV-006 consumer 门禁；统一 calibration snapshot/WS 1.1 payload；批量稳定排序闭区间。
+- 当前仍为 `REVIEW`，CON-014 仍 OPEN，DEV-004C1/C2 仍 BLOCKED。
 
 ## 验收标准
 

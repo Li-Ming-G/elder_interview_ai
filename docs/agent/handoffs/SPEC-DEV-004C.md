@@ -36,9 +36,16 @@
 - 本契约涉及跨模块数据模型、API、角色可信度和 AI 消费边界，必须由项目负责人按 GitHub final head 明确给出 `PASS` 或 `REQUEST_CHANGES`。
 - 只有项目负责人 PASS 后，才可将 SPEC 标记 DONE、ADR-025 设为 Accepted、CON-014 设为 RESOLVED，并将 DEV-004C1 解锁为 READY；DEV-004C2 继续等待 C1 PASS。
 
+### REV-027 首轮结论
+
+- 项目负责人审查严格绑定 PR #17 head `6983ee042c573bd833cc26f91f92751d19eb4b9c` 与 CI `31297150204`。
+- 结论 `REQUEST_CHANGES`，P0=0、P1=3：final 到达态不能定义控制内容；下游没有可执行的 revision/stale consumer seam；WS 1.1 与 REST 缺统一 snapshot。
+- 已采用定向路线：PCM 串行 marker 冻结不可变半开区间；新增独立 `SPEC-DEV-006` 硬门禁而不在 C 中偷设计跨 session AI 表；统一 `SpeakerCalibrationSnapshot`；补稳定总序闭区间。
+- 修订完成前后均不改变本任务 `REVIEW`、CON-014 `OPEN`、C1/C2 `BLOCKED`。
+
 ## 后续顺序
 
 1. 项目负责人审查 SPEC-DEV-004C。
 2. 审查 PASS 后治理收口并下发 DEV-004C1。
-3. C1 PASS 后，DEV-006 可按可信角色契约独立推进；DEV-004C2 实现修正与失效 seam。
+3. C1 PASS 后先完成并审查 `SPEC-DEV-006`；只有两者均 PASS，DEV-006 才可推进。DEV-004C2 实现修正与 producer 失效 seam。
 4. C2 通过后再判断父 DEV-004 是否满足当前内部 MVP 范围的完成条件。
