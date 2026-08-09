@@ -2,18 +2,20 @@
 
 ## 基本信息
 
-- 状态：`READY`
+- 状态：`BLOCKED`
 - 负责人：待分配的 AI/后端契约 Agent
-- 前置依赖：SPEC-FE-001 产品行为已批准
+- 前置依赖：`SPEC-FE-001 DONE`；`SPEC-DEV-006 项目负责人 PASS 并合并`
 - 交接对象：总控 Agent、DEV-007A 实现任务对话
 
 ## 目标
 
 在不恢复旧采用生命周期的前提下，冻结“一个当前最佳问题或继续倾听”、“没用，换一个”与“一层撤销上次更换”的最小数据、API、幂等、节流和相似问题排除契约。
 
+PR #20 当前仍在项目负责人 REQUEST_CHANGES 修复期。本任务不得因候选契约或绿色 CI 提前改为 READY；只有 PR #20 获项目负责人 PASS 并合并后的单独治理收口，才可切回 READY。
+
 ## 输入依据
 
-`01` §5-6/§8-10、`03` §9/§17.3、`04` §4.11-4.12、`05` §3.9/§5.10、`07` §5-9、`08` AI 边界、`09` 场景 A、ADR-011/020、CON-017/018。
+`01` §5-6/§8-10、`03` §9/§17.3、`04` §4.11-4.12/§§4.36-4.42、`05` §3.9/§5.10、`07` §5-9、`08` AI 边界、`09` §7.5/场景 A、ADR-011/020/027、CON-017/018。
 
 ## 必须回答
 
@@ -26,6 +28,15 @@
 7. 是否保留 `suggestion_action`，若不保留应如何修订正式模型。
 8. 撤销如何只绑定最近一次成功更换，稳定重放并恢复上一条问题、原因与该次排除集合；
 9. 后续谈话触发自动建议更新或 session 状态变化时，撤销如何确定性失效；并发 replace/undo 如何避免恢复过期建议。
+
+## 已冻结 seam，不得重定义
+
+- `QuestionEvidenceModule` 单一拥有 generation attempt、candidate、display snapshot/state/event、actual-question analysis/catalog 和 suggestion outcome；
+- DEV-006 提供该共享基座、current-memory reader 和 current published actual-asked reader；本 SPEC/DEV-007 只能经 service seam 写 generation/display/replace，不能创建第二套 question history；
+- displayed snapshot、future eligibility、display visibility 三分；普通修正不自动撤下，硬边界动态隐藏正文且不自动生成替代问题；
+- outcome 分类不等于 actual-question 状态，只有 actual question 进入跨会话防重复；unjudged 不覆盖可靠目录；
+- 本任务只继续冻结问题 Schema、触发、replace/undo、节流、相似度、最终 REST/WS 投影与错误映射。
+- 本任务不得改变逐业务输出 derived association、actual-question analysis 整版 catalog 资格、三类 retention root 或 dependency expected count/manifest；这些均由 SPEC-DEV-006 final contract 提供。
 
 ## 允许修改
 

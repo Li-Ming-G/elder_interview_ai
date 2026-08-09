@@ -630,7 +630,7 @@ POST /sessions/:id/speaker-remaps/execute
 
 角色确认或修正响应返回新的 `speaker_role_revision` 和受影响 operation ID。DEV-004C/C2 只负责持久化 session revision、operation 与受影响 segment membership，不实现或猜测下游 job/output 状态。
 
-DEV-006 开工前必须先完成 `SPEC-DEV-006` 并经项目负责人 PASS。该下游 SPEC 至少冻结：每个 AI job 实际消费的逐 session role revision 水位、输入 segment provenance、memory/suggestion/session-note 与 job 的输出关系、旧自动派生结果的不可用/待重算/重算失败状态与普通查询过滤，以及人工事实/边界的 review-required 语义。项目级记忆可能聚合多个 session，不得只给现有 `ai_job.session_id` 增加一个单值 revision 后声称已经闭合。DEV-006 与 DEV-007 只能按该正式 consumer seam 实现各自失效、重算、重试和失败展示。
+`SPEC-DEV-006` 已冻结正式 consumer seam：AI 侧在输入冻结事务写逐 session scope（包括 0 eligible segment 的 session）和实际 segment membership；查询侧按片段文字/角色版本、operation membership、memory resolution、项目 policy revision、授权、访问和 deletion scope 的权威谓词失败关闭。C/C2 无需同步回写 AI 表，物化 invalidation 可异步，但不能成为查询放行条件。DEV-006 仍须在项目负责人 PASS 后开工。
 
 错误码至少冻结：`SPEAKER_STREAM_NOT_ACTIVE`、`SPEAKER_CALIBRATION_STREAM_UNAVAILABLE`、`SPEAKER_CALIBRATION_BOUNDARY_TIMEOUT`、`SPEAKER_CALIBRATION_CONFLICT`、`SPEAKER_CALIBRATION_LABELS_INVALID`、`SPEAKER_ROLE_VERSION_CONFLICT`、`SPEAKER_REMAP_RANGE_INVALID`、`SPEAKER_REMAP_PREVIEW_STALE`、`SPEAKER_ROLE_UPDATE_FORBIDDEN`。错误不得回显正文、provider payload、权限内部信息或供应商原文。
 
@@ -673,7 +673,69 @@ DISC-006 冻结的产品语义必须由 `SPEC-DEV-006` 与 `SPEC-AI-QUESTION-001
 - 会后实际问题整理需要单一内部/API seam，至少冻结启动、查询、显式重试、幂等、job 状态、`actual_asked|explicitly_replaced|not_observed|unjudged` 或等价分类、证据引用和分析版本；ASR/角色证据不足时不得作否定结论；
 - 第二次会话只消费当前有效记忆、有效人工边界和“实际问过”问题；明确换掉、未观察到问出和未判断都不能冒充已问。
 
-具体路由、DTO、REST/WS 分工和问题所有权尚未冻结，本段不能被直接当作机器可读实现契约。
+本 SPEC 冻结共享服务与安全投影；replace/undo、节流、相似度和最终 REST 路由仍由 `SPEC-AI-QUESTION-001` 冻结，不得提前实现。
+
+#### 3.9.1 共享内部服务 seam
+
+`QuestionEvidenceModule` 是 generation attempt、candidate、display snapshot/state/event、actual-question analysis/catalog 和 suggestion outcome 的唯一 owner。其他模块只能调用以下语义接口，不得直接维护第二套 question history：
+
+```text
+QuestionEvidenceService.recordDisplay(command, actor, request_id)
+QuestionEvidenceService.recordReplaceRequested(command, actor, request_id)
+QuestionEvidenceService.publishActualQuestionAnalysis(command, system_request_id)
+QuestionEvidenceReader.getCurrentPresentation(session_id, actor)
+QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, actor)
+```
+
+- DEV-006 实现 actual-question analysis/catalog、evidence、可靠版本发布和跨会话 `actual asked` reader；
+- DEV-007 经上述 seam 写 generation/display/replace 事实和读防重复集合，不得直接写 actual question；
+- `recordDisplay` 只在 candidate eligibility 与动态 policy 校验仍成立时原子创建 immutable snapshot 并切换 display state；
+- `publishActualQuestionAnalysis` 只有 judgeable 结果可以原子替换 current reliable catalog；unjudged/failed 只更新分析状态，不覆盖可靠目录；
+- 写回每个独立业务输出时必须同时创建它自己的一条 `ai_derived_output` 和完整 dependency manifest：五条 memory claim 就是五条业务记录与五条资格记录；一个 actual-question analysis 版本只有一条 catalog 资格记录，任一 dependency 失效时整版撤下，不按 question 局部保留；
+- 第一版不暴露 memory/冲突/置信度管理响应，也不提供采用、已问、忽略、稍后或改写动作。
+
+普通问题投影统一为：
+
+```json
+{
+  "kind": "suggestion|continue_listening|unavailable",
+  "snapshot_id": "uuid|null",
+  "question": "string|null",
+  "reason": "string|null",
+  "displayed_at": "timestamp|null",
+  "withdrawal_reason": "restricted|do_not_ask|deletion_active|access_revoked|policy_unavailable|null"
+}
+```
+
+只有 `kind=suggestion` 可返回 question/reason。任何读取、页面恢复或将来 suggestion WS replay 都必须实时重检 assignment、授权、项目状态、正式边界和活动 deletion scope；不能证明安全时返回中性 projection，绝不从 snapshot 恢复正文，也不自动启动替代 attempt。
+
+#### 3.9.2 AI job 两阶段并发协议
+
+所有 memory extraction、question generation、actual-question reconcile、session note 和 context snapshot 共用：
+
+1. 输入冻结事务按 `request_id/trigger identity -> project -> session_id 升序` 获取资源锁，重读权限、授权、项目/边界/deletion 状态；写 job、全部 session scope、实际 segment/memory membership 后提交；
+2. 供应商调用期间不持数据库锁；最多一次 primary call 和一次仅处理 JSON/Schema 的 format repair；
+3. 写回事务按相同资源顺序重锁，重新验证 policy revision、全部 scope/membership/version/digest、权限、授权、边界与 deletion scope；任一漂移则取消 job 并丢弃供应商结果；
+4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
+5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。
+
+稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`；外部响应不带供应商原文、内部权限详情或正文。
+
+#### 3.9.3 资格与 retention 内部 seam
+
+```text
+AiOutputEligibilityReader.isEligible(ai_derived_output_id, actor)
+AiOutputEligibilityReader.listEligibleByBusinessType(project_id, output_type, actor)
+AiRetentionService.hideExpired(root_kind, root_id, cleanup_request_id)
+AiRetentionService.purgeHidden(root_kind, root_id, cleanup_request_id)
+```
+
+- eligibility reader 必须先校验 expected dependency count 与 canonical manifest，再逐项校验 segment、memory 和 question dependency；依赖行被删除、目标 FK 置空或只剩子集均返回 false；
+- `actual_question_catalog` 以 analysis 为唯一业务输出，reader 只返回整版 current published catalog；任何 dependency 命中都撤下整版，禁止降级成部分集合；
+- retention root 仅为 `ai_job|question_display_snapshot|memory_retention_root`。`actual_question_analysis` 和所有生成业务输出继承 `ai_job`；展示事件继承 snapshot；非 AI 人工/迁移记忆继承 memory root；child DTO 不接收或返回自有 retention deadline；
+- deletion reader 命中任一 job input 时以整个 `ai_job` root 为隐私清理单元；普通 correction/policy invalidation 仍按单个业务输出执行。candidate job 清理只 detach 独立 snapshot root，是否清理 snapshot 必须再按 snapshot 自身复制正文/证据是否命中 scope 判断；
+- `hideExpired` 以 `(root_kind, root_id, expires_at, retention_policy_version)` 幂等，先把 root 置 hidden、断开 current/published/display projection 并使下游失效；`purgeHidden` 按 §04 清理 owned child 和跨 root membership。失败保持隐藏、记录最小错误分类并可用同一 key 续跑，不能恢复 eligibility；
+- 普通 reader、cursor 首页/续页和将来 WS replay 都先过滤 root 非 active、已到期、活动 deletion scope、授权/assignment 失效；已签发 cursor 不构成继续读取授权。
 
 ### 3.10 记忆
 
@@ -684,13 +746,18 @@ POST  /memory/:id/confirm
 POST  /memory/:id/reject
 ```
 
-上述 confirm/reject 入口是旧候选，不属于第一版普通产品 UI 的必需能力。第一版自动记忆可以直接成为后台 current memory，但服务端仍必须保存 segment provenance、生成/Schema/上下文版本、逐 session role revision watermarks、冲突/更正和 future eligibility。`SPEC-DEV-006` 必须决定旧入口是保留为内部/未来兼容 seam、修改还是明确后置，并冻结：
+上述四个 HTTP 入口全部后置，第一版不得实现或向普通 UI 暴露。DEV-006 提供进程内 `MemoryContextReader.getCurrent(project_id, consumer_session_id, actor)`，只供 question/context producer 使用：
 
-- 当前有效记忆查询和跨会话 current view；
-- 冲突、明确更正、unknown/范围值与旧版本排除；
-- job/segment/output provenance 与范围化失效；
-- 过程记录、访问权限、保留/删除和普通响应正文最小化；
-- DEV-006、DEV-007 与会后实际问题整理的唯一所有权边界。
+- 返回通过权威 eligibility 的 current resolution、resolution revision、最小结构化值和 claim/evidence ID；不返回记忆列表 UI、confidence、冲突正文管理能力或原始转录；
+- conflict set 只返回可生成自然澄清所需的类型、槽、claim 引用与最小结构，不把任一冲突值投影为 current 单值；
+- 明确更正后只返回新 resolution；旧 claim/evidence 继续可追溯但 future ineligible；
+- `restricted|活动 deletion scope|授权/访问失效|policy reader 不可用` 时排除正文并失败关闭；`do_not_ask` 通过边界控制信封约束 question producer，不成为 memory 值；
+- 第二次会话上下文必须把实际使用的 resolution membership 与 actual-question membership 固化为 `interview_context_snapshot`。
+- 自动 claim/resolution 逐项使用自己的 derived row；human-confirmed/system-migration 记忆不伪造 AI 资格记录，而是绑定 `memory_retention_root` 并继续接受授权、边界、deletion 与期限过滤。
+
+内部 reader 不构成面向普通用户的新 API。未来若增加诊断或人工修订 API，必须另行冻结授权、正文最小化和审计。
+
+内部列表也必须确定性分页：current memory 按 `(memory_type asc, canonical_key asc, resolution_revision asc, id asc)`；actual asked 按 `(session.sequence_no asc, asked_at_ms asc, actual_question.id asc)`；过程记录按 `(created_at asc, id asc)`。cursor 是这些键的版本化、不透明编码，并绑定 project、过滤条件、policy revision 与 page size；缺失/非法/跨资源 cursor 返回 422，不得降级为首页。canonical response 只使用 §3.9.1 安全投影和上述 service DTO，不返回 ORM 行、provider payload、原始模型输入或内部 marker note。
 
 ### 3.11 工作记录
 
@@ -744,6 +811,9 @@ GET  /exports/:id
 - 开始和解决说话人校准 attempt；
 - 单段说话人修正；
 - 批量说话人修正预览与执行。
+- 创建 AI job/显式重试；
+- 每次问题生成、展示与换题动作；
+- 启动、重试与发布实际问题整理。
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
@@ -760,6 +830,8 @@ GET  /exports/:id
 - 查询接口只向有权处理者返回必要状态，不返回无权查看的正文。
 
 已经展示过的 suggestion 不因成为历史快照而绕过本节。命中 `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，普通 suggestion 查询、事件恢复和页面 snapshot 必须立即停止返回正文；可在受限审计中保留曾展示的 ID、版本、时间和结果分类，但不得复制问题正文到技术日志。单独 `sensitive` 或普通事实修正不触发该硬撤下规则，只改变后续生成 eligibility。
+
+`DeletionScopeReader`、冻结范围与上述锁序是正式目标契约，但当前 runtime 尚未实现 deletion request producer/read model。CON-023 在 DEV-008 producer、统一 reader、C2 回接和并发测试全部完成前保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任何返回“无活动删除”的 no-op guard 都不得被计为覆盖。
 
 ## 5. WebSocket
 
@@ -834,6 +906,8 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 - `error`
 
 其中 `speaker.calibration.updated` 由 DEV-004C1 在 1.1 协议实现；其余列出的事件沿用 B1/B2。未列出的下行事件仍保留为后续方向。
+
+问题建议暂不新增正式 WebSocket 事件。`SPEC-AI-QUESTION-001` 若选择 WS，只能复用 §3.9.1 的安全 projection；服务端必须在发送与 replay 时动态重检，事件存储不得让已撤下正文通过旧 payload 回流。
 
 ### 5.5 握手、join 与权限
 
@@ -1039,30 +1113,7 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 
 ### 5.10 `suggestion.created` 示例
 
-首轮事件同时只允许一个 `primary`，`alternatives` 必须为空；后续 `SPEC-AI-QUESTION-001` 可在不改变该产品行为的前提下收敛字段。
-
-```json
-{
-  "event_id": "uuid",
-  "session_id": "uuid",
-  "timestamp": "2026-08-01T13:22:08+08:00",
-  "schema_version": "1.1",
-  "payload": {
-    "primary": {
-      "id": "uuid",
-      "question": "当时为什么决定离开家乡？",
-      "reason": "长者刚刚提到前往洛阳，但尚未说明原因。",
-      "purpose": "cause",
-      "risk": "low",
-      "confidence": 0.87,
-      "evidence_segment_ids": ["uuid"]
-    },
-    "alternatives": [],
-    "should_wait": false,
-    "wait_reason": null
-  }
-}
-```
+此事件名与历史 payload 仅为早期示例，不是正式协议，DEV-007 不得实现。若 `SPEC-AI-QUESTION-001` 后续启用实时下行，payload 必须是 §3.9.1 的 `kind/snapshot_id/question/reason/displayed_at/withdrawal_reason` 安全投影，不返回 confidence、原始 evidence 正文或备选问题，并遵守发送/replay 动态撤下。
 
 ## 6. 权限规则
 

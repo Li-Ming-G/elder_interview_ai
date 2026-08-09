@@ -2,8 +2,9 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配的独立契约任务
+- 状态：`REVIEW`
+- 负责人：独立契约任务 `019fe70b-103e-7ff2-b916-9a9bcb0ea1c0`
+- 分支：`codex/spec-dev-006-memory-consumer-contract`
 - 前置依赖：DEV-004C1/C2 DONE、DISC-006 DONE、ADR-026 Accepted、CON-024 RESOLVED
 - 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、SPEC-DEV-004C、DEV-004C1/C2、DISC-006 决定包、CON-018/023
 - 允许修改：上述正式规范、ADR/冲突/任务/追踪/审查与交接文档；必要时可只读检查 Prisma、API、Web 和测试现状
@@ -43,6 +44,7 @@
 ### C. 派生失效与显示快照
 
 - memory、suggestion、actual-question、session note 等输出与 job/segment 的 provenance；
+- 每个独立业务输出一条 `ai_derived_output`：五条 claim 即五条资格记录；actual-question analysis 整版只用一条 catalog 资格记录；冻结跨表一对一约束、最小失效范围和 segment/memory/question expected count/manifest，禁止缺依赖后空集误判有效；
 - `current|invalidated|waiting_recompute|recompute_failed|review_required|superseded` 或等价状态和合法转换；
 - correction operation membership 命中后的原子 future eligibility 失效、普通 current view/未来生成/跨会话立即排除，以及失败不恢复旧资格；
 - 已展示 suggestion 作为不可变快照保存其问题、原因、证据、当时 memory/role/boundary/version 与显示时间；普通修正不自动撤下、不自动重算；
@@ -65,6 +67,7 @@
 - 会后分析失败不更新可靠结果，允许未来显式重试；
 - 可还原“原始片段 → 当时记忆 → 问题 → 实际问法 → 回答/更正 → 跨会话继承 → 版本调整”的过程记录；
 - 过程记录访问、保留、删除、审计和技术日志最小化。
+- retention 只以 `ai_job|question_display_snapshot|memory_retention_root` 为 root；冻结 child 继承、最早到期、先隐藏后清理、CASCADE/显式幂等顺序、跨 root detach、失败续跑与不可逆最小审计。
 
 ### F. API、状态机与迁移
 
@@ -109,3 +112,18 @@
 - current memory、实际问题目录和过程记录均有 provenance、版本、权限与删除闭环；
 - AI 失败不会影响录音/转录，也不会伪造基础题或后台重试成功；
 - 项目负责人绑定 GitHub exact final head 明确 PASS 后，本任务才可 `DONE`，随后 DEV-006 才能进入 `READY`。
+
+## 审查候选摘要
+
+项目负责人已对 PR #20 旧 exact head `2b6a5da1e67ef2b0e91457969a089ba79f09f465`（CI `31321844664` SUCCESS）正式给出 `REQUEST_CHANGES`，P0=0、P1=3：derived-output 关联基数、retention root/child 生命周期、SPEC-AI 前置状态需要定向修复。该审查历史永久保留；本任务继续为 REVIEW，修复候选不构成 PASS/DONE。
+
+- A：以 `ai_job_session_scope` 保存全部评估 session（含零 eligible），以 `ai_job_input_segment/memory` 保存实际 membership；冻结 text/role revision、authority、content kind 与 digest，采用 freeze-call-recheck 两阶段并发协议；
+- B：用 append-only claim/evidence、versioned resolution/member 和权威 eligibility 分离历史、current 与未来资格；冲突不覆盖，明确更正只切未来 current；
+- C：display snapshot、future eligibility、display visibility 三分；逐业务输出一对一 derived association，actual-question analysis 整版一条 catalog 资格；expected dependency count/manifest 防止缺行空集放行；普通修正保留正文但禁止未来消费，硬边界即时中性撤下；
+- D：`QuestionEvidenceModule` 单一拥有 generation/display/actual-question 证据，DEV-006 发布可靠 actual-question catalog，DEV-007 只通过 seam 写展示/换题；
+- E：失败显示不可用、一次动作一个 attempt、每 job 至多一次 Schema repair、显式重试保留链路；过程记录引用业务证据而不复制完整正文；三类 retention root 统一到期隐藏/清理/重试；
+- F：冻结索引、legacy 失败安全默认、幂等、锁序、动态查询、删除传播与两次访谈验收矩阵。
+
+当前仅形成 REQUEST_CHANGES 后的定向修复候选，未获项目负责人 PASS，不得标记 PASS/DONE 或解锁 DEV-006/SPEC-AI-QUESTION-001。新 exact final head 与 CI 在最终交接中绑定。
+
+审查入口：[非 Draft PR #20](https://github.com/Li-Ming-G/elder_interview_ai/pull/20)。

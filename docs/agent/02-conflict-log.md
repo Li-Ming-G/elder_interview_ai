@@ -218,6 +218,8 @@
 - 临时处理：冻结通用 suggestion action 入口和旧采用生命周期；只允许文档/UI 占位表达单问题和替换意图，不新增数据库或 API。
 - 需要谁决策：AI/后端契约 Agent 提案，总控收敛，项目负责人或独立审查通过。
 - 关闭条件：SPEC-AI-QUESTION-001 同步 `04/05/07/08/09` 并获得明确 PASS。
+- SPEC-DEV-006 REVIEW 进展（2026-08-09）：已冻结 `QuestionEvidenceModule` 共享 generation/display/actual-question 基座、一次换题一个 attempt、display snapshot/future eligibility/visibility 分离和实际已问 reader；CON-018 继续 OPEN，因为 replace/undo、节流、相似度、最终 REST/WS 路由仍必须由 SPEC-AI-QUESTION-001 冻结并获 PASS。
+- PR #20 REQUEST_CHANGES 修复进展（2026-08-10）：共享基座进一步冻结逐业务输出 derived cardinality、actual-question analysis 整版 catalog 与显式 question dependency；但不处理 replace/undo、节流、相似度或最终 REST/WS。`SPEC-AI-QUESTION-001` 在 `SPEC-FE-001 DONE + SPEC-DEV-006 项目负责人 PASS/merge` 前保持 BLOCKED，CON-018 继续 OPEN。
 
 ### CON-019｜安全结束页缺少可执行的服务端 stop/completion 契约
 
@@ -296,6 +298,8 @@
 - 正式要求：`05` 的 deletion scope 失败关闭语义保持不变，不因本次执行顺序调整而删除或降级。
 - 关闭条件：DEV-008 实现正式 deletion request producer/read model 与统一 scope guard，并让 C2 单段修正、批量 preview、批量 execute 在锁后复核 project/session/冻结 segment_range scope；补 scope 命中、创建/修正并发、幂等和不泄密测试后关闭。
 - 需要谁决策：DEV-008 开工前由总控与数据治理/安全角色先解决 CON-006/007；C2 无需等待该决定，可继续其余已冻结范围。
+- SPEC-DEV-006 REVIEW 进展（2026-08-09）：consumer 目标已冻结统一 `DeletionScopeReader` port、project/session 固定锁序、输入冻结/调用前/写回/展示四次检查、动态撤下与派生关系清理；这不是 runtime 实现。当前 coverage 仍为 `NOT IMPLEMENTED / NOT VERIFIED`，不得增加 no-op guard。关闭条件仍是 DEV-008 producer/read model、C2 回接与真实并发/幂等/不泄密测试全部完成。
+- PR #20 REQUEST_CHANGES 修复进展（2026-08-10）：契约新增 `ai_job|question_display_snapshot|memory_retention_root` 三类保留根、先隐藏后清理、跨 root detach、CASCADE/显式幂等顺序和失败续跑；这些仍是未来 DEV-006/008 的目标，不是现有 deletion producer/read model。CON-023 状态和 `NOT IMPLEMENTED / NOT VERIFIED` 覆盖结论不变。
 
 ### CON-024｜已展示问题快照与正式边界即时撤回规则冲突
 

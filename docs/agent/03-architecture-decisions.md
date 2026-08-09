@@ -241,3 +241,17 @@
 - 代价：普通修正后屏幕可短暂保留基于旧理解的问题；用户接受该探索期取舍。后台模型必须额外保存 provenance、版本、冲突、future eligibility、实际问题匹配和过程记录，不能因 UI 简洁而省略。
 - 边界：具体表、状态、API、任务调度、LLM/提示词/Schema、语义匹配和 DEV-006/007 所有权由 `SPEC-DEV-006` 与 `SPEC-AI-QUESTION-001` 冻结；不接真实供应商、不新增记忆列表、完整回顾或自动传记。
 - 重新评估条件：内部试用证明错误记忆频繁产生不当问题、倾听员需要可见记忆控制，或真实数据治理要求更严格的即时撤回/人工确认时，重新评估候选确认 UI 和快照保留规则；不得降低硬安全边界。
+
+## ADR-027｜跨会话 AI 消费采用范围水位、实际 membership 与动态资格
+
+- 状态：Proposed（SPEC-DEV-006 REVIEW；项目负责人对 PR #20 旧 head `2b6a5da1e67ef2b0e91457969a089ba79f09f465` 正式 REQUEST_CHANGES，等待修复后 exact-head 定向复审）
+- 决定：项目级 AI job 同时保存“评估过哪些 session/version”的 scope 行与“实际消费哪些 segment/memory”的 membership。零 eligible segment 的 session 仍写 scope；segment membership 冻结 text/role revision、trusted role/authority、content kind 与 digest。禁止用 trigger session 或单一 session revision 冒充跨会话水位。
+- 记忆模型：不可变 claim/evidence、版本化 current resolution/member 与动态 future eligibility 分离。可信 elder 自动 claim 可 current；冲突形成 conflict set；明确更正只切换未来 current，原始证据保留；自动结果不得覆盖 human-confirmed authority。
+- 问题模型：`QuestionEvidenceModule` 单一拥有 generation/display/actual-question 证据。displayed snapshot、future eligibility 和 display visibility 是三种事实；actual question 与 suggestion outcome 分离。DEV-006 建共享基座和可靠 actual-question catalog，DEV-007 只经 seam 编排生成、展示与换题。
+- 输出关联：采用“每个独立业务输出一条 `ai_derived_output`”，不采用 output-set。automatic claim/resolution、question/boundary candidate、generated note、context snapshot 各自一对一；一个 job 的五条 claim 对应五条资格记录。actual-question 以整个 analysis 版本作为唯一 catalog 输出，任一 dependency 命中即撤下整版，子 question 不各建资格记录。跨表 deferred constraint 固定 type/business ID/project/job 一致性；expected count/manifest 防止依赖删除后空集误判有效。
+- 并发：job 使用 freeze-call-recheck。冻结和写回按 request/trigger、project、sorted session 加锁；供应商调用不持锁；写回重新验证权限、授权、boundary、deletion、policy revision 和全部 membership，漂移即丢弃结果。查询 eligibility 是权威 version/anti-join/policy 谓词，物化 invalidation 只能辅助观察。
+- 删除与保留：deletion scope 在冻结前、调用前、写回前、展示前检查；任一 job input 命中时清理整个 ai_job root，普通 correction 仍按业务输出最小失效；独立 display snapshot 另按其自身 scope 判断。provenance FK 不得阻塞清理。retention 只设 `ai_job`、`question_display_snapshot`、`memory_retention_root` 三类 root；children 继承 root，actual analysis 随 job。到期先隐藏并 detach current/published/display，再 CASCADE/显式幂等清理；失败保持隐藏并续跑，不恢复 eligibility。过程记录保存引用、版本、digest/manifest、状态和耗时，不复制完整转录/输入/输出。CON-023 在正式 producer/reader/C2 回接及并发测试完成前保持 OPEN。
+- 失败默认：legacy 缺 provenance 的记录为 review-required/unjudged/future-ineligible，不推断 display、actual asked 或 trusted authority。AI unavailable 不回退基础题、不无限自动重试；一次换题一个新 attempt，同 job 最多一次 JSON/Schema repair。
+- 原因：跨 session 消费、修正、删除和在途生成会并发；单表 current 状态或单水位无法证明输入范围，也无法同时满足历史可追溯、即时失败关闭与稳定 UI。
+- 代价：增加多张 membership/版本表、动态查询成本和删除编排复杂度；换取可证明的 provenance、无双写 question history、普通修正与硬边界不混淆。
+- 重新评估条件：只有测得动态 eligibility 查询成为瓶颈时才可增加物化投影或缓存；缓存仍必须由 revision/policy token 证明新鲜，不能成为权威放行源。向量检索、记忆 UI 与真实供应商仍需另案。
