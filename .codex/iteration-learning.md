@@ -664,3 +664,14 @@
 - Verification boundary: 桌面 Chromium 与合成音频不能替代 Android 真机；CON-020/021 留给 R4，CON-022 动态噪声基线算法也等待目标 Android 普通音量复验。本任务只到 REVIEW。
 - Lesson: 页面可信度来自“每句话能指出事实源”，而不是状态数量更多；当结束边界已经持久化，任何可恢复提示都必须让位，否则一次过时 snapshot 就可能诱导用户向已冻结访谈追加录音。
 - Better future prompt: “请先定义页面唯一 projection、每类事实的来源/核验时间和冲突优先级，再列出每个按钮允许触发的业务副作用；刷新只能读，resume/finalize/reconcile 必须由用户明确点击并复用稳定 identity。”
+
+### 2026-08-09 — DEV-005R3 首轮 REQUEST_CHANGES 的尝试边界与认证失效修复
+
+- User outcome: 不推翻既有工作台与后端契约，定向关闭 reconcile 永久重放旧 stopping、认证失效无法真正回登录、三类结束入口焦点丢失、假完成文案、delivery 事实误导和侧边告警线。
+- Review mode: Learning mode；iteration-coach 的唯一独立只读预审确认六项均为已复现缺陷，方向与 SPEC-DEV-005R/ADR-023/024 一致；补充指出 load 401 可能复用准备页留下的活跃 controller，不能只清 React 身份状态。
+- Review finding: 幂等 ID 的生命周期不是按钮或组件生命周期，而是一次业务尝试生命周期；结果未知时必须重用，权威结果已知后必须轮换。AUTHORITY_LOST 又混合 401 与 403/授权失效，UI 不能把所有失败都解释成“重新登录即可恢复”。
+- Options considered: 每次点击都生成新 ID；整个页面永久复用一个 ID；按 attempt 在未知结果时保留、成功后释放。采用第三种。认证方面采用 controller 权威核验清理 + App 内存身份清空；401 提供返回登录，403/授权失效只提供安全离开。
+- Adopted decision: reconcile 成功投影 snapshot 后条件清空本次 ID，catch 保留；App 持有可清空 controller registry，load/verify 401 提供真实登录 seam；结束 modal 恢复实际 `event.currentTarget`；deliveryError 只在非 authority 且 archive 正常时表达“本地仍保存、管理服务交付异常”。
+- Implementation evidence: `433e098a19787bc24c4f2832f395eaf7e295f9d0`；full unit 212、integration 41、auth 13、普通 Chromium 8/8、auth Chromium 4/4，工作台五视口 × 七状态截图与 interrupted Escape 焦点回归通过；未改后端/Prisma/contracts。
+- Lesson: 可重放写操作要明确区分“transport outcome unknown”和“authoritative outcome known”；前者复用同一 identity 防重复副作用，后者释放 identity 让下一次用户意图真正启动新业务尝试。认证错误也必须按可恢复手段分型，而不是由一个聚合错误码决定文案。
+- Better future prompt: “请为每个用户发起的 reconcile attempt 分配稳定 request ID：transport outcome unknown 时保留，validated authoritative response 后释放；同时把 401 与 403/授权失效分别定义为回登录和只读安全离开。”
