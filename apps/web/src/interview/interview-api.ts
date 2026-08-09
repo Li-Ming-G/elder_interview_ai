@@ -1,5 +1,7 @@
 import type {
+  AbandonEmptyCaptureRequest,
   AudioChunkResponse,
+  AudioManifestResponse,
   ApiErrorEnvelope,
   ConfirmCaptureActiveRequest,
   ConsentResponse,
@@ -10,6 +12,7 @@ import type {
   ReportCaptureInterruptedRequest,
   ServiceTermResponse,
   StartSessionRequest,
+  StopSessionRequest,
 } from '@elder-interview/contracts';
 import type { ImmutableAudioChunk } from '../audio/types.js';
 
@@ -38,6 +41,14 @@ export interface InterviewApi {
 }
 
 export interface InterviewCaptureApi {
+  abandonEmptyCapture(
+    sessionId: string,
+    request: AbandonEmptyCaptureRequest,
+  ): Promise<InterviewSessionResponse>;
+  completeInterviewAudio(
+    audioObjectId: string,
+    request: { expected_chunk_count: number; request_id: string },
+  ): Promise<AudioManifestResponse>;
   confirmCaptureActive(
     sessionId: string,
     request: ConfirmCaptureActiveRequest,
@@ -52,6 +63,7 @@ export interface InterviewCaptureApi {
     request: ReportCaptureInterruptedRequest,
   ): Promise<InterviewSessionResponse>;
   startSession(sessionId: string, request: StartSessionRequest): Promise<InterviewSessionResponse>;
+  stopSession(sessionId: string, request: StopSessionRequest): Promise<InterviewSessionResponse>;
   uploadInterviewChunk(
     audioObjectId: string,
     chunk: ImmutableAudioChunk,
@@ -77,6 +89,10 @@ export function createInterviewApi(csrfToken: string): InterviewApi & InterviewC
   }
 
   return {
+    abandonEmptyCapture: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/capture/abandon-empty`, request),
+    completeInterviewAudio: async (audioObjectId, complete): Promise<AudioManifestResponse> =>
+      write(`/api/v1/audio-objects/${audioObjectId}/complete`, complete),
     confirmCaptureActive: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
     createSession: async (projectId): Promise<InterviewSessionResponse> =>
@@ -105,6 +121,8 @@ export function createInterviewApi(csrfToken: string): InterviewApi & InterviewC
       write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
     startSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/start`, request),
+    stopSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
+      write(`/api/v1/sessions/${sessionId}/stop`, request),
     uploadInterviewChunk: async (audioObjectId, chunk, requestId): Promise<AudioChunkResponse> =>
       request<AudioChunkResponse>(
         `/api/v1/audio-objects/${audioObjectId}/chunks/${String(chunk.sequenceNo)}`,
@@ -165,6 +183,14 @@ function safeMessage(code: unknown): string {
       return '请先完成麦克风与输入检测';
     case 'PROJECT_NOT_READY':
       return '项目当前尚未达到可访谈状态';
+    case 'CAPTURE_EVIDENCE_EXISTS':
+      return '管理服务检测到已有音频证据，请改为安全保存已有内容';
+    case 'SESSION_STOP_CONFLICT':
+      return '结束边界与管理服务已保存的事实不一致，请停止操作并重新核对';
+    case 'AUDIO_MANIFEST_INCOMPLETE':
+      return '仍有录音分片尚未保存完整，请保持页面打开并重新核对';
+    case 'SESSION_FINALIZATION_UNAVAILABLE':
+      return '管理服务暂时无法收束本次访谈，请稍后重新核对';
     default:
       return '操作未能完成，请核对当前状态后重试';
   }

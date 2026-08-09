@@ -105,6 +105,27 @@ describe('PreparationPage', () => {
     expect(api.createSession).not.toHaveBeenCalled();
   });
 
+  it('distinguishes very low input from silence and keeps the real input gate closed', async () => {
+    const api = createApi();
+    renderPage(api, vi.fn(), null, () =>
+      Promise.resolve({ inputDetected: false, permission: 'granted', reason: 'too_low' }),
+    );
+    await screen.findByText('虚构长者小禾');
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    expect(await screen.findByText(/声音太弱/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: '开始访谈' }).hasAttribute('disabled')).toBe(true);
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.deviceCheck).not.toHaveBeenCalled();
+  });
+
+  it('uses a plain fallback when the formal elder display name is unusable', async () => {
+    const api = createApi({ project: { ...PROJECT, display_name: '？？？？？' } });
+    renderPage(api);
+    expect(await screen.findByText('这位长者')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /和这位长者开始/ })).toBeTruthy();
+    expect(screen.queryByText('？？？？？')).toBeNull();
+  });
+
   it('keeps the page and disables concurrent actions while device-check or start is pending', async () => {
     const api = createApi();
     let resolveCheck: (() => void) | undefined;

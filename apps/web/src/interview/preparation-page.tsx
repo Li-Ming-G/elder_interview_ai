@@ -80,7 +80,10 @@ export function PreparationPage({
       if (!result.inputDetected) {
         setDeviceState({
           kind: 'failed',
-          message: '没有检测到声音。请确认输入设备、系统音量，并对着麦克风说一句话后重试。',
+          message:
+            result.reason === 'too_low'
+              ? '检测到的声音太弱，还不能确认录音输入正常。请靠近麦克风、提高说话音量，再重新检测。'
+              : '没有检测到声音。请确认输入设备、系统音量，并对着麦克风说一句话后重试。',
           permission: 'granted',
         });
         return;
@@ -162,6 +165,7 @@ export function PreparationPage({
   }
 
   const { project, serviceTerms, consents, session } = loadState.data;
+  const elderName = safeProjectName(project.display_name);
   const currentTerm = currentServiceTerm(serviceTerms);
   const currentConsent = latestConsent(consents);
   const canStart =
@@ -177,7 +181,7 @@ export function PreparationPage({
       <header className="prep-header">
         <div>
           <p className="context-label">首次访谈 · 准备</p>
-          <h1>和{project.display_name}开始一段从容的对话</h1>
+          <h1>和{elderName}开始一段从容的对话</h1>
           <p className="intro-copy">
             开始前请确认服务说明与正式授权，并完成一次短暂的麦克风检测。检测不会录音或保存声音。
           </p>
@@ -189,7 +193,7 @@ export function PreparationPage({
         <section className="prep-summary" aria-labelledby="summary-title">
           <h2 id="summary-title">本次访谈</h2>
           <dl className="summary-list">
-            <SummaryRow label="长者称呼" value={project.display_name} />
+            <SummaryRow label="长者称呼" value={elderName} />
             <SummaryRow
               label="预计时长"
               value={
@@ -337,7 +341,7 @@ function StatusItem({
 
 function DeviceStatus({ state }: { state: DeviceState }): React.JSX.Element {
   const content = {
-    checking: ['正在检测麦克风', '请对着麦克风说一句话。检测完成后会立即释放设备。'],
+    checking: ['正在检测麦克风', '请先安静片刻，再清楚说一句话。检测完成后会立即释放设备。'],
     failed: ['设备检查未通过', state.kind === 'failed' ? state.message : ''],
     idle: ['麦克风与输入', '尚未检测。检测不会创建录音或上传声音。'],
     passed: ['麦克风与输入', '权限已允许，并检测到声音输入。'],
@@ -395,4 +399,9 @@ function readableError(error: unknown, fallback: string): string {
     if (error.message === 'AUDIO_INPUT_CHECK_UNSUPPORTED') return '当前浏览器不支持输入检测';
   }
   return fallback;
+}
+
+function safeProjectName(value: string): string {
+  const normalized = value.trim();
+  return normalized.length === 0 || /^[?？�\s]+$/u.test(normalized) ? '这位长者' : normalized;
 }
