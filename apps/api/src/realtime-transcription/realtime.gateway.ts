@@ -11,6 +11,7 @@ import type { RawData, WebSocket } from 'ws';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
+import { mapAsrResultToSessionTimeline } from './asr-timeline.js';
 import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
 import { decodeClientMessage, RealtimeCodecError } from './realtime-codec.js';
 import { RealtimeAccessService } from './realtime-access.service.js';
@@ -171,12 +172,13 @@ export class RealtimeTranscriptionGateway {
   ): Promise<void> {
     state.sessionId = message.session_id;
     state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
-    const mode = await this.access.assertJoin(
+    const joinAccess = await this.access.assertJoin(
       state.actor,
       message.session_id,
       message.payload.csrf_token,
       message.payload.audio_stream_id,
     );
+    const { mode } = joinAccess;
     const eventStreamId = message.payload.event_stream_id;
     const resumeAfterServerSequence = message.payload.resume_after_server_sequence;
     const resumeRequested = eventStreamId !== undefined && resumeAfterServerSequence !== undefined;
@@ -217,7 +219,14 @@ export class RealtimeTranscriptionGateway {
           return;
         }
       }
-      runtime = this.runtimes.create(message.session_id, message.payload.audio_stream_id);
+      if (joinAccess.timelineOffsetMs === null) {
+        throw new Error('Capture timeline is unavailable');
+      }
+      runtime = this.runtimes.create(
+        message.session_id,
+        message.payload.audio_stream_id,
+        joinAccess.timelineOffsetMs,
+      );
     }
     if (mode === 'produce') {
       if (runtime.producer !== null && runtime.producer !== client) {
@@ -290,18 +299,22 @@ export class RealtimeTranscriptionGateway {
       );
       if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
       for (const result of results) {
-        const persisted = await this.ingestion.ingest(result);
+        const sessionTimelineResult = mapAsrResultToSessionTimeline(
+          result,
+          runtime.timelineOffsetMs,
+        );
+        const persisted = await this.ingestion.ingest(sessionTimelineResult);
         if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
         if (persisted.kind === 'interim') {
           this.sendStored(
             client,
             this.runtimes.append(runtime, 'asr.interim', {
-              end_ms: result.endMs,
+              end_ms: sessionTimelineResult.endMs,
               finality: 'interim',
-              hypothesis_id: result.ingestKey,
+              hypothesis_id: sessionTimelineResult.ingestKey,
               revision: frame.sequence_no,
-              start_ms: result.startMs,
-              text: result.text,
+              start_ms: sessionTimelineResult.startMs,
+              text: sessionTimelineResult.text,
             }),
           );
         } else if (!runtime.publishedFinalSegmentIds.has(persisted.segment.id)) {

@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 import type { WebSocket } from 'ws';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
-import { RealtimeAccessService, type RealtimeSessionMode } from './realtime-access.service.js';
+import {
+  RealtimeAccessService,
+  type RealtimeJoinAccess,
+  type RealtimeSessionMode,
+} from './realtime-access.service.js';
 import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
 import { RealtimeRuntimeService } from './realtime-runtime.service.js';
 import { RealtimeTranscriptionGateway } from './realtime.gateway.js';
@@ -414,7 +418,8 @@ function createGateway(
   runtimes = new RealtimeRuntimeService(),
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
-  assertJoin: () => Promise<RealtimeSessionMode> = () => Promise.resolve(mode),
+  assertJoin: () => Promise<RealtimeJoinAccess> = () =>
+    Promise.resolve({ mode, timelineOffsetMs: mode === 'produce' ? 0 : null }),
   acceptAndPersist: <T>(accept: () => Promise<T>) => Promise<T> = (accept) => accept(),
 ): RealtimeTranscriptionGateway {
   const access = {

@@ -24,6 +24,7 @@ import type {
   SessionFinalizationChunk,
 } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
+import { mapAsrResultToSessionTimeline } from '../realtime-transcription/asr-timeline.js';
 import { StreamingAsrAdapter } from '../realtime-transcription/streaming-asr.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
@@ -363,7 +364,11 @@ export class SessionFinalizationService {
         data: { status: 'processing' },
         where: { id: f.sessionId },
       });
-      return { accepted, sessionId: f.sessionId };
+      return {
+        accepted,
+        sessionId: f.sessionId,
+        timelineOffsetMs: activeRuntime.timelineOffsetMs,
+      };
     });
     if (prepared === null) return;
 
@@ -374,7 +379,9 @@ export class SessionFinalizationService {
           ingestFinal: async (result) => {
             if (result.kind !== 'final' || result.sessionId !== prepared.sessionId)
               throw new Error('ASR_DRAIN_INVALID_FINAL');
-            await this.ingestion.ingest(result);
+            await this.ingestion.ingest(
+              mapAsrResultToSessionTimeline(result, prepared.timelineOffsetMs),
+            );
           },
           lastAudioSequenceAccepted: prepared.accepted,
           sessionId: prepared.sessionId,

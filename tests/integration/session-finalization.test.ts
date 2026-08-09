@@ -200,7 +200,7 @@ describe('session finalization PostgreSQL orchestration', () => {
   it('drains ASR only after final ingestion and degrades unavailable, timeout, and lost runtimes', async () => {
     const order: string[] = [];
     const successfulRuntime = new RealtimeRuntimeService();
-    const successful = successfulRuntime.create(randomUUID(), randomUUID());
+    const successful = successfulRuntime.create(randomUUID(), randomUUID(), 6_000);
     successful.highestAudioSequenceAcked = 0;
     const successfulCase = await createReadyFinalization(successful.sessionId, 10);
     const successfulService = createService(
@@ -219,6 +219,11 @@ describe('session finalization PostgreSQL orchestration', () => {
     expect(
       await prisma.transcriptSegment.count({ where: { sessionId: successfulCase.sessionId } }),
     ).toBe(1);
+    expect(
+      await prisma.transcriptSegment.findFirstOrThrow({
+        where: { sessionId: successfulCase.sessionId },
+      }),
+    ).toMatchObject({ endMs: 7_000, startMs: 6_000 });
     expect(
       await prisma.sessionFinalization.findUniqueOrThrow({
         where: { sessionId: successfulCase.sessionId },

@@ -35,13 +35,14 @@ export interface SessionRuntime {
   producerLease: number;
   publishedFinalSegmentIds: Set<string>;
   sessionId: string;
+  timelineOffsetMs: number;
 }
 
 @Injectable()
 export class RealtimeRuntimeService {
   private readonly sessions = new Map<string, SessionRuntime>();
 
-  public create(sessionId: string, audioStreamId: string): SessionRuntime {
+  public create(sessionId: string, audioStreamId: string, timelineOffsetMs = 0): SessionRuntime {
     const existing = this.sessions.get(sessionId);
     if (
       existing !== undefined &&
@@ -64,6 +65,7 @@ export class RealtimeRuntimeService {
       producerLease: 0,
       publishedFinalSegmentIds: new Set(),
       sessionId,
+      timelineOffsetMs,
     };
     this.sessions.set(sessionId, runtime);
     return runtime;
