@@ -9,6 +9,7 @@ export interface NormalizedAsrResult {
   providerPayload?: unknown;
   providerSegmentId?: string | null;
   sessionId: string;
+  speakerStreamId?: string;
   source: TranscriptSourceValue;
   speakerProviderId?: string | null;
   startMs: number;
@@ -24,6 +25,10 @@ export interface TranscriptSegmentView {
   id: string;
   ingestKey: string;
   originalSpeakerRole: SpeakerRoleValue;
+  originalRoleAuthority: 'unconfirmed' | 'user_confirmed';
+  speakerRoleRevision: number;
+  speakerStreamId: string;
+  contentKind: 'conversation' | 'speaker_calibration';
   originalText: string;
   providerSegmentId: string | null;
   sessionId: string;
@@ -40,6 +45,7 @@ export interface AppendSpeakerMappingInput {
   createdBy: string | null;
   role: SpeakerRoleValue;
   sessionId: string;
+  speakerStreamId: string;
   source: 'batch_remap' | 'calibration' | 'manual' | 'provider';
   speakerProviderId: string;
 }

@@ -10,10 +10,10 @@ export class SpeakerMappingService {
   public async append(input: AppendSpeakerMappingInput): Promise<string> {
     this.validate(input);
     return this.prisma.$transaction(async (transaction) => {
-      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.sessionId}:${input.speakerProviderId}`}, 0))`;
-      const session = await transaction.interviewSession.findUnique({
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.speakerStreamId}:${input.speakerProviderId}`}, 0))`;
+      const session = await transaction.speakerStream.findFirst({
         select: { id: true },
-        where: { id: input.sessionId },
+        where: { id: input.speakerStreamId, sessionId: input.sessionId },
       });
       if (session === null) {
         throw new NotFoundException({
@@ -26,7 +26,7 @@ export class SpeakerMappingService {
       await transaction.speakerMapping.updateMany({
         data: { supersededAt: now },
         where: {
-          sessionId: input.sessionId,
+          speakerStreamId: input.speakerStreamId,
           speakerProviderId: input.speakerProviderId,
           supersededAt: null,
         },
@@ -35,7 +35,9 @@ export class SpeakerMappingService {
         data: {
           createdBy: input.createdBy,
           sessionId: input.sessionId,
+          speakerStreamId: input.speakerStreamId,
           source: input.source,
+          authority: input.source === 'provider' ? 'unconfirmed' : 'user_confirmed',
           speakerProviderId: input.speakerProviderId,
           speakerRole: input.role,
         },

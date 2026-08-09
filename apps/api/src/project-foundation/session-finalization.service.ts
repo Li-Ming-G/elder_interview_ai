@@ -367,6 +367,7 @@ export class SessionFinalizationService {
       return {
         accepted,
         sessionId: f.sessionId,
+        speakerStreamId: activeRuntime.speakerStreamId,
         timelineOffsetMs: activeRuntime.timelineOffsetMs,
       };
     });
@@ -379,9 +380,10 @@ export class SessionFinalizationService {
           ingestFinal: async (result) => {
             if (result.kind !== 'final' || result.sessionId !== prepared.sessionId)
               throw new Error('ASR_DRAIN_INVALID_FINAL');
-            await this.ingestion.ingest(
-              mapAsrResultToSessionTimeline(result, prepared.timelineOffsetMs),
-            );
+            await this.ingestion.ingest({
+              ...mapAsrResultToSessionTimeline(result, prepared.timelineOffsetMs),
+              speakerStreamId: prepared.speakerStreamId,
+            });
           },
           lastAudioSequenceAccepted: prepared.accepted,
           sessionId: prepared.sessionId,

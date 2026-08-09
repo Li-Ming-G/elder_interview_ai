@@ -3,6 +3,7 @@ import type {
   InterviewSessionResponse,
   ProjectResponse,
   ServiceTermResponse,
+  SpeakerCalibrationSnapshot,
 } from '@elder-interview/contracts';
 import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
 
@@ -11,6 +12,7 @@ import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
 import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
+import { SpeakerCalibrationService } from './speaker-calibration.service.js';
 import {
   validateAbandonEmptyCapture,
   validateConfirmCaptureActive,
@@ -23,6 +25,8 @@ import {
   validateStartSession,
   validateStopSession,
   validateRecoverSession,
+  validateBeginSpeakerCalibration,
+  validateResolveSpeakerCalibration,
   validateUuid,
 } from './project.validation.js';
 
@@ -33,6 +37,7 @@ export class ProjectFoundationController {
     private readonly actors: ProjectRequestActorService,
     private readonly finalization: SessionFinalizationService,
     private readonly captures: SessionCaptureService,
+    private readonly speakerCalibration: SpeakerCalibrationService,
   ) {}
 
   @Post('projects')
@@ -153,6 +158,40 @@ export class ProjectFoundationController {
       await this.actors.from(request),
       validateUuid(id),
       validateStartSession(body),
+    );
+  }
+
+  @Get('sessions/:id/speaker-calibration')
+  public async getSpeakerCalibration(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerCalibrationSnapshot> {
+    return this.speakerCalibration.get(await this.actors.from(request), validateUuid(id));
+  }
+
+  @Post('sessions/:id/speaker-calibrations')
+  public async beginSpeakerCalibration(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerCalibrationSnapshot> {
+    return this.speakerCalibration.begin(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateBeginSpeakerCalibration(body),
+    );
+  }
+
+  @Post('speaker-calibrations/:id/resolve')
+  public async resolveSpeakerCalibration(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SpeakerCalibrationSnapshot> {
+    return this.speakerCalibration.resolve(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateResolveSpeakerCalibration(body),
     );
   }
 

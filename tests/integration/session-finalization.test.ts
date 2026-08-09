@@ -92,6 +92,13 @@ describe('session finalization PostgreSQL orchestration', () => {
     await prisma.sessionFinalization.deleteMany({ where: { session: { projectId } } });
     await prisma.idempotencyRecord.deleteMany({ where: { actorId } });
     await prisma.auditLog.deleteMany({ where: { actorId } });
+    await prisma.speakerCalibrationAttemptSegment.deleteMany({
+      where: { attempt: { session: { projectId } } },
+    });
+    await prisma.speakerCalibrationAttempt.deleteMany({ where: { session: { projectId } } });
+    await prisma.transcriptSegment.deleteMany({ where: { session: { projectId } } });
+    await prisma.speakerMapping.deleteMany({ where: { session: { projectId } } });
+    await prisma.speakerStream.deleteMany({ where: { session: { projectId } } });
     await prisma.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
     await prisma.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });
     await prisma.audioObject.deleteMany({ where: { projectId } });
@@ -203,6 +210,14 @@ describe('session finalization PostgreSQL orchestration', () => {
     const successful = successfulRuntime.create(randomUUID(), randomUUID(), 6_000);
     successful.highestAudioSequenceAcked = 0;
     const successfulCase = await createReadyFinalization(successful.sessionId, 10);
+    await prisma.speakerStream.create({
+      data: {
+        closedAt: new Date(),
+        id: successful.speakerStreamId,
+        sessionId: successful.sessionId,
+        status: 'closed',
+      },
+    });
     const successfulService = createService(
       successfulRuntime,
       new EndingAdapter(async (context) => {

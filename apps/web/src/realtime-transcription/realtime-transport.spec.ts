@@ -117,6 +117,34 @@ describe('RealtimeTranscriptionTransport', () => {
     expect(messages(socket).filter(({ type }) => type === 'event.ack')).toHaveLength(5);
   });
 
+  it('replaces the canonical speaker calibration projection from ordered WS 1.1 events', () => {
+    const socket = new FakeSocket();
+    const { transport, states } = harness([socket]);
+    transport.connect();
+    socket.open();
+    socket.message(server('session.ready', 0, { resumed: false }));
+    socket.message(
+      server('speaker.calibration.updated', 1, {
+        attempt: null,
+        session_id: SESSION_ID,
+        speaker_role_revision: 0,
+        speaker_stream: {
+          audio_stream_id: AUDIO_STREAM_ID,
+          capture_generation_id: '50000000-0000-4000-8000-000000000005',
+          id: '60000000-0000-4000-8000-000000000006',
+          status: 'active',
+        },
+        status: 'not_started',
+        updated_at: '2026-08-09T00:00:00.000Z',
+      }),
+    );
+    expect(latest(states).calibration).toMatchObject({
+      session_id: SESSION_ID,
+      status: 'not_started',
+      speaker_stream: { id: '60000000-0000-4000-8000-000000000006' },
+    });
+  });
+
   it('reuses both cursors, replays unacknowledged PCM, and cleans reconnect timers', async () => {
     vi.useFakeTimers();
     const first = new FakeSocket();
@@ -334,7 +362,7 @@ function server(type: string, sequence: number, payload: unknown): string {
     event_id: `40000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`,
     event_stream_id: EVENT_STREAM_ID,
     payload: normalizedPayload,
-    schema_version: '1.0',
+    schema_version: '1.1',
     server_sequence: sequence,
     session_id: SESSION_ID,
     timestamp: '2026-08-07T00:00:00.000Z',

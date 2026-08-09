@@ -93,7 +93,15 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     await prisma.sessionFinalization.deleteMany({ where: { createdBy: actorId } });
     await prisma.idempotencyRecord.deleteMany({ where: { actorId } });
     await prisma.auditLog.deleteMany({ where: { actorId } });
+    await prisma.speakerCalibrationAttemptSegment.deleteMany({
+      where: { attempt: { session: { createdBy: actorId } } },
+    });
+    await prisma.speakerCalibrationAttempt.deleteMany({
+      where: { session: { createdBy: actorId } },
+    });
     await prisma.transcriptSegment.deleteMany({ where: { session: { createdBy: actorId } } });
+    await prisma.speakerMapping.deleteMany({ where: { session: { createdBy: actorId } } });
+    await prisma.speakerStream.deleteMany({ where: { session: { createdBy: actorId } } });
     await prisma.audioChunk.deleteMany({ where: { audioObject: { createdBy: actorId } } });
     await prisma.sessionCaptureGeneration.deleteMany({
       where: { session: { createdBy: actorId } },

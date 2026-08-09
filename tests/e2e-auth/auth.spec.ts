@@ -42,8 +42,9 @@ test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecy
     async () => (await fetch('/api/v1/auth/me', { cache: 'no-store' })).status,
   );
   expect(meStatus).toBe(401);
+  const webOrigin = new URL(page.url()).origin;
   const directMe = await context.request.get('http://127.0.0.1:3101/api/v1/auth/me', {
-    headers: { Origin: 'http://127.0.0.1:4173' },
+    headers: { Origin: webOrigin },
   });
   expect(directMe.status()).toBe(401);
 });
@@ -190,9 +191,10 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.goto(`/?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`);
   await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
   await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
-  await expect(page.getByTestId('realtime-interim')).not.toHaveText('暂无中间态');
-  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect.poll(() => webSocketEvents).toContain('received:asr.interim');
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(2);
   const segmentId = await page
     .getByTestId('realtime-finals')
     .locator('li')
@@ -214,12 +216,12 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
     throw new Error(`realtime recovery failed: ${webSocketEvents.join(',')}`, { cause: error });
   }
   await expect(page.getByText('已在窗口内恢复')).toBeVisible();
-  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(2);
 
   await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
   await expect(page.getByRole('alert')).toContainText('实时转录暂不可用，原始录音不受影响');
   await expect(page.getByRole('alert')).toContainText('ASR_UNAVAILABLE');
-  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
+  await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(2);
   expect(await realtimeDatabaseSnapshot(sessionId, segmentId)).toEqual(beforeAsrFailure);
 });
 

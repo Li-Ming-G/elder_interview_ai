@@ -495,6 +495,11 @@ describe('audio object, immutable chunks and canonical manifest', () => {
 });
 
 async function cleanDatabase(prisma: PrismaService): Promise<void> {
+  await prisma.speakerCalibrationAttemptSegment.deleteMany();
+  await prisma.speakerCalibrationAttempt.deleteMany();
+  await prisma.transcriptSegment.deleteMany();
+  await prisma.speakerMapping.deleteMany();
+  await prisma.speakerStream.deleteMany();
   await prisma.consentRecord.deleteMany();
   await prisma.audioChunk.deleteMany();
   await prisma.sessionCaptureGeneration.deleteMany();

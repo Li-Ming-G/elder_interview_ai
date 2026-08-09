@@ -45,6 +45,11 @@ describe('project, bundled consent and interview start vertical seam', () => {
     );
     await application().init();
     prisma = application().get(PrismaService);
+    await prisma.speakerCalibrationAttemptSegment.deleteMany();
+    await prisma.speakerCalibrationAttempt.deleteMany();
+    await prisma.transcriptSegment.deleteMany();
+    await prisma.speakerMapping.deleteMany();
+    await prisma.speakerStream.deleteMany();
     await prisma.consentRecord.deleteMany();
     await prisma.audioChunk.deleteMany();
     await prisma.sessionCaptureGeneration.deleteMany();
@@ -79,6 +84,11 @@ describe('project, bundled consent and interview start vertical seam', () => {
 
   afterAll(async () => {
     if (app !== null) {
+      await prisma.speakerCalibrationAttemptSegment.deleteMany();
+      await prisma.speakerCalibrationAttempt.deleteMany();
+      await prisma.transcriptSegment.deleteMany();
+      await prisma.speakerMapping.deleteMany();
+      await prisma.speakerStream.deleteMany();
       await prisma.consentRecord.deleteMany();
       await prisma.audioChunk.deleteMany();
       await prisma.sessionCaptureGeneration.deleteMany();

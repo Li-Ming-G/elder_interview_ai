@@ -11,12 +11,17 @@ import type { RawData, WebSocket } from 'ws';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
+import { SpeakerCalibrationSnapshotService } from '../transcription/speaker-calibration-snapshot.service.js';
 import { mapAsrResultToSessionTimeline } from './asr-timeline.js';
 import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
 import { decodeClientMessage, RealtimeCodecError } from './realtime-codec.js';
 import { RealtimeAccessService } from './realtime-access.service.js';
 import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
-import { RealtimeRuntimeService, type SessionRuntime } from './realtime-runtime.service.js';
+import {
+  CausalQueue,
+  RealtimeRuntimeService,
+  type SessionRuntime,
+} from './realtime-runtime.service.js';
 import { StreamingAsrAdapter, StreamingAsrUnavailableError } from './streaming-asr.js';
 
 const NIL_UUID = '00000000-0000-4000-8000-000000000000';
@@ -30,7 +35,7 @@ interface ConnectionState {
   queuedAudioBytes: number;
   queuedAudioFrames: number;
   runtime: SessionRuntime | null;
-  serial: Promise<void>;
+  queue: CausalQueue;
   sessionId: string | null;
   sessionToken: string;
 }
@@ -45,6 +50,7 @@ export class RealtimeTranscriptionGateway {
     private readonly adapter: StreamingAsrAdapter,
     private readonly ingestion: TranscriptIngestionService,
     private readonly captureEvidence: CapturePcmEvidenceService,
+    private readonly calibrationSnapshots: SpeakerCalibrationSnapshotService,
   ) {}
 
   public handleConnection(client: WebSocket, request: AuthenticatedUpgradeRequest): void {
@@ -62,7 +68,7 @@ export class RealtimeTranscriptionGateway {
       queuedAudioBytes: 0,
       queuedAudioFrames: 0,
       runtime: null,
-      serial: Promise.resolve(),
+      queue: new CausalQueue(),
       sessionId: null,
       sessionToken: auth.sessionToken,
     };
@@ -81,14 +87,7 @@ export class RealtimeTranscriptionGateway {
       clearInterval(heartbeatTimer);
       const runtime = state.runtime;
       if (runtime !== null) {
-        void state.serial.then(
-          () => {
-            this.runtimes.release(runtime, client);
-          },
-          () => {
-            this.runtimes.release(runtime, client);
-          },
-        );
+        this.runtimes.release(runtime, client);
       }
     });
     client.on('message', (data, isBinary) => {
@@ -116,8 +115,8 @@ export class RealtimeTranscriptionGateway {
           state.queuedAudioBytes += 3200;
         }
       }
-      state.serial = state.serial
-        .then(async () => {
+      void state.queue
+        .enqueue(async () => {
           if (state.closed || client.readyState !== client.OPEN) return;
           if (failure !== null) {
             throw failure instanceof Error ? failure : new Error('WebSocket message failed');
@@ -128,7 +127,7 @@ export class RealtimeTranscriptionGateway {
           this.onFailure(client, state, error);
         });
       if (isAudioFrame && message !== null) {
-        state.serial = state.serial.finally(() => {
+        void state.queue.enqueue(() => {
           state.queuedAudioFrames -= 1;
           state.queuedAudioBytes -= 3200;
         });
@@ -222,9 +221,14 @@ export class RealtimeTranscriptionGateway {
       if (joinAccess.timelineOffsetMs === null) {
         throw new Error('Capture timeline is unavailable');
       }
-      runtime = this.runtimes.create(
+      if (joinAccess.captureGenerationId === null) {
+        throw new Error('Capture generation is unavailable');
+      }
+      runtime = await this.runtimes.create(
         message.session_id,
         message.payload.audio_stream_id,
+        joinAccess.captureGenerationId,
+        state.queue,
         joinAccess.timelineOffsetMs,
       );
     }
@@ -238,6 +242,9 @@ export class RealtimeTranscriptionGateway {
         this.runtimes.release(runtime, previousProducer);
       }
       this.runtimes.claim(runtime, client);
+      this.runtimes.subscribe(runtime, (event) => {
+        this.sendStored(client, event);
+      });
       await this.access.assertActiveConnection(state.actor, runtime.sessionId);
       if (runtime.producer !== client) {
         this.fail(client, state, 'FORBIDDEN', 4403);
@@ -246,17 +253,26 @@ export class RealtimeTranscriptionGateway {
     }
     state.joined = true;
     state.runtime = runtime;
+    state.queue = runtime.queue;
     for (const stored of replay) this.sendStored(client, stored.envelope);
+    const calibration = await this.calibrationSnapshots.get(runtime.sessionId);
     this.sendStored(
       client,
       this.runtimes.append(runtime, 'session.ready', {
         audio_stream_id: runtime.audioStreamId,
+        speaker_calibration: calibration,
         highest_audio_sequence_acked: runtime.highestAudioSequenceAcked,
         resume_window_events: 512,
         resume_window_seconds: 300,
         resumed: resumeRequested,
       }),
     );
+    if (!resumeRequested) {
+      this.sendStored(
+        client,
+        this.runtimes.append(runtime, 'speaker.calibration.updated', calibration),
+      );
+    }
   }
 
   private async frame(
@@ -281,7 +297,7 @@ export class RealtimeTranscriptionGateway {
       this.fail(client, state, 'AUDIO_FRAME_CONFLICT', 4409);
       return;
     }
-    if (frame.sequence_no !== runtime.highestAudioSequenceAcked + 1) {
+    if (frame.sequence_no !== runtime.nextAudioSequence) {
       this.fail(client, state, 'AUDIO_FRAME_GAP', 4409);
       return;
     }
@@ -299,10 +315,10 @@ export class RealtimeTranscriptionGateway {
       );
       if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
       for (const result of results) {
-        const sessionTimelineResult = mapAsrResultToSessionTimeline(
-          result,
-          runtime.timelineOffsetMs,
-        );
+        const sessionTimelineResult = {
+          ...mapAsrResultToSessionTimeline(result, runtime.timelineOffsetMs),
+          speakerStreamId: runtime.speakerStreamId,
+        };
         const persisted = await this.ingestion.ingest(sessionTimelineResult);
         if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
         if (persisted.kind === 'interim') {
@@ -327,10 +343,30 @@ export class RealtimeTranscriptionGateway {
               segment_id: persisted.segment.id,
               speaker_provider_id: persisted.segment.speakerProviderId,
               speaker_role: persisted.segment.originalSpeakerRole,
+              speaker_role_authority: persisted.segment.originalRoleAuthority,
+              speaker_role_revision: persisted.segment.speakerRoleRevision,
+              speaker_stream_id: persisted.segment.speakerStreamId,
+              content_kind: persisted.segment.contentKind,
               start_ms: persisted.segment.startMs,
               text: persisted.segment.originalText,
             }),
           );
+          const label = persisted.segment.speakerProviderId;
+          if (
+            label !== null &&
+            persisted.segment.contentKind === 'speaker_calibration' &&
+            !runtime.publishedCalibrationLabels.has(label)
+          ) {
+            runtime.publishedCalibrationLabels.add(label);
+            this.sendStored(
+              client,
+              this.runtimes.append(
+                runtime,
+                'speaker.calibration.updated',
+                await this.calibrationSnapshots.get(runtime.sessionId),
+              ),
+            );
+          }
         }
       }
       if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
@@ -406,6 +442,7 @@ export class RealtimeTranscriptionGateway {
           ...(resetRequired ? { reset_required: true } : {}),
         }),
       );
+      this.runtimes.release(state.runtime, client);
     } else {
       const envelope: InterviewWsServerEnvelope<
         'error',
@@ -417,7 +454,7 @@ export class RealtimeTranscriptionGateway {
           code,
           ...(resetRequired ? { reset_required: true } : {}),
         },
-        schema_version: '1.0',
+        schema_version: '1.1',
         server_sequence: 0,
         session_id: state.sessionId ?? NIL_UUID,
         timestamp: new Date().toISOString(),

@@ -125,6 +125,28 @@ enum SpeakerMappingSource {
   batch_remap
 }
 
+enum SpeakerStreamStatus {
+  active
+  closed
+}
+
+enum SpeakerCalibrationAttemptStatus {
+  collecting
+  confirmed
+  failed
+  skipped
+}
+
+enum SpeakerRoleAuthority {
+  unconfirmed
+  user_confirmed
+}
+
+enum TranscriptContentKind {
+  conversation
+  speaker_calibration
+}
+
 enum TranscriptSource {
   realtime
   backfill
@@ -167,6 +189,8 @@ model User {
   createdAudioObjects      AudioObject[]       @relation("AudioObjectCreator")
   createdSpeakerMappings   SpeakerMapping[]    @relation("SpeakerMappingCreator")
   correctedTranscripts     TranscriptSegment[] @relation("TranscriptCorrector")
+  startedSpeakerCalibrationAttempts SpeakerCalibrationAttempt[] @relation("SpeakerCalibrationStarter")
+  resolvedSpeakerCalibrationAttempts SpeakerCalibrationAttempt[] @relation("SpeakerCalibrationResolver")
 
   @@map("user")
 }
@@ -311,10 +335,13 @@ model InterviewSession {
   createdBy          String                 @map("created_by") @db.Uuid
   createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  speakerRoleRevision Int                   @default(0) @map("speaker_role_revision")
   project            ElderProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   creator            User                   @relation("InterviewSessionCreator", fields: [createdBy], references: [id], onDelete: Restrict)
   audioObjects       AudioObject[]
   speakerMappings    SpeakerMapping[]
+  speakerStreams     SpeakerStream[]
+  speakerCalibrationAttempts SpeakerCalibrationAttempt[]
   transcriptSegments TranscriptSegment[]
   captureGenerations SessionCaptureGeneration[]
   finalization       SessionFinalization?
@@ -366,8 +393,10 @@ model SessionCaptureGeneration {
   updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
   session            InterviewSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   audioObject        AudioObject                @relation(fields: [audioObjectId], references: [id], onDelete: Restrict)
+  speakerStreams     SpeakerStream[]
 
   @@unique([sessionId, generationNo])
+  @@unique([id, sessionId, audioStreamId])
   @@index([sessionId, status])
   @@map("session_capture_generation")
 }
@@ -395,26 +424,98 @@ model AudioChunk {
 model SpeakerMapping {
   id                String               @id @default(uuid()) @db.Uuid
   sessionId         String               @map("session_id") @db.Uuid
+  speakerStreamId   String               @map("speaker_stream_id") @db.Uuid
   speakerProviderId String               @map("speaker_provider_id") @db.VarChar(200)
   speakerRole       SpeakerRole          @map("speaker_role")
   source            SpeakerMappingSource
+  authority         SpeakerRoleAuthority @default(unconfirmed)
   createdBy         String?              @map("created_by") @db.Uuid
   createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   supersededAt      DateTime?            @map("superseded_at") @db.Timestamptz(3)
   session           InterviewSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speakerStream     SpeakerStream         @relation(fields: [speakerStreamId, sessionId], references: [id, sessionId], onDelete: Cascade)
   creator           User?                @relation("SpeakerMappingCreator", fields: [createdBy], references: [id], onDelete: SetNull)
 
-  @@index([sessionId, speakerProviderId, supersededAt])
+  @@index([speakerStreamId, speakerProviderId, supersededAt])
   @@map("speaker_mapping")
+}
+
+model SpeakerStream {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  sessionId           String                  @map("session_id") @db.Uuid
+  captureGenerationId String?                 @map("capture_generation_id") @db.Uuid
+  status              SpeakerStreamStatus     @default(active)
+  openedAt             DateTime                @default(now()) @map("opened_at") @db.Timestamptz(3)
+  closedAt             DateTime?               @map("closed_at") @db.Timestamptz(3)
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session              InterviewSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  captureGeneration    SessionCaptureGeneration? @relation(fields: [captureGenerationId], references: [id], onDelete: Restrict)
+  mappings             SpeakerMapping[]
+  transcriptSegments   TranscriptSegment[]
+  calibrationAttempts  SpeakerCalibrationAttempt[]
+
+  @@unique([id, sessionId])
+  @@unique([id, sessionId, captureGenerationId])
+  @@index([sessionId, status])
+  @@map("speaker_stream")
+}
+
+model SpeakerCalibrationAttempt {
+  id                String                            @id @default(uuid()) @db.Uuid
+  sessionId         String                            @map("session_id") @db.Uuid
+  speakerStreamId   String                            @map("speaker_stream_id") @db.Uuid
+  captureGenerationId String                          @map("capture_generation_id") @db.Uuid
+  audioStreamId     String                            @map("audio_stream_id") @db.Uuid
+  attemptNo         Int                               @map("attempt_no")
+  status            SpeakerCalibrationAttemptStatus   @default(collecting)
+  startSequenceNo   Int                               @map("start_sequence_no")
+  startMs           Int                               @map("start_timeline_ms")
+  endSequenceNo     Int?                              @map("end_sequence_no")
+  endMs             Int?                              @map("end_timeline_ms")
+  startedRequestId  String                            @unique @map("started_request_id") @db.Uuid
+  resolvedRequestId String?                           @unique @map("resolved_request_id") @db.Uuid
+  startedBy         String                            @map("started_by") @db.Uuid
+  resolvedBy        String?                           @map("resolved_by") @db.Uuid
+  startedAt         DateTime                          @default(now()) @map("started_at") @db.Timestamptz(3)
+  resolvedAt        DateTime?                         @map("resolved_at") @db.Timestamptz(3)
+  createdAt         DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session           InterviewSession                  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speakerStream     SpeakerStream                      @relation(fields: [speakerStreamId, sessionId], references: [id, sessionId], onDelete: Cascade)
+  starter           User                               @relation("SpeakerCalibrationStarter", fields: [startedBy], references: [id], onDelete: Restrict)
+  resolver          User?                              @relation("SpeakerCalibrationResolver", fields: [resolvedBy], references: [id], onDelete: Restrict)
+  memberships       SpeakerCalibrationAttemptSegment[]
+
+  @@index([speakerStreamId, status])
+  @@unique([speakerStreamId, attemptNo])
+  @@map("speaker_calibration_attempt")
+}
+
+model SpeakerCalibrationAttemptSegment {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  attemptId          String                     @map("speaker_calibration_attempt_id") @db.Uuid
+  transcriptSegmentId String                    @map("transcript_segment_id") @db.Uuid
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  attempt            SpeakerCalibrationAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  transcriptSegment  TranscriptSegment          @relation(fields: [transcriptSegmentId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, transcriptSegmentId])
+  @@index([transcriptSegmentId])
+  @@map("speaker_calibration_attempt_segment")
 }
 
 model TranscriptSegment {
   id                   String           @id @default(uuid()) @db.Uuid
   sessionId            String           @map("session_id") @db.Uuid
+  speakerStreamId      String           @map("speaker_stream_id") @db.Uuid
   ingestKey            String           @map("ingest_key") @db.VarChar(240)
   providerSegmentId    String?          @map("provider_segment_id") @db.VarChar(200)
   speakerProviderId    String?          @map("speaker_provider_id") @db.VarChar(200)
   originalSpeakerRole  SpeakerRole      @default(unknown) @map("original_speaker_role")
+  originalRoleAuthority SpeakerRoleAuthority @default(unconfirmed) @map("original_role_authority")
+  speakerRoleRevision  Int              @default(0) @map("speaker_role_revision")
+  contentKind          TranscriptContentKind @default(conversation) @map("content_kind")
   correctedSpeakerRole SpeakerRole?     @map("corrected_speaker_role")
   startMs              Int              @map("start_ms")
   endMs                Int              @map("end_ms")
@@ -426,6 +527,8 @@ model TranscriptSegment {
   correctedAt          DateTime?        @map("corrected_at") @db.Timestamptz(3)
   createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   session              InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  speakerStream        SpeakerStream     @relation(fields: [speakerStreamId, sessionId], references: [id, sessionId], onDelete: Restrict)
+  calibrationMemberships SpeakerCalibrationAttemptSegment[]
   corrector            User?            @relation("TranscriptCorrector", fields: [correctedBy], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, ingestKey])

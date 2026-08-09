@@ -25,7 +25,7 @@ describe('realtime strict JSON codec', () => {
             event_id: randomUUID(),
             extra: true,
             payload: {},
-            schema_version: '1.0',
+            schema_version: '1.1',
             session_id: randomUUID(),
             type: 'heartbeat',
           }),
@@ -50,7 +50,7 @@ describe('realtime strict JSON codec', () => {
         sequence_no: 0,
         start_ms: 0,
       },
-      schema_version: '1.0',
+      schema_version: '1.1',
       session_id: randomUUID(),
       type: 'audio.frame',
     };
@@ -89,7 +89,7 @@ describe('realtime strict JSON codec', () => {
           JSON.stringify({
             event_id: randomUUID(),
             payload,
-            schema_version: '1.0',
+            schema_version: '1.1',
             session_id: randomUUID(),
             type: 'audio.frame',
           }),
@@ -115,7 +115,7 @@ describe('realtime strict JSON codec', () => {
         sequence_no: 0,
         start_ms: 0,
       },
-      schema_version: '1.0',
+      schema_version: '1.1',
       session_id: randomUUID(),
       type: 'audio.frame',
     };

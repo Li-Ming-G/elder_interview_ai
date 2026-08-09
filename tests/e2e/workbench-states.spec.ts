@@ -290,7 +290,7 @@ async function installWorkbenchHarness(page: Page): Promise<{
             event_id: crypto.randomUUID(),
             event_stream_id: '77777777-7777-4777-8777-777777777777',
             payload,
-            schema_version: '1.0',
+            schema_version: '1.1',
             server_sequence: sequence,
             session_id: message.session_id,
             timestamp: '2026-08-08T08:00:00.000Z',
