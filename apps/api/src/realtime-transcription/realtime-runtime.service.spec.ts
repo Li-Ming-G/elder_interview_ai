@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
-import { RealtimeRuntimeService } from './realtime-runtime.service.js';
+import { CausalQueue, RealtimeRuntimeService } from './realtime-runtime.service.js';
 
 describe('RealtimeRuntimeService', () => {
-  it('keeps server sequence ordered and rejects invalid replay cursors', () => {
+  it('keeps server sequence ordered and rejects invalid replay cursors', async () => {
     const service = new RealtimeRuntimeService();
-    const runtime = service.create(randomUUID(), randomUUID());
+    const runtime = await service.create(
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      new CausalQueue(),
+    );
     expect(service.append(runtime, 'heartbeat.ack', {}).server_sequence).toBe(0);
     expect(service.append(runtime, 'heartbeat.ack', {}).server_sequence).toBe(1);
     expect(
@@ -15,9 +20,14 @@ describe('RealtimeRuntimeService', () => {
     expect(service.replayAfter(runtime, 2)).toBeNull();
   });
 
-  it('caps replay at 512 events without renumbering retained envelopes', () => {
+  it('caps replay at 512 events without renumbering retained envelopes', async () => {
     const service = new RealtimeRuntimeService();
-    const runtime = service.create(randomUUID(), randomUUID());
+    const runtime = await service.create(
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      new CausalQueue(),
+    );
     for (let index = 0; index < 513; index += 1) service.append(runtime, 'heartbeat.ack', {});
     expect(runtime.events).toHaveLength(512);
     expect(runtime.events[0]?.envelope.server_sequence).toBe(1);
@@ -25,21 +35,53 @@ describe('RealtimeRuntimeService', () => {
     expect(service.replayAfter(runtime, 0)?.[0]?.envelope.server_sequence).toBe(1);
   });
 
-  it('interrupts only the capture stream named by a replay cleanup target', () => {
+  it('interrupts only the capture stream named by a replay cleanup target', async () => {
     const service = new RealtimeRuntimeService();
     const sessionId = randomUUID();
     const oldStreamId = randomUUID();
     const newStreamId = randomUUID();
-    const oldRuntime = service.create(sessionId, oldStreamId);
+    const oldRuntime = await service.create(
+      sessionId,
+      oldStreamId,
+      randomUUID(),
+      new CausalQueue(),
+    );
     const oldProducer = {};
     service.claim(oldRuntime, oldProducer);
     expect(service.interruptCapture(sessionId, oldStreamId)).toBe(true);
     expect(oldRuntime.producer).toBeNull();
 
-    const newRuntime = service.create(sessionId, newStreamId);
+    const newRuntime = await service.create(
+      sessionId,
+      newStreamId,
+      randomUUID(),
+      new CausalQueue(),
+    );
     const newProducer = {};
     const lease = service.claim(newRuntime, newProducer);
     expect(service.interruptCapture(sessionId, oldStreamId)).toBe(false);
     expect(service.isProducerLeaseCurrent(newRuntime, newProducer, lease)).toBe(true);
+  });
+
+  it('retains a calibration event for replay when live publication fails', async () => {
+    const service = new RealtimeRuntimeService();
+    const sessionId = randomUUID();
+    const runtime = await service.create(sessionId, randomUUID(), randomUUID(), new CausalQueue());
+    service.subscribe(runtime, () => {
+      throw new Error('synthetic socket write failure');
+    });
+    service.publishCalibration(runtime, {
+      attempt: null,
+      session_id: sessionId,
+      speaker_role_revision: 0,
+      speaker_stream: null,
+      status: 'not_started',
+      updated_at: '2026-08-09T00:00:00.000Z',
+    });
+    expect(service.replayAfter(runtime, -1)?.[0]?.envelope).toMatchObject({
+      server_sequence: 0,
+      type: 'speaker.calibration.updated',
+    });
+    expect(runtime.subscriber).toBeNull();
   });
 });

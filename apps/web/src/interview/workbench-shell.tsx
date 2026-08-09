@@ -3,9 +3,16 @@ import type {
   InterviewSessionResponse,
   RecoverSessionRequest,
   StopSessionRequest,
+  SpeakerCalibrationMapping,
+  SpeakerCalibrationSnapshot,
 } from '@elder-interview/contracts';
 
-import type { InterviewApi, InterviewCaptureApi, PreparationData } from './interview-api.js';
+import type {
+  InterviewApi,
+  InterviewCaptureApi,
+  PreparationData,
+  SpeakerCalibrationApi,
+} from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
 import type { RealtimeTranscriptFinal } from '../realtime-transcription/realtime-transport.js';
@@ -17,7 +24,7 @@ import type {
 import { preparationPath } from './routes.js';
 
 interface WorkbenchShellProps {
-  api: InterviewApi & InterviewCaptureApi;
+  api: InterviewApi & InterviewCaptureApi & Partial<SpeakerCalibrationApi>;
   captureController: Pick<
     InterviewCaptureController,
     | 'flushDelivery'
@@ -69,10 +76,13 @@ export function WorkbenchShell({
   const [statusExpanded, setStatusExpanded] = useState(true);
   const [saveExpanded, setSaveExpanded] = useState(false);
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
+  const [calibrationBusy, setCalibrationBusy] = useState(false);
+  const [calibrationError, setCalibrationError] = useState<string | null>(null);
   const actionLock = useRef(false);
   const endTrigger = useRef<HTMLElement | null>(null);
   const reconcileRequestId = useRef<string | null>(null);
   const abandonRequestId = useRef<string | null>(null);
+  const calibrationBegin = useRef<{ requestId: string; streamId: string } | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
@@ -134,6 +144,85 @@ export function WorkbenchShell({
       setSaveExpanded(true);
     }
   }, [snapshot.phase, snapshot.serverSession?.capture?.interruption_reason]);
+
+  const beginCalibration = useCallback(
+    async (force = false): Promise<void> => {
+      const calibration = snapshot.realtime.calibration;
+      const streamId = calibration?.speaker_stream?.id;
+      const retryable = calibration?.status === 'failed' || calibration?.status === 'skipped';
+      if (
+        calibration === null ||
+        calibration === undefined ||
+        streamId === undefined ||
+        (calibration.status !== 'not_started' && !(force && retryable)) ||
+        typeof api.beginSpeakerCalibration !== 'function' ||
+        calibrationBusy
+      ) {
+        return;
+      }
+      if (!force && calibrationBegin.current?.streamId === streamId) return;
+      calibrationBegin.current = { requestId: crypto.randomUUID(), streamId };
+      setCalibrationBusy(true);
+      setCalibrationError(null);
+      try {
+        await api.beginSpeakerCalibration(sessionId, {
+          request_id: calibrationBegin.current.requestId,
+          speaker_stream_id: streamId,
+        });
+      } catch (error) {
+        setCalibrationError(readableActionError(error, '说话人确认暂时不可用，原始录音仍在继续。'));
+      } finally {
+        setCalibrationBusy(false);
+      }
+    },
+    [api, calibrationBusy, sessionId, snapshot.realtime.calibration],
+  );
+
+  useEffect(() => {
+    if (
+      snapshot.phase === 'active' &&
+      snapshot.realtime.connection === 'connected' &&
+      snapshot.realtime.calibration?.status === 'not_started'
+    ) {
+      void beginCalibration();
+    }
+  }, [
+    beginCalibration,
+    snapshot.phase,
+    snapshot.realtime.connection,
+    snapshot.realtime.calibration,
+  ]);
+
+  async function resolveCalibration(
+    action: 'confirm' | 'fail' | 'skip',
+    mappings: SpeakerCalibrationMapping[] = [],
+  ): Promise<void> {
+    const attempt = snapshot.realtime.calibration?.attempt;
+    if (
+      attempt === null ||
+      attempt === undefined ||
+      typeof api.resolveSpeakerCalibration !== 'function' ||
+      calibrationBusy
+    ) {
+      return;
+    }
+    setCalibrationBusy(true);
+    setCalibrationError(null);
+    try {
+      await api.resolveSpeakerCalibration(attempt.id, {
+        action,
+        mappings: mappings.map(({ speaker_provider_id, speaker_role }) => ({
+          speaker_provider_id,
+          speaker_role,
+        })),
+        request_id: crypto.randomUUID(),
+      });
+    } catch (error) {
+      setCalibrationError(readableActionError(error, '说话人确认未完成，原始录音仍在继续。'));
+    } finally {
+      setCalibrationBusy(false);
+    }
+  }
 
   useEffect(() => {
     const session = snapshot.serverSession;
@@ -325,6 +414,8 @@ export function WorkbenchShell({
   return (
     <WorkbenchView
       actionError={actionError}
+      calibrationBusy={calibrationBusy}
+      calibrationError={calibrationError}
       canAbandon={canAbandon}
       canFinalizeExisting={canFinalizeExisting}
       canResume={canResume}
@@ -337,6 +428,7 @@ export function WorkbenchShell({
       }}
       onConfirmEnd={() => void confirmEnd()}
       onContinueFrozen={() => void continueFrozenEnd()}
+      onBeginCalibration={() => void beginCalibration(true)}
       onEnd={(mode, trigger) => {
         endTrigger.current = trigger;
         setEndMode(mode);
@@ -345,6 +437,7 @@ export function WorkbenchShell({
       onReconcile={() => void reconcile()}
       onReturnToLogin={onReturnToLogin}
       onResume={() => void resumeInterview()}
+      onResolveCalibration={(action, mappings) => void resolveCalibration(action, mappings)}
       projectId={projectId}
       projectName={projectName}
       saveExpanded={saveExpanded}
@@ -361,6 +454,8 @@ export function WorkbenchShell({
 interface WorkbenchViewProps {
   actionError: string | null;
   authenticationRequired: boolean;
+  calibrationBusy: boolean;
+  calibrationError: string | null;
   canAbandon: boolean;
   canFinalizeExisting: boolean;
   canResume: boolean;
@@ -370,11 +465,16 @@ interface WorkbenchViewProps {
   onCloseEnd: () => void;
   onConfirmEnd: () => void;
   onContinueFrozen: () => void;
+  onBeginCalibration: () => void;
   onEnd: (mode: EndMode, trigger: HTMLButtonElement) => void;
   onRecheck: () => void;
   onReconcile: () => void;
   onReturnToLogin: () => void;
   onResume: () => void;
+  onResolveCalibration: (
+    action: 'confirm' | 'fail' | 'skip',
+    mappings?: SpeakerCalibrationMapping[],
+  ) => void;
   projectId: string;
   projectName: string;
   saveExpanded: boolean;
@@ -390,6 +490,8 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
   const {
     actionError,
     authenticationRequired,
+    calibrationBusy,
+    calibrationError,
     canAbandon,
     canFinalizeExisting,
     canResume,
@@ -399,11 +501,13 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     onCloseEnd,
     onConfirmEnd,
     onContinueFrozen,
+    onBeginCalibration,
     onEnd,
     onRecheck,
     onReconcile,
     onReturnToLogin,
     onResume,
+    onResolveCalibration,
     projectId,
     projectName,
     saveExpanded,
@@ -534,6 +638,16 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
           />
         ) : null}
 
+        {state === 'recording' ? (
+          <SpeakerCalibrationPanel
+            busy={calibrationBusy}
+            error={calibrationError}
+            onBegin={onBeginCalibration}
+            onResolve={onResolveCalibration}
+            snapshot={snapshot.realtime.calibration}
+          />
+        ) : null}
+
         <section className="transcript-stage" aria-labelledby="transcript-title">
           <div className="transcript-heading">
             <div>
@@ -625,6 +739,146 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
         />
       )}
     </main>
+  );
+}
+
+function SpeakerCalibrationPanel({
+  busy,
+  error,
+  onBegin,
+  onResolve,
+  snapshot,
+}: {
+  busy: boolean;
+  error: string | null;
+  onBegin: () => void;
+  onResolve: (action: 'confirm' | 'fail' | 'skip', mappings?: SpeakerCalibrationMapping[]) => void;
+  snapshot: SpeakerCalibrationSnapshot | null | undefined;
+}): React.JSX.Element {
+  const [reversed, setReversed] = useState(false);
+  const attemptId = snapshot?.attempt?.id ?? null;
+  useEffect(() => {
+    setReversed(false);
+  }, [attemptId]);
+
+  if (snapshot?.status === 'confirmed') {
+    return (
+      <section className="speaker-calibration speaker-calibration--confirmed" aria-live="polite">
+        <strong>正在录音 · 说话人已确认</strong>
+        <span>之后的确定态文字会沿用本次人工确认。</span>
+      </section>
+    );
+  }
+
+  if (snapshot?.status === 'collecting' && snapshot.attempt !== null) {
+    const labels = snapshot.attempt.observed_provider_labels.slice(0, 2);
+    const firstLabel = labels[0];
+    const secondLabel = labels[1];
+    const mappings: SpeakerCalibrationMapping[] =
+      firstLabel !== undefined && secondLabel !== undefined
+        ? [
+            {
+              authority: 'user_confirmed',
+              speaker_provider_id: firstLabel,
+              speaker_role: reversed ? 'elder' : 'interviewer',
+            },
+            {
+              authority: 'user_confirmed',
+              speaker_provider_id: secondLabel,
+              speaker_role: reversed ? 'interviewer' : 'elder',
+            },
+          ]
+        : [];
+    return (
+      <section className="speaker-calibration" aria-labelledby="speaker-calibration-title">
+        <div className="speaker-calibration__copy" aria-live="polite">
+          <strong id="speaker-calibration-title">正在录音 · 正在确认说话人</strong>
+          {labels.length < 2 ? (
+            <p>
+              请先由访谈员说“我是访谈员”，再请长者说“我是受访长者”。已听到 {labels.length}/2 位。
+            </p>
+          ) : (
+            <p>
+              当前对应：
+              {mappings[0]?.speaker_role === 'interviewer' ? '第一位是访谈员' : '第一位是长者'}，
+              {mappings[1]?.speaker_role === 'elder' ? '第二位是长者' : '第二位是访谈员'}。
+            </p>
+          )}
+          {error === null ? null : (
+            <p className="speaker-calibration__error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="speaker-calibration__actions">
+          {labels.length === 2 ? (
+            <>
+              <button
+                className="button button--secondary"
+                disabled={busy}
+                onClick={() => {
+                  setReversed((value) => !value);
+                }}
+                type="button"
+              >
+                交换对应关系
+              </button>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => {
+                  onResolve('confirm', mappings);
+                }}
+                type="button"
+              >
+                {busy ? '确认中…' : '确认说话人'}
+              </button>
+            </>
+          ) : null}
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              onResolve('skip');
+            }}
+            type="button"
+          >
+            暂时跳过
+          </button>
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => {
+              onResolve('fail');
+            }}
+            type="button"
+          >
+            无法辨认
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const skipped = snapshot?.status === 'skipped';
+  const failed = snapshot?.status === 'failed';
+  return (
+    <section className="speaker-calibration" aria-live="polite">
+      <div className="speaker-calibration__copy">
+        <strong>
+          正在录音 · {skipped ? '已跳过说话人确认' : failed ? '说话人待确认' : '准备确认说话人'}
+        </strong>
+        <p>这不会影响原始录音；可以稍后重试。</p>
+        {error === null ? null : (
+          <p className="speaker-calibration__error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+      <button className="button button--secondary" disabled={busy} onClick={onBegin} type="button">
+        {busy ? '正在准备…' : '重试确认'}
+      </button>
+    </section>
   );
 }
 
@@ -942,8 +1196,15 @@ function TranscriptLine({ segment }: { segment: RealtimeTranscriptFinal }): Reac
       data-segment-id={segment.segmentId}
     >
       <div className="transcript-meta">
-        <span aria-label={accessibleLabels[segment.speakerRole]} className="speaker-label">
-          {labels[segment.speakerRole]}
+        <span
+          aria-label={
+            segment.contentKind === 'speaker_calibration'
+              ? '说话人校准控制片段'
+              : accessibleLabels[segment.speakerRole]
+          }
+          className="speaker-label"
+        >
+          {segment.contentKind === 'speaker_calibration' ? '校准片段' : labels[segment.speakerRole]}
         </span>
         <time>{formatOffset(segment.startMs)}</time>
       </div>

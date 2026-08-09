@@ -13,6 +13,7 @@ import { TranscriptQueryService } from '../../apps/api/src/transcription/transcr
 import type { NormalizedAsrResult } from '../../apps/api/src/transcription/transcription.types.js';
 
 let defaultSessionId = '';
+let defaultSpeakerStreamId = '';
 
 describe('final-only transcript evidence core', () => {
   let app: INestApplication;
@@ -97,8 +98,13 @@ describe('final-only transcript evidence core', () => {
   });
 
   beforeEach(async () => {
+    await prisma.speakerCalibrationAttemptSegment.deleteMany({
+      where: { attempt: { sessionId } },
+    });
+    await prisma.speakerCalibrationAttempt.deleteMany({ where: { sessionId } });
     await prisma.transcriptSegment.deleteMany({ where: { sessionId } });
     await prisma.speakerMapping.deleteMany({ where: { sessionId } });
+    await prisma.speakerStream.deleteMany({ where: { sessionId } });
     await prisma.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
     await prisma.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });
     await prisma.audioObject.deleteMany({ where: { projectId } });
@@ -119,6 +125,14 @@ describe('final-only transcript evidence core', () => {
       data: { status: 'recording' },
       where: { id: sessionId },
     });
+    const stream = await prisma.speakerStream.create({
+      data: {
+        closedAt: new Date(),
+        sessionId,
+        status: 'closed',
+      },
+    });
+    defaultSpeakerStreamId = stream.id;
   });
 
   afterAll(async () => {
@@ -131,6 +145,7 @@ describe('final-only transcript evidence core', () => {
       createdBy: null,
       role: 'elder',
       sessionId,
+      speakerStreamId: defaultSpeakerStreamId,
       source: 'provider',
       speakerProviderId: 'speaker-1',
     });
@@ -174,6 +189,7 @@ describe('final-only transcript evidence core', () => {
       createdBy: null,
       role: 'elder',
       sessionId,
+      speakerStreamId: defaultSpeakerStreamId,
       source: 'provider',
       speakerProviderId: 'speaker-1',
     });
@@ -186,6 +202,7 @@ describe('final-only transcript evidence core', () => {
       createdBy: null,
       role: 'interviewer',
       sessionId,
+      speakerStreamId: defaultSpeakerStreamId,
       source: 'provider',
       speakerProviderId: 'speaker-1',
     });
@@ -221,8 +238,8 @@ describe('final-only transcript evidence core', () => {
   it('isolates internal queries by current assignment and never returns provider payload', async () => {
     await ingestion.ingest(result());
     const segments = await query.listFinalSegments(actorA, sessionId);
-    expect(segments.length).toBeGreaterThan(0);
-    expect(segments[0]).not.toHaveProperty('providerPayload');
+    expect(segments.items.length).toBeGreaterThan(0);
+    expect(segments.items[0]).not.toHaveProperty('providerPayload');
     await expect(query.listFinalSegments(actorB, sessionId)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
@@ -322,6 +339,7 @@ function result(overrides: Partial<NormalizedAsrResult> = {}): NormalizedAsrResu
     providerPayload: { request_id: 'synthetic-request' },
     providerSegmentId: 'provider-segment-1',
     sessionId: defaultSessionId,
+    speakerStreamId: defaultSpeakerStreamId,
     source: 'fixture',
     speakerProviderId: null,
     startMs,
@@ -342,8 +360,11 @@ function principal(id: string, displayName: string): AuthPrincipal {
 }
 
 async function cleanDatabase(database: PrismaService): Promise<void> {
+  await database.speakerCalibrationAttemptSegment.deleteMany();
+  await database.speakerCalibrationAttempt.deleteMany();
   await database.transcriptSegment.deleteMany();
   await database.speakerMapping.deleteMany();
+  await database.speakerStream.deleteMany();
   await database.consentRecord.deleteMany();
   await database.audioChunk.deleteMany();
   await database.sessionCaptureGeneration.deleteMany();

@@ -284,13 +284,13 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     client.receive(frame(sessionId, audioStreamId, 0));
     client.receive(frame(sessionId, audioStreamId, 1));
     await waitFor(() => client.sent.filter(({ type }) => type === 'audio.ack').length === 2);
-    expect(ingestionCalls).toBe(2);
+    expect(ingestionCalls).toBe(3);
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
 
     client.receive(frame(sessionId, audioStreamId, 2));
     await client.waitClosed();
     expect(client.closeCode).toBe(4503);
-    expect(ingestionCalls).toBe(2);
+    expect(ingestionCalls).toBe(3);
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
     expect(client.sent.filter(({ type }) => type === 'audio.ack')).toHaveLength(2);
     expect(client.sent.slice(-2).map(({ type }) => type)).toEqual(['asr.status', 'error']);
@@ -419,7 +419,11 @@ function createGateway(
   ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
   assertJoin: () => Promise<RealtimeJoinAccess> = () =>
-    Promise.resolve({ mode, timelineOffsetMs: mode === 'produce' ? 0 : null }),
+    Promise.resolve({
+      captureGenerationId: mode === 'produce' ? randomUUID() : null,
+      mode,
+      timelineOffsetMs: mode === 'produce' ? 0 : null,
+    }),
   acceptAndPersist: <T>(accept: () => Promise<T>) => Promise<T> = (accept) => accept(),
 ): RealtimeTranscriptionGateway {
   const access = {
@@ -439,6 +443,17 @@ function createGateway(
     {
       acceptAndPersist: <T>(_sessionId: string, _audioStreamId: string, accept: () => Promise<T>) =>
         acceptAndPersist(accept),
+    } as never,
+    {
+      get: (sessionId: string) =>
+        Promise.resolve({
+          attempt: null,
+          session_id: sessionId,
+          speaker_role_revision: 0,
+          speaker_stream: null,
+          status: 'not_started',
+          updated_at: new Date(0).toISOString(),
+        }),
     } as never,
   );
 }
@@ -523,7 +538,7 @@ function join(
             resume_after_server_sequence: resumeAfterServerSequence,
           }),
     },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionId,
     type: 'session.join',
   };
@@ -533,7 +548,7 @@ function eventAck(sessionId: string, sequence: number): Record<string, unknown> 
   return {
     event_id: randomUUID(),
     payload: { server_sequence: sequence },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionId,
     type: 'event.ack',
   };
@@ -543,7 +558,7 @@ function heartbeat(sessionId: string): Record<string, unknown> {
   return {
     event_id: randomUUID(),
     payload: {},
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionId,
     type: 'heartbeat',
   };
@@ -570,7 +585,7 @@ function frame(
       sequence_no: sequence,
       start_ms: sequence * 100,
     },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionId,
     type: 'audio.frame',
   };

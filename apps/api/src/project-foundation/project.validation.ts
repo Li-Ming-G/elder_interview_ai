@@ -10,6 +10,8 @@ import type {
   IdempotentRequest,
   RecoverSessionRequest,
   StopSessionRequest,
+  BeginSpeakerCalibrationRequest,
+  ResolveSpeakerCalibrationRequest,
 } from '@elder-interview/contracts';
 import { UnprocessableEntityException } from '@nestjs/common';
 
@@ -82,6 +84,67 @@ export function validateStartSession(body: Record<string, unknown>): StartSessio
     mime_type: validateMimeType(body.mime_type),
     request_id: validateUuid(body.request_id),
   };
+}
+
+export function validateBeginSpeakerCalibration(
+  body: Record<string, unknown>,
+): BeginSpeakerCalibrationRequest {
+  return {
+    request_id: validateUuid(body.request_id),
+    speaker_stream_id: validateUuid(body.speaker_stream_id),
+  };
+}
+
+export function validateResolveSpeakerCalibration(
+  body: Record<string, unknown>,
+): ResolveSpeakerCalibrationRequest {
+  if (!['confirm', 'fail', 'skip'].includes(String(body.action)) || !Array.isArray(body.mappings)) {
+    throw validationError();
+  }
+  const mappings = body.mappings.map((value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw validationError();
+    }
+    const mapping = value as Record<string, unknown>;
+    if (
+      typeof mapping.speaker_provider_id !== 'string' ||
+      mapping.speaker_provider_id.length < 1 ||
+      mapping.speaker_provider_id.length > 200 ||
+      !['elder', 'interviewer'].includes(String(mapping.speaker_role))
+    ) {
+      throw validationError();
+    }
+    return {
+      speaker_provider_id: mapping.speaker_provider_id,
+      speaker_role: mapping.speaker_role as 'elder' | 'interviewer',
+    };
+  });
+  if (body.action !== 'confirm' && mappings.length !== 0) throw validationError();
+  return {
+    action: body.action as ResolveSpeakerCalibrationRequest['action'],
+    mappings,
+    request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validateTranscriptPageQuery(query: Record<string, unknown>): {
+  cursor: string | null;
+  limit: number;
+} {
+  const cursor = query.cursor;
+  const limit = query.limit;
+  if (
+    (cursor !== undefined &&
+      (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 512)) ||
+    (limit !== undefined &&
+      (typeof limit !== 'string' ||
+        !/^\d+$/.test(limit) ||
+        Number(limit) < 1 ||
+        Number(limit) > 500))
+  ) {
+    throw validationError();
+  }
+  return { cursor: typeof cursor === 'string' ? cursor : null, limit: Number(limit ?? 100) };
 }
 
 export function validateConfirmCaptureActive(

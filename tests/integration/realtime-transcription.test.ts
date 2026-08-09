@@ -149,6 +149,7 @@ describe('authenticated realtime transcription WebSocket', () => {
         const inbox = new Inbox(client);
         client.send(JSON.stringify(join(csrf, audioStreamId)));
         const ready = await inbox.next();
+        expect((await inbox.next()).type).toBe('speaker.calibration.updated');
         await prisma.projectAssignment.updateMany({
           data: { revokedAt: new Date() },
           where: { projectId, userId, revokedAt: null },
@@ -198,6 +199,7 @@ describe('authenticated realtime transcription WebSocket', () => {
       const inbox = new Inbox(client);
       client.send(JSON.stringify(join(csrf, audioStreamId)));
       await inbox.next();
+      expect((await inbox.next()).type).toBe('speaker.calibration.updated');
       const failure = vi
         .spyOn(prisma.interviewSession, 'findUnique')
         .mockRejectedValueOnce(new Error('database-name SQL private detail'));
@@ -233,20 +235,67 @@ describe('authenticated realtime transcription WebSocket', () => {
       },
     });
     const eventStreamId = ready.event_stream_id;
+    expect(await inbox.next()).toMatchObject({
+      type: 'speaker.calibration.updated',
+      server_sequence: 1,
+    });
+    const speakerStream = await prisma.speakerStream.findFirstOrThrow({
+      where: { sessionId, status: 'active' },
+    });
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'unconfirmed',
+        sessionId,
+        source: 'provider',
+        speakerProviderId: 'speaker_1',
+        speakerRole: 'elder',
+        speakerStreamId: speakerStream.id,
+      },
+    });
 
     client.send(JSON.stringify(frame(0, audioStreamId)));
     expect((await inbox.next()).type).toBe('asr.interim');
+    expect(await inbox.next()).toMatchObject({
+      payload: {
+        effective_speaker_role: 'elder',
+        speaker_role: 'elder',
+        speaker_role_authority: 'unconfirmed',
+        trusted_effective_speaker_role: 'unknown',
+        trusted_speaker_role: 'unknown',
+      },
+      type: 'asr.final',
+    });
     expect(await inbox.next()).toMatchObject({
       type: 'audio.ack',
       payload: {
         highest_audio_sequence_acked: 0,
       },
     });
-    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(0);
+    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
 
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'user_confirmed',
+        createdBy: userId,
+        sessionId,
+        source: 'calibration',
+        speakerProviderId: 'speaker_2',
+        speakerRole: 'elder',
+        speakerStreamId: speakerStream.id,
+      },
+    });
     client.send(JSON.stringify(frame(1, audioStreamId)));
     const final = await inbox.next();
-    expect(final).toMatchObject({ type: 'asr.final', payload: { finality: 'final' } });
+    expect(final).toMatchObject({
+      type: 'asr.final',
+      payload: {
+        effective_speaker_role: 'elder',
+        finality: 'final',
+        speaker_role_authority: 'user_confirmed',
+        trusted_effective_speaker_role: 'elder',
+        trusted_speaker_role: 'elder',
+      },
+    });
     const segmentId = (final.payload as { segment_id: string }).segment_id;
     expect(await prisma.transcriptSegment.findUnique({ where: { id: segmentId } })).not.toBeNull();
     expect((await inbox.next()).type).toBe('audio.ack');
@@ -256,9 +305,9 @@ describe('authenticated realtime transcription WebSocket', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     client = await connect(url, cookie);
     inbox = new Inbox(client);
-    client.send(JSON.stringify(join(csrf, audioStreamId, eventStreamId, 2)));
-    expect(await inbox.next()).toMatchObject({ type: 'asr.final', server_sequence: 3 });
-    expect(await inbox.next()).toMatchObject({ type: 'audio.ack', server_sequence: 4 });
+    client.send(JSON.stringify(join(csrf, audioStreamId, eventStreamId, 4)));
+    expect(await inbox.next()).toMatchObject({ type: 'asr.final', server_sequence: 5 });
+    expect(await inbox.next()).toMatchObject({ type: 'audio.ack', server_sequence: 6 });
     expect(await inbox.next()).toMatchObject({ type: 'session.ready', payload: { resumed: true } });
 
     client.send(JSON.stringify(frame(1, audioStreamId)));
@@ -268,7 +317,7 @@ describe('authenticated realtime transcription WebSocket', () => {
         highest_audio_sequence_acked: 1,
       },
     });
-    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
+    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(2);
 
     await prisma.projectAssignment.updateMany({
       data: { revokedAt: new Date() },
@@ -277,7 +326,7 @@ describe('authenticated realtime transcription WebSocket', () => {
     client.send(JSON.stringify(frame(2, audioStreamId)));
     expect(await inbox.next()).toMatchObject({ type: 'error', payload: { code: 'FORBIDDEN' } });
     expect(await inbox.closed()).toBe(4403);
-    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
+    expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(2);
   });
 
   it('keeps resumed PCM generation-relative while persisting and publishing on the session timeline', async () => {
@@ -324,25 +373,31 @@ describe('authenticated realtime transcription WebSocket', () => {
       const inbox = new Inbox(client);
       client.send(JSON.stringify(join(csrf, audioStreamId)));
       await inbox.next();
+      expect((await inbox.next()).type).toBe('speaker.calibration.updated');
 
       client.send(JSON.stringify(frame(0, audioStreamId)));
       expect(await inbox.next()).toMatchObject({
         payload: { end_ms: 6_100, start_ms: 6_000 },
         type: 'asr.interim',
       });
+      expect(await inbox.next()).toMatchObject({
+        payload: { end_ms: 6_100, start_ms: 6_000 },
+        type: 'asr.final',
+      });
       expect((await inbox.next()).type).toBe('audio.ack');
 
       client.send(JSON.stringify(frame(1, audioStreamId)));
       expect(await inbox.next()).toMatchObject({
-        payload: { end_ms: 6_200, start_ms: 6_000 },
+        payload: { end_ms: 6_200, start_ms: 6_100 },
         type: 'asr.final',
       });
       expect((await inbox.next()).type).toBe('audio.ack');
       expect(
         await prisma.transcriptSegment.findFirstOrThrow({
+          orderBy: { endMs: 'desc' },
           where: { sessionId: activeSessionId },
         }),
-      ).toMatchObject({ endMs: 6_200, startMs: 6_000 });
+      ).toMatchObject({ endMs: 6_200, startMs: 6_100 });
 
       client.close(1000);
       await inbox.closed();
@@ -428,7 +483,7 @@ function join(
             resume_after_server_sequence: resumeAfter,
           }),
     },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionIdValue(),
     type: 'session.join',
   };
@@ -455,7 +510,7 @@ function frame(sequence: number, audioStreamId: string): Record<string, unknown>
       sequence_no: sequence,
       start_ms: sequence * 100,
     },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionIdValue(),
     type: 'audio.frame',
   };
@@ -465,7 +520,7 @@ function heartbeat(): Record<string, unknown> {
   return {
     event_id: randomUUID(),
     payload: {},
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionIdValue(),
     type: 'heartbeat',
   };
@@ -475,7 +530,7 @@ function eventAck(serverSequence: number): Record<string, unknown> {
   return {
     event_id: randomUUID(),
     payload: { server_sequence: serverSequence },
-    schema_version: '1.0',
+    schema_version: '1.1',
     session_id: sessionIdValue(),
     type: 'event.ack',
   };
@@ -562,8 +617,11 @@ function rawDataBuffer(data: RawData): Buffer {
 }
 
 async function cleanDatabase(database: PrismaService): Promise<void> {
+  await database.speakerCalibrationAttemptSegment.deleteMany();
+  await database.speakerCalibrationAttempt.deleteMany();
   await database.transcriptSegment.deleteMany();
   await database.speakerMapping.deleteMany();
+  await database.speakerStream.deleteMany();
   await database.consentRecord.deleteMany();
   await database.audioChunk.deleteMany();
   await database.sessionCaptureGeneration.deleteMany();

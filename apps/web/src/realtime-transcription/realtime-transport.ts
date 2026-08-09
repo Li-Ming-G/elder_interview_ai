@@ -10,6 +10,7 @@ import {
   type InterviewWsErrorPayload,
   type InterviewWsServerEnvelope,
   type InterviewWsServerType,
+  type SpeakerCalibrationSnapshot,
 } from '@elder-interview/contracts';
 
 const MAX_PENDING_FRAMES = 20;
@@ -22,9 +23,14 @@ export type RealtimeConnectionStatus =
 export type RealtimeFailureKind = 'asr' | 'auth' | 'internal' | 'permission' | 'reset' | 'session';
 
 export interface RealtimeTranscriptFinal {
+  contentKind?: 'conversation' | 'speaker_calibration';
   endMs: number;
   segmentId: string;
   speakerRole: 'elder' | 'interviewer' | 'unknown';
+  speakerRoleAuthority?: 'unconfirmed' | 'user_confirmed';
+  speakerRoleRevision?: number;
+  speakerStreamId?: string;
+  trustedSpeakerRole?: 'elder' | 'interviewer' | 'unknown';
   startMs: number;
   text: string;
 }
@@ -38,6 +44,7 @@ export interface RealtimeTranscriptInterim {
 }
 
 export interface RealtimeState {
+  calibration?: SpeakerCalibrationSnapshot | null;
   connection: RealtimeConnectionStatus;
   errorCode: string | null;
   failureKind: RealtimeFailureKind | null;
@@ -101,6 +108,7 @@ export class RealtimeTranscriptionTransport {
   private highestServerSequence = -1;
   private nextAudioSequence = 0;
   private state: RealtimeState = {
+    calibration: null,
     connection: 'closed',
     errorCode: null,
     failureKind: null,
@@ -265,6 +273,7 @@ export class RealtimeTranscriptionTransport {
         audio_stream_id: string;
         highest_audio_sequence_acked: number;
         resumed: boolean;
+        speaker_calibration: SpeakerCalibrationSnapshot;
       };
       if (payload.audio_stream_id !== this.audioStreamId) {
         this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
@@ -272,7 +281,13 @@ export class RealtimeTranscriptionTransport {
       }
       this.acceptAudioAck(payload.highest_audio_sequence_acked);
       this.reconnectAttempt = 0;
-      this.patch({ connection: 'connected', resumed: payload.resumed });
+      this.patch({
+        calibration: payload.speaker_calibration,
+        connection: 'connected',
+        resumed: payload.resumed,
+      });
+    } else if (message.type === 'speaker.calibration.updated') {
+      this.patch({ calibration: message.payload as SpeakerCalibrationSnapshot });
     } else if (message.type === 'audio.ack') {
       const payload = message.payload as {
         audio_stream_id: string;
@@ -311,18 +326,30 @@ export class RealtimeTranscriptionTransport {
     } else if (message.type === 'asr.final') {
       const payload = message.payload as {
         end_ms: number;
+        effective_speaker_role: RealtimeTranscriptFinal['speakerRole'];
         segment_id: string;
         speaker_role: RealtimeTranscriptFinal['speakerRole'];
+        speaker_role_authority: NonNullable<RealtimeTranscriptFinal['speakerRoleAuthority']>;
+        speaker_role_revision: number;
+        speaker_stream_id: string;
+        content_kind: NonNullable<RealtimeTranscriptFinal['contentKind']>;
         start_ms: number;
         text: string;
+        trusted_effective_speaker_role: NonNullable<RealtimeTranscriptFinal['trustedSpeakerRole']>;
+        trusted_speaker_role: NonNullable<RealtimeTranscriptFinal['trustedSpeakerRole']>;
       };
       if (!this.finals.has(payload.segment_id)) {
         this.finals.set(payload.segment_id, {
+          contentKind: payload.content_kind,
           endMs: payload.end_ms,
           segmentId: payload.segment_id,
-          speakerRole: payload.speaker_role,
+          speakerRole: payload.effective_speaker_role,
+          speakerRoleAuthority: payload.speaker_role_authority,
+          speakerRoleRevision: payload.speaker_role_revision,
+          speakerStreamId: payload.speaker_stream_id,
           startMs: payload.start_ms,
           text: payload.text,
+          trustedSpeakerRole: payload.trusted_speaker_role,
         });
         this.patch({ finals: [...this.finals.values()], interim: null });
       }

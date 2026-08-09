@@ -57,10 +57,17 @@ export class TranscriptIngestionService {
               },
             },
             status: true,
+            speakerRoleRevision: true,
           },
           where: { id: result.sessionId },
         });
         if (session === null) throw this.notFound();
+        if (result.speakerStreamId === undefined) throw this.ingestionNotAllowed();
+        const stream = await transaction.speakerStream.findFirst({
+          select: { id: true },
+          where: { id: result.speakerStreamId, sessionId: result.sessionId },
+        });
+        if (stream === null) throw this.ingestionNotAllowed();
         const latestConsent = session.project.consents[0];
         if (
           !INGESTIBLE_SESSION_STATUSES.has(session.status) ||
@@ -84,17 +91,28 @@ export class TranscriptIngestionService {
             ? null
             : await transaction.speakerMapping.findFirst({
                 orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-                select: { speakerRole: true },
+                select: { authority: true, speakerRole: true },
                 where: {
-                  sessionId: result.sessionId,
+                  speakerStreamId: result.speakerStreamId,
                   speakerProviderId: result.speakerProviderId,
                   supersededAt: null,
                 },
               });
-        return transaction.transcriptSegment.create({
+        const attempt = await transaction.speakerCalibrationAttempt.findFirst({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: { id: true },
+          where: {
+            speakerStreamId: result.speakerStreamId,
+            startMs: { lt: result.endMs },
+            OR: [{ endMs: null }, { endMs: { gt: result.startMs } }],
+          },
+        });
+        const segment = await transaction.transcriptSegment.create({
           data: {
+            contentKind: attempt === null ? 'conversation' : 'speaker_calibration',
             endMs: result.endMs,
             ingestKey: result.ingestKey,
+            originalRoleAuthority: mapping?.authority ?? 'unconfirmed',
             originalSpeakerRole: mapping?.speakerRole ?? 'unknown',
             originalText: result.text,
             ...(serializedPayload === null
@@ -104,11 +122,19 @@ export class TranscriptIngestionService {
                 }),
             providerSegmentId: result.providerSegmentId ?? null,
             sessionId: result.sessionId,
+            speakerRoleRevision: session.speakerRoleRevision,
+            speakerStreamId: result.speakerStreamId,
             source: result.source,
             speakerProviderId: result.speakerProviderId ?? null,
             startMs: result.startMs,
           },
         });
+        if (attempt !== null) {
+          await transaction.speakerCalibrationAttemptSegment.create({
+            data: { attemptId: attempt.id, transcriptSegmentId: segment.id },
+          });
+        }
+        return segment;
       });
       return { kind: 'final', persisted: true, segment: mapTranscriptSegment(segment) };
     } catch (error: unknown) {
@@ -133,6 +159,7 @@ export class TranscriptIngestionService {
   ): TranscriptSegment {
     if (
       existing.providerSegmentId !== (result.providerSegmentId ?? null) ||
+      existing.speakerStreamId !== result.speakerStreamId ||
       existing.speakerProviderId !== (result.speakerProviderId ?? null) ||
       existing.startMs !== result.startMs ||
       existing.endMs !== result.endMs ||

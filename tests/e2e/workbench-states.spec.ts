@@ -74,6 +74,95 @@ test('real controller facts drive the complete workbench state and responsive sc
   }
 });
 
+test('canonical calibration snapshots render all small-screen panel states without another mic request', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await installWorkbenchHarness(page);
+  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
+  await page.getByRole('button').first().click();
+  await expect(page.getByRole('button').last()).toBeEnabled();
+  await page.getByRole('button').last().click();
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench$`),
+  );
+  const panel = page.locator('.speaker-calibration');
+  await expect(panel).toBeVisible();
+  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(panel.locator('strong')).toBeVisible();
+  await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+  await expect(panel.locator('[aria-live="polite"]')).toBeVisible();
+  await expect(panel.getByRole('button')).toHaveCount(4);
+  const micRequests = await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')));
+
+  for (const viewport of [
+    { height: 844, width: 390 },
+    { height: 568, width: 320 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.workbench--recording')).toBeVisible();
+    await expect(panel.locator('strong')).toBeVisible();
+    await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+    const dimensions = await panel.evaluate((element) => {
+      const buttons = [...element.querySelectorAll<HTMLButtonElement>('button')];
+      return {
+        buttonHeights: buttons.map((button) => button.getBoundingClientRect().height),
+        buttonWidths: buttons.map((button) => button.getBoundingClientRect().width),
+        pageOverflow: document.documentElement.scrollWidth - globalThis.innerWidth,
+        pageVerticalOverflow: document.documentElement.scrollHeight - globalThis.innerHeight,
+        panelOverflow: element.scrollWidth - element.clientWidth,
+      };
+    });
+    expect(dimensions.pageOverflow).toBeLessThanOrEqual(0);
+    expect(dimensions.pageVerticalOverflow).toBeLessThanOrEqual(0);
+    expect(dimensions.panelOverflow).toBeLessThanOrEqual(0);
+    expect(Math.min(...dimensions.buttonHeights)).toBeGreaterThanOrEqual(44);
+    expect(Math.min(...dimensions.buttonWidths)).toBeGreaterThanOrEqual(44);
+    const firstButton = panel.getByRole('button').first();
+    await firstButton.focus();
+    await expect(firstButton).toBeFocused();
+    expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
+      micRequests,
+    );
+    await page.screenshot({
+      animations: 'disabled',
+      path: `test-results/dev-004c1/calibration-collecting-${String(viewport.width)}x${String(viewport.height)}.png`,
+    });
+  }
+
+  await emitCalibration(page, calibrationSnapshot('confirmed', 1));
+  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(panel).toHaveClass(/speaker-calibration--confirmed/u);
+  await expect(panel.locator('strong')).toBeVisible();
+  await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+  await expect(panel).toContainText('\u8bf4\u8bdd\u4eba\u5df2\u786e\u8ba4');
+  await expect(panel).toHaveAttribute('aria-live', 'polite');
+
+  for (const status of ['failed', 'skipped'] as const) {
+    await emitCalibration(page, calibrationSnapshot(status, 0));
+    await expect(page.locator('.workbench--recording')).toBeVisible();
+    await expect(panel.locator('strong')).toBeVisible();
+    await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+    await expect(panel).toHaveAttribute('aria-live', 'polite');
+    const retry = panel.getByRole('button');
+    await expect(retry).toHaveCount(1);
+    const retryBox = await retry.boundingBox();
+    expect(retryBox?.height).toBeGreaterThanOrEqual(44);
+    expect(retryBox?.width).toBeGreaterThanOrEqual(44);
+    const beforeRetry = await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')));
+    await retry.click();
+    await emitCalibration(page, calibrationSnapshot('collecting', 0));
+    await expect(panel.getByRole('button')).toHaveCount(4);
+    expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
+      beforeRetry,
+    );
+    await page.screenshot({
+      animations: 'disabled',
+      path: `test-results/dev-004c1/calibration-${status}-320x568.png`,
+    });
+  }
+});
+
 async function captureStateMatrix(page: Page, state: string): Promise<void> {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
@@ -161,7 +250,10 @@ async function triggerReadOnlyVerification(page: Page): Promise<void> {
 type HarnessState =
   'recording' | 'interrupted' | 'stopping' | 'processing' | 'completed' | 'failed' | 'no-audio';
 
-async function installWorkbenchHarness(page: Page): Promise<{
+async function installWorkbenchHarness(
+  page: Page,
+  initiallyStarted = false,
+): Promise<{
   completeRequests: number;
   createdSessions: number;
   finalizeRequests: number;
@@ -169,7 +261,7 @@ async function installWorkbenchHarness(page: Page): Promise<{
   stopRequests: number;
 }> {
   let state: HarnessState = 'recording';
-  let started = false;
+  let started = initiallyStarted;
   let captureStatus: 'preparing' | 'active' | 'interrupted' | 'stopped' | 'abandoned_empty' =
     'active';
   let audioStreamId = '99999999-9999-4999-8999-999999999999';
@@ -271,8 +363,11 @@ async function installWorkbenchHarness(page: Page): Promise<{
       public static readonly OPEN = 1;
       public readonly OPEN = 1;
       public readyState = 0;
+      public nextSequence = 25;
+      public sessionId = '';
       public constructor() {
         super();
+        Reflect.set(globalThis, '__workbenchSocket', this);
         setTimeout(() => {
           this.readyState = this.OPEN;
           this.dispatchEvent(new Event('open'));
@@ -285,12 +380,13 @@ async function installWorkbenchHarness(page: Page): Promise<{
           type: string;
         };
         if (message.type !== 'session.join') return;
+        this.sessionId = message.session_id;
         const envelope = (type: string, payload: unknown, sequence: number): string =>
           JSON.stringify({
             event_id: crypto.randomUUID(),
             event_stream_id: '77777777-7777-4777-8777-777777777777',
             payload,
-            schema_version: '1.0',
+            schema_version: '1.1',
             server_sequence: sequence,
             session_id: message.session_id,
             timestamp: '2026-08-08T08:00:00.000Z',
@@ -307,6 +403,33 @@ async function installWorkbenchHarness(page: Page): Promise<{
                   resumed: false,
                   resume_window_events: 512,
                   resume_window_seconds: 300,
+                  speaker_calibration: {
+                    attempt: {
+                      attempt_no: 1,
+                      boundary: {
+                        end_sequence_no_exclusive: null,
+                        end_timeline_ms: null,
+                        start_sequence_no: 0,
+                        start_timeline_ms: 0,
+                      },
+                      confirmed_mappings: [],
+                      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                      observed_provider_labels: ['speaker_1', 'speaker_2'],
+                      resolved_at: null,
+                      started_at: '2026-08-08T08:00:01.000Z',
+                      status: 'collecting',
+                    },
+                    session_id: message.session_id,
+                    speaker_role_revision: 0,
+                    speaker_stream: {
+                      audio_stream_id: message.payload.audio_stream_id,
+                      capture_generation_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+                      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                      status: 'active',
+                    },
+                    status: 'collecting',
+                    updated_at: '2026-08-08T08:00:01.000Z',
+                  },
                 },
                 0,
               ),
@@ -319,15 +442,22 @@ async function installWorkbenchHarness(page: Page): Promise<{
                   'asr.final',
                   {
                     end_ms: (index + 1) * 2_000,
+                    effective_speaker_role: index % 2 === 0 ? 'elder' : 'interviewer',
                     finality: 'final',
                     segment_id: `segment-${String(index)}`,
                     speaker_provider_id: `speaker-${String(index % 2)}`,
                     speaker_role: index % 2 === 0 ? 'elder' : 'interviewer',
+                    speaker_role_authority: 'unconfirmed',
+                    speaker_role_revision: 0,
+                    speaker_stream_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                    content_kind: 'conversation',
                     start_ms: index * 2_000,
                     text:
                       index === 0
                         ? '那时候我们住在河边。'
                         : `这是用于核对连续转录滚动与移动端元数据栏的第 ${String(index + 1)} 段虚构访谈内容。`,
+                    trusted_effective_speaker_role: 'unknown',
+                    trusted_speaker_role: 'unknown',
                   },
                   index + 1,
                 ),
@@ -335,6 +465,23 @@ async function installWorkbenchHarness(page: Page): Promise<{
             );
           }
         }, 0);
+      }
+      public emitCalibration(payload: unknown): void {
+        this.dispatchEvent(
+          new MessageEvent('message', {
+            data: JSON.stringify({
+              event_id: crypto.randomUUID(),
+              event_stream_id: '77777777-7777-4777-8777-777777777777',
+              payload,
+              schema_version: '1.1',
+              server_sequence: this.nextSequence,
+              session_id: this.sessionId,
+              timestamp: '2026-08-08T08:00:02.000Z',
+              type: 'speaker.calibration.updated',
+            }),
+          }),
+        );
+        this.nextSequence += 1;
       }
       public close(code = 1000): void {
         this.readyState = 3;
@@ -388,6 +535,18 @@ async function installWorkbenchHarness(page: Page): Promise<{
     if (path === `/api/v1/sessions/${SESSION_ID}/capture/confirm-active`) {
       captureStatus = 'active';
       return route.fulfill({ json: sessionPayload('recording', captureStatus, audioStreamId) });
+    }
+    if (path === `/api/v1/sessions/${SESSION_ID}/speaker-calibrations`) {
+      return route.fulfill({ json: calibrationSnapshot('collecting', 0) });
+    }
+    if (/^\/api\/v1\/speaker-calibrations\/[^/]+\/resolve$/u.test(path)) {
+      const action = (request.postDataJSON() as { action: 'confirm' | 'fail' | 'skip' }).action;
+      return route.fulfill({
+        json: calibrationSnapshot(
+          action === 'confirm' ? 'confirmed' : action,
+          action === 'confirm' ? 1 : 0,
+        ),
+      });
     }
     if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
       if (!started) {
@@ -454,6 +613,63 @@ async function installWorkbenchHarness(page: Page): Promise<{
     get stopRequests(): number {
       return counts.stopRequests;
     },
+  };
+}
+
+async function emitCalibration(page: Page, snapshot: unknown): Promise<void> {
+  await page.evaluate((payload) => {
+    const socket = Reflect.get(globalThis, '__workbenchSocket') as
+      { emitCalibration: (value: unknown) => void } | undefined;
+    if (socket === undefined) throw new Error('workbench socket is not connected');
+    socket.emitCalibration(payload);
+  }, snapshot);
+}
+
+function calibrationSnapshot(
+  status: 'collecting' | 'confirmed' | 'failed' | 'skipped',
+  revision: number,
+): unknown {
+  const resolved = status !== 'collecting';
+  return {
+    attempt: {
+      attempt_no: 1,
+      boundary: {
+        end_sequence_no_exclusive: resolved ? 2 : null,
+        end_timeline_ms: resolved ? 200 : null,
+        start_sequence_no: 0,
+        start_timeline_ms: 0,
+      },
+      confirmed_mappings:
+        status === 'confirmed'
+          ? [
+              {
+                authority: 'user_confirmed',
+                speaker_provider_id: 'speaker_1',
+                speaker_role: 'interviewer',
+              },
+              {
+                authority: 'user_confirmed',
+                speaker_provider_id: 'speaker_2',
+                speaker_role: 'elder',
+              },
+            ]
+          : [],
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      observed_provider_labels: ['speaker_1', 'speaker_2'],
+      resolved_at: resolved ? '2026-08-08T08:00:02.000Z' : null,
+      started_at: '2026-08-08T08:00:01.000Z',
+      status,
+    },
+    session_id: SESSION_ID,
+    speaker_role_revision: revision,
+    speaker_stream: {
+      audio_stream_id: '99999999-9999-4999-8999-999999999999',
+      capture_generation_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      status: 'active',
+    },
+    status,
+    updated_at: resolved ? '2026-08-08T08:00:02.000Z' : '2026-08-08T08:00:01.000Z',
   };
 }
 

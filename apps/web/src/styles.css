@@ -453,6 +453,85 @@ p {
   flex-direction: column;
 }
 
+.speaker-calibration {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  width: min(100%, 80rem);
+  min-height: 4.25rem;
+  margin: 0 auto;
+  padding: 0.65rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklch, var(--surface) 92%, var(--accent-soft));
+  gap: 1rem;
+}
+
+.speaker-calibration--confirmed {
+  min-height: 3.25rem;
+}
+
+.speaker-calibration--confirmed span,
+.speaker-calibration__copy p {
+  margin: 0.2rem 0 0;
+  color: var(--muted-ink);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.speaker-calibration--confirmed span {
+  margin: 0;
+}
+
+.speaker-calibration__copy {
+  min-width: 0;
+}
+
+.speaker-calibration__actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.speaker-calibration .button,
+.speaker-calibration .text-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.speaker-calibration__error {
+  color: var(--danger) !important;
+  font-weight: 700;
+}
+
+@media (max-width: 40rem) {
+  .speaker-calibration {
+    align-items: stretch;
+    padding: 0.65rem 0.75rem;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .speaker-calibration--confirmed {
+    gap: 0.15rem;
+  }
+
+  .speaker-calibration__actions {
+    justify-content: stretch;
+  }
+
+  .speaker-calibration__actions .button {
+    flex: 1 1 9rem;
+  }
+
+  .speaker-calibration__actions .text-button {
+    flex: 1 1 6rem;
+  }
+}
+
 .session-state-panel,
 .session-status-rail {
   width: min(100%, 80rem);

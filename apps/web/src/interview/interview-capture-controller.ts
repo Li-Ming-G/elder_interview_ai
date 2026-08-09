@@ -28,6 +28,7 @@ import type { RealtimeState } from '../realtime-transcription/realtime-transport
 import { InterviewApiError, type InterviewApi, type InterviewCaptureApi } from './interview-api.js';
 
 const INITIAL_REALTIME_STATE: RealtimeState = {
+  calibration: null,
   connection: 'closed',
   errorCode: null,
   failureKind: null,
@@ -1208,7 +1209,18 @@ function cloneSnapshot(
     ...snapshot,
     archive: { ...snapshot.archive },
     endHandoff: snapshot.endHandoff === null ? null : { ...snapshot.endHandoff },
-    realtime: { ...snapshot.realtime, finals: [...snapshot.realtime.finals] },
+    realtime: {
+      ...snapshot.realtime,
+      ...(snapshot.realtime.calibration === undefined
+        ? {}
+        : {
+            calibration:
+              snapshot.realtime.calibration === null
+                ? null
+                : structuredClone(snapshot.realtime.calibration),
+          }),
+      finals: [...snapshot.realtime.finals],
+    },
     serverCapture: snapshot.serverCapture === null ? null : { ...snapshot.serverCapture },
     serverSession:
       snapshot.serverSession === null

@@ -13,6 +13,9 @@ import type {
   ServiceTermResponse,
   StartSessionRequest,
   StopSessionRequest,
+  BeginSpeakerCalibrationRequest,
+  ResolveSpeakerCalibrationRequest,
+  SpeakerCalibrationSnapshot,
 } from '@elder-interview/contracts';
 import type { ImmutableAudioChunk } from '../audio/types.js';
 
@@ -71,7 +74,21 @@ export interface InterviewCaptureApi {
   ): Promise<AudioChunkResponse>;
 }
 
-export function createInterviewApi(csrfToken: string): InterviewApi & InterviewCaptureApi {
+export interface SpeakerCalibrationApi {
+  beginSpeakerCalibration(
+    sessionId: string,
+    request: BeginSpeakerCalibrationRequest,
+  ): Promise<SpeakerCalibrationSnapshot>;
+  getSpeakerCalibration(sessionId: string): Promise<SpeakerCalibrationSnapshot>;
+  resolveSpeakerCalibration(
+    attemptId: string,
+    request: ResolveSpeakerCalibrationRequest,
+  ): Promise<SpeakerCalibrationSnapshot>;
+}
+
+export function createInterviewApi(
+  csrfToken: string,
+): InterviewApi & InterviewCaptureApi & SpeakerCalibrationApi {
   async function read<T>(path: string): Promise<T> {
     return request<T>(path, { cache: 'no-store', credentials: 'same-origin' });
   }
@@ -89,6 +106,8 @@ export function createInterviewApi(csrfToken: string): InterviewApi & InterviewC
   }
 
   return {
+    beginSpeakerCalibration: async (sessionId, input): Promise<SpeakerCalibrationSnapshot> =>
+      write(`/api/v1/sessions/${sessionId}/speaker-calibrations`, input),
     abandonEmptyCapture: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/abandon-empty`, request),
     completeInterviewAudio: async (audioObjectId, complete): Promise<AudioManifestResponse> =>
@@ -101,6 +120,8 @@ export function createInterviewApi(csrfToken: string): InterviewApi & InterviewC
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
     getSession: async (sessionId): Promise<InterviewSessionResponse> =>
       read(`/api/v1/sessions/${sessionId}`),
+    getSpeakerCalibration: async (sessionId): Promise<SpeakerCalibrationSnapshot> =>
+      read(`/api/v1/sessions/${sessionId}/speaker-calibration`),
     loadPreparation: async (projectId, sessionId): Promise<PreparationData> => {
       const [project, serviceTerms, consents, session] = await Promise.all([
         read<ProjectResponse>(`/api/v1/projects/${projectId}`),
@@ -119,6 +140,8 @@ export function createInterviewApi(csrfToken: string): InterviewApi & InterviewC
       write(`/api/v1/sessions/${sessionId}/recover`, request),
     reportCaptureInterrupted: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
+    resolveSpeakerCalibration: async (attemptId, input): Promise<SpeakerCalibrationSnapshot> =>
+      write(`/api/v1/speaker-calibrations/${attemptId}/resolve`, input),
     startSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/start`, request),
     stopSession: async (sessionId, request): Promise<InterviewSessionResponse> =>

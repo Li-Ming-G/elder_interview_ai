@@ -48,7 +48,7 @@ test('mock WebSocket stops at twenty unacknowledged PCM frames', async ({ page }
                     resume_window_seconds: 300,
                     resumed: false,
                   },
-                  schema_version: '1.0',
+                  schema_version: '1.1',
                   server_sequence: 0,
                   session_id: message.session_id,
                   timestamp: '2026-08-07T00:00:00.000Z',

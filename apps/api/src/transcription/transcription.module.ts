@@ -10,6 +10,7 @@ import {
   ResourceAccessAuthorizer,
 } from '../project-foundation/project-access.service.js';
 import { SpeakerMappingService } from './speaker-mapping.service.js';
+import { SpeakerCalibrationSnapshotService } from './speaker-calibration-snapshot.service.js';
 import { TranscriptIngestionService } from './transcript-ingestion.service.js';
 import { TranscriptQueryService } from './transcript-query.service.js';
 
@@ -23,7 +24,12 @@ export function createTranscriptionModule(
   authModule: DynamicModule,
 ): DynamicModule {
   return {
-    exports: [SpeakerMappingService, TranscriptIngestionService, TranscriptQueryService],
+    exports: [
+      SpeakerCalibrationSnapshotService,
+      SpeakerMappingService,
+      TranscriptIngestionService,
+      TranscriptQueryService,
+    ],
     imports: [authModule],
     module: TranscriptionModule,
     providers: [
@@ -33,6 +39,7 @@ export function createTranscriptionModule(
       { provide: ResourceAccessAuthorizer, useExisting: ResourceAuthorizationService },
       ProjectAccessService,
       SpeakerMappingService,
+      SpeakerCalibrationSnapshotService,
       TranscriptIngestionService,
       TranscriptQueryService,
     ],

@@ -45,20 +45,32 @@ export class DeterministicStreamingAsrFake extends StreamingAsrAdapter {
           startMs: frame.start_ms,
           text: '这是一段虚构的实时转录中间态。',
         },
+        {
+          endMs: frame.end_ms,
+          ingestKey: `ws-fixture:${frame.audio_stream_id}:speaker-1`,
+          kind: 'final',
+          providerPayload: { fixture: 'deterministic-streaming-v2' },
+          providerSegmentId: 'fixture-speaker-1',
+          sessionId,
+          source: 'fixture',
+          speakerProviderId: 'speaker_1',
+          startMs: frame.start_ms,
+          text: '本地测试说话人一。',
+        },
       ]);
     }
     if (frame.sequence_no === 1) {
       return Promise.resolve([
         {
           endMs: frame.end_ms,
-          ingestKey: `ws-fixture:${frame.audio_stream_id}:segment-1`,
+          ingestKey: `ws-fixture:${frame.audio_stream_id}:speaker-2`,
           kind: 'final',
-          providerPayload: { fixture: 'deterministic-streaming-v1' },
-          providerSegmentId: 'fixture-segment-1',
+          providerPayload: { fixture: 'deterministic-streaming-v2' },
+          providerSegmentId: 'fixture-speaker-2',
           sessionId,
           source: 'fixture',
-          speakerProviderId: null,
-          startMs: 0,
+          speakerProviderId: 'speaker_2',
+          startMs: frame.start_ms,
           text: '这是一段完全虚构的实时转录。',
         },
       ]);

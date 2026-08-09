@@ -6,6 +6,7 @@ import type {
   InterviewSessionResponse,
   SessionCaptureSnapshot,
   SessionFinalizationSnapshot,
+  SpeakerCalibrationSnapshot,
 } from '@elder-interview/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -396,6 +397,58 @@ describe('WorkbenchShell', () => {
     });
     expect(await screen.findByRole('button', { name: /回到最新 · 1 条新内容/ })).toBeTruthy();
   });
+
+  it('keeps recording explicit while confirming, skipping, and retrying speaker calibration', async () => {
+    const resolveSpeakerCalibration = vi.fn(() =>
+      Promise.resolve(calibrationSnapshot('confirmed')),
+    );
+    const beginSpeakerCalibration = vi.fn(() => Promise.resolve(calibrationSnapshot('collecting')));
+    const harness = createHarness(recordingSession(), {
+      realtime: { ...EMPTY_REALTIME, calibration: calibrationSnapshot('collecting') },
+    });
+    Object.assign(harness.api, { beginSpeakerCalibration, resolveSpeakerCalibration });
+    renderWorkbench(harness);
+
+    expect(await screen.findByText('正在录音 · 正在确认说话人')).toBeTruthy();
+    expect(screen.getByText(/第一位是访谈员/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '交换对应关系' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认说话人' }));
+    await waitFor(() => {
+      expect(resolveSpeakerCalibration).toHaveBeenCalledTimes(1);
+    });
+    expect(resolveSpeakerCalibration).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        action: 'confirm',
+        mappings: [
+          { speaker_provider_id: 'speaker_1', speaker_role: 'elder' },
+          { speaker_provider_id: 'speaker_2', speaker_role: 'interviewer' },
+        ],
+      }),
+    );
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: { ...EMPTY_REALTIME, calibration: calibrationSnapshot('skipped') },
+        }),
+      );
+    });
+    expect(await screen.findByText('正在录音 · 已跳过说话人确认')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '重试确认' }));
+    await waitFor(() => {
+      expect(beginSpeakerCalibration).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: { ...EMPTY_REALTIME, calibration: calibrationSnapshot('confirmed') },
+        }),
+      );
+    });
+    expect(await screen.findByText('正在录音 · 说话人已确认')).toBeTruthy();
+  });
 });
 
 type CompleteApi = InterviewApi & InterviewCaptureApi;
@@ -701,6 +754,52 @@ const EMPTY_REALTIME: InterviewCaptureControllerSnapshot['realtime'] = {
   resetRequired: false,
   resumed: false,
 };
+
+function calibrationSnapshot(
+  status: 'collecting' | 'confirmed' | 'skipped',
+): SpeakerCalibrationSnapshot {
+  return {
+    attempt: {
+      attempt_no: 1,
+      boundary: {
+        end_sequence_no_exclusive: status === 'collecting' ? null : 2,
+        end_timeline_ms: status === 'collecting' ? null : 200,
+        start_sequence_no: 0,
+        start_timeline_ms: 0,
+      },
+      confirmed_mappings:
+        status === 'confirmed'
+          ? [
+              {
+                authority: 'user_confirmed',
+                speaker_provider_id: 'speaker_1',
+                speaker_role: 'interviewer',
+              },
+              {
+                authority: 'user_confirmed',
+                speaker_provider_id: 'speaker_2',
+                speaker_role: 'elder',
+              },
+            ]
+          : [],
+      id: '55555555-5555-4555-8555-555555555555',
+      observed_provider_labels: ['speaker_1', 'speaker_2'],
+      resolved_at: status === 'collecting' ? null : VERIFIED_AT,
+      started_at: VERIFIED_AT,
+      status,
+    },
+    session_id: SESSION_ID,
+    speaker_role_revision: status === 'confirmed' ? 1 : 0,
+    speaker_stream: {
+      audio_stream_id: '77777777-7777-4777-8777-777777777777',
+      capture_generation_id: '66666666-6666-4666-8666-666666666666',
+      id: '44444444-4444-4444-8444-444444444444',
+      status: 'active',
+    },
+    status,
+    updated_at: VERIFIED_AT,
+  };
+}
 
 const MANIFEST: AudioManifestResponse = {
   chunk_count: 2,

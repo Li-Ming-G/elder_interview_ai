@@ -276,8 +276,57 @@ export interface AudioManifestResponse extends AudioObjectResponse {
   chunks: AudioManifestChunk[];
 }
 
+export type SpeakerCalibrationStatus =
+  'not_started' | 'collecting' | 'confirmed' | 'failed' | 'skipped';
+
+export interface SpeakerCalibrationMapping {
+  speaker_provider_id: string;
+  speaker_role: 'elder' | 'interviewer';
+  authority: 'user_confirmed';
+}
+
+export interface SpeakerCalibrationSnapshot {
+  session_id: string;
+  speaker_role_revision: number;
+  status: SpeakerCalibrationStatus;
+  speaker_stream: {
+    id: string;
+    capture_generation_id: string;
+    audio_stream_id: string;
+    status: 'active';
+  } | null;
+  attempt: {
+    id: string;
+    attempt_no: number;
+    status: Exclude<SpeakerCalibrationStatus, 'not_started'>;
+    boundary: {
+      start_sequence_no: number;
+      end_sequence_no_exclusive: number | null;
+      start_timeline_ms: number;
+      end_timeline_ms: number | null;
+    };
+    observed_provider_labels: string[];
+    confirmed_mappings: SpeakerCalibrationMapping[];
+    started_at: string;
+    resolved_at: string | null;
+  } | null;
+  updated_at: string;
+}
+
+export interface BeginSpeakerCalibrationRequest extends IdempotentRequest {
+  speaker_stream_id: string;
+}
+
+export interface ResolveSpeakerCalibrationRequest extends IdempotentRequest {
+  action: 'confirm' | 'fail' | 'skip';
+  mappings: Array<{
+    speaker_provider_id: string;
+    speaker_role: 'elder' | 'interviewer';
+  }>;
+}
+
 export const INTERVIEW_WS_PATH = '/ws/interviews';
-export const INTERVIEW_WS_SCHEMA_VERSION = '1.0';
+export const INTERVIEW_WS_SCHEMA_VERSION = '1.1';
 export const INTERVIEW_WS_MAX_MESSAGE_BYTES = 8192;
 export const INTERVIEW_PCM_FRAME_BYTES = 3200;
 export const INTERVIEW_PCM_FRAME_DURATION_MS = 100;
@@ -292,6 +341,7 @@ export type InterviewWsServerType =
   | 'audio.ack'
   | 'error'
   | 'heartbeat.ack'
+  | 'speaker.calibration.updated'
   | 'session.ready';
 
 export interface InterviewWsClientEnvelope<TType extends InterviewWsClientType, TPayload> {
@@ -347,6 +397,7 @@ export interface InterviewWsServerEnvelope<TType extends InterviewWsServerType, 
 
 export interface InterviewWsSessionReadyPayload {
   audio_stream_id: string;
+  speaker_calibration: SpeakerCalibrationSnapshot;
   resumed: boolean;
   highest_audio_sequence_acked: number;
   resume_window_seconds: 300;
@@ -371,10 +422,39 @@ export interface InterviewWsAsrFinalPayload {
   segment_id: string;
   speaker_provider_id: string | null;
   speaker_role: 'elder' | 'interviewer' | 'unknown';
+  speaker_role_authority: 'unconfirmed' | 'user_confirmed';
+  effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  speaker_stream_id: string;
+  speaker_role_revision: number;
+  content_kind: 'conversation' | 'speaker_calibration';
   start_ms: number;
   end_ms: number;
   text: string;
   finality: 'final';
+}
+
+export interface TranscriptSegmentResponse {
+  id: string;
+  speaker_stream_id: string;
+  speaker_provider_id: string | null;
+  original_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  original_speaker_role_authority: 'unconfirmed' | 'user_confirmed';
+  corrected_speaker_role: 'elder' | 'interviewer' | 'unknown' | null;
+  effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  trusted_effective_speaker_role: 'elder' | 'interviewer' | 'unknown';
+  speaker_role_revision: number;
+  content_kind: 'conversation' | 'speaker_calibration';
+  start_ms: number;
+  end_ms: number;
+  original_text: string;
+  corrected_text: string | null;
+}
+
+export interface TranscriptPageResponse {
+  items: TranscriptSegmentResponse[];
+  next_cursor: string | null;
 }
 
 export interface InterviewWsAsrStatusPayload {
