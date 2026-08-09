@@ -798,3 +798,13 @@
 - Verification evidence: exact-head CI `31305357363` 全门禁 PASS；总控独立复跑 unit 27/27、Chromium calibration 1/1，并检查 4 张 320/390 宽实际渲染图。PostgreSQL 本机因未注入 `TEST_DATABASE_URL` 未复跑，不伪报本地通过。
 - Adopted decision: REV-028 PASS，PR #18 merge `99b090d`，C1 DONE、C2 READY；SPEC-DEV-006/DEV-006 仍等待专项产品讨论，父 DEV-004 保持 IN_PROGRESS。
 - Lesson: 审查授权可以临时转移，但产品决策权不会随之自动扩大；能够从已冻结契约机械推出的 C2 可以继续，尚需讨论的跨 session AI consumer 模型必须停在讨论门槛。
+
+### 2026-08-09 — DEV-004C2 独立实现任务启动
+
+- User outcome: 用户授权在无需新决策时持续推进；C1 收口后继续实现角色修正 producer seam，并把历史保存在独立项目任务/worktree。
+- Review mode: Learning mode；iteration-coach 独立只读复核确认 `03/04/05/06/07/09`、ADR-025 与 C2 任务卡已足以实施，不需要追加产品决定。
+- Review finding: C2 最容易混淆的是“产生失效证据”和“执行 AI 派生失效”。前者是 C2 的 revision/operation/membership，后者必须继续等待 SPEC-DEV-006。
+- Adopted decision: 启动独立任务 `019fe614-9503-7891-a1d3-8708c60166e0`；单段 UI 低负担，批量只做正式 preview/execute 服务端契约，复杂批量 UI 后置，任何 AI stale/recompute consumer 禁止进入本任务。
+- Implementation evidence: Codex 已建立独立 worktree `C:\Users\TR\.codex\worktrees\4034\elder_interview_ai` 并开始任务；此时尚无业务实现、提交或 PR，状态仅为 IN_PROGRESS。
+- Lesson: 上游可以先稳定地产生“哪些证据在何版本被修正”，而不必猜每个下游消费者如何失效；把 producer seam 和 consumer policy 分开能维持可追溯性又避免错误模型先入为主。
+- Better future prompt: “实现角色修正 producer seam：只产出 corrected role、operation、segment membership 和 session revision；批量全成全败；不要修改任何 AI 派生表或实现重算。”
