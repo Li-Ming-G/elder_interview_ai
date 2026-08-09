@@ -35,12 +35,18 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
 button:focus-visible,
 input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+select:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
@@ -756,6 +762,63 @@ p {
   color: var(--ink);
   font-size: 1rem;
   line-height: 1.65;
+}
+
+.transcript-content {
+  min-width: 0;
+}
+
+.speaker-correction {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.speaker-correction label {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.speaker-correction select,
+.speaker-correction__trigger,
+.speaker-correction__save {
+  min-height: 2.75rem;
+}
+
+.speaker-correction select {
+  padding: 0.45rem 2rem 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.speaker-correction__save {
+  padding: 0.5rem 0.8rem;
+}
+
+.speaker-correction__trigger {
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.25rem;
+  border: 0;
+  color: var(--muted-ink);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.speaker-correction__trigger:hover {
+  color: var(--accent);
+}
+
+.transcript-stage:has(.speaker-correction) .return-latest {
+  display: none;
 }
 
 .transcript-meta {

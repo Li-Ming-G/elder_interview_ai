@@ -818,3 +818,14 @@
 - Implementation evidence: 已更新任务板、C2 任务卡、冲突索引/日志与交接，并向独立实现任务发出边界纠正；尚未产生 deletion 业务代码。
 - Lesson: “契约已设计”不等于“基础设施已存在”。消费者提前创建没有合法生产者的数据表，通常不是安全加固，而是难以验证的假能力；应保留最终不变量，同时明确实施依赖和回接门禁。
 - Better future prompt: “若 deletion scope producer 已实现，则复用统一 guard；若尚未实现，登记延期集成并保持正式要求，不要为当前任务创建孤立删除模型。”
+
+### 2026-08-09 — DEV-004C2 角色修正 producer REVIEW 候选
+
+- User outcome: 在不覆盖原始转录证据、不抢跑 AI consumer 或删除子系统的前提下，交付可重放单段修正、持久稳定批量 preview/原子 execute，以及首次工作台低负担单段 UI。
+- Review mode: Correction mode；iteration-coach 恰好一次独立只读复核指出正式 deletion scope 缺少运行时 producer/read model。总控以 CON-023 冻结“不造半模型、保留未来回接门禁”；`$impeccable` 仅约束行内层级、44px、焦点/live、reduced motion 和小屏遮挡。
+- Review finding: 批量 stale 不能只比较 preview 中已有成员；迟到 final 是范围 phantom，必须让 final ingestion 与 execute 共享 session 锁，并在 execute 锁后重建完整闭区间。preview membership 必须包含被排除成员，否则无法区分“当时排除”与“后来消失”。
+- Adopted decision: 所有 C2 写操作使用 `request_id -> session` 固定锁序；preview 保存完整候选、每段 revision 与排除 flag/hash/counts；execute 全量重读后全成全败。单段工作台原位展开，冲突只重读 canonical 服务端事实。删除 scope 留 CON-023，不创建 no-op/孤立表。
+- Implementation evidence: unit 223、PostgreSQL integration 57（C2 8）、auth 13、Chromium 9、空库 deploy/status 与 C1 fixture 前向升级通过；390/320 视觉复核发现浮动“回到最新”覆盖行内取消操作，编辑期间隐藏该浮层后回归通过。
+- Verification boundary: project restricted/deleted 已实现；session/segment deletion scope `NOT IMPLEMENTED / NOT VERIFIED`，相关 `09` 项不列 PASS。复杂批量 UI、AI stale/recompute、真实 provider 和完整删除链路未实现；状态仅 REVIEW。
+- Lesson: “完整集合”是并发语义，不只是响应计数；若范围生产者不与执行共享锁，保存再多成员也无法证明没有 phantom。安全契约缺生产者时应明确延期集成，而不是用永远不命中的 guard 制造合规幻觉。
+- Better future prompt: “请让范围内新增/删除与执行共享锁并在锁后重建完整集合；preview 持久全部候选、版本和排除结果。若安全 scope 尚无合法 producer，明确 NOT IMPLEMENTED/NOT VERIFIED 和回接任务，不要创建 no-op guard。”

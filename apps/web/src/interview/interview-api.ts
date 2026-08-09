@@ -16,6 +16,10 @@ import type {
   BeginSpeakerCalibrationRequest,
   ResolveSpeakerCalibrationRequest,
   SpeakerCalibrationSnapshot,
+  CorrectTranscriptSpeakerRoleRequest,
+  SpeakerRoleCorrectionResponse,
+  TranscriptPageResponse,
+  TranscriptSegmentResponse,
 } from '@elder-interview/contracts';
 import type { ImmutableAudioChunk } from '../audio/types.js';
 
@@ -86,9 +90,20 @@ export interface SpeakerCalibrationApi {
   ): Promise<SpeakerCalibrationSnapshot>;
 }
 
+export interface SpeakerCorrectionApi {
+  correctTranscriptSpeakerRole(
+    transcriptSegmentId: string,
+    request: CorrectTranscriptSpeakerRoleRequest,
+  ): Promise<SpeakerRoleCorrectionResponse>;
+  getTranscriptSegment(
+    sessionId: string,
+    transcriptSegmentId: string,
+  ): Promise<TranscriptSegmentResponse>;
+}
+
 export function createInterviewApi(
   csrfToken: string,
-): InterviewApi & InterviewCaptureApi & SpeakerCalibrationApi {
+): InterviewApi & InterviewCaptureApi & SpeakerCalibrationApi & SpeakerCorrectionApi {
   async function read<T>(path: string): Promise<T> {
     return request<T>(path, { cache: 'no-store', credentials: 'same-origin' });
   }
@@ -102,6 +117,15 @@ export function createInterviewApi(
         'X-CSRF-Token': csrfToken,
       },
       method: 'POST',
+    });
+  }
+
+  async function patch<T>(path: string, body: unknown): Promise<T> {
+    return request<T>(path, {
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      method: 'PATCH',
     });
   }
 
@@ -122,6 +146,28 @@ export function createInterviewApi(
       read(`/api/v1/sessions/${sessionId}`),
     getSpeakerCalibration: async (sessionId): Promise<SpeakerCalibrationSnapshot> =>
       read(`/api/v1/sessions/${sessionId}/speaker-calibration`),
+    correctTranscriptSpeakerRole: async (
+      transcriptSegmentId,
+      input,
+    ): Promise<SpeakerRoleCorrectionResponse> =>
+      patch(`/api/v1/transcripts/${transcriptSegmentId}/speaker-role`, input),
+    getTranscriptSegment: async (
+      sessionId,
+      transcriptSegmentId,
+    ): Promise<TranscriptSegmentResponse> => {
+      let cursor: string | null = null;
+      do {
+        const query = new URLSearchParams({ limit: '500' });
+        if (cursor !== null) query.set('cursor', cursor);
+        const page = await read<TranscriptPageResponse>(
+          `/api/v1/sessions/${sessionId}/transcripts?${query.toString()}`,
+        );
+        const segment = page.items.find(({ id }) => id === transcriptSegmentId);
+        if (segment !== undefined) return segment;
+        cursor = page.next_cursor;
+      } while (cursor !== null);
+      throw new InterviewApiError('NOT_FOUND', '转录片段已不可用，请重新核对当前会话', 404);
+    },
     loadPreparation: async (projectId, sessionId): Promise<PreparationData> => {
       const [project, serviceTerms, consents, session] = await Promise.all([
         read<ProjectResponse>(`/api/v1/projects/${projectId}`),
@@ -214,6 +260,12 @@ function safeMessage(code: unknown): string {
       return '仍有录音分片尚未保存完整，请保持页面打开并重新核对';
     case 'SESSION_FINALIZATION_UNAVAILABLE':
       return '管理服务暂时无法收束本次访谈，请稍后重新核对';
+    case 'SPEAKER_ROLE_VERSION_CONFLICT':
+      return '说话人角色已由其他操作更新，已重新读取最新事实';
+    case 'SPEAKER_ROLE_UPDATE_FORBIDDEN':
+      return '当前授权、分配或项目状态不允许修正说话人角色';
+    case 'SPEAKER_REMAP_PREVIEW_STALE':
+      return '批量预览已失效，请重新生成预览后再执行';
     default:
       return '操作未能完成，请核对当前状态后重试';
   }

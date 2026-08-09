@@ -24,6 +24,40 @@ test('real controller facts drive the complete workbench state and responsive sc
   await page.getByRole('button', { name: '开始访谈' }).click();
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
   await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
+  const micBeforeCorrection = await page.evaluate(() =>
+    Number(Reflect.get(globalThis, '__micRequests')),
+  );
+  await page.setViewportSize({ height: 844, width: 390 });
+  const firstLine = page.locator('.transcript-line').first();
+  await firstLine.getByRole('button', { name: '修正角色' }).click();
+  const roleSelect = firstLine.getByRole('combobox', { name: '角色' });
+  await expect(roleSelect).toBeFocused();
+  await roleSelect.selectOption('interviewer');
+  const correctionControls = firstLine.locator('.speaker-correction').locator('button, select');
+  expect(
+    Math.min(
+      ...(await correctionControls.evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().height),
+      )),
+    ),
+  ).toBeGreaterThanOrEqual(44);
+  await firstLine.getByRole('button', { name: '保存' }).click();
+  await expect(firstLine.getByText('倾听员', { exact: true })).toBeVisible();
+  await expect(firstLine.getByText('角色已修正为倾听员')).toBeAttached();
+  expect(server.correctionRequests).toBe(1);
+
+  await page.setViewportSize({ height: 568, width: 320 });
+  server.conflictNextCorrection();
+  await firstLine.getByRole('button', { name: '修正角色' }).click();
+  await firstLine.getByRole('combobox', { name: '角色' }).selectOption('elder');
+  await firstLine.getByRole('button', { name: '保存' }).click();
+  await expect(firstLine.getByText(/已重新读取服务端事实/)).toBeAttached();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(0);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
+    micBeforeCorrection,
+  );
   await captureStateMatrix(page, 'recording');
   expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
   expect(server.createdSessions).toBe(1);
@@ -255,6 +289,8 @@ async function installWorkbenchHarness(
   initiallyStarted = false,
 ): Promise<{
   completeRequests: number;
+  conflictNextCorrection: () => void;
+  correctionRequests: number;
   createdSessions: number;
   finalizeRequests: number;
   setState: (state: HarnessState) => void;
@@ -265,7 +301,14 @@ async function installWorkbenchHarness(
   let captureStatus: 'preparing' | 'active' | 'interrupted' | 'stopped' | 'abandoned_empty' =
     'active';
   let audioStreamId = '99999999-9999-4999-8999-999999999999';
-  const counts = { completeRequests: 0, createdSessions: 0, finalizeRequests: 0, stopRequests: 0 };
+  let nextCorrectionConflicts = false;
+  const counts = {
+    completeRequests: 0,
+    correctionRequests: 0,
+    createdSessions: 0,
+    finalizeRequests: 0,
+    stopRequests: 0,
+  };
 
   await page.addInitScript((): void => {
     Reflect.set(globalThis, '__micRequests', 0);
@@ -548,6 +591,31 @@ async function installWorkbenchHarness(
         ),
       });
     }
+    if (/^\/api\/v1\/transcripts\/[^/]+\/speaker-role$/u.test(path) && method === 'PATCH') {
+      counts.correctionRequests += 1;
+      if (nextCorrectionConflicts) {
+        nextCorrectionConflicts = false;
+        return route.fulfill({
+          json: { code: 'SPEAKER_ROLE_VERSION_CONFLICT', details: {}, message: 'conflict' },
+          status: 409,
+        });
+      }
+      const body = request.postDataJSON() as {
+        corrected_speaker_role: 'elder' | 'interviewer' | 'unknown';
+      };
+      return route.fulfill({
+        json: {
+          operation_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          segment: transcriptSegment(body.corrected_speaker_role, 1),
+          speaker_role_revision: 1,
+        },
+      });
+    }
+    if (path === `/api/v1/sessions/${SESSION_ID}/transcripts` && method === 'GET') {
+      return route.fulfill({
+        json: { items: [transcriptSegment('interviewer', 1)], next_cursor: null },
+      });
+    }
     if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
       if (!started) {
         return route.fulfill({ json: sessionPayload('device_check', null, audioStreamId) });
@@ -603,6 +671,12 @@ async function installWorkbenchHarness(
     get completeRequests(): number {
       return counts.completeRequests;
     },
+    conflictNextCorrection: (): void => {
+      nextCorrectionConflicts = true;
+    },
+    get correctionRequests(): number {
+      return counts.correctionRequests;
+    },
     get createdSessions(): number {
       return counts.createdSessions;
     },
@@ -613,6 +687,25 @@ async function installWorkbenchHarness(
     get stopRequests(): number {
       return counts.stopRequests;
     },
+  };
+}
+
+function transcriptSegment(role: 'elder' | 'interviewer' | 'unknown', revision: number): unknown {
+  return {
+    content_kind: 'conversation',
+    corrected_speaker_role: role,
+    corrected_text: null,
+    effective_speaker_role: role,
+    end_ms: 2_000,
+    id: 'segment-0',
+    original_speaker_role: 'elder',
+    original_speaker_role_authority: 'unconfirmed',
+    original_text: '那时候我们住在河边。',
+    speaker_provider_id: 'speaker-0',
+    speaker_role_revision: revision,
+    speaker_stream_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    start_ms: 0,
+    trusted_effective_speaker_role: role,
   };
 }
 
