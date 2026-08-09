@@ -703,6 +703,8 @@
 - Correction: 在服务端可信 ASR 边界统一映射 start/end；浏览器 wire PCM 继续保持 generation-relative，服务端持久化/广播/drain 使用 session timeline。未修改公共 API、数据库、枚举或 interruption reason。
 - Evidence: integration 验证 generation 1 wire PCM `0..100ms` 而 interim/final/drain 从 offset 开始；桌面 5 分钟正式链路与 OnePlus/Android 约 8分21秒正式链路都保持唯一 object。Android 恢复 offset 与首个 generation 1 转录 start 同为 `436604ms`，最终 491/491 manifest、ASR drained、session completed。
 - Boundary: 真实供应商、云存储、生产部署、跨设备恢复、iPhone Safari、完整回顾/导出/删除均未扩展；本地只使用虚构内容，不提交 audio Blob。候选只到 REVIEW，CON-020/021/022 仍 OPEN，最终 PASS 只由项目负责人在 GitHub 对 final head 手动给出。
+- Lesson: capture generation 的 PCM 线时钟与 session 业务时间轴是两个边界；offset 必须由服务端在消费 ASR 结果时统一应用，不能要求浏览器伪造累计 PCM，也不能只把 offset 存进数据库而不消费。
+- Better future prompt: “在恢复链路中同时断言 wire PCM 从 0 重置、服务端转录从 offset 延续，并分别记录原始 generation clock 与 session timeline，避免把持久化字段误当作已生效行为。”
 
 ### 2026-08-09 — DEV-005R4 与首次访谈页面闭环正式收口
 
@@ -712,5 +714,14 @@
 - Implementation evidence: 桌面 5 分钟、OnePlus Android 约 8分21秒，刷新恢复 identity、双时钟、491/491 manifest、ASR drained、completed 与普通音量/安静输入证据均经项目负责人复核；P0/P1=0。
 - Verification boundary: 单台目标 Android、内部虚构内容、test ASR/no-cloud storage；不外推所有 Android，不包含 iPhone、真实供应商、云存储、跨设备恢复或生产部署。
 - Lesson: 父纵向任务只有在业务对象不变量、原始证据、恢复代时间轴与服务端终态同时闭合时才能完成；页面成功或单个子任务 PASS 都不足以替代整链路证据。
-- Lesson: capture generation 的 PCM 线时钟与 session 业务时间轴是两个边界；offset 必须由服务端在消费 ASR 结果时统一应用，不能要求浏览器伪造累计 PCM，也不能只把 offset 存进数据库而不消费。
-- Better future prompt: “在恢复链路中同时断言 wire PCM 从 0 重置、服务端转录从 offset 延续，并分别记录原始 generation clock 与 session timeline，避免把持久化字段误当作已生效行为。”
+
+### 2026-08-09 — DISC-004C 说话人校准讨论启动
+
+- User outcome: 在 DEV-006 前先讨论并决定说话人校准、人工修正和角色不可信时的下游行为，再决定 DEV-004C 如何开发。
+- Review mode: Correction mode；独立只读复核指出“校准是否为 start 硬门禁”的二选一过窄，真正目标是既不阻塞原始录音，又不让错误角色污染长期记忆。
+- Review finding: 正式 provider speaker identity 只在 start 后的正式 ASR 流成立；准备页临时流不能可靠校准。刷新后新流也不能静默继承旧短 ID。现有原始角色、修正角色和映射历史边界可复用。
+- Options considered: start 前临时流硬校准；校准作为录音硬门禁；start 后同一正式流确认，失败则 unknown 且限制下游消费。推荐第三种，最终决定等待用户讨论。
+- Adopted decision: pending user choice；创建 DISC-004C 独立讨论，不启动实现。
+- Implementation evidence: 本轮仅新增讨论任务卡、提示词和任务板入口，无业务实现。
+- Lesson: 校准的核心不是让页面显示两个名字，而是定义角色可信度何时足以进入不可逆的派生数据；原始录音安全与角色语义门禁应分离。
+- Better future prompt: “请先讨论正式流内的角色确认、失败时 unknown 回退、新流重新确认和 unknown 对长期记忆的消费限制；原始录音不得因校准失败停止。”
