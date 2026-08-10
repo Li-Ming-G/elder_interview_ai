@@ -246,6 +246,15 @@ export class RealtimeTranscriptionGateway {
       this.runtimes.subscribe(runtime, (event) => {
         this.sendStored(client, event);
       });
+      this.runtimes.authorizeNotifications(runtime, async () => {
+        try {
+          state.actor = await this.access.authenticate(state.sessionToken, state.actor.id);
+          await this.access.assertActiveConnection(state.actor, runtime.sessionId);
+          return runtime.producer === client && client.readyState === client.OPEN;
+        } catch {
+          return false;
+        }
+      });
       await this.access.assertActiveConnection(state.actor, runtime.sessionId);
       if (runtime.producer !== client) {
         this.fail(client, state, 'FORBIDDEN', 4403);
@@ -356,6 +365,12 @@ export class RealtimeTranscriptionGateway {
               trusted_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
             }),
           );
+          if (persisted.segment.contentKind === 'conversation') {
+            this.runtimes.notifyFinalized({
+              segmentId: persisted.segment.id,
+              sessionId: runtime.sessionId,
+            });
+          }
           const label = persisted.segment.speakerProviderId;
           if (
             label !== null &&

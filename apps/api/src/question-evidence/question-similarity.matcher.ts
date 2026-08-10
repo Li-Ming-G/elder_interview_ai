@@ -55,6 +55,7 @@ export function normalizeQuestionDigest(value: string): string {
 
 function semanticFixtureCanonical(value: string): string {
   return value
+    .replaceAll(/如果您愿意|可以先从|能从|讲起吗|讲讲吗/gu, '')
     .replaceAll('您', '你')
     .replaceAll(/请问|能不能|能否|可以|方便|愿意/gu, '')
     .replaceAll(/小时候|童年时期/gu, '童年')

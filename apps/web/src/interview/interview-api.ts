@@ -20,6 +20,11 @@ import type {
   SpeakerRoleCorrectionResponse,
   TranscriptPageResponse,
   TranscriptSegmentResponse,
+  ManualNextSuggestionRequest,
+  SuggestionHistoryPageResponse,
+  SuggestionPresentationResponse,
+  SuggestionRequestAcceptedResponse,
+  SuggestionRequestStatusResponse,
 } from '@elder-interview/contracts';
 import type { ImmutableAudioChunk } from '../audio/types.js';
 
@@ -101,9 +106,29 @@ export interface SpeakerCorrectionApi {
   ): Promise<TranscriptSegmentResponse>;
 }
 
+export interface SuggestionApi {
+  getCurrentSuggestion: (sessionId: string) => Promise<SuggestionPresentationResponse>;
+  getSuggestionHistory: (
+    sessionId: string,
+    input?: { anchor?: string | null; cursor?: string | null; limit?: number },
+  ) => Promise<SuggestionHistoryPageResponse>;
+  getSuggestionRequest: (
+    sessionId: string,
+    requestId: string,
+  ) => Promise<SuggestionRequestStatusResponse>;
+  requestNextSuggestion: (
+    sessionId: string,
+    input: ManualNextSuggestionRequest,
+  ) => Promise<SuggestionRequestAcceptedResponse>;
+}
+
 export function createInterviewApi(
   csrfToken: string,
-): InterviewApi & InterviewCaptureApi & SpeakerCalibrationApi & SpeakerCorrectionApi {
+): InterviewApi &
+  InterviewCaptureApi &
+  SpeakerCalibrationApi &
+  SpeakerCorrectionApi &
+  SuggestionApi {
   async function read<T>(path: string): Promise<T> {
     return request<T>(path, { cache: 'no-store', credentials: 'same-origin' });
   }
@@ -144,6 +169,16 @@ export function createInterviewApi(
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
     getSession: async (sessionId): Promise<InterviewSessionResponse> =>
       read(`/api/v1/sessions/${sessionId}`),
+    getCurrentSuggestion: async (sessionId): Promise<SuggestionPresentationResponse> =>
+      read(`/api/v1/sessions/${sessionId}/suggestions/current`),
+    getSuggestionHistory: async (sessionId, input = {}): Promise<SuggestionHistoryPageResponse> => {
+      const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
+      if (input.anchor !== undefined && input.anchor !== null) query.set('anchor', input.anchor);
+      if (input.cursor !== undefined && input.cursor !== null) query.set('cursor', input.cursor);
+      return read(`/api/v1/sessions/${sessionId}/suggestions/history?${query.toString()}`);
+    },
+    getSuggestionRequest: async (sessionId, requestId): Promise<SuggestionRequestStatusResponse> =>
+      read(`/api/v1/sessions/${sessionId}/suggestion-requests/${requestId}`),
     getSpeakerCalibration: async (sessionId): Promise<SpeakerCalibrationSnapshot> =>
       read(`/api/v1/sessions/${sessionId}/speaker-calibration`),
     correctTranscriptSpeakerRole: async (
@@ -186,6 +221,8 @@ export function createInterviewApi(
       write(`/api/v1/sessions/${sessionId}/recover`, request),
     reportCaptureInterrupted: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
+    requestNextSuggestion: async (sessionId, input): Promise<SuggestionRequestAcceptedResponse> =>
+      write(`/api/v1/sessions/${sessionId}/suggestions/next`, input),
     resolveSpeakerCalibration: async (attemptId, input): Promise<SpeakerCalibrationSnapshot> =>
       write(`/api/v1/speaker-calibrations/${attemptId}/resolve`, input),
     startSession: async (sessionId, request): Promise<InterviewSessionResponse> =>

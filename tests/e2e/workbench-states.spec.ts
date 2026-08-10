@@ -205,7 +205,7 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
       const workbench = document.querySelector<HTMLElement>('.workbench');
       const header = document.querySelector<HTMLElement>('.workbench-bar');
       const content = document.querySelector<HTMLElement>('.workbench-content');
-      const suggestion = document.querySelector<HTMLElement>('.suggestion-seam');
+      const suggestion = document.querySelector<HTMLElement>('.suggestion-panel');
       const transcript = document.querySelector<HTMLElement>('.transcript-viewport');
       const firstLine = document.querySelector<HTMLElement>('.transcript-line');
       const metadata = document.querySelector<HTMLElement>('.transcript-meta');
@@ -259,10 +259,10 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
       if (viewport.width === 390) {
         expect(headerRatio).toBeGreaterThanOrEqual(0.06);
         expect(headerRatio).toBeLessThanOrEqual(0.12);
-        expect(contentRatio).toBeGreaterThanOrEqual(0.7);
-        expect(contentRatio).toBeLessThanOrEqual(0.76);
-        expect(suggestionRatio).toBeGreaterThanOrEqual(0.15);
-        expect(suggestionRatio).toBeLessThanOrEqual(0.21);
+        expect(contentRatio).toBeGreaterThanOrEqual(0.75);
+        expect(contentRatio).toBeLessThanOrEqual(0.78);
+        expect(suggestionRatio).toBeGreaterThanOrEqual(0.14);
+        expect(suggestionRatio).toBeLessThanOrEqual(0.15);
       }
       if (viewport.width === 320) {
         expect(dimensions.headerHeight).toBeLessThanOrEqual(72);
@@ -616,6 +616,9 @@ async function installWorkbenchHarness(
         json: { items: [transcriptSegment('interviewer', 1)], next_cursor: null },
       });
     }
+    if (path === `/api/v1/sessions/${SESSION_ID}/suggestions/current` && method === 'GET') {
+      return route.fulfill({ json: emptySuggestion() });
+    }
     if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
       if (!started) {
         return route.fulfill({ json: sessionPayload('device_check', null, audioStreamId) });
@@ -687,6 +690,21 @@ async function installWorkbenchHarness(
     get stopRequests(): number {
       return counts.stopRequests;
     },
+  };
+}
+
+function emptySuggestion(): unknown {
+  return {
+    display_sequence: null,
+    displayed_at: null,
+    history: { has_previous: false },
+    kind: 'continue_listening',
+    presentation_revision: 0,
+    question: null,
+    reason: null,
+    session_id: SESSION_ID,
+    snapshot_id: null,
+    withdrawal_reason: null,
   };
 }
 

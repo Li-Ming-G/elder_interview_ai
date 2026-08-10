@@ -32,4 +32,16 @@ describe('question-sim-v1', () => {
       matcher.score('你童年最难忘的事是什么？', '你退休后最难忘的事是什么？'),
     ).resolves.toBeLessThan(QUESTION_SIMILARITY_THRESHOLD);
   });
+
+  it('does not collapse distinct DEV-007B internal-demo prompts', async () => {
+    await expect(
+      matcher.score(
+        '如果您愿意，可以先从小时候住过的地方讲起吗？',
+        '如果您愿意，能从小时候住过的地方讲讲吗？',
+      ),
+    ).resolves.toBeGreaterThanOrEqual(QUESTION_SIMILARITY_THRESHOLD);
+    await expect(
+      matcher.score('如果您愿意，能从小时候住过的地方讲讲吗？', '小时候最常陪伴您的东西是什么？'),
+    ).resolves.toBeLessThan(QUESTION_SIMILARITY_THRESHOLD);
+  });
 });

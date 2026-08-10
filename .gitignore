@@ -47,6 +47,8 @@ exports/
 private-test-data/
 
 # Test artifacts
+.playwright-cli/
+output/playwright/
 playwright-report/
 test-results/
 allure-results/
