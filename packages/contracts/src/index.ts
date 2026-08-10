@@ -433,6 +433,8 @@ export interface SuggestionHistoryItem {
   displayed_at: string;
   kind: 'suggestion' | 'withdrawn';
   withdrawal_reason: SuggestionWithdrawalReason | null;
+  older_cursor: string | null;
+  newer_cursor: string | null;
 }
 
 export interface SuggestionHistoryPageResponse {
@@ -440,6 +442,11 @@ export interface SuggestionHistoryPageResponse {
   items: SuggestionHistoryItem[];
   next_cursor: string | null;
   anchor: string;
+}
+
+export interface SuggestionHistoryItemResponse {
+  session_id: string;
+  item: SuggestionHistoryItem;
 }
 
 export interface ManualNextSuggestionRequest extends IdempotentRequest {

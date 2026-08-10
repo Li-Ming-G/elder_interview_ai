@@ -1,4 +1,5 @@
 import type {
+  SuggestionHistoryItemResponse,
   SuggestionHistoryPageResponse,
   SuggestionPresentationResponse,
   SuggestionRequestAcceptedResponse,
@@ -50,6 +51,19 @@ export class QuestionController {
       await this.actors.from(request),
       validateUuid(id),
       validateHistoryQuery(query),
+    );
+  }
+
+  @Get('sessions/:id/suggestions/history/:snapshotId')
+  public async historyItem(
+    @Param('id') id: string,
+    @Param('snapshotId') snapshotId: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SuggestionHistoryItemResponse> {
+    return this.presentations.historyItem(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateUuid(snapshotId),
     );
   }
 
