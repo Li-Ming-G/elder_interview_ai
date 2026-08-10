@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与双题库/访谈旅程契约已完成。DEV-007A READY，DEV-007B 等待 A；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与双题库/访谈旅程契约已完成。DEV-007A 实现候选进入 REVIEW，DEV-007B 等待 A PASS；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/025。补转录由 HARDEN-ASR-001 后置；CON-018 已由 SPEC-AI-QUESTION-001 解决。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
 
 ## Adopted Decisions
 
@@ -150,11 +150,11 @@
 
 ### D-019 — 版本化双题库约束下一问，旅程阶段可进可退
 
-- Status: adopted product direction；formal contract 仍为 REVIEW，ADR-030 仍为 Proposed。
+- Status: adopted；formal contract 已由项目负责人 exact-head PASS，ADR-030 Accepted。
 - Evidence: 项目负责人于 2026-08-10 明确要求先做可试用第一版，以基础/深入题库承载破冰、生平轮廓和深层故事，由 AI 结合确定态转录、可信角色、DEV-006 current memory、阶段和安全事实选择或有据轻调；iteration-coach 恰好一次独立只读 Correction 复核补充原子版本发布、可验收阶段判定和轻调双重 provenance。
 - Reason: 既有契约能可靠发布和替换问题，却没有规定问题内容从哪里来、陌生关系如何渐进，也无法阻止模型在内容真空中自由生成。把内容治理和旅程先冻结，才让排序、记忆与自动更新有明确优化目标。
 - Tradeoff: 增加 CSV 校验、不可变 release、阶段判断和 provenance；换取内容负责人可直接维护、问题来源可审计、首版可用 fixture 快速打通且不冒充产品内容。
-- Boundary: CSV 只作交换/编辑，数据库才是运行时事实；题库是正常内容源，不是 AI unavailable 静态兜底。固定题数/时间不能单独切阶段；synthetic fixture 仅限 test/internal demo，正式内部试用前必须导入负责人题库。CON-025 在项目负责人 GitHub PASS 前保持 OPEN，A/B 不开工。
+- Boundary: CSV 只作交换/编辑，数据库才是运行时事实；题库是正常内容源，不是 AI unavailable 静态兜底。固定题数/时间不能单独切阶段；synthetic fixture 仅限 test/internal demo，正式内部试用前必须导入负责人题库。DEV-007A 只交付基础设施与确定性 seam，B 在 A PASS 前不启动。
 
 ## Assumptions to Validate
 
@@ -1001,3 +1001,29 @@
 - Decision: SPEC-QUESTION-JOURNEY-001 DONE，ADR-030 Accepted，CON-025 RESOLVED，DEV-007A READY；DEV-007B 仍等待 A。项目负责人可并行准备 14 列题库，A 先用 synthetic fixture 建设导入/版本/阶段/确定性选择 seam。
 - Guardrail: fixture 不得进入正式内部试用；A 不实现 LLM 轻调、QuestionEvidence 发布或页面，B 不得在 A PASS 前启动。公开题库必须先核验来源与许可。
 - Lesson: 探索期可以让内容准备与基础设施并行，但必须先冻结交换格式、运行时事实、选择边界和验收等级，避免“先写几道题”偷偷变成不可追溯的产品内容。
+
+### 2026-08-10 — DEV-007A 题库基础设施与确定性旅程实现
+
+- User outcome: 从最新 `origin/main` 实现严格 14 列题库导入、不可变 release、原子 activate/retire、active reader、`question_condition_v1`、`journey_policy_v1` 与仅供 DEV-007B 消费的 deterministic seam；只用明确 synthetic fixture 做 internal demo，不提前实现 B。
+- Review mode: Learning mode；iteration-coach 恰好一次独立只读复核，未发现需暂停的产品/契约偏差。
+- Review finding: 最容易越界的部分不是 CSV parser，而是把 journey/source/purpose 提前写入 DEV-006 的 attempt/candidate/snapshot，或另建 history。复核确认 A 只新建 release/item 并返回确定性决策/eligible 投影；B 以后必须经既有 QuestionEvidence writer 持久化发布事实。复核同时要求 fatal UTF-8、正确 quoted CSV、raw/canonical digest 分离、许可矩阵、事务锁、数据库不可变与完整 basis hash。
+- Options considered: 以 CSV/JSON 直接作为 runtime 权威、导入 PostgreSQL versioned release；在 A 修改 QuestionEvidence 表、只提供无持久化 seam；容错条件去重、严格拒绝非法集合。采用数据库权威 release、A/B 单一所有权 seam 和严格拒绝，避免内容漂移、双 history 与静默修正。
+- Adopted decision: release/item 由本轮 migration 单一拥有，导入全量校验后只创建 draft；request/version/scope advisory lock 与数据库 trigger/index 共同保证精确幂等、不可变和原子激活。reader 只返回 active+enabled+licensed+condition-compatible item 和原 purpose；journey evaluator 规范化受控 signals/watermarks 后按冻结优先级输出 stage/reasons/basis hash；deterministic selector 明确只作基础设施测试 fake。
+- Implementation evidence: `apps/api/prisma/migrations/20260810193000_dev007a_question_bank`、Prisma schema、`apps/api/src/question-bank`、受控 `question-bank-cli.ts`、AppModule 注册、CSV/journey unit、PostgreSQL/auth tests 与既有 `docs/question-bank/question-bank-internal-demo.fixture.csv`；未改 QuestionEvidence 表/Writer、REST/WS、页面或 DEV-007B 编排。
+- Verification evidence: 专用空 PostgreSQL 库 12 migrations deploy/status；format/lint/typecheck/build/diff 通过；unit 37 files/261 tests、integration 12/71、auth 4/18、smoke、Chromium 9/9、real Web/API auth Chromium 4/4 通过。默认 `4173` 占用后使用隔离 Web 端口；auth proxy 保持既有 API `3101` 后通过，未修改测试目标。
+- Verification boundary: 仅证明 internal demo 和 A 的工程 seam。正式题库内容尚未提供，产品内容质量/许可、正式内部试用、LLM/轻调/publication/current/history/manual-next/UI 均未实现或验收；任务保持 REVIEW，DEV-007B 保持 BLOCKED，等待非 Draft PR exact-head CI 与项目负责人手动审查。
+- Lesson: 在共享事件表已由另一模块拥有时，正确的基础设施交付是“返回足以持久化的确定性事实”，而不是为便利提前复制发布状态。数据库不可变保护内容版本，basis hash 保护决策输入；两者分别回答“选自哪版内容”和“为什么得到这个阶段”，不能互相替代。
+- Better future prompt: “请只在 A 中持久化它拥有的内容版本；对下游发布事实给出含版本、purpose、stage、reason 和完整 basis hash 的只读 seam，并列出明确禁止写入的既有 owner 表。”
+
+### 2026-08-10 — DEV-007A membership seal 与可信环境两项 P1 定向修复
+
+- User outcome: 永久保留 PR #24 old exact head `5cea9726994656c6a95babdcb6bc8f3f7ce4014e`、CI `31385629751` SUCCESS 与项目负责人正式 REQUEST_CHANGES（P0=0/P1=2），只闭合 release membership 可追加和 CLI 环境可伪装问题；DEV-007A 保持 REVIEW、DEV-007B 保持 BLOCKED，不合并、不自行 PASS/DONE。
+- Review mode: Correction mode；本轮恰好一次独立只读复核。复核确认两项都是既有 `04/05/08/09` 数据完整性与 fixture 门禁的落实，不改变 ADR-030 冻结产品语义、QuestionEvidence 所有权、安全/许可边界或跨模块契约，无需暂停。
+- Review finding: 只禁止 item UPDATE/DELETE 不等于不可变 release，draft 在 import 提交后仍能被追加；只由 service 记住“导入完成”也不能证明实际 count/digest。`--environment` 同样只是操作者声明，不能代表进程所在部署环境；仓库现有可信事实是经共享 schema 校验的 `APP_ENV=local|test|staging|production`，其中 staging 对应正式内部试用，internal_demo 是 release scope 而非部署身份。
+- Options considered: 仅按 parent status 禁止 INSERT、transaction-local GUC、未提交构建窗口 + database seal/deferred invariant；继续保留 CLI environment 权威、参数与 APP_ENV 必须相等、删除覆盖参数并只信 APP_ENV。采用未提交窗口 + seal/deferred 和删除覆盖权；前两种 seal 方案分别不能封住 imported draft 或可被同数据库角色伪装，参数相等方案仍混淆 internal-demo scope 与部署身份。
+- Adopted decision: release 保存 `item_count/membership_sealed_at`；同一导入事务按 create unsealed draft → createMany → PostgreSQL 重算 UTF-8 byte-length-framed canonical membership SHA-256 → seal → deferred commit check 执行。seal 后 draft/active/retired 的 item INSERT/UPDATE/DELETE 全部拒绝，scope/source/license 在 INSERT 窗口也由数据库重检。CLI 明确拒绝 `--environment`；service/reader 注入由 `APP_ENV` 映射的可信环境，request binding/audit 保存该环境，staging/production 对 fixture 写入和读取失败关闭。
+- Implementation evidence: 最小同步 `02/04/05/08/09`；修订 PR 尚未合入 main 的 DEV-007A migration、Prisma release 字段、CSV canonical digest、question-bank module/service/reader/CLI 与 config APP_ENV loader；真实 PostgreSQL 反例覆盖正常 seal、actual count/digest、三状态 direct INSERT、mismatch/fixture bypass 全事务回滚；CLI/auth 覆盖可信 APP_ENV 与伪造参数。未修改 request replay 主体、activation transaction、condition/journey、QuestionEvidence、UI 或 DEV-007B。
+- Verification evidence: 专用空 PostgreSQL 库从零应用 12 migrations 且 status up to date；format/lint/typecheck/build/diff、unit 38 files/265 tests、PostgreSQL integration 12/73、auth 4/23、smoke、Chromium 9/9 与 real Web/API auth Chromium 4/4 全部通过。已跑真实音频 E2E 的库因既有 auth 清理顺序被残留 capture 外键阻止，未修改测试目标，改用新空库完整复跑 auth 通过。
+- Verification boundary: 新 exact head 与 GitHub CI 尚待生成；当前只是 REV-035 两项 P1 的修复候选，不代表项目负责人已关闭意见。正式题库仍缺失，fixture 只证明 `APP_ENV=local|test` 下 internal demo，产品内容/正式内部试用仍未验收。
+- Lesson: 集合不可变必须建模为“提交前私有构建 + 提交前数据库证明 + 提交后封存”，而不是把 parent 状态或 service 调用顺序当作事实。内容声明只决定 release scope，部署配置才决定该进程是否有权操作或读取它。
+- Better future prompt: “把 release 作为提交前不可见的集合聚合：数据库在 commit 前验证 sealed/count/canonical digest，seal 后拒绝 item INSERT/UPDATE/DELETE；所有 fixture 权限仅由 injected APP_ENV 决定，CLI 不接受环境覆盖。”

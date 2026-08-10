@@ -18,6 +18,7 @@ import { RequestIdMiddleware } from './http/request-id.middleware.js';
 import { createMemoryModule } from './memory/memory.module.js';
 import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
 import { createQuestionEvidenceModule } from './question-evidence/question-evidence.module.js';
+import { createQuestionBankModule } from './question-bank/question-bank.module.js';
 import { createRealtimeTranscriptionModule } from './realtime-transcription/realtime-transcription.module.js';
 import { createTranscriptionModule } from './transcription/transcription.module.js';
 
@@ -37,6 +38,7 @@ export class AppModule implements NestModule {
       aiRuntimeModule,
       ['local', 'test'].includes(config.appEnv),
     );
+    const questionBankModule = createQuestionBankModule(authModule, config.appEnv);
     return {
       controllers: [HealthController],
       global: true,
@@ -52,6 +54,7 @@ export class AppModule implements NestModule {
           realtimeModule,
           transcriptionModule,
         ),
+        questionBankModule,
         transcriptionModule,
         questionEvidenceModule,
         realtimeModule,

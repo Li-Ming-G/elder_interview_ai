@@ -610,3 +610,14 @@ P2：
 - 正式结论：`PASS`；P0=0、P1=0。条件逻辑 v1、`journey_policy_v1` 的 reason/优先级/稳定输出，以及 14 列 `purpose` / `adaptation_reason_code_v1` 三项旧 P1 全部关闭。
 - 合并：PR #23 以 merge commit `f0bff3f029716804175000fab0d4441ec6585bf4` 合入 main；SPEC-QUESTION-JOURNEY-001 DONE，ADR-030 Accepted，CON-025 RESOLVED，DEV-007A READY。
 - 边界：DEV-007B 继续等待 DEV-007A PASS；synthetic fixture 只用于 test/internal demo，正式内部试用前必须导入项目负责人题库；CON-023 与真实模型/试点边界不变。
+
+## REV-035｜DEV-007A PR #24 项目负责人首轮审查
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #24，分支 `codex/dev-007a-question-bank`。
+- 被审 exact head：`5cea9726994656c6a95babdcb6bc8f3f7ce4014e`；CI `31385629751` completed / success。绿色 CI 只证明旧候选门禁执行成功，不替代数据不变量与环境门禁审查。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=2。DEV-007A 保持 `REVIEW`，DEV-007B 保持 `BLOCKED`；不得合并或自行宣布 PASS/DONE。
+- P1-1：item immutable trigger 只拦 UPDATE/DELETE，import 完成后的 draft、active、retired release 仍可直接 INSERT item；数据库没有 seal、actual count 与 content digest 一致性不变量，可能改变 runtime membership 或绕过 fixture/license 校验。
+- P1-2：受控 CLI 的 `--environment` 被 service 直接作为 fixture import/activate/retire 门禁事实，production/正式内部环境可伪装 test/internal_demo；必须改用可信部署配置并在 service/reader 继续失败关闭。
+- 定向修复边界：只补 release membership seal、数据库 count/digest/scope/license 不变量与可信 `APP_ENV` 门禁；不重写 request replay、激活事务、CSV condition/journey 逻辑，不实现 LLM、QuestionEvidence publication、current/history/manual-next、UI 或 DEV-007B。
+- 修复候选：采用同事务未提交 draft 构建窗口、数据库 canonical digest/count seal 与 deferred commit integrity；seal 后所有状态 item INSERT/UPDATE/DELETE 均拒绝。CLI 移除环境覆盖权，`APP_ENV=staging` 映射正式内部环境，`internal_demo` 只保留 release scope。本地 12 migrations、unit 265、PostgreSQL integration 73、auth 23、smoke、Chromium 9+4 与静态门禁全绿；新 exact head/CI 待推送后绑定，仍仅请求项目负责人定向复审。
+- 历史保留：本记录的 old exact head、CI SUCCESS、REQUEST_CHANGES 与 P1=2 永久有效；后续修复候选或复审结论不得覆盖、改写或删除本次事实。
