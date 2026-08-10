@@ -3,11 +3,11 @@
 ## 基本信息
 
 - 任务：SPEC-AI-QUESTION-001｜单问题自动更新、手动下一问与展示历史契约
-- 状态：REVIEW
+- 状态：DONE
 - 分支：`codex/spec-ai-question-001`
 - 基线：`main@1d2b4daf207f21d25ab8df4d1f5d9b1f22ced299`
 - PR：[GitHub #21](https://github.com/Li-Ming-G/elder_interview_ai/pull/21)（非 Draft）；exact final head/CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
-- 审查权：仅项目负责人可在 GitHub 对 exact final head 给出 PASS；执行 Agent 不自验关闭、不合并
+- 最终审查：项目负责人对 final head `af088ed6165c979e8de2e469900ee6519fafe183`、CI `31352681061` attempt 2 手动审查 PASS，P0/P1=0；PR merge `10fcc5c6580fa8285f54866f6252e5806b0f932a`
 
 ## 契约候选
 
@@ -36,8 +36,7 @@
 
 ## 风险与未决项
 
-- 当前状态仅 REVIEW。项目负责人尚未对 exact final head/CI 给出 GitHub 手动审查结论；不得标记 PASS/DONE 或合并；
-- CON-018 在项目负责人 PASS 前继续 OPEN，DEV-007 继续 BLOCKED；
+- 契约已 DONE、CON-018 RESOLVED；DEV-007 仍等待 DEV-006 PASS，不得把本契约 PASS 当成功能实现；
 - CON-023 deletion runtime 仍 `NOT IMPLEMENTED / NOT VERIFIED`，本任务只保留失败关闭契约，没有伪造 producer/read model；
 - 真实 LLM/embedding、固定供应商、试点质量门槛、生产部署和页面实现均未授权；默认阈值需在 DEV-007 内部虚构/脱敏 fixture 上校准，不能被解释为生产质量承诺。
 

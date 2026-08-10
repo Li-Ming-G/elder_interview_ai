@@ -27,7 +27,8 @@
 | DEV-004C1 | REV-028 | PR #18 / final head `a984587` / CI `31305357363` PASS / merge `99b090d` | DONE | 用户明确委派总控代行定向复审；P0/P1=0，旧三项 P1 全部关闭。C2、父 DEV-004、DISC-006 与 SPEC-DEV-006 后续均已 DONE；DEV-006 READY |
 | DEV-004C2 | REV-029 | PR #19 / final head `757bf52` / CI `31310993567` PASS / merge `83cdfef` | DONE | 用户明确委派总控代行定向复审；P0/P1=0，客户端稳定 correction request ID 的唯一 P1 已关闭。deletion scope 未实现/未验证，CON-023 OPEN；父 DEV-004 后续由 REV-030 收口 |
 | DEV-004 | REV-030 | main `004dacc` / CI `31311278529` PASS / 产品范围决定 | DONE | 项目负责人决定当前内部 MVP 不以补转录为门槛；A/B/C 全部既有审查通过，原始录音、manifest、安全结束、降级可见与不伪造 final 仍是硬门禁。补转录后置 HARDEN-ASR-001；DISC-006 与 SPEC-DEV-006 后续已 DONE |
-| SPEC-DEV-006 | REV-031 | PR #20 / final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c` / CI `31326717132` PASS / merge `6289c87` | DONE / PASS | 三项 P1 全部关闭，P0/P1=0。旧 head `2b6a5da` REQUEST_CHANGES 永久保留；ADR-027 Accepted，DEV-006 与 SPEC-AI-QUESTION-001 READY；CON-018/023 继续 OPEN |
+| SPEC-DEV-006 | REV-031 | PR #20 / final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c` / CI `31326717132` PASS / merge `6289c87` | DONE / PASS | 三项 P1 全部关闭，P0/P1=0。旧 head `2b6a5da` REQUEST_CHANGES 永久保留；ADR-027 Accepted，DEV-006 READY；CON-023 继续 OPEN，CON-018 后续由 REV-032 解决 |
+| SPEC-AI-QUESTION-001 | REV-032 | PR #21 / final head `af088ed6165c979e8de2e469900ee6519fafe183` / CI `31352681061` attempt 2 PASS / merge `10fcc5c` | DONE / PASS | 项目负责人手动 GitHub 审查，P0/P1=0；自动替换、manual intent fence、REST canonical、无正文 WS、稳定 history 与硬撤下契约通过。attempt 1 既有 1 秒时序 flake 非阻塞；CON-018 RESOLVED，DEV-007 只等待 DEV-006 |
 
 ## 阅读规则
 

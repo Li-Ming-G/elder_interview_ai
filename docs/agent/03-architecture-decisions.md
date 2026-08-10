@@ -271,7 +271,7 @@
 
 ## ADR-029｜问题内容以 REST 为权威，发布顺序、生成意图与安全可见性分离
 
-- 状态：Proposed（SPEC-AI-QUESTION-001 REVIEW，等待项目负责人 GitHub exact-head 审查）
+- 状态：Accepted（REV-032；PR #21 final head `af088ed6`，merge `10fcc5c`）
 - 决定：REST current/history/next/request-status 是问题内容的 canonical 接口；WebSocket 1.2 只发布无正文 `suggestion.presentation.changed` revision notification。服务端分别维护单调 `presentation_revision`、`display_sequence` 和 `manual_intent_sequence`：前者裁决 current CAS，第二个形成不可变历史总序，第三个阻止旧 automatic 结果覆盖新的手动意图。
 - 自动稳定性：采用版本化内部 comparator 与 `question-sim-v1`，默认分差 0.12、current dwell 15 秒、debounce 1500 ms、相似阈值 0.88；这些值配置化并随 attempt/snapshot 记录版本，不进入公共 DTO，也不把模型 confidence 当作产品事实。
 - 手动与历史：manual next 绑定 actor/session/expected current/stable request ID，同 session 单飞并按 3 秒与 60 秒 6 次节流；只有 committed 结果可证明 explicitly replaced。history 以 `(display_sequence,id)` 签名 cursor/anchor 读取，浏览位置只在客户端，不写服务端业务状态、不触发 AI 或 actual-question。

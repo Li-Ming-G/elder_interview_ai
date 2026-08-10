@@ -560,3 +560,10 @@ P2：
 审查人：
 审查时间：
 ```
+### REV-032｜SPEC-AI-QUESTION-001 项目负责人手动审查 PASS
+
+- 审查对象：PR #21 final head `af088ed6165c979e8de2e469900ee6519fafe183`，base `main@1d2b4daf207f21d25ab8df4d1f5d9b1f22ced299`。
+- CI：`31352681061` attempt 2 completed / success；attempt 1 的既有 workbench 1 秒时序波动保留为非阻塞 flake，未修改测试目标或业务代码。
+- 正式结论：`PASS`；P0=0、P1=0。自动替换参数、manual intent fence、请求与 committed 分离、零副作用历史、REST 正文/WS 无正文通知、硬撤下和 displayed/actual-asked 分离均通过。
+- 合并：PR #21 以 merge commit `10fcc5c6580fa8285f54866f6252e5806b0f932a` 合入 main；SPEC-AI-QUESTION-001 DONE、ADR-029 Accepted、CON-018 RESOLVED。
+- 边界：DEV-007 仍等待 DEV-006；CON-023、真实供应商、生产阈值、真实数据和试点质量门槛未通过。

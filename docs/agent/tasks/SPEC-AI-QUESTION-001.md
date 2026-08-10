@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：AI/后端契约 Agent（独立 worktree：`codex/spec-ai-question-001`）
 - 前置依赖：`SPEC-FE-001 DONE`、`SPEC-DEV-006 DONE`、`DISC-AI-QUESTION-001 DONE`
 - 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、ADR-020/024/026/027/028、CON-018
@@ -68,8 +68,15 @@
 - REST current/history/next/request-status 是正文权威面；WS 1.2 只发送无正文 revision notification。current/history/anchor/replay 均动态重检 auth、consent、boundary、deletion、retention 与 policy；
 - 旧 `suggestion_action`、`attempt_kind=replace`、采用/已问/忽略/稍后/改写与一层撤销均明确废弃；曾展示仍不等于实际问过。
 
+## 最终审查与合并
+
+- 项目负责人严格绑定 final head `af088ed6165c979e8de2e469900ee6519fafe183` 手动审查 `PASS`，P0=0、P1=0；
+- CI `31352681061` attempt 2 完整 verify SUCCESS；attempt 1 的既有 1 秒时序波动保留为非阻塞 flake 记录；
+- PR #21 以 merge commit `10fcc5c6580fa8285f54866f6252e5806b0f932a` 合入 main；
+- ADR-029 转 Accepted，CON-018 RESOLVED；DEV-007 的本契约前置完成，但仍等待 DEV-006 PASS。
+
 ## 审查边界
 
 - 本次只修改正式规范与治理文档；未实现业务代码、Prisma schema/migration、页面或真实模型；
 - iteration-coach 已恰好执行一次独立只读 Learning mode 复核，已吸收 publication order、manual intent fence、cursor 总序、无正文 replay 和浏览不抢焦点建议；
-- 当前只是 REVIEW 候选，不构成项目负责人 `PASS`。CON-018 保持 OPEN，DEV-007 保持 BLOCKED；需要项目负责人在 GitHub 对非 Draft PR exact final head/CI 手动审查。
+- 本次 PASS 只代表契约完成，不代表 DEV-006/007 已实现，不代表真实 LLM/embedding、生产阈值、CON-023 deletion runtime 或真实试点通过。

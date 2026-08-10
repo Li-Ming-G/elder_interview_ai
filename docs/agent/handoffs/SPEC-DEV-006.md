@@ -14,7 +14,7 @@
 - 项目负责人对 exact final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c`、CI `31326717132` 给出 `PASS`，P0=0、P1=0；
 - 三项旧 P1 均关闭：逐业务输出 derived 关联、三类 retention root/child 生命周期、SPEC-AI 前置状态；
 - PR #20 以 merge commit `6289c87009d4377ff190de74ad582e72597ba55a` 合入 main；
-- DEV-006 与 SPEC-AI-QUESTION-001 可进入 READY；CON-018/023 继续 OPEN，deletion runtime 仍 NOT IMPLEMENTED / NOT VERIFIED。
+- DEV-006 与 SPEC-AI-QUESTION-001 可进入 READY；当时 CON-018/023 继续 OPEN。后续 CON-018 已由 SPEC-AI-QUESTION-001/REV-032 解决；CON-023 deletion runtime 仍 NOT IMPLEMENTED / NOT VERIFIED。
 
 ## 正式 REQUEST_CHANGES 历史
 
@@ -62,7 +62,7 @@
 
 - 项目负责人定向复审与 PR 合并已经完成；旧 REQUEST_CHANGES 作为历史事实继续有效，但不再阻塞当前任务；
 - SPEC-AI-QUESTION-001 与 DEV-006 已按独立治理收口进入 READY；各自仍须完成实现/契约任务和项目负责人审查；
-- CON-018 OPEN：自动替换、手动“下一个问题”、展示历史导航、节流、相似度和最终 suggestion REST/WS 由 SPEC-AI-QUESTION-001 冻结；
+- CON-018 后续状态：自动替换、手动“下一个问题”、展示历史导航、节流、相似度和最终 suggestion REST/WS 已由 SPEC-AI-QUESTION-001/REV-032 冻结并关闭；
 - CON-023 OPEN：deletion producer/read model、C2 回接与并发测试尚未实现，coverage 为 `NOT IMPLEMENTED / NOT VERIFIED`；
 - `text_revision` 与新表均是后续 DEV-006 migration 目标，当前 runtime 不具备这些能力；
 - 真实模型、真实数据、固定保留天数和质量百分比门槛均未授权。

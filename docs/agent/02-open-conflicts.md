@@ -11,7 +11,6 @@
 | CON-008 | production 用户来源启停与最终安全验收 | DEV-001B 保持 REVIEW；不阻塞内部虚构身份原型 |
 | CON-012 | consent audio object 跨 `consent_text_version` 复用规则 | 真实试点前确认并固化约束与测试 |
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
-| CON-018 | 自动替换、“下一个问题”、展示历史的幂等、相似度与持久化契约 | SPEC-AI-QUESTION-001 为 DEV-007A 硬前置；不阻塞已完成的首次访谈页面外壳 |
 | CON-023 | C2 删除 scope 门禁缺少可执行的 deletion_request producer/read model | C2 不造半模型，先覆盖现有 project restricted/deleted；DEV-008 实现正式删除子系统时必须回接 C2 并补 scope/并发测试 |
 
 ## 使用规则
