@@ -584,3 +584,10 @@ P2：
 - 定向修复边界：不重写主体，不扩 DEV-007 UI/编排；production boundary producer/read model 缺失时 `AI_POLICY_UNAVAILABLE`，local/test 只用显式 fixture；不新增 `content_marker`/deletion 半模型，不以 no-op/空集合冒充覆盖。CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 修复候选证据：新增第 11 个 forward migration 与真实 PostgreSQL 约束反例；unit 232/232、integration 65/65、auth 13/13、E2E 9/9、auth E2E 4/4、build/smoke、空库 11 与 legacy 9→11 均本地通过。新 exact head/CI 待 PR #22 push 后绑定。
 - 历史保留：本记录的 old head、CI SUCCESS、REQUEST_CHANGES 与 P1=8 永久有效；后续修复候选或复审结论不得覆盖本次事实。
+
+### REV-033 定向复审与最终接收
+
+- 定向复审对象：PR #22 exact final head `07d5ce1c75ce31e2265e78559545373ce216edb1`；CI `31363920049` completed / success；PR OPEN、非 Draft、mergeable 且 head 无漂移。
+- 正式结论：`PASS`；P0=0、P1=0。跨 session final 水位、request/trigger/retry identity、漂移 cancelled、boundary fail-closed、`question-sim-v1`、context actual-question 事务冻结、正式 QuestionEvidence writer seam 与 retention 八项旧 P1 全部关闭。
+- 合并：PR #22 以 merge commit `28fb22dede07d5d64589a30b67128f16c311f360` 合入 main；DEV-006 DONE。
+- 边界：CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；生产 boundary/deletion producer/read model 缺失时 AI 失败关闭。项目负责人随后要求先处理 CON-025 产品差异，DEV-007 保持 BLOCKED，未创建实现任务。

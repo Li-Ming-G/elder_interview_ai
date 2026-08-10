@@ -947,3 +947,8 @@
 - Implementation evidence: 第 11 个 forward migration；coordinator/policy/eligibility/retention、memory/context、QuestionEvidence 与 deterministic question-sim fake 定向修改；真实 PostgreSQL 反例覆盖 deferred watermark、漂移取消、catalog supersede 和过期/失败 root；全量门禁结果记录在 DEV-006 handoff。
 - Verification boundary: `QuestionEvidenceWriter` 只冻结唯一 owner 和正式方法名，DEV-007 编排到来前显式 unavailable，不用 no-op 伪造 publication；不新增 boundary/deletion 半模型。CON-023 保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。修复候选仍为 REVIEW，只请求项目负责人在 GitHub 对新 exact head 手动定向复审。
 - Lesson: “有最终证据但被资格过滤”与“从未有最终证据”必须是不同持久化事实；响应未知的幂等需要业务身份重放而非碰唯一键；依赖资格必须沿 root 的状态和期限验证，不能只看子记录仍存在。
+### 2026-08-10 — DEV-006 最终收口后暂停 DEV-007
+
+- Evidence: 项目负责人对 PR #22 exact head `07d5ce1c75ce31e2265e78559545373ce216edb1`、CI `31363920049` 定向复审 PASS，P0/P1=0；merge `28fb22dede07d5d64589a30b67128f16c311f360`。旧 head `d5073501` 的 REQUEST_CHANGES/P1=8 永久保留，CON-023 不变。
+- Decision: DEV-006 可以 DONE，但项目负责人明确反馈当前项目与预期有若干差异并要求暂不启动 DEV-007。将该高影响不确定性登记为 CON-025；现有技术前置完成不自动等于下一任务可开工。
+- Guardrail: 在项目负责人逐项说明差异、总控写回正式依据并明确解除暂停前，不创建 DEV-007 任务窗口、分支或 PR，不让实现 Agent自行解释产品偏差。

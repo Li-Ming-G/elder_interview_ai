@@ -9,10 +9,11 @@
 
 ## 当前可下发
 
-- [`DEV-006.md`](DEV-006.md)：后台 current memory、QuestionEvidence 基座、会后 actual-question catalog 与跨会话消费的最小纵向实现；不实现 DEV-007 问题生成/UI。
+- 暂无。DEV-006 已完成；DEV-007 因 CON-025 产品差异待对齐而保持 BLOCKED，禁止提前创建实现任务。
 
 ## 历史提示词
 
+- [`DEV-006.md`](DEV-006.md)：后台 current memory、QuestionEvidence 基座、会后 actual-question catalog 与跨会话消费；REV-033 PASS/DONE。
 - [`SPEC-AI-QUESTION-001.md`](SPEC-AI-QUESTION-001.md)：单问题自动替换、手动下一问、展示历史与安全投影契约；REV-032 PASS/DONE。
 - [`DISC-AI-QUESTION-001.md`](DISC-AI-QUESTION-001.md)：原单问题/一层撤销讨论提示词；项目负责人已暂停该框架并直接以 ADR-028 完成产品定稿，不得再次下发。
 - [`SPEC-DEV-006.md`](SPEC-DEV-006.md)：后台 current memory、问题证据、跨会话 consumer、actual asked 与过程记录契约；REV-031 PASS/DONE。
