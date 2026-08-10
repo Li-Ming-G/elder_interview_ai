@@ -2,10 +2,11 @@
 
 ## 状态与审查边界
 
-- 状态：`REVIEW`，不得由实现 Agent 宣布 PASS/DONE 或合并。
+- 状态：`DONE`；项目负责人已对 final head 定向复审 PASS，PR 已合并。
 - 基线：`origin/main@12021408242baeac99fdc89e00992bfdb0f14f1c`；分支：`codex/dev-007a-question-bank`；非 Draft [PR #24](https://github.com/Li-Ming-G/elder_interview_ai/pull/24)。
 - 首轮实现恰好一次 iteration-coach 独立只读复核采用 Learning mode：确认 A 只拥有 question bank release/item 和确定性读取/决策 seam；不得修改 DEV-006 QuestionEvidence writer、attempt/candidate/snapshot 或创建第二套 question history。
 - 项目负责人对 old exact head `5cea9726994656c6a95babdcb6bc8f3f7ce4014e`、CI `31385629751` 正式 `REQUEST_CHANGES`（P0=0/P1=2）；该事实按 REV-035 永久保留。本轮定向修复恰好一次独立只读复核采用 Correction mode，确认只闭合既有数据库完整性和可信部署门禁，无需重开 ADR-030/CON-025，也不改变 A/B/DEV-006 所有权。
+- 最终接收：final head `6b8e69e1b3170a86699338c7037374029a163978`、CI `31395799408`，项目负责人定向复审 `PASS`，P0/P1=0；merge `7f9a17326f3d388333b63bd889ec09c5de5e5f91`。
 
 ## Migration 与实现
 
@@ -33,7 +34,7 @@
 - PostgreSQL 定向测试在专用空库从零应用 12 migrations；正常 import 查询 stored/actual item count 与数据库重算 digest 一致，中文 UTF-8 内容与空条件参与同一 framing；draft、active、retired 三种状态 direct INSERT 均命中稳定 seal 错误。
 - 真实事务分别制造 count/digest mismatch 与 product-scope fixture 直接写入，均整体回滚且 0 half release；既有原子 activate/replay/reader/journey 逻辑未重写。
 - CLI/auth 定向测试证明 `--environment test` 不再可用；`APP_ENV=staging|production` 即使 validate 同一 fixture 也稳定拒绝，`APP_ENV=test` 仍允许推导 `internal_demo` scope，非法 `APP_ENV=internal_demo` 启动即失败。
-- 新 exact head 与 GitHub CI 将在提交/推送后补充；当前仍为 `REVIEW / REQUEST_CHANGES` 修复候选，不表示两项 P1 已由项目负责人关闭。
+- 两项 P1 已由项目负责人在 final head `6b8e69e1` 上确认关闭；旧 head 的 REQUEST_CHANGES 历史不变。
 
 ## Fixture、未实现与风险
 

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：Codex DEV-007A Agent
 - 前置依赖：SPEC-QUESTION-JOURNEY-001 项目负责人 GitHub PASS
 - 输入依据：`04` §4.35A-4.35B、`05` §3.9.0、`07` §10、`09` §7.7、ADR-030 Accepted

@@ -621,3 +621,10 @@ P2：
 - 定向修复边界：只补 release membership seal、数据库 count/digest/scope/license 不变量与可信 `APP_ENV` 门禁；不重写 request replay、激活事务、CSV condition/journey 逻辑，不实现 LLM、QuestionEvidence publication、current/history/manual-next、UI 或 DEV-007B。
 - 修复候选：采用同事务未提交 draft 构建窗口、数据库 canonical digest/count seal 与 deferred commit integrity；seal 后所有状态 item INSERT/UPDATE/DELETE 均拒绝。CLI 移除环境覆盖权，`APP_ENV=staging` 映射正式内部环境，`internal_demo` 只保留 release scope。本地 12 migrations、unit 265、PostgreSQL integration 73、auth 23、smoke、Chromium 9+4 与静态门禁全绿；新 exact head/CI 待推送后绑定，仍仅请求项目负责人定向复审。
 - 历史保留：本记录的 old exact head、CI SUCCESS、REQUEST_CHANGES 与 P1=2 永久有效；后续修复候选或复审结论不得覆盖、改写或删除本次事实。
+
+### REV-035 定向复审与最终接收
+
+- 定向复审对象：PR #24 exact final head `6b8e69e1b3170a86699338c7037374029a163978`；CI `31395799408` completed / success；PR 在审查时 OPEN、非 Draft、mergeable 且 head 无漂移。
+- 正式结论：`PASS`；P0=0、P1=0。数据库 membership seal/count/digest/deferred commit integrity 与可信 `APP_ENV` fixture 门禁两项旧 P1 全部关闭。
+- 合并：PR #24 以 merge commit `7f9a17326f3d388333b63bd889ec09c5de5e5f91` 合入 main；DEV-007A DONE，DEV-007B READY。
+- 边界：当前只证明 synthetic fixture internal demo；项目负责人正式 14 列题库尚未导入，正式内部试用内容、来源/许可和质量仍未验收；CON-023 不变。

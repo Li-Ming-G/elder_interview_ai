@@ -9,7 +9,7 @@
 
 ## 当前可下发
 
-- `DEV-007A` 已 READY，可按 [`DEV-007A.md`](DEV-007A.md) 创建独立实现窗口。`DEV-007B` 继续等待 DEV-007A 项目负责人 exact-head GitHub 审查 PASS，禁止提前创建实现窗口。
+- `DEV-007B` 已 READY，可按 [`DEV-007B.md`](DEV-007B.md) 创建独立实现窗口。正式题库尚未提供，开发只可使用受控 synthetic fixture 验证 internal demo；不得据此宣称正式内部试用内容可用。
 
 ## 已冻结但仍阻塞
 

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - 负责人：待分配
 - 前置依赖：SPEC-QUESTION-JOURNEY-001 PASS、DEV-007A PASS、DEV-006 DONE、SPEC-AI-QUESTION-001 DONE
 - 输入依据：`03` §9/§11、`04` §§4.36-4.39、`05` §3.9、`07` §§5-10、`09` §7.6-§7.7、ADR-027-030

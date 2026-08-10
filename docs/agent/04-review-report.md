@@ -31,7 +31,7 @@
 | SPEC-AI-QUESTION-001 | REV-032 | PR #21 / final head `af088ed6165c979e8de2e469900ee6519fafe183` / CI `31352681061` attempt 2 PASS / merge `10fcc5c` | DONE / PASS | 项目负责人手动 GitHub 审查，P0/P1=0；自动替换、manual intent fence、REST canonical、无正文 WS、稳定 history 与硬撤下契约通过。attempt 1 既有 1 秒时序 flake 非阻塞；CON-018 RESOLVED，DEV-007 技术前置已满足但按 CON-025 暂停 |
 | DEV-006 | REV-033 | PR #22 / final head `07d5ce1c75ce31e2265e78559545373ce216edb1` / CI `31363920049` PASS / merge `28fb22d` | DONE / PASS | 项目负责人手动定向复审，P0/P1=0；原八项 P1 全部关闭。旧 head `d507350` REQUEST_CHANGES/P1=8 永久保留；CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。DEV-007 因 CON-025 暂停，不自动启动 |
 | SPEC-QUESTION-JOURNEY-001 | REV-034 | PR #23 / final head `5963af98b4a807e5fa1d00ff33f8ef6b6a0e6323` / CI `31380903831` PASS / merge `f0bff3f` | DONE / PASS | 项目负责人定向复审 P0/P1=0；原三项 P1 3/3 CLOSED。old head `0f3034d` REQUEST_CHANGES/P1=3 永久保留；ADR-030 Accepted、CON-025 RESOLVED、DEV-007A READY，DEV-007B 继续 BLOCKED |
-| DEV-007A | REV-035 | PR #24 / old head `5cea9726994656c6a95babdcb6bc8f3f7ce4014e` / CI `31385629751` SUCCESS | REVIEW / REQUEST_CHANGES | 项目负责人 P0=0/P1=2；membership seal 与可信 APP_ENV 两项定向修复候选待新 exact-head CI 和人工复审。旧 head/结论永久保留；DEV-007B BLOCKED，不得合并或自行 PASS/DONE |
+| DEV-007A | REV-035 | PR #24 / final head `6b8e69e1b3170a86699338c7037374029a163978` / CI `31395799408` PASS / merge `7f9a173` | DONE / PASS | 项目负责人定向复审 P0/P1=0；membership seal 与可信 APP_ENV 两项 P1 全部关闭。old head `5cea972` REQUEST_CHANGES/P1=2 永久保留；DEV-007B READY，正式题库仍缺失 |
 
 ## 阅读规则
 

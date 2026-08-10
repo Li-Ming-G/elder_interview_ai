@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与双题库/访谈旅程契约已完成。DEV-007A 实现候选进入 REVIEW，DEV-007B 等待 A PASS；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约与 DEV-007A 基础设施已完成。DEV-007B READY；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
@@ -1027,3 +1027,10 @@
 - Verification boundary: 新 exact head 与 GitHub CI 尚待生成；当前只是 REV-035 两项 P1 的修复候选，不代表项目负责人已关闭意见。正式题库仍缺失，fixture 只证明 `APP_ENV=local|test` 下 internal demo，产品内容/正式内部试用仍未验收。
 - Lesson: 集合不可变必须建模为“提交前私有构建 + 提交前数据库证明 + 提交后封存”，而不是把 parent 状态或 service 调用顺序当作事实。内容声明只决定 release scope，部署配置才决定该进程是否有权操作或读取它。
 - Better future prompt: “把 release 作为提交前不可见的集合聚合：数据库在 commit 前验证 sealed/count/canonical digest，seal 后拒绝 item INSERT/UPDATE/DELETE；所有 fixture 权限仅由 injected APP_ENV 决定，CLI 不接受环境覆盖。”
+
+### 2026-08-10 — DEV-007A 最终接收与 DEV-007B 解锁
+
+- Evidence: 项目负责人对 PR #24 final head `6b8e69e1b3170a86699338c7037374029a163978`、CI `31395799408` 定向复审 PASS，P0/P1=0；旧 head `5cea972` REQUEST_CHANGES/P1=2 永久保留；merge `7f9a17326f3d388333b63bd889ec09c5de5e5f91`。
+- Decision: DEV-007A DONE，DEV-007B READY。B 可消费 A 的 active/eligible/journey seam 与 DEV-006 QuestionEvidence/current memory，但不得改写 A 的 release membership 或另建 history。
+- Guardrail: 正式题库未提供不阻塞 B 的 internal demo 开发，但 fixture 不得成为正式内部试用内容；B 完成也不能替代正式题库来源/许可与内容质量验收。
+- Lesson: 内容基础设施和 AI 编排可以分段验收；只要 A 的版本与环境边界真正封死，B 就能在不接触内容治理底层表的前提下安全迭代。
