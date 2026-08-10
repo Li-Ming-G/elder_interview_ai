@@ -930,3 +930,11 @@
 - Verification boundary: old head `2b6a5da1e67ef2b0e91457969a089ba79f09f465`、CI `31321844664` SUCCESS 与 REQUEST_CHANGES P0=0/P1=3 永久有效；项目负责人对 final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c`、CI `31326717132` 定向复审 PASS，PR merge `6289c87`。CON-018/023 继续 OPEN。
 - Lesson: 资格记录必须有明确业务聚合身份，否则“依赖失效”没有可执行范围；保留期也必须沿 owner 树传播，而不是在每张 child 表复制 deadline。动态状态源必须反映审查门禁，不能用未来预期替代当前事实。
 - Better future prompt: “先列出每种受资格控制业务输出及其最小失效聚合，再冻结一对一 identity、expected dependency manifest 和 retention owner；对跨 root 清理明确先隐藏、detach、再 purge，并让任务板状态严格等待项目负责人 PASS/merge。”
+### 2026-08-10 — DEV-006 后台 current memory 最小纵向链路
+
+- User outcome: 用两次虚构访谈建立 trusted final → current memory/actual asked → 跨会话 context 的可追溯后台链路，同时给 DEV-007 唯一 QuestionEvidence seam，停在 GitHub 人工审查。
+- Review mode: Learning mode；独立只读复核确认正式契约与用户目标一致，无需重开产品范围。最大风险是 deletion no-op、依赖删除后的 vacuous eligibility、human authority 被覆盖和 unjudged 空目录冒充可靠事实。
+- Options considered: 拆成 memory 与 question 两套后续实现；先只建表；按已审查 scope+membership/逐输出 derived/三类 root 一次完成最小纵向链路。采用第三种，避免第二套 question history 和不完整 provenance。
+- Adopted decision: production deletion port 未配置即 fail-closed；local/test fixture 明确不算 deletion coverage。provider call 永远在锁外；写回重检 live policy 与所有冻结 revision/digest。actual catalog 只整版可靠发布；context 只消费 current eligible facts。
+- Implementation evidence: forward-only Prisma migration；`ai-runtime`、`memory`、`question-evidence` 模块；consent policy revision producer；unit/PostgreSQL/auth/empty+legacy migration tests；任务板、追踪和交接同步。
+- Verification boundary: DEV-007 generation/display/UI 未实现；CON-023 deletion producer/read model 与传播验收仍 `NOT IMPLEMENTED / NOT VERIFIED`；真实 provider、队列、试点质量和生产部署后置。任务保持 REVIEW，等待项目负责人 GitHub exact-head 手动审查。

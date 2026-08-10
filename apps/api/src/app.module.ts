@@ -8,13 +8,16 @@ import {
 } from '@nestjs/common';
 
 import { API_CONFIG } from './api-config.js';
+import { createAiRuntimeModule } from './ai-runtime/ai-runtime.module.js';
 import { createAudioModule } from './audio/audio.module.js';
 import { createAuthModule } from './auth/auth.module.js';
 import { CsrfMiddleware } from './auth/csrf.middleware.js';
 import { OriginMiddleware } from './auth/origin.middleware.js';
 import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
+import { createMemoryModule } from './memory/memory.module.js';
 import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
+import { createQuestionEvidenceModule } from './question-evidence/question-evidence.module.js';
 import { createRealtimeTranscriptionModule } from './realtime-transcription/realtime-transcription.module.js';
 import { createTranscriptionModule } from './transcription/transcription.module.js';
 
@@ -29,12 +32,16 @@ export class AppModule implements NestModule {
       authModule,
       transcriptionModule,
     );
+    const aiRuntimeModule = createAiRuntimeModule(config, authModule);
+    const questionEvidenceModule = createQuestionEvidenceModule(aiRuntimeModule);
     return {
       controllers: [HealthController],
       global: true,
       imports: [
         authModule,
+        aiRuntimeModule,
         audioModule,
+        createMemoryModule(aiRuntimeModule, questionEvidenceModule),
         createProjectFoundationModule(
           config,
           authModule,
@@ -43,6 +50,7 @@ export class AppModule implements NestModule {
           transcriptionModule,
         ),
         transcriptionModule,
+        questionEvidenceModule,
         realtimeModule,
       ],
       module: AppModule,
