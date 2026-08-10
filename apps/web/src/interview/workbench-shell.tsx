@@ -15,6 +15,7 @@ import type {
   PreparationData,
   SpeakerCalibrationApi,
   SpeakerCorrectionApi,
+  SuggestionApi,
 } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
@@ -25,12 +26,14 @@ import type {
   InterviewCaptureControllerSnapshot,
 } from './interview-capture-controller.js';
 import { preparationPath } from './routes.js';
+import { SuggestionPanel } from './suggestion-panel.js';
 
 interface WorkbenchShellProps {
   api: InterviewApi &
     InterviewCaptureApi &
     Partial<SpeakerCalibrationApi> &
-    Partial<SpeakerCorrectionApi>;
+    Partial<SpeakerCorrectionApi> &
+    Partial<SuggestionApi>;
   captureController: Pick<
     InterviewCaptureController,
     | 'flushDelivery'
@@ -454,6 +457,7 @@ export function WorkbenchShell({
       statusExpanded={statusExpanded}
       validConsent={validConsent}
       speakerCorrections={api}
+      suggestionApi={api}
     />
   );
 }
@@ -492,6 +496,7 @@ interface WorkbenchViewProps {
   statusExpanded: boolean;
   validConsent: boolean;
   speakerCorrections: Partial<SpeakerCorrectionApi>;
+  suggestionApi: Partial<SuggestionApi>;
 }
 
 function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
@@ -526,6 +531,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     statusExpanded,
     validConsent,
     speakerCorrections,
+    suggestionApi,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -744,7 +750,13 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
         </section>
       </div>
 
-      {state === 'recording' ? <SuggestionSeam /> : null}
+      {state === 'recording' ? (
+        <SuggestionPanel
+          api={suggestionApi}
+          notificationRevision={snapshot.realtime.suggestionPresentationRevision}
+          sessionId={session.id}
+        />
+      ) : null}
       {endMode === null ? null : (
         <EndInterviewDialog
           onCancel={onCloseEnd}
@@ -1372,18 +1384,6 @@ function TranscriptLine({
         </span>
       </div>
     </li>
-  );
-}
-
-function SuggestionSeam(): React.JSX.Element {
-  return (
-    <aside className="suggestion-seam" aria-labelledby="suggestion-title">
-      <div>
-        <p className="context-label">下一步</p>
-        <h2 id="suggestion-title">继续倾听</h2>
-      </div>
-      <p>长者正在讲述时，不必急着追问。建议能力接入前，这里不会显示不能使用的操作。</p>
-    </aside>
   );
 }
 
