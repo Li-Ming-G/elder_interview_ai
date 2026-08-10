@@ -6,7 +6,7 @@
 - 状态：REVIEW
 - 分支：`codex/spec-ai-question-001`
 - 基线：`main@1d2b4daf207f21d25ab8df4d1f5d9b1f22ced299`
-- PR：待创建非 Draft PR；exact final head/CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
+- PR：[GitHub #21](https://github.com/Li-Ming-G/elder_interview_ai/pull/21)（非 Draft）；exact final head/CI 由 PR Checks 与源总控任务消息绑定，避免提交自引用
 - 审查权：仅项目负责人可在 GitHub 对 exact final head 给出 PASS；执行 Agent 不自验关闭、不合并
 
 ## 契约候选

@@ -8,7 +8,7 @@
 - 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、ADR-020/024/026/027/028、CON-018
 - 交接对象：总控 Agent、DEV-007 实现任务、项目负责人 GitHub 审查
 - 基线：`main@1d2b4daf207f21d25ab8df4d1f5d9b1f22ced299`
-- PR：待创建非 Draft PR；exact final head/CI 由 PR Checks 与交接消息绑定，避免提交自引用
+- PR：[GitHub #21](https://github.com/Li-Ming-G/elder_interview_ai/pull/21)（非 Draft）；exact final head/CI 由 PR Checks 与交接消息绑定，避免提交自引用
 
 ## 目标
 
