@@ -220,6 +220,7 @@
 - 关闭条件：SPEC-AI-QUESTION-001 同步 `04/05/07/08/09` 并获得明确 PASS。
 - SPEC-DEV-006 进展（2026-08-09）：已冻结 `QuestionEvidenceModule` 共享 generation/display/actual-question 基座、display snapshot/future eligibility/visibility 分离和 actual-question reader；CON-018 继续 OPEN，因为具体建议交互、节流、相似度和最终 REST/WS 仍必须由 SPEC-AI-QUESTION-001 冻结并获 PASS。
 - 项目负责人产品修订（2026-08-10）：暂停原“一层撤销”讨论框架，明确只要系统判断有更合适且具资格的问题即可自动替换；所有真实展示快照进入可浏览历史；“上一个问题”只读回看并可“回到当前问题”；“换一个”改为“下一个问题”。旧一层撤销不再实现；历史浏览不触发 AI、不改变当前建议/排除，也不代表实际问过。SPEC-AI-QUESTION-001 已解锁为 READY，须冻结自动替换稳定规则、手动请求幂等、历史游标/安全投影和并发后才能关闭本冲突。
+- SPEC-AI-QUESTION-001 REVIEW 候选（2026-08-10）：已在 `04/05/07/08/09/10` 冻结单调 `display_sequence`、`presentation_revision` CAS、manual intent fence、自动分差/15 秒 dwell/1500 ms debounce、`question-sim-v1`、手动单飞与 3 秒/60 秒 6 次节流、稳定 history cursor/anchor、REST canonical projection、无正文 WS 1.2 notification、hard withdrawal 与桌面/390×844/320×568 无障碍矩阵。历史导航已从幂等写操作清单移除；`manual_next_requested` 不再冒充 `explicitly_replaced`；旧 `attempt_kind=replace` 和 `suggestion_action` 明确废弃。当前仍为候选，CON-018 保持 `OPEN`，只在非 Draft PR exact final head/CI 获项目负责人 GitHub 手动审查 PASS 后关闭。
 
 ### CON-019｜安全结束页缺少可执行的服务端 stop/completion 契约
 

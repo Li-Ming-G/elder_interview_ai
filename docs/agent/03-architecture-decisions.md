@@ -268,3 +268,14 @@
 - 安全边界：普通事实修正可保留展示快照，但硬边界命中后当前与历史投影均立即撤下正文，历史导航不得绕过授权、禁问或删除治理。
 - 实现边界：自动替换的排序稳定/防抖、历史游标、手动请求单飞/幂等、相似度、REST/WS 和错误状态由 SPEC-AI-QUESTION-001 冻结；本 ADR 不选择模型、阈值、表名或传输协议。
 - 取代关系：部分取代 ADR-020 的“没用，换一个”文案与 ADR-024 的一层 replace/undo 交互；不改变 ADR-027 的 QuestionEvidenceModule 所有权和 actual-question 目录。
+
+## ADR-029｜问题内容以 REST 为权威，发布顺序、生成意图与安全可见性分离
+
+- 状态：Proposed（SPEC-AI-QUESTION-001 REVIEW，等待项目负责人 GitHub exact-head 审查）
+- 决定：REST current/history/next/request-status 是问题内容的 canonical 接口；WebSocket 1.2 只发布无正文 `suggestion.presentation.changed` revision notification。服务端分别维护单调 `presentation_revision`、`display_sequence` 和 `manual_intent_sequence`：前者裁决 current CAS，第二个形成不可变历史总序，第三个阻止旧 automatic 结果覆盖新的手动意图。
+- 自动稳定性：采用版本化内部 comparator 与 `question-sim-v1`，默认分差 0.12、current dwell 15 秒、debounce 1500 ms、相似阈值 0.88；这些值配置化并随 attempt/snapshot 记录版本，不进入公共 DTO，也不把模型 confidence 当作产品事实。
+- 手动与历史：manual next 绑定 actor/session/expected current/stable request ID，同 session 单飞并按 3 秒与 60 秒 6 次节流；只有 committed 结果可证明 explicitly replaced。history 以 `(display_sequence,id)` 签名 cursor/anchor 读取，浏览位置只在客户端，不写服务端业务状态、不触发 AI 或 actual-question。
+- 安全：current/history/anchor/WS replay 均在调用时重检权限、授权、boundary、deletion、retention 和 policy。WS/cursor/幂等响应不授予持续读取权；硬撤下正文后只返回中性 projection，不自动替代或恢复。
+- 原因：单一 last-write 时间无法同时表达供应商结果完成顺序、用户手动意图、权威发布顺序和之后发生的权限/删除变化；把三条时间轴折叠会导致旧自动结果覆盖手动请求、同毫秒历史丢失或 replay 回流撤下正文。
+- 代价：增加 display-state CAS、intent fence、签名 cursor、批量 policy projection、内容无关 WS 通知和更多并发/无障碍测试；换取确定性发布、零副作用历史与硬边界失败关闭。
+- 边界：不改变 ADR-028 产品行为、ADR-027 QuestionEvidence/actual-question 所有权、三类 retention root 或 CON-023 deletion runtime 状态；不选择真实模型/embedding 供应商，不实现业务代码、migration 或页面。

@@ -2,11 +2,13 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配的 AI/后端契约 Agent
+- 状态：`REVIEW`
+- 负责人：AI/后端契约 Agent（独立 worktree：`codex/spec-ai-question-001`）
 - 前置依赖：`SPEC-FE-001 DONE`、`SPEC-DEV-006 DONE`、`DISC-AI-QUESTION-001 DONE`
 - 输入依据：`01`、`03`、`04`、`05`、`07`、`08`、`09`、`10`、ADR-020/024/026/027/028、CON-018
 - 交接对象：总控 Agent、DEV-007 实现任务、项目负责人 GitHub 审查
+- 基线：`main@1d2b4daf207f21d25ab8df4d1f5d9b1f22ced299`
+- PR：待创建非 Draft PR；exact final head/CI 由 PR Checks 与交接消息绑定，避免提交自引用
 
 ## 目标
 
@@ -55,3 +57,19 @@
 - 390×844、320×568 的 44px、焦点、live region、无溢出与 reduced motion。
 
 属于跨模块 AI/数据/API/安全契约，必须提交非 Draft PR，并由项目负责人绑定 exact final head 明确 PASS 后才能 `DONE`；CON-018 在此之前保持 OPEN，DEV-007 保持 BLOCKED。
+
+## REVIEW 候选摘要
+
+- `QuestionEvidenceModule` 继续单一拥有 generation/display/actual-question 证据；DEV-007 只通过正式 seam 编排，不新增表或复制 history repository；
+- canonical current 以 `presentation_revision` 做 CAS，展示历史以严格递增 `display_sequence` 排序，manual next 以 `manual_intent_sequence` 阻止旧 automatic 写回；
+- 自动替换采用版本化内部 comparator：默认最小分差 0.12、current dwell 15 秒、debounce 1500 ms；`question-sim-v1` 默认阈值 0.88，具体供应商未选择；
+- manual next 绑定 actor/session/expected current/stable request ID，同 session 单飞，默认 3 秒最短间隔与 60 秒最多 6 次；请求接受不等于换题成功，只有 `manual_next_committed` 可证明 `explicitly_replaced`；
+- history 使用 `(display_sequence,snapshot_id)` 签名 cursor 与稳定 anchor；浏览位置仅在客户端，GET 零 AI/job/event/current/eligibility/actual-question 副作用；
+- REST current/history/next/request-status 是正文权威面；WS 1.2 只发送无正文 revision notification。current/history/anchor/replay 均动态重检 auth、consent、boundary、deletion、retention 与 policy；
+- 旧 `suggestion_action`、`attempt_kind=replace`、采用/已问/忽略/稍后/改写与一层撤销均明确废弃；曾展示仍不等于实际问过。
+
+## 审查边界
+
+- 本次只修改正式规范与治理文档；未实现业务代码、Prisma schema/migration、页面或真实模型；
+- iteration-coach 已恰好执行一次独立只读 Learning mode 复核，已吸收 publication order、manual intent fence、cursor 总序、无正文 replay 和浏览不抢焦点建议；
+- 当前只是 REVIEW 候选，不构成项目负责人 `PASS`。CON-018 保持 OPEN，DEV-007 保持 BLOCKED；需要项目负责人在 GitHub 对非 Draft PR exact final head/CI 手动审查。
