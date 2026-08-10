@@ -9,7 +9,7 @@
 
 ## 当前可下发
 
-- 暂无。DEV-006 已完成；SPEC-QUESTION-JOURNEY-001 正在 REVIEW。DEV-007A/B 在项目负责人对该 SPEC exact head 明确 PASS 前保持 BLOCKED，禁止提前创建实现窗口。
+- `DEV-007A` 已 READY，可按 [`DEV-007A.md`](DEV-007A.md) 创建独立实现窗口。`DEV-007B` 继续等待 DEV-007A 项目负责人 exact-head GitHub 审查 PASS，禁止提前创建实现窗口。
 
 ## 已冻结但仍阻塞
 

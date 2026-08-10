@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：专项契约 Agent（分支 `codex/spec-question-journey-001`）
 - 前置依赖：DEV-006 DONE、SPEC-AI-QUESTION-001 DONE、CON-025 产品方向已由项目负责人确认
 - 输入依据：`01/03/04/05/07/08/09/10`、ADR-026/027/028/029、CON-025、DEV-006 与 SPEC-AI-QUESTION-001 任务卡/交接

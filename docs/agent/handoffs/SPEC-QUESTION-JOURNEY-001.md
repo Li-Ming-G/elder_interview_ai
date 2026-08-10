@@ -1,14 +1,16 @@
-# SPEC-QUESTION-JOURNEY-001 候选交接
+# SPEC-QUESTION-JOURNEY-001 最终交接
 
 ## 状态
 
-- 任务：`REVIEW`
+- 任务：`DONE`
 - 分支：`codex/spec-question-journey-001`
 - PR：[非 Draft PR #23](https://github.com/Li-Ming-G/elder_interview_ai/pull/23)
-- exact head / CI：以 PR 最终提交与状态检查为准；在任务最终回复中精确交接
+- final head：`5963af98b4a807e5fa1d00ff33f8ef6b6a0e6323`
+- exact-head CI：`31380903831`，completed / success
+- merge：`f0bff3f029716804175000fab0d4441ec6585bf4`
 - 首轮审查：REV-034；old exact head `0f3034d27975cd0695e9963d5e29535d7d574dda`、CI `31371643597` SUCCESS、正式 `REQUEST_CHANGES`（P0=0/P1=3）永久保留
 - 审查人：项目负责人在 GitHub 手动审查
-- 限制：本交接不是 PASS；不得把 SPEC、ADR-030 或 CON-025 自行关闭，不得启动 DEV-007A/B。
+- 最终结论：项目负责人定向复审 `PASS`，P0/P1=0；ADR-030 Accepted、CON-025 RESOLVED、DEV-007A READY。DEV-007B 继续等待 A。
 
 ## 本轮冻结
 
@@ -36,10 +38,10 @@
 - docs-only：`git diff --check`、Prettier、115 个 Markdown 文件相对链接、REVIEW/BLOCKED/OPEN 与 scope 状态不变量、14 字段 CSV、3 条 synthetic fixture 的 purpose/条件/许可门禁均通过。
 - 仓库全量 CI 等价命令：format、lint、typecheck、unit retry 232、专用库 11 migrations deploy/status、PostgreSQL integration 65、auth 13、build、smoke、Chromium E2E 9、auth Chromium E2E 4 均通过。unit attempt 1 有 1 个既有工作台 1 秒异步时序波动（231/232），未改测试或业务代码，原样重跑全绿。
 - 本地共享默认测试库已有与本分支无关的 failed migration 记录，未修改；本轮使用专用空库 `elder_interview_spec_qj_001_c06a` 从零验证。默认 Web 端口 4173 被既有进程占用，smoke/E2E 改用 4273/4274；auth API 保持仓库代理约定的 3101。
-- GitHub CI：旧 head `0f3034d` 的 `31371643597` SUCCESS 不替代新候选；新 exact final head 推送后须等待其全绿结果，并在最终交接绑定。
+- GitHub CI：旧 head `0f3034d` 的 `31371643597` SUCCESS 与 REQUEST_CHANGES 永久保留；final head `5963af98` 的 `31380903831` SUCCESS 已绑定最终 PASS。
 
 ## 冲突与审查重点
 
-- CON-025 保持 `OPEN`；本候选解决其中“问题旅程与内容来源”偏差，项目负责人 PASS 前不得标 RESOLVED。
-- 三项 P1 的文档响应只能标记为“候选逐项响应 3/3”，不得自行宣称正式关闭。
+- CON-025 已按项目负责人 final-head PASS 转为 `RESOLVED`；后续若出现新的产品偏差，另建冲突，不复开本条。
+- 三项 P1 已由项目负责人定向复审确认 3/3 CLOSED。
 - 请重点定向复审：条件 AND/OR 与全部非法输入是否无歧义；journey reason/优先级/转移是否确定且保守优先；purpose 是否贯穿 14 列、item/reader/candidate/snapshot；两类 adaptation reason 是否足以约束 DEV-007B。

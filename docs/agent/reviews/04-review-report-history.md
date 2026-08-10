@@ -603,3 +603,10 @@ P2：
 - 定向修复边界：只更新文档、题库模板/fixture、任务拆分与治理；不修改 Prisma、migration、业务代码、runtime contracts 或页面，不重做三阶段、双题库、A/B 拆分或 existing current/history/next 体验。
 - 修复候选：三项均已按 `07` 的唯一算法定义形成逐项响应；新 exact head/CI 只作为待项目负责人定向复审的候选，不能写成正式 CLOSED/PASS。
 - 历史保留：本记录的 old exact head、CI SUCCESS、REQUEST_CHANGES 与 P1=3 永久保留；后续候选、复审或最终结论不得覆盖、改写或删除本次事实。
+
+### REV-034 定向复审与最终接收
+
+- 定向复审对象：PR #23 exact final head `5963af98b4a807e5fa1d00ff33f8ef6b6a0e6323`；CI `31380903831` completed / success；PR 在审查时 OPEN、非 Draft、mergeable 且 head 无漂移。
+- 正式结论：`PASS`；P0=0、P1=0。条件逻辑 v1、`journey_policy_v1` 的 reason/优先级/稳定输出，以及 14 列 `purpose` / `adaptation_reason_code_v1` 三项旧 P1 全部关闭。
+- 合并：PR #23 以 merge commit `f0bff3f029716804175000fab0d4441ec6585bf4` 合入 main；SPEC-QUESTION-JOURNEY-001 DONE，ADR-030 Accepted，CON-025 RESOLVED，DEV-007A READY。
+- 边界：DEV-007B 继续等待 DEV-007A PASS；synthetic fixture 只用于 test/internal demo，正式内部试用前必须导入项目负责人题库；CON-023 与真实模型/试点边界不变。

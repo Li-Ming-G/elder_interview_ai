@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与既有问题交互契约已完成。SPEC-QUESTION-JOURNEY-001 正在 REVIEW；CON-025 保持 OPEN，DEV-007/007A/007B 均 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与双题库/访谈旅程契约已完成。DEV-007A READY，DEV-007B 等待 A；真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/025。补转录由 HARDEN-ASR-001 后置；CON-018 已由 SPEC-AI-QUESTION-001 解决。
@@ -994,3 +994,10 @@
 - Verification boundary: 三项仅为逐项响应候选，不代表项目负责人已关闭 P1。SPEC 保持 REVIEW、CON-025 OPEN、ADR-030 Proposed、DEV-007/007A/007B BLOCKED；新 exact head/CI 必须由项目负责人 GitHub 定向复审，本 Agent 不 PASS/DONE/合并。
 - Lesson: 受控枚举只有与非法输入、冲突优先级和稳定输出顺序一起冻结，才能成为实现契约；“有 reason code”不等于“决策可重放”。内容 purpose 必须从原题贯穿运行时和展示事实，不能让模型按改写正文重新分类。
 - Better future prompt: “请冻结 v1 输入事实、规范化/非法输入行为、固定优先级、单一转移表和稳定 reason-code 顺序；再逐字段证明内容源、runtime projection、candidate 与 snapshot 不漂移。”
+
+### 2026-08-10 — SPEC-QUESTION-JOURNEY-001 最终接收与 DEV-007A 解锁
+
+- Evidence: 项目负责人对 PR #23 final head `5963af98b4a807e5fa1d00ff33f8ef6b6a0e6323`、CI `31380903831` 定向复审 PASS，P0/P1=0；旧 head `0f3034d` 的 REQUEST_CHANGES/P1=3 永久保留；merge `f0bff3f029716804175000fab0d4441ec6585bf4`。
+- Decision: SPEC-QUESTION-JOURNEY-001 DONE，ADR-030 Accepted，CON-025 RESOLVED，DEV-007A READY；DEV-007B 仍等待 A。项目负责人可并行准备 14 列题库，A 先用 synthetic fixture 建设导入/版本/阶段/确定性选择 seam。
+- Guardrail: fixture 不得进入正式内部试用；A 不实现 LLM 轻调、QuestionEvidence 发布或页面，B 不得在 A PASS 前启动。公开题库必须先核验来源与许可。
+- Lesson: 探索期可以让内容准备与基础设施并行，但必须先冻结交换格式、运行时事实、选择边界和验收等级，避免“先写几道题”偷偷变成不可追溯的产品内容。
