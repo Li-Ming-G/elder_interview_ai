@@ -51,6 +51,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         AUDIO_STORAGE_ROOT: storageRoot,
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-audio-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-audio-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );
@@ -452,6 +453,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         AUDIO_STORAGE_ROOT: blockedRoot,
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-audio-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-audio-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );

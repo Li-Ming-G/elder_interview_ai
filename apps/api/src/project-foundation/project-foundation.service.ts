@@ -200,6 +200,10 @@ export class ProjectFoundationService {
           status: 'valid',
         },
       });
+      await transaction.elderProject.update({
+        data: { aiPolicyRevision: { increment: 1 } },
+        where: { id: projectId },
+      });
       await this.refreshReady(transaction, projectId);
       await transaction.auditLog.create({
         data: {
@@ -300,6 +304,7 @@ export class ProjectFoundationService {
       });
       await transaction.elderProject.update({
         data: {
+          aiPolicyRevision: { increment: 1 },
           status: 'restricted',
           statusBeforeRestriction:
             project.status === 'restricted' ? project.statusBeforeRestriction : project.status,

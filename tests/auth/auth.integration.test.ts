@@ -37,6 +37,7 @@ describe('identity, opaque session, Origin and CSRF', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );

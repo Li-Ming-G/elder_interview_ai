@@ -40,6 +40,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-project-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-project-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );
@@ -234,6 +235,9 @@ describe('project, bundled consent and interview start vertical seam', () => {
       });
     expect(firstConsent.status).toBe(201);
     expect(
+      (await prisma.elderProject.findUniqueOrThrow({ where: { id: projectId } })).aiPolicyRevision,
+    ).toBe(1);
+    expect(
       (await listenerA.get(`/api/v1/projects/${projectId}`).set('Origin', ORIGIN)).body,
     ).toMatchObject({
       status: 'ready',
@@ -311,6 +315,9 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({ request_id: revokeRequestId });
     expect(revoked.body).toMatchObject({ id: secondConsentId, status: 'revoked' });
     expect(repeatedRevoke.body).toEqual(revoked.body);
+    expect(
+      (await prisma.elderProject.findUniqueOrThrow({ where: { id: projectId } })).aiPolicyRevision,
+    ).toBe(3);
     expect(await prisma.consentRecord.count({ where: { projectId } })).toBe(2);
     expect(
       await prisma.consentRecord.findUniqueOrThrow({

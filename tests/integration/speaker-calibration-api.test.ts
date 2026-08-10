@@ -28,6 +28,7 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-speaker-api-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-speaker-api-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );

@@ -29,6 +29,7 @@
 | DEV-004 | REV-030 | main `004dacc` / CI `31311278529` PASS / 产品范围决定 | DONE | 项目负责人决定当前内部 MVP 不以补转录为门槛；A/B/C 全部既有审查通过，原始录音、manifest、安全结束、降级可见与不伪造 final 仍是硬门禁。补转录后置 HARDEN-ASR-001；DISC-006 与 SPEC-DEV-006 后续已 DONE |
 | SPEC-DEV-006 | REV-031 | PR #20 / final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c` / CI `31326717132` PASS / merge `6289c87` | DONE / PASS | 三项 P1 全部关闭，P0/P1=0。旧 head `2b6a5da` REQUEST_CHANGES 永久保留；ADR-027 Accepted，DEV-006 READY；CON-023 继续 OPEN，CON-018 后续由 REV-032 解决 |
 | SPEC-AI-QUESTION-001 | REV-032 | PR #21 / final head `af088ed6165c979e8de2e469900ee6519fafe183` / CI `31352681061` attempt 2 PASS / merge `10fcc5c` | DONE / PASS | 项目负责人手动 GitHub 审查，P0/P1=0；自动替换、manual intent fence、REST canonical、无正文 WS、稳定 history 与硬撤下契约通过。attempt 1 既有 1 秒时序 flake 非阻塞；CON-018 RESOLVED，DEV-007 只等待 DEV-006 |
+| DEV-006 | REV-033 | PR #22 / reviewed head `d5073501b170c7e11f2bc3e00395fb8fdf794480` / CI `31357613683` SUCCESS | REVIEW / REQUEST_CHANGES | 项目负责人正式 P0=0/P1=8；旧审查历史永久保留。八项限域修复候选等待新 exact-head CI 与 GitHub 手动定向复审；不得自行 PASS/DONE/merge。CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED |
 
 ## 阅读规则
 
@@ -38,4 +39,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-031`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-033`。

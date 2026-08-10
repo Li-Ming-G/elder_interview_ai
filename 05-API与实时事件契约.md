@@ -789,10 +789,12 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 所有 memory extraction、question generation、actual-question reconcile、session note 和 context snapshot 共用：
 
 1. 输入冻结事务按 `request_id/trigger identity -> project -> session_id 升序` 获取资源锁，重读权限、授权、项目/边界/deletion 状态；写 job、全部 session scope、实际 segment/memory membership 后提交；
+   - `request_identity_hash` 持久绑定 action、actor/system trigger、target 与规范化 payload；同 request 响应未知只重放首次 job/结果，同 ID 不同绑定冲突；自动 trigger 另以稳定 `trigger_dedupe_key` 去重，显式 retry 使用新 request ID 并写 `retry_of_job_id`；
 2. 供应商调用期间不持数据库锁；最多一次 primary call 和一次仅处理 JSON/Schema 的 format repair；
 3. 写回事务按相同资源顺序重锁，重新验证 policy revision、全部 scope/membership/version/digest、权限、授权、边界与 deletion scope；任一漂移则取消 job 并丢弃供应商结果；
 4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
 5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。
+6. context snapshot 在冻结事务内同时证明 memory 与 actual-question 的 current/published/eligible 状态并纳入 input identity；写回事务逐项重检。两事务之间 catalog supersede 必须取消 job，不能写入旧 actual question。
 
 稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`。suggestion 专用协议错误另含 `AI_SUGGESTION_THROTTLED`、`SUGGESTION_REQUEST_IN_PROGRESS`、`SUGGESTION_CURRENT_CHANGED`、`INVALID_SUGGESTION_CURSOR` 与 `SUGGESTION_HISTORY_ITEM_UNAVAILABLE`；供应商 timeout 映射为公共 `AI_UNAVAILABLE`，内部可记录不含正文的 `AI_PROVIDER_TIMEOUT`。没有合格新问题是成功的 `continue_listening`，不是错误。外部响应不带供应商原文、内部权限详情或正文。
 

@@ -30,6 +30,7 @@ describe('speaker calibration causal boundary and trusted role core', () => {
       APP_ENV: 'test',
       AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
       AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-speaker-calibration-pepper',
+      AI_RETENTION_CLEANUP_PEPPER: 'test-only-speaker-calibration-retention-pepper',
       DATABASE_URL: databaseUrl,
     });
     prisma = new PrismaService(config);

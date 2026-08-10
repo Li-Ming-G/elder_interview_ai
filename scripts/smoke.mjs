@@ -3,8 +3,8 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
-const apiPort = 3100;
-const webPort = 4173;
+const apiPort = Number(process.env.SMOKE_API_PORT ?? 3100);
+const webPort = Number(process.env.SMOKE_WEB_PORT ?? 4173);
 const webRoot = resolve('apps/web/dist');
 const databaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -67,8 +67,9 @@ async function expectMissingConfigFailure() {
   const environment = {
     ...process.env,
     APP_ENV: 'test',
-    AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+    AUTH_ALLOWED_ORIGINS: `http://127.0.0.1:${String(webPort)}`,
     AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+    AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
     DATABASE_URL: undefined,
     SECRET_SMOKE_MARKER: marker,
   };
@@ -169,8 +170,9 @@ const api = spawn(process.execPath, ['apps/api/dist/main.js'], {
     API_HOST: '127.0.0.1',
     API_PORT: String(apiPort),
     APP_ENV: 'test',
-    AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+    AUTH_ALLOWED_ORIGINS: `http://127.0.0.1:${String(webPort)}`,
     AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+    AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
     DATABASE_URL: databaseUrl,
     LOG_LEVEL: 'error',
   },
