@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、DISC-006 与 SPEC-DEV-006 已完成。DEV-006 READY；当前先完成 DISC-AI-QUESTION-001 用户可观察行为讨论，再解锁 SPEC-AI-QUESTION-001，DEV-007 继续等待两条前置。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、DISC-006、SPEC-DEV-006 与 DISC-AI-QUESTION-001 已完成。DEV-006 与 SPEC-AI-QUESTION-001 READY；DEV-007 继续等待两条前置。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；当前问题自动更新时机、连续换题、无合格新问题和撤销窗口；其后 SPEC-AI-QUESTION-001 仍需冻结 replace/undo、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；SPEC-AI-QUESTION-001 仍需冻结自动替换稳定规则、“下一个问题”幂等、展示历史游标、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -140,6 +140,14 @@
 - Tradeoff: 增加 scope/membership/dependency 表、动态 anti-join/policy 查询和 deletion 编排；换取跨 session provenance、修正即时失效、在途写回丢弃和历史快照稳定。
 - Boundary: display snapshot、future eligibility、visibility 分开；QuestionEvidenceModule 是唯一 question history owner；CON-023 在 producer/read model/C2 回接前仍 NOT IMPLEMENTED/NOT VERIFIED。DEV-006 可实现契约基座，但不得用 no-op guard 冒充 deletion coverage。
 
+### D-018 — 更合适问题自动更新，历史浏览取代一层撤销
+
+- Status: adopted
+- Evidence: 项目负责人暂停原 DISC-AI-QUESTION-001，明确“只要判断有更合适的问题就应当替换”，增加“上一个问题”，并将“换一个”改为“下一个问题”；ADR-028 与 `01/03/04/05/07/08/09/10` 已同步。
+- Reason: 强制保持当前问题会错过谈话中新出现的更佳追问；一层撤销把“看回旧问题”误写成“恢复旧问题为当前”。不可变展示历史可以保留可找回性，同时让系统继续适应对话。
+- Tradeoff: 页面和契约增加历史导航、稳定排序与防抖要求；倾听员可回看旧问题，但旧问题不会因此恢复为 current 或重新获得 future eligibility。
+- Boundary: “曾展示”不是“实际问过”；历史导航不触发 AI、不改变 current/排除/eligibility。硬安全边界命中后，历史也必须撤下正文。具体排序、防抖、cursor、REST/WS 与幂等由 SPEC-AI-QUESTION-001 冻结。
+
 ## Assumptions to Validate
 
 ### A-001 — “拾光长者传记项目”与正式文档中的“AI 辅助长者访谈系统”是同一项目
@@ -160,10 +168,10 @@
 - Review mode: Learning mode；独立只读复核确认两个 READY 项并不都需要产品讨论：DEV-006 已有可执行 PASS 契约，只有 SPEC-AI-QUESTION-001 仍缺用户可感知行为。
 - Review finding: 若泛泛讨论“AI 追问”，会重开已冻结的记忆、QuestionEvidenceModule、安全和 actual-question 所有权，或让用户决定 REST/WS、锁和算法阈值。真正未决的是已展示问题何时自动变化、换题期间行为、无合格新问题和撤销失效窗口。
 - Options considered: 重开 DEV-006 实现讨论；直接下发完整 SPEC-AI；先做窄范围 DISC-AI-QUESTION-001。采用第三种作为讨论入口，DEV-006 的正式范围保持不变。
-- Adopted decision: pending user choice；讨论任务只形成候选产品决定，不修改业务实现或关闭 CON-018，SPEC-AI-QUESTION-001 在讨论 DONE 前保持 BLOCKED。
-- Implementation evidence: 新增 DISC-AI 任务卡/提示词并同步任务板、追踪、交接与 journal；尚无产品决定、业务代码或契约实现证据。
-- Lesson: “技术任务已 READY”与“产品行为已讨论完”是不同门槛；只把用户可感知且会改变体验的分歧带入讨论，工程可回退细节留给 SPEC。
-- Better future prompt: “请只讨论当前问题何时自动更新、换题中的可见状态、无合格新问题和撤销窗口；不要重开后台记忆，也不要让我决定 REST/WS、数据库或相似度阈值。”
+- Adopted decision: 项目负责人暂停原讨论，纠正为“更合适问题自动替换 + 展示历史可回看 + 下一个问题手动请求”；旧一层撤销被明确取代。DISC-AI DONE，SPEC-AI READY，CON-018 继续等待技术契约。
+- Implementation evidence: 同步 `01/03/04/05/07/08/09/10`、ADR-028、任务板、追踪、冲突、任务卡、提示词、交接与 journal；没有实现业务代码、数据库或 API。
+- Lesson: “防止问题没问就丢失”不等于“禁止当前问题变化”。把 canonical current 与 immutable displayed history 分开，能同时获得实时适应性和可找回性。产品讨论提示若把旧方案中的“撤销”当成既定前提，会让用户重复回答已经明确的目标。
+- Better future prompt: “请基于已确认的自动最佳问题和展示历史，冻结自动替换稳定性、下一个问题幂等、历史 cursor/安全投影；不要重新询问是否自动更新，也不要把历史浏览做成撤销或实际已问。”
 
 ### 2026-08-09 — DISC-006 定稿写回的安全边界校正
 

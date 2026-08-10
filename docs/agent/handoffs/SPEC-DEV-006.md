@@ -33,7 +33,7 @@
 - 指定 `QuestionEvidenceModule` 为 generation/display/actual-question 唯一 owner，DEV-006/007 不再各建 history；
 - 冻结 freeze-call-recheck、幂等/显式重试、legacy 失败安全默认、过程记录保留/访问/删除与完整验收矩阵；
 - 冻结逐业务输出一条 derived row、三类 dependency expected count/manifest、actual catalog 整版失效，以及三类 retention root 的完整生命周期；
-- 明确 CON-018 仍等待 replace/undo/相似度专项，CON-023 仍为 runtime 缺口。
+- 明确 CON-018 仍等待单问题交互/相似度专项，CON-023 仍为 runtime 缺口；后续项目负责人已用 ADR-028 将旧 replace/undo 修订为自动替换、手动“下一个问题”和只读展示历史。
 
 ## 关键设计
 
@@ -62,7 +62,7 @@
 
 - 项目负责人定向复审与 PR 合并已经完成；旧 REQUEST_CHANGES 作为历史事实继续有效，但不再阻塞当前任务；
 - SPEC-AI-QUESTION-001 与 DEV-006 已按独立治理收口进入 READY；各自仍须完成实现/契约任务和项目负责人审查；
-- CON-018 OPEN：replace/undo、节流、相似度、最终 suggestion REST/WS 由 SPEC-AI-QUESTION-001 冻结；
+- CON-018 OPEN：自动替换、手动“下一个问题”、展示历史导航、节流、相似度和最终 suggestion REST/WS 由 SPEC-AI-QUESTION-001 冻结；
 - CON-023 OPEN：deletion producer/read model、C2 回接与并发测试尚未实现，coverage 为 `NOT IMPLEMENTED / NOT VERIFIED`；
 - `text_revision` 与新表均是后续 DEV-006 migration 目标，当前 runtime 不具备这些能力；
 - 真实模型、真实数据、固定保留天数和质量百分比门槛均未授权。

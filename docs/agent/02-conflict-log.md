@@ -207,7 +207,7 @@
 - 安全边界：页面确认不能替代正式授权记录、授权音频或服务端 start 门禁；原始数据可靠保存、权限和删除治理不因 UI 后置而取消。
 - 完成确认：SPEC-FE-001 已同步正式产品/交互/验收/路线，等待 GitHub 最终 head 审查。
 
-### CON-018｜“没用，换一个”的最小数据与 API 契约未冻结
+### CON-018｜自动替换、手动下一问与展示历史的最小数据/API 契约未冻结
 
 - 状态：`OPEN`
 - 发现时间：2026-08-07
@@ -218,8 +218,8 @@
 - 临时处理：冻结通用 suggestion action 入口和旧采用生命周期；只允许文档/UI 占位表达单问题和替换意图，不新增数据库或 API。
 - 需要谁决策：AI/后端契约 Agent 提案，总控收敛，项目负责人或独立审查通过。
 - 关闭条件：SPEC-AI-QUESTION-001 同步 `04/05/07/08/09` 并获得明确 PASS。
-- SPEC-DEV-006 REVIEW 进展（2026-08-09）：已冻结 `QuestionEvidenceModule` 共享 generation/display/actual-question 基座、一次换题一个 attempt、display snapshot/future eligibility/visibility 分离和实际已问 reader；CON-018 继续 OPEN，因为 replace/undo、节流、相似度、最终 REST/WS 路由仍必须由 SPEC-AI-QUESTION-001 冻结并获 PASS。
-- PR #20 REQUEST_CHANGES 修复进展（2026-08-10）：共享基座进一步冻结逐业务输出 derived cardinality、actual-question analysis 整版 catalog 与显式 question dependency；但不处理 replace/undo、节流、相似度或最终 REST/WS。`SPEC-AI-QUESTION-001` 在 `SPEC-FE-001 DONE + SPEC-DEV-006 项目负责人 PASS/merge` 前保持 BLOCKED，CON-018 继续 OPEN。
+- SPEC-DEV-006 进展（2026-08-09）：已冻结 `QuestionEvidenceModule` 共享 generation/display/actual-question 基座、display snapshot/future eligibility/visibility 分离和 actual-question reader；CON-018 继续 OPEN，因为具体建议交互、节流、相似度和最终 REST/WS 仍必须由 SPEC-AI-QUESTION-001 冻结并获 PASS。
+- 项目负责人产品修订（2026-08-10）：暂停原“一层撤销”讨论框架，明确只要系统判断有更合适且具资格的问题即可自动替换；所有真实展示快照进入可浏览历史；“上一个问题”只读回看并可“回到当前问题”；“换一个”改为“下一个问题”。旧一层撤销不再实现；历史浏览不触发 AI、不改变当前建议/排除，也不代表实际问过。SPEC-AI-QUESTION-001 已解锁为 READY，须冻结自动替换稳定规则、手动请求幂等、历史游标/安全投影和并发后才能关闭本冲突。
 
 ### CON-019｜安全结束页缺少可执行的服务端 stop/completion 契约
 
