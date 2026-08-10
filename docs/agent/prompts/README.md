@@ -9,7 +9,12 @@
 
 ## 当前可下发
 
-- 暂无。DEV-006 已完成；DEV-007 因 CON-025 产品差异待对齐而保持 BLOCKED，禁止提前创建实现任务。
+- 暂无。DEV-006 已完成；SPEC-QUESTION-JOURNEY-001 正在 REVIEW。DEV-007A/B 在项目负责人对该 SPEC exact head 明确 PASS 前保持 BLOCKED，禁止提前创建实现窗口。
+
+## 已冻结但仍阻塞
+
+- [`DEV-007A.md`](DEV-007A.md)：题库基础设施、旅程阶段与确定性选择 seam；仅在 SPEC-QUESTION-JOURNEY-001 PASS 后启动。
+- [`DEV-007B.md`](DEV-007B.md)：AI 题库选择、有据轻调与工作台集成；仅在 SPEC 与 DEV-007A 均 PASS 后启动。
 
 ## 历史提示词
 

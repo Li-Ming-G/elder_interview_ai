@@ -279,3 +279,16 @@
 - 原因：单一 last-write 时间无法同时表达供应商结果完成顺序、用户手动意图、权威发布顺序和之后发生的权限/删除变化；把三条时间轴折叠会导致旧自动结果覆盖手动请求、同毫秒历史丢失或 replay 回流撤下正文。
 - 代价：增加 display-state CAS、intent fence、签名 cursor、批量 policy projection、内容无关 WS 通知和更多并发/无障碍测试；换取确定性发布、零副作用历史与硬边界失败关闭。
 - 边界：不改变 ADR-028 产品行为、ADR-027 QuestionEvidence/actual-question 所有权、三类 retention root 或 CON-023 deletion runtime 状态；不选择真实模型/embedding 供应商，不实现业务代码、migration 或页面。
+
+## ADR-030｜版本化双题库约束下一问，旅程阶段可进可退
+
+- 状态：Proposed（SPEC-QUESTION-JOURNEY-001 REVIEW；等待项目负责人 GitHub 手动审查）
+- 背景：既有契约冻结了问题发布、替换、历史、幂等与安全，却未冻结陌生关系下的破冰旅程和候选内容来源；`07` §10 曾把基础题库降为后续人工资源，与项目负责人确认的“题库作为正常内容源”方向冲突。
+- 决定：正常下一问必须来自一个完整激活、不可变的题库 release；同一 release 同时包含 `basic|deep` 条目，按 `rapport|life_outline|story_depth`、当前确定态转录、可信角色、DEV-006 current memory、实际已问目录和安全事实筛选。AI 只能逐字选择或轻度改写 eligible 原题，不得脱离题库自由生成。
+- 内容治理：内容负责人编辑 UTF-8 CSV，不直接编辑数据库；导入先全量校验为 draft，再原子 activate，激活版本不可原地修改，只能新建 release，旧版可 retire。公开题库必须先核验来源与许可；`unverified` 不得激活。synthetic fixture 仅允许显式 test/internal-demo 环境，不能成为产品内容或正式内部试用证据。
+- 阶段语义：阶段由表达意愿、回答具体度、已形成的人生轮廓、当前话题连续性与安全事实共同判定，可保持、前进或退回；固定题数和固定时间不能单独触发切换。相同冻结输入、题库版本和策略版本必须得到相同阶段与选择结果。
+- 追溯：每条 verbatim/lightly-adapted candidate 同时保存 source question ID/release version，以及实际支撑选择或轻调的 transcript/memory dependency。轻调只允许称谓、语序、口语化和证据支持的槽位填充；不得引入未经证实的人物/事件、把 basic 改成 deep、多问合一或提高敏感级别。
+- 兼容：保留 ADR-028/029 的 canonical current、自动更新、manual next、只读历史和 displayed != actual asked。自动比较只在同一阶段判定基础内进行；旧 current 因阶段变化不再适用时只失去未来资格，不以普通阶段变化执行硬撤下，已展示历史仍保留。题库是正常内容源，不是 AI unavailable 时的静态 UI 兜底。
+- 所有权：DEV-007A 拥有题库导入/版本/激活、阶段与确定性选择 seam；DEV-007B 消费该 seam 和 DEV-006 facts，经现有 QuestionEvidence writer 发布，不另建 question history。两者在本 ADR/SPEC 获负责人 PASS 前均不得开工。
+- 代价：增加内容发布治理、阶段判定与双重 provenance；换取可审计的问题来源、可迭代题库和从破冰到深入的产品节奏，且不要求负责人直接维护运行时数据库。
+- 重新评估条件：真实倾听复盘证明三阶段不足、CSV 无法满足内容协作或确定性筛选质量不足时，可另案扩展；不得在首版预先引入管理后台、向量数据库、固定阶段时钟或自由生成兜底。

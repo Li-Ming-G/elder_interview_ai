@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、DISC-006、SPEC-DEV-006、DISC-AI-QUESTION-001 与 SPEC-AI-QUESTION-001 已完成。DEV-006 READY；DEV-007 的问题契约前置已满足但仍等待 DEV-006 seam。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006 与既有问题交互契约已完成。SPEC-QUESTION-JOURNEY-001 正在 REVIEW；CON-025 保持 OPEN，DEV-007/007A/007B 均 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置；CON-018 已由 SPEC-AI-QUESTION-001 解决。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/025。补转录由 HARDEN-ASR-001 后置；CON-018 已由 SPEC-AI-QUESTION-001 解决。
 
 ## Adopted Decisions
 
@@ -147,6 +147,14 @@
 - Reason: 强制保持当前问题会错过谈话中新出现的更佳追问；一层撤销把“看回旧问题”误写成“恢复旧问题为当前”。不可变展示历史可以保留可找回性，同时让系统继续适应对话。
 - Tradeoff: 页面和契约增加历史导航、稳定排序与防抖要求；倾听员可回看旧问题，但旧问题不会因此恢复为 current 或重新获得 future eligibility。
 - Boundary: “曾展示”不是“实际问过”；历史导航不触发 AI、不改变 current/排除/eligibility。硬安全边界命中后，历史也必须撤下正文。具体排序、防抖、cursor、REST/WS 与幂等由 SPEC-AI-QUESTION-001 冻结。
+
+### D-019 — 版本化双题库约束下一问，旅程阶段可进可退
+
+- Status: adopted product direction；formal contract 仍为 REVIEW，ADR-030 仍为 Proposed。
+- Evidence: 项目负责人于 2026-08-10 明确要求先做可试用第一版，以基础/深入题库承载破冰、生平轮廓和深层故事，由 AI 结合确定态转录、可信角色、DEV-006 current memory、阶段和安全事实选择或有据轻调；iteration-coach 恰好一次独立只读 Correction 复核补充原子版本发布、可验收阶段判定和轻调双重 provenance。
+- Reason: 既有契约能可靠发布和替换问题，却没有规定问题内容从哪里来、陌生关系如何渐进，也无法阻止模型在内容真空中自由生成。把内容治理和旅程先冻结，才让排序、记忆与自动更新有明确优化目标。
+- Tradeoff: 增加 CSV 校验、不可变 release、阶段判断和 provenance；换取内容负责人可直接维护、问题来源可审计、首版可用 fixture 快速打通且不冒充产品内容。
+- Boundary: CSV 只作交换/编辑，数据库才是运行时事实；题库是正常内容源，不是 AI unavailable 静态兜底。固定题数/时间不能单独切阶段；synthetic fixture 仅限 test/internal demo，正式内部试用前必须导入负责人题库。CON-025 在项目负责人 GitHub PASS 前保持 OPEN，A/B 不开工。
 
 ## Assumptions to Validate
 
@@ -963,3 +971,13 @@
 - Implementation evidence: 只更新 CON-025 与本 journal；无业务代码、数据库、API、页面或任务分支变更。
 - Lesson: 问题引擎的首要设计对象不是“候选怎么排序”，而是“访谈关系如何发展”。只有先定义旅程和内容来源，排序、自动替换和记忆才知道自己在优化什么。
 - Better future prompt: “先不考虑现有实现，请让我描述一次理想访谈从陌生、破冰、生平扫描到深入故事的完整过程；你先理解每阶段的用户感受和目的，再讨论题库与 AI，不要先问存储、接口或算法参数。”
+
+### 2026-08-10 — SPEC-QUESTION-JOURNEY-001 双题库与访谈旅程候选
+
+- User outcome: 不再要求负责人凭空设计完整理想流程，先交付可试用首版；用 basic/deep 题库和可进可退旅程支撑陌生倾听员破冰、生平轮廓与故事深入，AI 只选择或有依据轻调，并拆出可串行实现的 DEV-007A/B。
+- Review mode: Correction mode；iteration-coach 恰好一次独立只读复核。复核确认方向可继续，并要求补齐三项高影响事实：完整 release 原子发布、可验收且不硬切的阶段判定、轻调对题库原题和实际 transcript/memory 的双重 provenance。
+- Adopted decision: 一个 UTF-8 CSV 同时承载 basic/deep 并导入不可变 draft release，经过来源/许可全量校验后原子激活；阶段为 `rapport|life_outline|story_depth`，以表达意愿、回答具体度、上下文和安全事实可保持/前进/退回；AI 只允许 `verbatim|lightly_adapted`，题库是正常内容源而非 unavailable 兜底。
+- Implementation evidence: docs-only 同步 `01/03/04/05/07/08/09/10`、ADR-030 候选、CON-025、task board、traceability、handoff、任务卡/提示词和题库模板；未修改 Prisma、业务代码、runtime contracts、页面或测试。13 字段模板与 3 条 synthetic fixture、115 个 Markdown 相对链接、Prettier、diff/scope/state 检查通过。
+- Verification evidence: 在专用空 PostgreSQL 数据库从零应用 11 migrations；lint/typecheck/build/smoke 通过，unit 232、integration 65、auth 13、Chromium E2E 9、auth Chromium E2E 4 全部通过。共享默认测试库的既有 P3009 与默认 4173 端口占用仅作环境诊断，未修改共享库或终止既有进程。
+- Verification boundary: 当前只是 SPEC REVIEW 候选；synthetic fixture 只证明 internal demo 技术 seam，正式内部试用前必须导入负责人题库。CON-025 仍 OPEN，ADR-030 仍 Proposed，DEV-007/007A/007B 仍 BLOCKED；只有项目负责人对非 Draft PR exact final head/CI GitHub 手动审查明确 PASS 后才能改变这些状态。
+- Lesson: 易编辑的内容交换文件与运行时权威事实必须分层；题库出处只能证明“问题从哪里来”，不能证明“为什么能这样轻调”，后者必须由实际访谈证据单独回链。

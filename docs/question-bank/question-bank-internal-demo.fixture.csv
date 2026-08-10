@@ -1,0 +1,4 @@
+question_id,bank,topic,question_text,applicable_when,inapplicable_when,sensitivity,source_type,source_reference,license_status,license_reference,bank_version,enabled
+fixture-basic-rapport-001,basic,童年环境,如果您愿意，可以先从小时候住过的地方讲起吗？,stage.rapport,response.reluctant,low,synthetic_fixture,INTERNAL_DEMO_ONLY,fixture_only,NOT_PRODUCT_CONTENT,fixture-2026.08.1,true
+fixture-basic-outline-001,basic,重要人物,您年轻时有没有一位对您影响很大的人？,stage.life_outline;context.person,response.reluctant,low,synthetic_fixture,INTERNAL_DEMO_ONLY,fixture_only,NOT_PRODUCT_CONTENT,fixture-2026.08.1,true
+fixture-deep-choice-001,deep,重要选择,那次选择之前您最犹豫的是什么？,stage.story_depth;context.choice,response.reluctant,medium,synthetic_fixture,INTERNAL_DEMO_ONLY,fixture_only,NOT_PRODUCT_CONTENT,fixture-2026.08.1,true
