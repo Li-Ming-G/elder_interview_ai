@@ -1034,3 +1034,15 @@
 - Decision: DEV-007A DONE，DEV-007B READY。B 可消费 A 的 active/eligible/journey seam 与 DEV-006 QuestionEvidence/current memory，但不得改写 A 的 release membership 或另建 history。
 - Guardrail: 正式题库未提供不阻塞 B 的 internal demo 开发，但 fixture 不得成为正式内部试用内容；B 完成也不能替代正式题库来源/许可与内容质量验收。
 - Lesson: 内容基础设施和 AI 编排可以分段验收；只要 A 的版本与环境边界真正封死，B 就能在不接触内容治理底层表的前提下安全迭代。
+
+### 2026-08-10 — DEV-007B constrained question engine 与工作台集成
+
+- User outcome: 从 DEV-007A active/eligible/journey 和 DEV-006 frozen transcript/current-memory/actual-asked seam 完成首次访谈问题链路；AI 只能选择 active licensed bank 原题或按 `surface_wording|grounded_slot_fill` 有据轻调，经唯一 QuestionEvidence owner 发布 current/history/manual-next，并接入不抢焦点的工作台问题区。
+- Review mode: Correction mode；iteration-coach 恰好一次独立只读复核。复核判断 ADR-027/028/029/030 与正式 04/05/07/08/09 契约足够实现，无需暂停；唯一纠正是把同一 PR 拆成“服务端事实链”和“UI 薄集成”两个可独立审计提交，避免产品语义、数据所有权与视觉变更混在一起。
+- Adopted decision: production director 明确 unavailable，local/test deterministic fake 只返回 eligible bank item；writer 在 commit 前重验 source/purpose/adaptation/frozen dependency/similarity/policy；displayed snapshot 永不写 actual asked。manual next 以 stable request ID、expected current、manual intent fence、single-flight 和持久化 429 处理；WS 1.2 只通知 revision，正文始终重新从安全 REST projection 读取。
+- Impeccable influence: 沿用现有绿色/纸张式工作台 token 与组件语言，只重新组织底部问题区的信息层级；当前态两个动作、历史态三个单义动作，移动端隐藏次要 reason、保留问题与 44px 目标，live region 宣布更新但不抢焦点。未借视觉优化改变“展示不等于实际问过”等正式语义。
+- Implementation evidence: migration `20260810223000_dev007b_question_presentation`；`QuestionPresentationService`/orchestration/director/REST/WS；工作台 `SuggestionPanel`、bodyless WS refetch、synthetic browser harness；服务端提交 `ddb24e2`、UI 提交 `0c8580b`、history anchor 恢复补齐 `3f0e62c`、非 Draft PR #25。
+- Verification evidence: 独立空 PostgreSQL 13 migrations；unit 41 files/279、integration 13 files/74；typecheck/lint/build/format/diff PASS。Chromium 1440×900、390×844、320×568 无页面 overflow，current/history/focus 五张截图，44px 按钮，320px 历史三按钮完整，键盘 `:focus-visible=true`。
+- Verification boundary: 当前只证明 synthetic fixture local/test internal demo，浏览器明确标注 `NOT PRODUCT CONTENT`。正式 14 列题库未提供；无真实 LLM/embedding；不代表正式内部试用、内容许可/质量、生产或真实试点通过。CON-023 保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任务保持 REVIEW，等待 exact-head CI 与项目负责人 GitHub 手动审查，不自行 PASS/DONE/合并。
+- Lesson: 受控生成系统最重要的不是“模型能否写出一句好问题”，而是把内容许可、原题意图、访谈证据、展示事实与实际问过五类权威事实保持分离，再用单一 writer 和提交前重验把它们连接起来。UI 也应消费安全 projection，而不是把 WS、cursor 或旧 snapshot 当作持续授权；实现结束前还必须逐条对照正式 REST 路径，避免只覆盖主 UI 当前消费到的列表端点而漏掉刷新恢复 seam。
+- Better future prompt: “先列出本轮允许消费的权威 seam 与禁止拥有的表；对每个 candidate 逐项证明 source release、原 purpose、adaptation reason 和实际 dependency，再定义唯一 publication writer、current/history 安全投影、manual/automatic 并发时间轴和 unavailable 降级；最后用三视口验证 UI 只展示这些事实。”
