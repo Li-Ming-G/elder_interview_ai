@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配
+- 状态：`REVIEW`
+- 负责人：Codex DEV-007A Agent
 - 前置依赖：SPEC-QUESTION-JOURNEY-001 项目负责人 GitHub PASS
 - 输入依据：`04` §4.35A-4.35B、`05` §3.9.0、`07` §10、`09` §7.7、ADR-030 Accepted
 - 交接对象：DEV-007B、项目负责人 GitHub 审查
@@ -25,3 +25,10 @@
 ## 验收
 
 逐项通过 `09` §7.7 中属于 A 的矩阵，特别覆盖条件真值表、所有非法条件、purpose、journey 各分支/信号冲突/顺序置换/重复执行，并提交 migration/unit/PostgreSQL/auth/CLI 或管理入口、fixture 隔离和全量 CI 证据。项目负责人 exact-head PASS 前不得 DONE；A PASS 前 B 保持 BLOCKED。
+
+## 实现候选（2026-08-10）
+
+- 基线：`origin/main@12021408242baeac99fdc89e00992bfdb0f14f1c`；分支：`codex/dev-007a-question-bank`；非 Draft PR 待创建后写回交接。
+- 已实现 release/item migration、14 列 validator、受控 CLI、draft import、原子 activate/retire、active reader、`question_condition_v1`、`journey_policy_v1` 与 deterministic test selector。
+- 既有 `docs/question-bank/question-bank-internal-demo.fixture.csv` 只用于 internal demo；项目负责人正式题库未提供，不阻塞 A 的基础设施审查，但阻塞任何产品内容可用或正式内部试用声明。
+- 本地门禁：format/lint/typecheck/build、261 unit、12 migrations 空库 deploy/status、71 PostgreSQL integration、18 auth、smoke、9 Chromium E2E、4 real Web/API auth E2E 均通过。任务保持 REVIEW，等待 exact-head GitHub CI 与项目负责人手动审查。
