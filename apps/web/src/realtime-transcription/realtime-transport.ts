@@ -11,6 +11,7 @@ import {
   type InterviewWsServerEnvelope,
   type InterviewWsServerType,
   type SpeakerCalibrationSnapshot,
+  type SuggestionPresentationChangedPayload,
 } from '@elder-interview/contracts';
 
 const MAX_PENDING_FRAMES = 20;
@@ -54,6 +55,7 @@ export interface RealtimeState {
   pendingFrames: number;
   resetRequired: boolean;
   resumed: boolean;
+  suggestionPresentationRevision?: number;
 }
 
 interface PendingFrame {
@@ -357,6 +359,20 @@ export class RealtimeTranscriptionTransport {
       const payload = message.payload as { code?: string; status: string };
       if (payload.status === 'unavailable')
         this.patch({ errorCode: payload.code ?? null, failureKind: 'asr' });
+    } else if (message.type === 'suggestion.presentation.changed') {
+      const payload = message.payload as SuggestionPresentationChangedPayload;
+      if (
+        message.schema_version !== '1.2' ||
+        !Number.isInteger(payload.presentation_revision) ||
+        payload.presentation_revision < 0 ||
+        !['suggestion', 'continue_listening', 'unavailable', 'withdrawn'].includes(payload.kind)
+      ) {
+        this.terminalFailure('INVALID_WS_MESSAGE', 'session', false);
+        return false;
+      }
+      if (payload.presentation_revision > (this.state.suggestionPresentationRevision ?? -1)) {
+        this.patch({ suggestionPresentationRevision: payload.presentation_revision });
+      }
     } else if (message.type === 'error') {
       const payload = message.payload as InterviewWsErrorPayload;
       const classified = classifyError(payload.code);
