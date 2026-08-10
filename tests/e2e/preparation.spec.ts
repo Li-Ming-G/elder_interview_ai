@@ -405,7 +405,25 @@ function responseFor(path: string, method: string): unknown {
   if (path === `/api/v1/sessions/${SESSION_ID}/capture/confirm-active` && method === 'POST') {
     return session('recording', 'active');
   }
+  if (path === `/api/v1/sessions/${SESSION_ID}/suggestions/current` && method === 'GET') {
+    return emptySuggestion();
+  }
   throw new Error(`Unhandled test request: ${method} ${path}`);
+}
+
+function emptySuggestion(): unknown {
+  return {
+    display_sequence: null,
+    displayed_at: null,
+    history: { has_previous: false },
+    kind: 'continue_listening',
+    presentation_revision: 0,
+    question: null,
+    reason: null,
+    session_id: SESSION_ID,
+    snapshot_id: null,
+    withdrawal_reason: null,
+  };
 }
 
 function session(

@@ -43,6 +43,7 @@
 - `pnpm test:integration`：13 files / 74 tests PASS；DEV-007B 定向 1/1、DEV-006/QuestionEvidence 回归 8/8。
 - `pnpm typecheck`、`pnpm lint`、`pnpm build`、`pnpm format:check`、`git diff --check` PASS。
 - 首次全量 integration 复用了已有 fixture 的数据库，DEV-007A 固定 bank version 命中 `QUESTION_BANK_VERSION_EXISTS`，73/74 通过；未重置该库。随后创建全新隔离库 `elder_interview_dev007b_final`，从零部署全部 13 migrations 并完整重跑 74/74 PASS。
+- 通用 Chromium E2E 9/9 PASS。PR 首个 exact-head CI `31411505196` 的前置门禁全部通过，但旧 workbench harness 未处理新增 canonical current GET，导致 E2E 6/9；随后只补齐该只读 mock，并把旧 `.suggestion-seam` 尺寸断言切到正式 `.suggestion-panel` 与 390px/120px 窄范围，本地完整复跑 9/9。该失败 run 永久保留，最终结论只采用后续 exact head CI。
 - Chromium CLI：1440×900、390×844、320×568；current/history/focus 共 5 张截图，页面横向与纵向 overflow 均为 0；当前态/历史态按钮高度均为 44px；320px 历史三按钮宽约 98.7px 并完整可见；Tab 可聚焦“更新的问题”且 `:focus-visible=true`。
 - 本地截图位于 `output/playwright/dev007b-*.png`（按仓库规则忽略，不进入产品包）。浏览器控制台仅有既有 `/favicon.ico` 404，无应用异常。
 
