@@ -14,6 +14,13 @@ import {
   QUESTION_SIMILARITY_VERSION,
   QuestionSimilarityMatcher,
 } from './question-similarity.matcher.js';
+import type {
+  BeginQuestionGenerationCommand,
+  PublishQuestionAttemptCommand,
+  QuestionAttemptReceipt,
+  QuestionPublicationResult,
+  WithdrawQuestionPresentationCommand,
+} from './question-presentation.types.js';
 
 export type QuestionEvidenceActorOrSystem =
   { actorId: string; kind: 'actor' } | { kind: 'system'; trigger: string };
@@ -24,20 +31,20 @@ export type QuestionEvidenceActorOrSystem =
  */
 export abstract class QuestionEvidenceWriter {
   public abstract beginGenerationAttempt(
-    command: unknown,
+    command: BeginQuestionGenerationCommand,
     actorOrSystem: QuestionEvidenceActorOrSystem,
     requestId: string,
-  ): Promise<never>;
+  ): Promise<QuestionAttemptReceipt>;
   public abstract publishAttemptResult(
-    command: unknown,
+    command: PublishQuestionAttemptCommand,
     actorOrSystem: QuestionEvidenceActorOrSystem,
     requestId: string,
-  ): Promise<never>;
+  ): Promise<QuestionPublicationResult>;
   public abstract withdrawPresentation(
-    command: unknown,
+    command: WithdrawQuestionPresentationCommand,
     actorOrSystem: QuestionEvidenceActorOrSystem,
     requestId: string,
-  ): Promise<never>;
+  ): Promise<void>;
 }
 
 export interface ActualAskedItem {
@@ -91,28 +98,14 @@ export class ActualAskedReader {
 }
 
 @Injectable()
-export class QuestionEvidenceService extends QuestionEvidenceWriter {
+export class QuestionEvidenceService {
   public constructor(
     private readonly prisma: PrismaService,
     private readonly coordinator: AiJobCoordinatorService,
     private readonly eligibility: AiOutputEligibilityService,
     private readonly provider: StructuredAiProvider,
     private readonly matcher: QuestionSimilarityMatcher,
-  ) {
-    super();
-  }
-
-  public override beginGenerationAttempt(): Promise<never> {
-    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
-  }
-
-  public override publishAttemptResult(): Promise<never> {
-    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
-  }
-
-  public override withdrawPresentation(): Promise<never> {
-    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
-  }
+  ) {}
 
   public async reconcileActualQuestions(input: {
     actorId: string;

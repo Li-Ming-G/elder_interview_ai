@@ -18,7 +18,6 @@ import { CurrentMemoryReader, MemoryService } from '../../apps/api/src/memory/me
 import {
   ActualAskedReader,
   QuestionEvidenceService,
-  QuestionEvidenceWriter,
 } from '../../apps/api/src/question-evidence/question-evidence.service.js';
 import { normalizeQuestionDigest } from '../../apps/api/src/question-evidence/question-similarity.matcher.js';
 
@@ -724,11 +723,6 @@ describe('DEV-006 structured memory and QuestionEvidence PostgreSQL seam', () =>
       ).toBe(false);
       boundaryFixture.clear();
     }
-
-    const writer = app.get(QuestionEvidenceWriter);
-    await expect(
-      writer.beginGenerationAttempt({}, { kind: 'system', trigger: 'test' }, randomUUID()),
-    ).rejects.toThrow('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED');
   });
 
   async function seedSession(
@@ -793,6 +787,7 @@ describe('DEV-006 structured memory and QuestionEvidence PostgreSQL seam', () =>
       data: {
         boundaryPolicyRevision: 0,
         contextBuilderVersion: 'dev-006.test',
+        adaptationReasonCode: null,
         displayedAt: new Date(),
         displaySequence,
         evidenceManifestHash: EMPTY_MANIFEST_HASH,
@@ -801,16 +796,23 @@ describe('DEV-006 structured memory and QuestionEvidence PostgreSQL seam', () =>
         modelName: 'local-test-structured',
         normalizedQuestionDigest: normalizeQuestionDigest(questionText),
         promptVersion: 'dev-006.test',
+        purpose: 'detail',
         publishedPresentationRevision: displaySequence,
         questionText,
         reasonText: '虚构测试原因',
         retentionPolicyVersion: 1,
         roleWatermarkHash: EMPTY_MANIFEST_HASH,
         schemaVersion: 'dev-006.test',
+        selectionMode: 'verbatim',
         selectionPolicyVersion: 'selection-test-v1',
         selectionScore: 0.9,
         sessionId,
         similarityPolicyVersion: 'question-sim-v1',
+        sourceBank: 'basic',
+        sourceBankVersion: 'dev-006-legacy-test',
+        sourceQuestionId: `dev-006-${String(displaySequence)}`,
+        journeyPolicyVersion: 'journey_policy_v1',
+        journeyStage: 'rapport',
       },
     });
   }

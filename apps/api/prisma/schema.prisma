@@ -1000,6 +1000,10 @@ model QuestionGenerationAttempt {
   manualIntentSequence      Int       @map("manual_intent_sequence")
   selectionPolicyVersion    String    @map("selection_policy_version") @db.VarChar(80)
   similarityPolicyVersion   String    @map("similarity_policy_version") @db.VarChar(80)
+  journeyStage              String    @map("journey_stage") @db.VarChar(24)
+  journeyPolicyVersion      String    @map("journey_policy_version") @db.VarChar(80)
+  journeyReasonCodes        String[]  @default([]) @map("journey_reason_codes")
+  journeyBasisHash          String    @map("journey_basis_hash") @db.Char(64)
   status                    String    @db.VarChar(20)
   resultKind                String?   @map("result_kind") @db.VarChar(24)
   publicationOutcome        String?   @map("publication_outcome") @db.VarChar(32)
@@ -1015,6 +1019,12 @@ model QuestionCandidate {
   id                          String   @id @default(uuid()) @db.Uuid
   questionGenerationAttemptId String   @unique @map("question_generation_attempt_id") @db.Uuid
   aiDerivedOutputId           String   @unique @map("ai_derived_output_id") @db.Uuid
+  sourceQuestionBankItemId    String   @map("source_question_bank_item_id") @db.Uuid
+  sourceQuestionId            String   @map("source_question_id") @db.VarChar(120)
+  sourceBankVersion           String   @map("source_bank_version") @db.VarChar(80)
+  sourceBank                  String   @map("source_bank") @db.VarChar(16)
+  selectionMode               String   @map("selection_mode") @db.VarChar(24)
+  adaptationReasonCode        String?  @map("adaptation_reason_code") @db.VarChar(40)
   questionText                String   @map("question_text") @db.Text
   reasonText                  String   @map("reason_text") @db.Text
   purpose                     String   @db.VarChar(40)
@@ -1024,6 +1034,8 @@ model QuestionCandidate {
   selectionScore              Decimal  @map("selection_score") @db.Decimal(4, 3)
   selectionPolicyVersion      String   @map("selection_policy_version") @db.VarChar(80)
   similarityPolicyVersion     String   @map("similarity_policy_version") @db.VarChar(80)
+  journeyStage                String   @map("journey_stage") @db.VarChar(24)
+  journeyPolicyVersion        String   @map("journey_policy_version") @db.VarChar(80)
   createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@map("question_candidate")
@@ -1049,6 +1061,14 @@ model QuestionDisplaySnapshot {
   promptVersion                 String         @map("prompt_version") @db.VarChar(80)
   schemaVersion                 String         @map("schema_version") @db.VarChar(80)
   contextBuilderVersion         String         @map("context_builder_version") @db.VarChar(80)
+  sourceQuestionId              String         @map("source_question_id") @db.VarChar(120)
+  sourceBankVersion             String         @map("source_bank_version") @db.VarChar(80)
+  sourceBank                    String         @map("source_bank") @db.VarChar(16)
+  selectionMode                 String         @map("selection_mode") @db.VarChar(24)
+  adaptationReasonCode          String?        @map("adaptation_reason_code") @db.VarChar(40)
+  purpose                       String         @db.VarChar(40)
+  journeyStage                  String         @map("journey_stage") @db.VarChar(24)
+  journeyPolicyVersion          String         @map("journey_policy_version") @db.VarChar(80)
   retentionPolicyVersion        Int            @map("retention_policy_version")
   expiresAt                     DateTime       @map("expires_at") @db.Timestamptz(3)
   retentionState                RetentionState @default(active) @map("retention_state")
