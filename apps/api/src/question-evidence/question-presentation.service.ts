@@ -3,6 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from '@elder-interview/config';
 import type {
   SuggestionHistoryItem,
+  SuggestionHistoryItemResponse,
   SuggestionHistoryPageResponse,
   SuggestionPresentationChangedPayload,
   SuggestionPresentationResponse,
@@ -12,6 +13,7 @@ import type {
 import {
   ConflictException,
   ForbiddenException,
+  GoneException,
   HttpException,
   Inject,
   Injectable,
@@ -28,6 +30,7 @@ import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type {
   Prisma,
+  QuestionDisplaySnapshot,
   QuestionDisplayState,
   QuestionGenerationAttempt,
 } from '../generated/prisma/client.js';
@@ -382,8 +385,12 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         ? await this.createAnchor(sessionId, input.limit)
         : this.decodeAnchor(input.anchor, sessionId, input.limit);
     if (decoded !== null && decoded.anchor !== anchor.token) throw invalidCursor();
+    const direction = decoded?.direction ?? 'older';
     const rows = await this.prisma.questionDisplaySnapshot.findMany({
-      orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
+      orderBy:
+        direction === 'older'
+          ? [{ displaySequence: 'desc' }, { id: 'desc' }]
+          : [{ displaySequence: 'asc' }, { id: 'asc' }],
       take: input.limit + 1,
       where: {
         displaySequence: { lte: anchor.sequence },
@@ -391,52 +398,109 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         sessionId,
         ...(decoded === null
           ? {}
-          : {
-              OR: [
-                { displaySequence: { lt: decoded.sequence } },
-                { displaySequence: decoded.sequence, id: { lt: decoded.id } },
-              ],
-            }),
+          : direction === 'older'
+            ? {
+                OR: [
+                  { displaySequence: { lt: decoded.sequence } },
+                  { displaySequence: decoded.sequence, id: { lt: decoded.id } },
+                ],
+              }
+            : {
+                OR: [
+                  { displaySequence: { gt: decoded.sequence } },
+                  { displaySequence: decoded.sequence, id: { gt: decoded.id } },
+                ],
+              }),
       },
     });
     const hasMore = rows.length > input.limit;
-    const items = rows.slice(0, input.limit).map((row): SuggestionHistoryItem =>
-      safe !== null || row.expiresAt <= new Date()
-        ? {
-            display_sequence: row.displaySequence,
-            displayed_at: row.displayedAt.toISOString(),
-            kind: 'withdrawn',
-            question: null,
-            reason: null,
-            snapshot_id: row.id,
-            withdrawal_reason: safe ?? 'policy_unavailable',
-          }
-        : {
-            display_sequence: row.displaySequence,
-            displayed_at: row.displayedAt.toISOString(),
-            kind: 'suggestion',
-            question: row.questionText,
-            reason: row.reasonText,
-            snapshot_id: row.id,
-            withdrawal_reason: null,
-          },
+    const pageRows = rows.slice(0, input.limit);
+    if (direction === 'newer') pageRows.reverse();
+    const items = pageRows.map((row, index): SuggestionHistoryItem =>
+      this.projectHistoryItem(row, safe, {
+        anchor: anchor.token,
+        hasNewer: direction === 'newer' ? index > 0 || hasMore : index > 0 || decoded !== null,
+        hasOlder:
+          direction === 'older'
+            ? index < pageRows.length - 1 || hasMore
+            : index < pageRows.length - 1 || decoded !== null,
+        limit: input.limit,
+        sessionId,
+      }),
     );
-    const last = items.at(-1);
+    const boundary = direction === 'older' ? items.at(-1) : items.at(0);
     return {
       anchor: anchor.token,
       items,
       next_cursor:
-        hasMore && last !== undefined
+        hasMore && boundary !== undefined
           ? this.encodeSigned({
               anchor: anchor.token,
-              id: last.snapshot_id,
+              direction,
+              id: boundary.snapshot_id,
               limit: input.limit,
-              sequence: last.display_sequence,
+              sequence: boundary.display_sequence,
               sessionId,
               type: 'cursor',
               version: 1,
             })
           : null,
+      session_id: sessionId,
+    };
+  }
+
+  public async historyItem(
+    actor: AuthPrincipal,
+    sessionId: string,
+    snapshotId: string,
+  ): Promise<SuggestionHistoryItemResponse> {
+    const session = await this.assertActorAccess(actor.id, sessionId);
+    const [dynamicSafe, displayState, row, anchor] = await Promise.all([
+      this.safeProjection(actor.id, session.projectId, sessionId),
+      this.prisma.questionDisplayState.findUnique({ where: { sessionId } }),
+      this.prisma.questionDisplaySnapshot.findFirst({
+        where: { id: snapshotId, retentionState: 'active', sessionId },
+      }),
+      this.createAnchor(sessionId, 20),
+    ]);
+    if (row === null || row.expiresAt <= new Date()) throw historyItemUnavailable();
+    const safe =
+      dynamicSafe ??
+      (displayState?.visibility === 'withdrawn'
+        ? (displayState.withdrawalReason as SuggestionWithdrawalReason | null)
+        : null);
+    const [older, newer] = await Promise.all([
+      this.prisma.questionDisplaySnapshot.findFirst({
+        orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
+        where: {
+          OR: [
+            { displaySequence: { lt: row.displaySequence } },
+            { displaySequence: row.displaySequence, id: { lt: row.id } },
+          ],
+          retentionState: 'active',
+          sessionId,
+        },
+      }),
+      this.prisma.questionDisplaySnapshot.findFirst({
+        orderBy: [{ displaySequence: 'asc' }, { id: 'asc' }],
+        where: {
+          OR: [
+            { displaySequence: { gt: row.displaySequence } },
+            { displaySequence: row.displaySequence, id: { gt: row.id } },
+          ],
+          retentionState: 'active',
+          sessionId,
+        },
+      }),
+    ]);
+    return {
+      item: this.projectHistoryItem(row, safe, {
+        anchor: anchor.token,
+        hasNewer: newer !== null,
+        hasOlder: older !== null,
+        limit: 20,
+        sessionId,
+      }),
       session_id: sessionId,
     };
   }
@@ -1044,6 +1108,52 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     };
   }
 
+  private projectHistoryItem(
+    row: QuestionDisplaySnapshot,
+    safe: SuggestionWithdrawalReason | null,
+    navigation: {
+      anchor: string;
+      hasNewer: boolean;
+      hasOlder: boolean;
+      limit: number;
+      sessionId: string;
+    },
+  ): SuggestionHistoryItem {
+    const cursor = (direction: 'newer' | 'older'): string =>
+      this.encodeSigned({
+        anchor: navigation.anchor,
+        direction,
+        id: row.id,
+        limit: navigation.limit,
+        sequence: row.displaySequence,
+        sessionId: navigation.sessionId,
+        type: 'cursor',
+        version: 1,
+      });
+    const projection =
+      safe !== null || row.expiresAt <= new Date()
+        ? {
+            kind: 'withdrawn' as const,
+            question: null,
+            reason: null,
+            withdrawal_reason: safe ?? ('policy_unavailable' as const),
+          }
+        : {
+            kind: 'suggestion' as const,
+            question: row.questionText,
+            reason: row.reasonText,
+            withdrawal_reason: null,
+          };
+    return {
+      display_sequence: row.displaySequence,
+      displayed_at: row.displayedAt.toISOString(),
+      newer_cursor: navigation.hasNewer ? cursor('newer') : null,
+      older_cursor: navigation.hasOlder ? cursor('older') : null,
+      snapshot_id: row.id,
+      ...projection,
+    };
+  }
+
   private decodeAnchor(
     token: string,
     sessionId: string,
@@ -1065,19 +1175,27 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     token: string,
     sessionId: string,
     limit: number,
-  ): { anchor: string; id: string; sequence: number } {
+  ): { anchor: string; direction: 'newer' | 'older'; id: string; sequence: number } {
     const value = this.decodeSigned(token);
     if (
       value.type !== 'cursor' ||
       value.sessionId !== sessionId ||
       value.limit !== limit ||
       typeof value.anchor !== 'string' ||
+      (value.direction !== undefined &&
+        value.direction !== 'newer' &&
+        value.direction !== 'older') ||
       typeof value.id !== 'string' ||
       typeof value.sequence !== 'number'
     ) {
       throw invalidCursor();
     }
-    return { anchor: value.anchor, id: value.id, sequence: value.sequence };
+    return {
+      anchor: value.anchor,
+      direction: value.direction === 'newer' ? 'newer' : 'older',
+      id: value.id,
+      sequence: value.sequence,
+    };
   }
 
   private encodeSigned(value: Record<string, unknown>): string {
@@ -1205,6 +1323,14 @@ function invalidCursor(): UnprocessableEntityException {
 
 function notFound(): NotFoundException {
   return new NotFoundException({ code: 'NOT_FOUND', details: {}, message: 'Resource not found' });
+}
+
+function historyItemUnavailable(): GoneException {
+  return new GoneException({
+    code: 'SUGGESTION_HISTORY_ITEM_UNAVAILABLE',
+    details: {},
+    message: 'Suggestion history item is unavailable',
+  });
 }
 
 function forbiddenBody(): { code: string; details: object; message: string } {

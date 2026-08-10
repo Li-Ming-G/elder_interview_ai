@@ -218,6 +218,35 @@ describe('DEV-007B constrained question publication', () => {
     });
     expect(history.items.map(({ display_sequence }) => display_sequence)).toEqual([2, 1]);
     expect(history.items.every(({ kind }) => kind === 'suggestion')).toBe(true);
+    expect(history.items[0]).toMatchObject({ newer_cursor: null });
+    expect(history.items[0]?.older_cursor).not.toBeNull();
+    expect(history.items[1]).toMatchObject({ older_cursor: null });
+    expect(history.items[1]?.newer_cursor).not.toBeNull();
+
+    const restored = await presentations.historyItem(
+      actor,
+      sessionId,
+      first.current.snapshot_id ?? '',
+    );
+    expect(restored).toMatchObject({
+      item: {
+        display_sequence: 1,
+        kind: 'suggestion',
+        older_cursor: null,
+        snapshot_id: first.current.snapshot_id,
+      },
+      session_id: sessionId,
+    });
+    expect(restored.item.newer_cursor).not.toBeNull();
+    const newer = await presentations.history(actor, sessionId, {
+      anchor: history.anchor,
+      cursor: history.items[1]?.newer_cursor ?? null,
+      limit: 20,
+    });
+    expect(newer.items.map(({ display_sequence }) => display_sequence)).toEqual([2]);
+    await expect(presentations.historyItem(actor, sessionId, randomUUID())).rejects.toMatchObject({
+      status: 410,
+    });
     expect({
       attempts: await prisma.questionGenerationAttempt.count({ where: { sessionId } }),
       events: await prisma.questionEvidenceEvent.count({ where: { sessionId } }),
