@@ -9,10 +9,11 @@
 
 ## 当前可下发
 
-- [`SPEC-DEV-006.md`](SPEC-DEV-006.md)：后台 current memory、问题证据、跨会话 consumer、actual asked 与过程记录契约；只改正式文档，提交非 Draft PR 供项目负责人审查。
+- [`DISC-AI-QUESTION-001.md`](DISC-AI-QUESTION-001.md)：单问题自动更新、连续换题、无合格新问题与一层撤销体验讨论；只产出候选决定包。
 
 ## 历史提示词
 
+- [`SPEC-DEV-006.md`](SPEC-DEV-006.md)：后台 current memory、问题证据、跨会话 consumer、actual asked 与过程记录契约；REV-031 PASS/DONE。
 - [`DISC-006.md`](DISC-006.md)：结构化长期记忆产品行为讨论；已定稿并写回 ADR-026，CON-024 已解决。
 - [`DISC-005D.md`](DISC-005D.md)：安全结束页产品体验讨论，已由后续首次访谈重构收口。
 - [`DEV-005D.md`](DEV-005D.md)：旧安全结束页薄集成提示词；任务已取消并由 DEV-005R3 取代。

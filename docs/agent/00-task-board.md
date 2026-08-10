@@ -17,7 +17,8 @@
 | DOC-002 | 分离协作文档当前态与历史归档 | 总控 Agent | DONE | BASE-001 | `docs/agent/README.md`、当前审查/交接索引、归档卷、OPEN 冲突索引 | 文档结构整理、链接检查、Git diff check 通过；不改变产品或技术契约 |
 | DEC-001 | 确认工程技术基线与跨规范冲突 | 总控 Agent | DONE | BASE-001 | `02` 至 `10`、ADR、冲突日志 | REV-003 PASS；P0/P1 为 0 |
 | SPEC-FE-001 | 首次访谈页面与内容规划收敛 | 总控 Agent | DONE | 前端页面规划对话、ADR-020 | [任务卡](tasks/SPEC-FE-001.md)、PR #6 head `47f7b35`、CI `31153878655` PASS、REV-015 PASS、merge `474c647`、HO-030 | 页面规划和可执行任务拆分已通过；不代表 DEV-005 或安全结束能力已实现 |
-| SPEC-AI-QUESTION-001 | 单问题建议与替换契约 | 待分配 | READY | SPEC-FE-001 DONE、SPEC-DEV-006 PASS/merge | [任务卡](tasks/SPEC-AI-QUESTION-001.md)、ADR-027、CON-018 | SPEC-DEV-006 已由项目负责人 PASS 并合并；当前只冻结 replace/undo、节流、相似度和最终 REST/WS，不得重建第二套 question history |
+| DISC-AI-QUESTION-001 | 单问题更新、换题与一层撤销体验收口 | 项目负责人 + 独立产品讨论任务 | IN_PROGRESS | SPEC-FE-001、DISC-006、SPEC-DEV-006 DONE | [任务卡](tasks/DISC-AI-QUESTION-001.md)、[讨论提示词](prompts/DISC-AI-QUESTION-001.md)、ADR-020/026/027、CON-018 | 只讨论自动更新时机、连续换题、无合格新问题和撤销窗口；不重开记忆/证据/安全契约，不讨论 REST/WS/数据库 |
+| SPEC-AI-QUESTION-001 | 单问题建议与替换契约 | 待分配 | BLOCKED | SPEC-FE-001 DONE、SPEC-DEV-006 DONE、DISC-AI-QUESTION-001 DONE | [任务卡](tasks/SPEC-AI-QUESTION-001.md)、ADR-027、CON-018 | 等待用户可观察行为讨论定稿；之后只冻结 replace/undo、节流、相似度和最终 REST/WS，不得重建第二套 question history |
 | SPEC-SESSION-END-001 | 会话安全结束与恢复契约 | 会话编排契约 Agent | DONE | SPEC-FE-001 产品决定、DEV-003/004B2 seam | [任务卡](tasks/SPEC-SESSION-END-001.md)、ADR-022、CON-019、HO-032、PR #8 head `9c471d8`、CI `31163777417` PASS、REV-017 PASS、merge `9af96c1` | 契约范围已通过；不代表 stop/recover 已实现，后续由 DEV-005C 执行 |
 | MVP-V01 | 最小纵向核心假设链路 | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B 内部候选 seam | [里程碑卡](tasks/MVP-V01.md) | 仅限虚构/脱敏数据和非公网内部验证；逐段集成 |
 | DEV-001 | 初始化工程与环境（父任务） | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B | [父任务卡](tasks/DEV-001.md) | DEV-001B 最终加固/复审未完成，但不阻塞内部原型 |
