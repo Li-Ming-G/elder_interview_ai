@@ -4,8 +4,8 @@
 
 - 任务：`REVIEW`
 - 分支：`codex/spec-question-journey-001`
-- PR：待创建非 Draft PR 后补充
-- exact head / CI：待最终推送与 GitHub CI 后补充
+- PR：[非 Draft PR #23](https://github.com/Li-Ming-G/elder_interview_ai/pull/23)
+- exact head / CI：以 PR 最终提交与状态检查为准；在任务最终回复中精确交接
 - 审查人：项目负责人在 GitHub 手动审查
 - 限制：本交接不是 PASS；不得把 SPEC、ADR-030 或 CON-025 自行关闭，不得启动 DEV-007A/B。
 
