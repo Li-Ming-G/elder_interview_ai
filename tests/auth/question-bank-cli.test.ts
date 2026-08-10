@@ -1,6 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { fileURLToPath } from 'node:url';
 
-import { executeQuestionBankCommand } from '../../apps/api/src/cli/question-bank-cli.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  executeQuestionBankCommand,
+  runQuestionBankCli,
+} from '../../apps/api/src/cli/question-bank-cli.js';
+
+const fixturePath = fileURLToPath(
+  new URL('../../docs/question-bank/question-bank-internal-demo.fixture.csv', import.meta.url),
+);
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function service(): {
   activateRelease: ReturnType<typeof vi.fn>;
@@ -33,7 +46,7 @@ describe('controlled question-bank CLI', () => {
     const fake = service();
     const result = await executeQuestionBankCommand(
       fake,
-      ['question-bank:validate', '--environment', 'test', '--file', 'fixture.csv'],
+      ['question-bank:validate', '--file', 'fixture.csv'],
       () => Promise.resolve(new Uint8Array()),
     );
     expect(result).toMatchObject({ ok: true, summary: { rowCount: 2 } });
@@ -45,18 +58,49 @@ describe('controlled question-bank CLI', () => {
     'requires explicit operator and request identity for %s',
     async (command) => {
       await expect(
-        executeQuestionBankCommand(
-          service(),
-          [command, '--environment', 'test', '--file', 'fixture.csv'],
-          () => Promise.resolve(new Uint8Array()),
+        executeQuestionBankCommand(service(), [command, '--file', 'fixture.csv'], () =>
+          Promise.resolve(new Uint8Array()),
         ),
       ).rejects.toThrow('Missing required option --operator-ref');
     },
   );
 
-  it('rejects unknown deployment environments before writes', async () => {
+  it.each([['--environment', 'test'], ['--environment=internal_demo']])(
+    'rejects CLI environment override %s because APP_ENV is authoritative',
+    async (...flags) => {
+      await expect(
+        executeQuestionBankCommand(service(), ['question-bank:activate', ...flags]),
+      ).rejects.toThrow('--environment is not supported');
+    },
+  );
+
+  it.each(['staging', 'production'] as const)(
+    'uses trusted APP_ENV=%s and blocks fixture validation even without a database',
+    async (appEnvironment) => {
+      vi.stubEnv('APP_ENV', appEnvironment);
+      const result = (await runQuestionBankCli([
+        'question-bank:validate',
+        '--file',
+        fixturePath,
+      ])) as { errors: Array<{ code: string }>; ok: boolean };
+      expect(result.ok).toBe(false);
+      expect(result.errors.map(({ code }) => code)).toContain(
+        'QUESTION_BANK_FIXTURE_ENVIRONMENT_BLOCKED',
+      );
+    },
+  );
+
+  it('allows the explicit internal-demo fixture under trusted test APP_ENV', async () => {
+    vi.stubEnv('APP_ENV', 'test');
     await expect(
-      executeQuestionBankCommand(service(), ['question-bank:activate', '--environment', 'staging']),
-    ).rejects.toThrow('Invalid --environment');
+      runQuestionBankCli(['question-bank:validate', '--file', fixturePath]),
+    ).resolves.toMatchObject({ ok: true, summary: { environmentScope: 'internal_demo' } });
+  });
+
+  it('fails closed when APP_ENV is absent or invalid', async () => {
+    vi.stubEnv('APP_ENV', 'internal_demo');
+    await expect(
+      runQuestionBankCli(['question-bank:validate', '--file', fixturePath]),
+    ).rejects.toThrow('Invalid configuration keys: APP_ENV');
   });
 });

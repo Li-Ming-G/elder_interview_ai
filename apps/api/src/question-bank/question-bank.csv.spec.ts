@@ -60,7 +60,6 @@ describe('question bank strict CSV validator', () => {
       environmentScope: 'internal_demo',
       rowCount: 3,
     });
-    expect(validateQuestionBankCsv(fixture, 'internal_demo').ok).toBe(true);
     for (const environment of ['formal_internal', 'production'] as const) {
       const blocked = validateQuestionBankCsv(fixture, environment);
       expect(blocked.ok).toBe(false);

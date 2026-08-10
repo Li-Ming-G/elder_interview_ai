@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
+const appEnvironmentSchema = z.enum(['local', 'test', 'staging', 'production']);
+
 const apiConfigSchema = z.object({
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
-  APP_ENV: z.enum(['local', 'test', 'staging', 'production']),
+  APP_ENV: appEnvironmentSchema,
   DATABASE_URL: z.url({ protocol: /^postgresql$/ }),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   AUTH_ALLOWED_ORIGINS: z.string().min(1),
@@ -20,10 +22,12 @@ const apiConfigSchema = z.object({
     .default(25 * 1024 * 1024),
 });
 
+export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
+
 export interface ApiConfig {
   apiHost: string;
   apiPort: number;
-  appEnv: 'local' | 'test' | 'staging' | 'production';
+  appEnv: AppEnvironment;
   databaseUrl: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   authAllowedOrigins: readonly string[];
@@ -71,4 +75,10 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
     audioStorageRoot: result.data.AUDIO_STORAGE_ROOT,
     audioChunkMaxBytes: result.data.AUDIO_CHUNK_MAX_BYTES,
   };
+}
+
+export function loadAppEnvironment(environment: NodeJS.ProcessEnv): AppEnvironment {
+  const result = appEnvironmentSchema.safeParse(environment.APP_ENV);
+  if (!result.success) throw new ConfigValidationError(['APP_ENV']);
+  return result.data;
 }

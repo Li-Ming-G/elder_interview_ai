@@ -38,7 +38,7 @@ export class AppModule implements NestModule {
       aiRuntimeModule,
       ['local', 'test'].includes(config.appEnv),
     );
-    const questionBankModule = createQuestionBankModule(authModule);
+    const questionBankModule = createQuestionBankModule(authModule, config.appEnv);
     return {
       controllers: [HealthController],
       global: true,

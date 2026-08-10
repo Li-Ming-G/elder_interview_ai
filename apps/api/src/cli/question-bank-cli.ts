@@ -1,16 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { stdout } from 'node:process';
 
+import { loadAppEnvironment } from '@elder-interview/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
 import { validateQuestionBankCsv } from '../question-bank/question-bank.csv.js';
+import { questionBankEnvironmentFromAppEnv } from '../question-bank/question-bank.environment.js';
 import { QuestionBankImportService } from '../question-bank/question-bank.service.js';
-import {
-  QUESTION_BANK_ENVIRONMENTS,
-  type QuestionBankEnvironment,
-  type QuestionBankValidationResult,
-} from '../question-bank/question-bank.types.js';
+import { type QuestionBankValidationResult } from '../question-bank/question-bank.types.js';
 
 type Command =
   | 'question-bank:validate'
@@ -19,25 +17,10 @@ type Command =
   | 'question-bank:retire';
 
 interface QuestionBankCommandService {
-  activateRelease(
-    releaseId: string,
-    actorReference: string,
-    requestId: string,
-    environment: QuestionBankEnvironment,
-  ): Promise<unknown>;
-  importDraft(
-    file: Uint8Array,
-    actorReference: string,
-    requestId: string,
-    environment: QuestionBankEnvironment,
-  ): Promise<unknown>;
-  retireRelease(
-    releaseId: string,
-    actorReference: string,
-    requestId: string,
-    environment: QuestionBankEnvironment,
-  ): Promise<unknown>;
-  validateCsv(file: Uint8Array, environment: QuestionBankEnvironment): QuestionBankValidationResult;
+  activateRelease(releaseId: string, actorReference: string, requestId: string): Promise<unknown>;
+  importDraft(file: Uint8Array, actorReference: string, requestId: string): Promise<unknown>;
+  retireRelease(releaseId: string, actorReference: string, requestId: string): Promise<unknown>;
+  validateCsv(file: Uint8Array): QuestionBankValidationResult;
 }
 
 function requiredFlag(args: readonly string[], name: string): string {
@@ -47,14 +30,6 @@ function requiredFlag(args: readonly string[], name: string): string {
     throw new Error(`Missing required option ${name}`);
   }
   return value;
-}
-
-function environmentFlag(args: readonly string[]): QuestionBankEnvironment {
-  const environment = requiredFlag(args, '--environment');
-  if (!QUESTION_BANK_ENVIRONMENTS.includes(environment as QuestionBankEnvironment)) {
-    throw new Error('Invalid --environment');
-  }
-  return environment as QuestionBankEnvironment;
 }
 
 export async function executeQuestionBankCommand(
@@ -75,12 +50,13 @@ export async function executeQuestionBankCommand(
       'Expected question-bank:validate, question-bank:import, question-bank:activate, or question-bank:retire',
     );
   }
-  const environment = environmentFlag(args);
+  if (
+    args.some((argument) => argument === '--environment' || argument.startsWith('--environment='))
+  ) {
+    throw new Error('--environment is not supported; validated APP_ENV is authoritative');
+  }
   if (command === 'question-bank:validate') {
-    const validation = service.validateCsv(
-      await fileReader(requiredFlag(args, '--file')),
-      environment,
-    );
+    const validation = service.validateCsv(await fileReader(requiredFlag(args, '--file')));
     return {
       errors: validation.errors,
       ok: validation.ok,
@@ -94,16 +70,16 @@ export async function executeQuestionBankCommand(
       await fileReader(requiredFlag(args, '--file')),
       actorReference,
       requestId,
-      environment,
     );
   }
   const releaseId = requiredFlag(args, '--release-id');
   return command === 'question-bank:activate'
-    ? service.activateRelease(releaseId, actorReference, requestId, environment)
-    : service.retireRelease(releaseId, actorReference, requestId, environment);
+    ? service.activateRelease(releaseId, actorReference, requestId)
+    : service.retireRelease(releaseId, actorReference, requestId);
 }
 
 export async function runQuestionBankCli(args: readonly string[]): Promise<unknown> {
+  const deploymentEnvironment = questionBankEnvironmentFromAppEnv(loadAppEnvironment(process.env));
   if (args[0] === 'question-bank:validate') {
     const writeUnavailable = (): Promise<never> =>
       Promise.reject(new Error('Database write service is unavailable during validation'));
@@ -112,7 +88,7 @@ export async function runQuestionBankCli(args: readonly string[]): Promise<unkno
         activateRelease: writeUnavailable,
         importDraft: writeUnavailable,
         retireRelease: writeUnavailable,
-        validateCsv: validateQuestionBankCsv,
+        validateCsv: (file) => validateQuestionBankCsv(file, deploymentEnvironment),
       },
       args,
     );
@@ -121,7 +97,10 @@ export async function runQuestionBankCli(args: readonly string[]): Promise<unkno
   if (databaseUrl === undefined) throw new Error('DATABASE_URL is required');
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
   try {
-    return await executeQuestionBankCommand(new QuestionBankImportService(prisma), args);
+    return await executeQuestionBankCommand(
+      new QuestionBankImportService(prisma, deploymentEnvironment),
+      args,
+    );
   } finally {
     await prisma.$disconnect();
   }

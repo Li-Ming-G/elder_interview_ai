@@ -30,5 +30,6 @@
 
 - 基线：`origin/main@12021408242baeac99fdc89e00992bfdb0f14f1c`；分支：`codex/dev-007a-question-bank`；非 Draft [PR #24](https://github.com/Li-Ming-G/elder_interview_ai/pull/24)。
 - 已实现 release/item migration、14 列 validator、受控 CLI、draft import、原子 activate/retire、active reader、`question_condition_v1`、`journey_policy_v1` 与 deterministic test selector。
+- 项目负责人对 old exact head `5cea9726994656c6a95babdcb6bc8f3f7ce4014e`、CI `31385629751` 正式 `REQUEST_CHANGES`（P0=0/P1=2）；该事实永久保留。当前定向修复为数据库 membership seal/count/canonical digest/deferred commit invariant，以及只读取可信 `APP_ENV` 的 fixture 写入/reader 门禁；新 head/CI 仍待项目负责人复审。
 - 既有 `docs/question-bank/question-bank-internal-demo.fixture.csv` 只用于 internal demo；项目负责人正式题库未提供，不阻塞 A 的基础设施审查，但阻塞任何产品内容可用或正式内部试用声明。
-- 本地门禁：format/lint/typecheck/build、261 unit、12 migrations 空库 deploy/status、71 PostgreSQL integration、18 auth、smoke、9 Chromium E2E、4 real Web/API auth E2E 均通过。任务保持 REVIEW，等待 exact-head GitHub CI 与项目负责人手动审查。
+- 定向修复候选本地门禁：format/lint/typecheck/build、265 unit、12 migrations 空库 deploy/status、73 PostgreSQL integration、23 auth、smoke、9 Chromium E2E、4 real Web/API auth E2E 与 `git diff --check` 均通过。任务保持 REVIEW，等待新 exact-head GitHub CI 与项目负责人手动审查。

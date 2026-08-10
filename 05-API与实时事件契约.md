@@ -672,7 +672,7 @@ GET  /sessions/:id/suggestion-requests/:requestId
 第一版不新增普通用户题库管理 API。项目负责人编辑 UTF-8 CSV；DEV-007A 通过受控运维 CLI 或等价的非公网管理入口执行 validate/import/activate/retire。CSV 是交换格式，运行时只读取 `04` §4.35A-4.35B 的数据库事实。
 
 ```text
-QuestionBankImportService.validateCsv(file, environment)
+QuestionBankImportService.validateCsv(file)
 QuestionBankImportService.importDraft(file, actor, request_id)
 QuestionBankImportService.activateRelease(release_id, actor, request_id)
 QuestionBankImportService.retireRelease(release_id, actor, request_id)
@@ -681,8 +681,9 @@ QuestionJourneyService.evaluate(frozen_context, journey_policy_version)
 ```
 
 - validate 返回行号、稳定错误码和不含整份题库正文的摘要；任一错误阻止 import；
+- import service、reader 与独立 CLI 都只消费启动时校验的 `APP_ENV`；CLI 不接受 `--environment` 覆盖。`local|test` 可承载推导出的 `internal_demo` scope，`staging` 等同正式内部试用，`production` 等同生产，后两者对 fixture 相关写入和读取失败关闭；
 - validator 严格执行 `question_condition_v1`：整格空值形成空集合；非空值按 `;` 分隔并 trim，分隔产生空 token、未知 token、字段内重复或同码同时出现在适用/排除字段均整批拒绝，不静默修复；fixture 与正式文件走同一 parser/validator；
-- import 是全成全败的 draft 创建，`request_id` 绑定 actor、文件 digest、环境和 validator version；同 ID 异文件稳定冲突；
+- import 是全成全败的 draft 创建，`request_id` 绑定 actor、文件 digest、可信 `APP_ENV` 和 validator version；同 ID 异文件或跨部署环境重放稳定冲突；数据库只在同一未提交事务内开放 membership 构建窗口，提交前 seal 并复核实际 item count/canonical digest；
 - activate 在同一事务重检许可、environment scope、release 完整性和 current active，再原子激活新版本/退休旧版本；不得部分启用、直接覆盖 item 或把 CSV 的 `enabled` 当成 active；
 - `synthetic_fixture + fixture_only` 仅允许 local/test 或明确 internal demo；正式内部试用/production 请求稳定拒绝；
 - 未知许可、无 active release、stage/policy 无法构建或 reader 失败时，问题编排失败关闭。没有 eligible item 是成功的 `continue_listening`；LLM/编排不可用仍是 `unavailable`，不得直接把某道 basic 原题作为 UI 兜底；

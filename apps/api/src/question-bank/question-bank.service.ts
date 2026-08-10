@@ -6,9 +6,9 @@ import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma, PrismaClient } from '../generated/prisma/client.js';
 import { AuditActorType } from '../generated/prisma/enums.js';
 import { validateQuestionBankCsv } from './question-bank.csv.js';
+import { QUESTION_BANK_DEPLOYMENT_ENVIRONMENT } from './question-bank.environment.js';
 import {
   JOURNEY_STAGES,
-  QUESTION_BANK_ENVIRONMENTS,
   QUESTION_CONDITION_CODES,
   type EligibleQuestionBankItem,
   type JourneyStage,
@@ -27,6 +27,7 @@ interface ReleaseResult {
   bankVersion: string;
   contentDigest: string;
   environmentScope: QuestionBankScope;
+  itemCount: number;
   releaseId: string;
   replayed: boolean;
   status: 'draft' | 'active' | 'retired';
@@ -34,10 +35,12 @@ interface ReleaseResult {
 
 interface OperationMetadata extends Prisma.InputJsonObject {
   action: 'activate' | 'import_draft' | 'retire';
+  app_environment: QuestionBankEnvironment;
   binding_hash: string;
   bank_version: string;
   content_digest: string;
   environment_scope: QuestionBankScope;
+  item_count: number;
   release_id: string;
   source_file_digest?: string;
   status: 'draft' | 'active' | 'retired';
@@ -46,24 +49,23 @@ interface OperationMetadata extends Prisma.InputJsonObject {
 
 @Injectable()
 export class QuestionBankImportService {
-  public constructor(@Inject(PrismaService) private readonly prisma: DatabaseClient) {}
+  public constructor(
+    @Inject(PrismaService) private readonly prisma: DatabaseClient,
+    @Inject(QUESTION_BANK_DEPLOYMENT_ENVIRONMENT)
+    private readonly deploymentEnvironment: QuestionBankEnvironment,
+  ) {}
 
-  public validateCsv(
-    file: Uint8Array,
-    environment: QuestionBankEnvironment,
-  ): QuestionBankValidationResult {
-    assertEnvironment(environment);
-    return validateQuestionBankCsv(file, environment);
+  public validateCsv(file: Uint8Array): QuestionBankValidationResult {
+    return validateQuestionBankCsv(file, this.deploymentEnvironment);
   }
 
   public async importDraft(
     file: Uint8Array,
     actorReference: string,
     requestId: string,
-    environment: QuestionBankEnvironment,
   ): Promise<ReleaseResult> {
     assertActorAndRequest(actorReference, requestId);
-    const validation = this.validateCsv(file, environment);
+    const validation = this.validateCsv(file);
     if (!validation.ok)
       throw new QuestionBankError(
         validation.errors[0]?.code ?? 'QUESTION_BANK_FIELD_INVALID',
@@ -72,7 +74,7 @@ export class QuestionBankImportService {
     const bindingHash = operationHash({
       action: 'import_draft',
       actorReference,
-      environment,
+      appEnvironment: this.deploymentEnvironment,
       sourceFileDigest: validation.summary.sourceFileDigest,
       validatorVersion: validation.summary.validatorVersion,
     });
@@ -89,13 +91,14 @@ export class QuestionBankImportService {
         throw new QuestionBankError('QUESTION_BANK_VERSION_EXISTS');
       }
       const now = new Date();
-      const release = await tx.questionBankRelease.create({
+      const createdRelease = await tx.questionBankRelease.create({
         data: {
           bankVersion: validation.summary.bankVersion,
           contentDigest: validation.summary.contentDigest,
           environmentScope: validation.summary.environmentScope,
           importedAt: now,
           importedBy: actorReference,
+          itemCount: validation.rows.length,
           sourceFileDigest: validation.summary.sourceFileDigest,
           validatorVersion: validation.summary.validatorVersion,
           items: {
@@ -119,12 +122,18 @@ export class QuestionBankImportService {
           },
         },
       });
+      const release = await tx.questionBankRelease.update({
+        data: { membershipSealedAt: now },
+        where: { id: createdRelease.id },
+      });
       const metadata: OperationMetadata = {
         action: 'import_draft',
+        app_environment: this.deploymentEnvironment,
         bank_version: release.bankVersion,
         binding_hash: bindingHash,
         content_digest: release.contentDigest,
         environment_scope: release.environmentScope,
+        item_count: release.itemCount,
         release_id: release.id,
         source_file_digest: release.sourceFileDigest,
         status: release.status,
@@ -146,18 +155,16 @@ export class QuestionBankImportService {
     releaseId: string,
     actorReference: string,
     requestId: string,
-    environment: QuestionBankEnvironment,
   ): Promise<ReleaseResult> {
-    return this.changeReleaseState('activate', releaseId, actorReference, requestId, environment);
+    return this.changeReleaseState('activate', releaseId, actorReference, requestId);
   }
 
   public async retireRelease(
     releaseId: string,
     actorReference: string,
     requestId: string,
-    environment: QuestionBankEnvironment,
   ): Promise<ReleaseResult> {
-    return this.changeReleaseState('retire', releaseId, actorReference, requestId, environment);
+    return this.changeReleaseState('retire', releaseId, actorReference, requestId);
   }
 
   private async changeReleaseState(
@@ -165,11 +172,14 @@ export class QuestionBankImportService {
     releaseId: string,
     actorReference: string,
     requestId: string,
-    environment: QuestionBankEnvironment,
   ): Promise<ReleaseResult> {
     assertActorAndRequest(actorReference, requestId);
-    assertEnvironment(environment);
-    const bindingHash = operationHash({ action, actorReference, environment, releaseId });
+    const bindingHash = operationHash({
+      action,
+      actorReference,
+      appEnvironment: this.deploymentEnvironment,
+      releaseId,
+    });
     return this.prisma.$transaction(async (tx) => {
       await advisoryLock(tx, `question-bank-request:${requestId}`);
       const replay = await readReplay(tx, requestId, actorReference, bindingHash);
@@ -179,7 +189,7 @@ export class QuestionBankImportService {
         where: { id: releaseId },
       });
       if (release === null) throw new QuestionBankError('QUESTION_BANK_RELEASE_NOT_FOUND');
-      assertEnvironmentCanOperateScope(environment, release.environmentScope);
+      assertEnvironmentCanOperateScope(this.deploymentEnvironment, release.environmentScope);
       await advisoryLock(tx, `question-bank-scope:${release.environmentScope}`);
       const now = new Date();
       if (action === 'activate') {
@@ -207,10 +217,12 @@ export class QuestionBankImportService {
       const updated = await tx.questionBankRelease.findUniqueOrThrow({ where: { id: release.id } });
       const metadata: OperationMetadata = {
         action,
+        app_environment: this.deploymentEnvironment,
         bank_version: updated.bankVersion,
         binding_hash: bindingHash,
         content_digest: updated.contentDigest,
         environment_scope: updated.environmentScope,
+        item_count: updated.itemCount,
         release_id: updated.id,
         source_file_digest: updated.sourceFileDigest,
         status: updated.status,
@@ -231,7 +243,11 @@ export class QuestionBankImportService {
 
 @Injectable()
 export class QuestionBankReader {
-  public constructor(@Inject(PrismaService) private readonly prisma: DatabaseClient) {}
+  public constructor(
+    @Inject(PrismaService) private readonly prisma: DatabaseClient,
+    @Inject(QUESTION_BANK_DEPLOYMENT_ENVIRONMENT)
+    private readonly deploymentEnvironment: QuestionBankEnvironment,
+  ) {}
 
   public async listEligible(
     stage: JourneyStage,
@@ -250,6 +266,7 @@ export class QuestionBankReader {
     if (policyContext.policyDecision !== 'allowed') {
       throw new QuestionBankError('QUESTION_BANK_POLICY_UNAVAILABLE');
     }
+    assertEnvironmentCanOperateScope(this.deploymentEnvironment, policyContext.environmentScope);
     const conditionSet = normalizeRuntimeFacts(stage, contextFacts);
     const release = await this.prisma.questionBankRelease.findFirst({
       include: { items: { where: { enabled: true } } },
@@ -348,10 +365,7 @@ function assertEnvironmentCanOperateScope(
   environment: QuestionBankEnvironment,
   scope: QuestionBankScope,
 ): void {
-  if (
-    (scope === 'internal_demo' && ['formal_internal', 'production'].includes(environment)) ||
-    (scope === 'product' && environment === 'internal_demo')
-  ) {
+  if (scope === 'internal_demo' && ['formal_internal', 'production'].includes(environment)) {
     throw new QuestionBankError('QUESTION_BANK_FIXTURE_ENVIRONMENT_BLOCKED');
   }
 }
@@ -429,6 +443,10 @@ async function readReplay(
     typeof metadata.content_digest !== 'string' ||
     typeof metadata.environment_scope !== 'string' ||
     !['product', 'internal_demo'].includes(metadata.environment_scope) ||
+    typeof metadata.item_count !== 'number' ||
+    !Number.isInteger(metadata.item_count) ||
+    metadata.item_count <= 0 ||
+    typeof metadata.app_environment !== 'string' ||
     typeof metadata.status !== 'string' ||
     !['draft', 'active', 'retired'].includes(metadata.status)
   ) {
@@ -438,6 +456,7 @@ async function readReplay(
     bankVersion: metadata.bank_version,
     contentDigest: metadata.content_digest,
     environmentScope: metadata.environment_scope as QuestionBankScope,
+    itemCount: metadata.item_count,
     releaseId: metadata.release_id,
     status: metadata.status as ReleaseResult['status'],
   };
@@ -470,6 +489,7 @@ function projectRelease(
     contentDigest: string;
     environmentScope: QuestionBankScope;
     id: string;
+    itemCount: number;
     status: ReleaseResult['status'];
   },
   replayed: boolean,
@@ -478,6 +498,7 @@ function projectRelease(
     bankVersion: release.bankVersion,
     contentDigest: release.contentDigest,
     environmentScope: release.environmentScope,
+    itemCount: release.itemCount,
     releaseId: release.id,
     replayed,
     status: release.status,
@@ -486,12 +507,6 @@ function projectRelease(
 
 function operationHash(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex');
-}
-
-function assertEnvironment(environment: QuestionBankEnvironment): void {
-  if (!QUESTION_BANK_ENVIRONMENTS.includes(environment)) {
-    throw new QuestionBankError('QUESTION_BANK_POLICY_UNAVAILABLE');
-  }
 }
 
 function assertActorAndRequest(actorReference: string, requestId: string): void {

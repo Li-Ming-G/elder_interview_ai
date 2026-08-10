@@ -231,21 +231,50 @@ export function validateQuestionBankCsv(
   if (errors.length > 0 || bankVersion === null || environmentScope === null) {
     return failure(stableErrors(errors), summary);
   }
-  const contentDigest = sha256(
-    new TextEncoder().encode(
-      JSON.stringify({
-        headers: QUESTION_BANK_HEADERS,
-        rows,
-        validator: QUESTION_BANK_VALIDATOR_VERSION,
-      }),
-    ),
-  );
+  const contentDigest = questionBankContentDigest(bankVersion, rows);
   return {
     errors: [],
     ok: true,
     rows,
     summary: { ...summary, bankVersion, contentDigest, environmentScope },
   };
+}
+
+export function questionBankContentDigest(
+  bankVersion: string,
+  rows: readonly ValidatedQuestionBankRow[],
+): string {
+  const values = [
+    QUESTION_BANK_VALIDATOR_VERSION,
+    bankVersion,
+    String(rows.length),
+    ...[...rows]
+      .sort((left, right) => compareCodePoints(left.questionId, right.questionId))
+      .flatMap((row) => [
+        row.questionId,
+        row.bank,
+        row.topic,
+        row.questionText,
+        row.purpose,
+        row.applicableConditionCodes.join(';'),
+        row.inapplicableConditionCodes.join(';'),
+        row.sensitivity,
+        row.sourceType,
+        row.sourceReference,
+        row.licenseStatus,
+        row.licenseReference,
+        row.enabled ? 'true' : 'false',
+      ]),
+  ];
+  return sha256(new TextEncoder().encode(values.map(lengthPrefix).join('')));
+}
+
+function lengthPrefix(value: string): string {
+  return `${String(new TextEncoder().encode(value).byteLength)}:${value}`;
+}
+
+function compareCodePoints(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function parseConditions(
@@ -290,10 +319,6 @@ function inferScope(
   if (rows.length === 0) return null;
   const fixture = rows.every(({ sourceType }) => sourceType === 'synthetic_fixture');
   if (fixture && ['formal_internal', 'production'].includes(environment)) {
-    errors.push({ code: 'QUESTION_BANK_FIXTURE_ENVIRONMENT_BLOCKED', row: 1 });
-    return null;
-  }
-  if (!fixture && environment === 'internal_demo') {
     errors.push({ code: 'QUESTION_BANK_FIXTURE_ENVIRONMENT_BLOCKED', row: 1 });
     return null;
   }

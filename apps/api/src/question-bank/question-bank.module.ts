@@ -1,5 +1,10 @@
+import type { AppEnvironment } from '@elder-interview/config';
 import { type DynamicModule, Module } from '@nestjs/common';
 
+import {
+  QUESTION_BANK_DEPLOYMENT_ENVIRONMENT,
+  questionBankEnvironmentFromAppEnv,
+} from './question-bank.environment.js';
 import {
   InternalDemoQuestionSelector,
   QuestionBankImportService,
@@ -12,7 +17,10 @@ import { QuestionJourneyService } from './question-journey.service.js';
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class QuestionBankModule {}
 
-export function createQuestionBankModule(databaseModule: DynamicModule): DynamicModule {
+export function createQuestionBankModule(
+  databaseModule: DynamicModule,
+  appEnvironment: AppEnvironment,
+): DynamicModule {
   return {
     exports: [
       InternalDemoQuestionSelector,
@@ -23,6 +31,10 @@ export function createQuestionBankModule(databaseModule: DynamicModule): Dynamic
     imports: [databaseModule],
     module: QuestionBankModule,
     providers: [
+      {
+        provide: QUESTION_BANK_DEPLOYMENT_ENVIRONMENT,
+        useValue: questionBankEnvironmentFromAppEnv(appEnvironment),
+      },
       InternalDemoQuestionSelector,
       QuestionBankImportService,
       QuestionBankReader,

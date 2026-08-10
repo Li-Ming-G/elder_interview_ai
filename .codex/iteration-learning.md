@@ -1014,3 +1014,16 @@
 - Verification boundary: 仅证明 internal demo 和 A 的工程 seam。正式题库内容尚未提供，产品内容质量/许可、正式内部试用、LLM/轻调/publication/current/history/manual-next/UI 均未实现或验收；任务保持 REVIEW，DEV-007B 保持 BLOCKED，等待非 Draft PR exact-head CI 与项目负责人手动审查。
 - Lesson: 在共享事件表已由另一模块拥有时，正确的基础设施交付是“返回足以持久化的确定性事实”，而不是为便利提前复制发布状态。数据库不可变保护内容版本，basis hash 保护决策输入；两者分别回答“选自哪版内容”和“为什么得到这个阶段”，不能互相替代。
 - Better future prompt: “请只在 A 中持久化它拥有的内容版本；对下游发布事实给出含版本、purpose、stage、reason 和完整 basis hash 的只读 seam，并列出明确禁止写入的既有 owner 表。”
+
+### 2026-08-10 — DEV-007A membership seal 与可信环境两项 P1 定向修复
+
+- User outcome: 永久保留 PR #24 old exact head `5cea9726994656c6a95babdcb6bc8f3f7ce4014e`、CI `31385629751` SUCCESS 与项目负责人正式 REQUEST_CHANGES（P0=0/P1=2），只闭合 release membership 可追加和 CLI 环境可伪装问题；DEV-007A 保持 REVIEW、DEV-007B 保持 BLOCKED，不合并、不自行 PASS/DONE。
+- Review mode: Correction mode；本轮恰好一次独立只读复核。复核确认两项都是既有 `04/05/08/09` 数据完整性与 fixture 门禁的落实，不改变 ADR-030 冻结产品语义、QuestionEvidence 所有权、安全/许可边界或跨模块契约，无需暂停。
+- Review finding: 只禁止 item UPDATE/DELETE 不等于不可变 release，draft 在 import 提交后仍能被追加；只由 service 记住“导入完成”也不能证明实际 count/digest。`--environment` 同样只是操作者声明，不能代表进程所在部署环境；仓库现有可信事实是经共享 schema 校验的 `APP_ENV=local|test|staging|production`，其中 staging 对应正式内部试用，internal_demo 是 release scope 而非部署身份。
+- Options considered: 仅按 parent status 禁止 INSERT、transaction-local GUC、未提交构建窗口 + database seal/deferred invariant；继续保留 CLI environment 权威、参数与 APP_ENV 必须相等、删除覆盖参数并只信 APP_ENV。采用未提交窗口 + seal/deferred 和删除覆盖权；前两种 seal 方案分别不能封住 imported draft 或可被同数据库角色伪装，参数相等方案仍混淆 internal-demo scope 与部署身份。
+- Adopted decision: release 保存 `item_count/membership_sealed_at`；同一导入事务按 create unsealed draft → createMany → PostgreSQL 重算 UTF-8 byte-length-framed canonical membership SHA-256 → seal → deferred commit check 执行。seal 后 draft/active/retired 的 item INSERT/UPDATE/DELETE 全部拒绝，scope/source/license 在 INSERT 窗口也由数据库重检。CLI 明确拒绝 `--environment`；service/reader 注入由 `APP_ENV` 映射的可信环境，request binding/audit 保存该环境，staging/production 对 fixture 写入和读取失败关闭。
+- Implementation evidence: 最小同步 `02/04/05/08/09`；修订 PR 尚未合入 main 的 DEV-007A migration、Prisma release 字段、CSV canonical digest、question-bank module/service/reader/CLI 与 config APP_ENV loader；真实 PostgreSQL 反例覆盖正常 seal、actual count/digest、三状态 direct INSERT、mismatch/fixture bypass 全事务回滚；CLI/auth 覆盖可信 APP_ENV 与伪造参数。未修改 request replay 主体、activation transaction、condition/journey、QuestionEvidence、UI 或 DEV-007B。
+- Verification evidence: 专用空 PostgreSQL 库从零应用 12 migrations 且 status up to date；format/lint/typecheck/build/diff、unit 38 files/265 tests、PostgreSQL integration 12/73、auth 4/23、smoke、Chromium 9/9 与 real Web/API auth Chromium 4/4 全部通过。已跑真实音频 E2E 的库因既有 auth 清理顺序被残留 capture 外键阻止，未修改测试目标，改用新空库完整复跑 auth 通过。
+- Verification boundary: 新 exact head 与 GitHub CI 尚待生成；当前只是 REV-035 两项 P1 的修复候选，不代表项目负责人已关闭意见。正式题库仍缺失，fixture 只证明 `APP_ENV=local|test` 下 internal demo，产品内容/正式内部试用仍未验收。
+- Lesson: 集合不可变必须建模为“提交前私有构建 + 提交前数据库证明 + 提交后封存”，而不是把 parent 状态或 service 调用顺序当作事实。内容声明只决定 release scope，部署配置才决定该进程是否有权操作或读取它。
+- Better future prompt: “把 release 作为提交前不可见的集合聚合：数据库在 commit 前验证 sealed/count/canonical digest，seal 后拒绝 item INSERT/UPDATE/DELETE；所有 fixture 权限仅由 injected APP_ENV 决定，CLI 不接受环境覆盖。”

@@ -52,7 +52,6 @@ export const JOURNEY_STAGES = ['rapport', 'life_outline', 'story_depth'] as cons
 export const QUESTION_BANK_ENVIRONMENTS = [
   'local',
   'test',
-  'internal_demo',
   'formal_internal',
   'production',
 ] as const;
