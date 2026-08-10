@@ -681,10 +681,13 @@ QuestionJourneyService.evaluate(frozen_context, journey_policy_version)
 ```
 
 - validate 返回行号、稳定错误码和不含整份题库正文的摘要；任一错误阻止 import；
+- validator 严格执行 `question_condition_v1`：整格空值形成空集合；非空值按 `;` 分隔并 trim，分隔产生空 token、未知 token、字段内重复或同码同时出现在适用/排除字段均整批拒绝，不静默修复；fixture 与正式文件走同一 parser/validator；
 - import 是全成全败的 draft 创建，`request_id` 绑定 actor、文件 digest、环境和 validator version；同 ID 异文件稳定冲突；
 - activate 在同一事务重检许可、environment scope、release 完整性和 current active，再原子激活新版本/退休旧版本；不得部分启用、直接覆盖 item 或把 CSV 的 `enabled` 当成 active；
 - `synthetic_fixture + fixture_only` 仅允许 local/test 或明确 internal demo；正式内部试用/production 请求稳定拒绝；
 - 未知许可、无 active release、stage/policy 无法构建或 reader 失败时，问题编排失败关闭。没有 eligible item 是成功的 `continue_listening`；LLM/编排不可用仍是 `unavailable`，不得直接把某道 basic 原题作为 UI 兜底；
+- reader 在权威安全门禁通过后先以 `inapplicable_when` 的 any-of/OR 排除，再以 `applicable_when` 的 all-of/AND 纳入，排除优先；eligible item 投影必须包含受控 `purpose`，不得要求上游从正文推断；
+- `QuestionJourneyService` 必须按 `journey_policy_v1` 的单一决定分支和固定 reason-code 顺序返回；相同 frozen context 与 policy version 必须得到相同 stage、reason codes 和 basis hash，输入集合顺序、题数或经过时间不得成为 tie-break；
 - DEV-007A 冻结上述内部 seam 和 deterministic fake，不调用 LLM、不发布 suggestion、不改变页面。任何未来公网/普通管理 API 必须另开契约。
 
 #### 3.9.1 canonical current 与动态安全投影
@@ -799,7 +802,7 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 
 - DEV-006 实现 actual-question analysis/catalog、evidence、可靠版本发布和跨会话 `actual asked` reader；
 - DEV-007 经上述 seam 写 generation/display/replace 事实和读防重复集合，不得直接写 actual question；
-- DEV-007A 的 QuestionBank/QuestionJourney 模块拥有 release/item、许可激活和阶段判定；DEV-007B 只能经其 reader 取得 eligible item/stage，并把 source item/version、selection mode、adaptation reason 和 journey policy 传入 `beginGenerationAttempt/publishAttemptResult`；QuestionEvidenceModule 仍单一拥有 candidate/publication/history/actual-question；
+- DEV-007A 的 QuestionBank/QuestionJourney 模块拥有 release/item、许可激活和阶段判定；DEV-007B 只能经其 reader 取得含 `purpose` 的 eligible item/stage，并把 source item/version、purpose、selection mode、`adaptation_reason_code_v1` 和 journey policy 传入 `beginGenerationAttempt/publishAttemptResult`；QuestionEvidenceModule 仍单一拥有 candidate/publication/history/actual-question；
 - `publishAttemptResult` 只在 candidate eligibility、basis revision/manual fence 与动态 policy 校验仍成立时，按 `04` §4.39 原子创建 immutable snapshot（如有）并切换 display state；
 - `publishActualQuestionAnalysis` 只有 judgeable 结果可以原子替换 current reliable catalog；unjudged/failed 只更新分析状态，不覆盖可靠目录；
 - 写回每个独立业务输出时必须同时创建它自己的一条 `ai_derived_output` 和完整 dependency manifest：五条 memory claim 就是五条业务记录与五条资格记录；一个 actual-question analysis 版本只有一条 catalog 资格记录，任一 dependency 失效时整版撤下，不按 question 局部保留；

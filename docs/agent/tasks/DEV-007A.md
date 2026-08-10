@@ -10,8 +10,9 @@
 
 ## 目标与范围
 
-- 实现 CSV validator、原子 draft import、不可变版本、activate/retire、来源/许可与 fixture 环境门禁；
-- 实现 `QuestionBankImportService/QuestionBankReader/QuestionJourneyService` 和 deterministic selector/fake；
+- 实现固定 14 列 CSV validator、原子 draft import、不可变版本、activate/retire、来源/许可与 fixture 环境门禁；purpose 必填且只接受既有 11 值；
+- 实现 `question_condition_v1` 的 applicable all-of/AND、inapplicable any-of/OR、排除优先，以及空值/未知/空 token/重复/跨字段交集的严格行为；fixture 使用同一 validator；
+- 实现 `QuestionBankImportService/QuestionBankReader/QuestionJourneyService` 和 deterministic selector/fake；reader 必须投影 purpose，journey 必须按 `journey_policy_v1` 固定优先级输出稳定 stage/reason codes/basis hash；
 - 持久化 release/item 与阶段判定所需事实，提供稳定 service seam；
 - 用极少量 synthetic fixture 覆盖 import/license/stage/selection 反例。
 
@@ -23,4 +24,4 @@
 
 ## 验收
 
-逐项通过 `09` §7.7 中属于 A 的矩阵，并提交 migration/unit/PostgreSQL/auth/CLI 或管理入口、fixture 隔离和全量 CI 证据。项目负责人 exact-head PASS 前不得 DONE；A PASS 前 B 保持 BLOCKED。
+逐项通过 `09` §7.7 中属于 A 的矩阵，特别覆盖条件真值表、所有非法条件、purpose、journey 各分支/信号冲突/顺序置换/重复执行，并提交 migration/unit/PostgreSQL/auth/CLI 或管理入口、fixture 隔离和全量 CI 证据。项目负责人 exact-head PASS 前不得 DONE；A PASS 前 B 保持 BLOCKED。

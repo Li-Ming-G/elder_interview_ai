@@ -30,6 +30,7 @@
 | SPEC-DEV-006 | REV-031 | PR #20 / final head `4759633ed1e3d9031c8bbe32892d61293f9ec01c` / CI `31326717132` PASS / merge `6289c87` | DONE / PASS | 三项 P1 全部关闭，P0/P1=0。旧 head `2b6a5da` REQUEST_CHANGES 永久保留；ADR-027 Accepted，DEV-006 READY；CON-023 继续 OPEN，CON-018 后续由 REV-032 解决 |
 | SPEC-AI-QUESTION-001 | REV-032 | PR #21 / final head `af088ed6165c979e8de2e469900ee6519fafe183` / CI `31352681061` attempt 2 PASS / merge `10fcc5c` | DONE / PASS | 项目负责人手动 GitHub 审查，P0/P1=0；自动替换、manual intent fence、REST canonical、无正文 WS、稳定 history 与硬撤下契约通过。attempt 1 既有 1 秒时序 flake 非阻塞；CON-018 RESOLVED，DEV-007 技术前置已满足但按 CON-025 暂停 |
 | DEV-006 | REV-033 | PR #22 / final head `07d5ce1c75ce31e2265e78559545373ce216edb1` / CI `31363920049` PASS / merge `28fb22d` | DONE / PASS | 项目负责人手动定向复审，P0/P1=0；原八项 P1 全部关闭。旧 head `d507350` REQUEST_CHANGES/P1=8 永久保留；CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。DEV-007 因 CON-025 暂停，不自动启动 |
+| SPEC-QUESTION-JOURNEY-001 | REV-034 | PR #23 / old head `0f3034d27975cd0695e9963d5e29535d7d574dda` / CI `31371643597` SUCCESS | REVIEW / REQUEST_CHANGES | 项目负责人正式审查 P0=0/P1=3；old-head 结论永久保留。条件 v1、journey policy、14 列 purpose/adaptation reason 已形成新定向修复候选，逐项响应 3/3，但尚未由负责人复审关闭；CON-025 OPEN，DEV-007/007A/007B BLOCKED |
 
 ## 阅读规则
 
@@ -39,4 +40,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-033`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-034`。

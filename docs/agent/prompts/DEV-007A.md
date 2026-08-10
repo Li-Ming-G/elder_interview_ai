@@ -6,9 +6,10 @@
 
 实现范围严格限于：
 
-- UTF-8 CSV validator、原子 draft import、不可变 bank version、activate/retire；
+- 固定 14 列 UTF-8 CSV validator（含必填受控 purpose）、原子 draft import、不可变 bank version、activate/retire；
+- `question_condition_v1` 的 applicable all-of、inapplicable any-of、排除优先及全部非法输入拒绝；fixture 必须走相同 validator；
 - 来源/许可与 synthetic fixture 环境门禁；
-- QuestionBank import/reader、QuestionJourney evaluator、deterministic selector/fake；
+- QuestionBank import/reader（eligible 投影含 purpose）、按 `journey_policy_v1` 固定优先级和受控 reason codes 的 QuestionJourney evaluator、deterministic selector/fake；
 - `09` §7.7 属于 A 的 migration/unit/PostgreSQL/auth/管理入口/fixture 测试。
 
 禁止调用 LLM、生成/发布 suggestion、修改工作台、另建 question history、题库管理 UI、自由生成或把 fixture 计作产品内容。任何需要改变正式字段/API/状态的发现先登记冲突并回到契约，不得边实现边解释。

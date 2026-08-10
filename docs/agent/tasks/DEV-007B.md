@@ -11,7 +11,7 @@
 ## 目标与范围
 
 - 读取 DEV-006 current memory、可靠 actual asked、可信转录/角色/边界，以及 A 的 active bank/stage；
-- 只在 eligible item 集合内选择 `verbatim|lightly_adapted`，执行轻调越界过滤与双重 provenance；
+- 只在含原题 purpose 的 eligible item 集合内选择 `verbatim|lightly_adapted`，执行 `adaptation_reason_code_v1=surface_wording|grounded_slot_fill`、purpose 保持、轻调越界过滤与双重 provenance；
 - 通过既有 QuestionEvidence writer 发布 candidate/current/history，接入既有 REST、无正文 WS 和工作台；
 - 保留自动替换、manual next、历史锚点、displayed != actual asked、hard withdrawal 和失败降级。
 
@@ -24,4 +24,4 @@
 
 ## 验收
 
-逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵，以及现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。
+逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵；必须证明 verbatim reason 为空、lightly adapted reason 已知且与差异匹配、grounded slot 有证据、candidate/snapshot purpose 等于原题，并通过现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。

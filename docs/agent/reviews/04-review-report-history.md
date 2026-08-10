@@ -591,3 +591,15 @@ P2：
 - 正式结论：`PASS`；P0=0、P1=0。跨 session final 水位、request/trigger/retry identity、漂移 cancelled、boundary fail-closed、`question-sim-v1`、context actual-question 事务冻结、正式 QuestionEvidence writer seam 与 retention 八项旧 P1 全部关闭。
 - 合并：PR #22 以 merge commit `28fb22dede07d5d64589a30b67128f16c311f360` 合入 main；DEV-006 DONE。
 - 边界：CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；生产 boundary/deletion producer/read model 缺失时 AI 失败关闭。项目负责人随后要求先处理 CON-025 产品差异，DEV-007 保持 BLOCKED，未创建实现任务。
+
+## REV-034｜SPEC-QUESTION-JOURNEY-001 PR #23 项目负责人首轮审查
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #23，分支 `codex/spec-question-journey-001`。
+- 被审 exact head：`0f3034d27975cd0695e9963d5e29535d7d574dda`；CI `31371643597` completed / success。绿色 CI 只证明旧候选门禁执行成功，不替代契约审查结论。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=3。SPEC-QUESTION-JOURNEY-001 保持 `REVIEW`，CON-025 保持 `OPEN`，DEV-007/007A/007B 保持 `BLOCKED`；不得合并或自行宣布 PASS/DONE。
+- P1-1：CSV 条件逻辑未冻结 applicable 多条件 all-of/AND、inapplicable 多条件 any-of/OR、排除优先，以及空值、未知码、重复、适用/排除同码、fixture 与正式导入的一致校验责任。
+- P1-2：`journey_policy_v1` 缺完整受控 `journey_reason_codes`、信号冲突优先级和确定性转移顺序；至少必须保证 safety/reluctance 等保守信号高于具体事件/可深入信号，且相同 frozen input + policy version 得到相同 stage/reason codes，不得引入固定题数/时间硬切。
+- P1-3：CSV 与 `question_bank_item` 缺 `purpose`，模板须从 13 列升级为 14 列并复用既有受控 purpose；导入、运行时投影和轻调必须保持。同时须冻结 `adaptation_reason_code_v1` 枚举及边界，避免 DEV-007B 自行猜测。
+- 定向修复边界：只更新文档、题库模板/fixture、任务拆分与治理；不修改 Prisma、migration、业务代码、runtime contracts 或页面，不重做三阶段、双题库、A/B 拆分或 existing current/history/next 体验。
+- 修复候选：三项均已按 `07` 的唯一算法定义形成逐项响应；新 exact head/CI 只作为待项目负责人定向复审的候选，不能写成正式 CLOSED/PASS。
+- 历史保留：本记录的 old exact head、CI SUCCESS、REQUEST_CHANGES 与 P1=3 永久保留；后续候选、复审或最终结论不得覆盖、改写或删除本次事实。

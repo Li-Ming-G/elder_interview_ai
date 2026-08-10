@@ -334,6 +334,7 @@
 - 项目负责人确认（2026-08-10）：先尽快做可试用第一版，再从真实倾听实践迭代；正式采用 basic/deep 两类内容源，AI 结合确定态转录、可信角色、DEV-006 current memory、旅程阶段与安全边界选择原题或有依据轻调，禁止无依据自由编造。研发不等待完整真实题库，先冻结易填写、可版本化、可校验的 UTF-8 CSV，并只用明确标记的虚构 fixture 验证链路；正式内部试用前必须导入负责人题库。
 - 候选解决方案：SPEC-QUESTION-JOURNEY-001 已把上述决定写入正式产品/流程/数据/API/AI/安全/测试/协作规范，提出 ADR-030，并将 DEV-007 拆为 A（题库基础设施、导入、阶段与确定性选择 seam）和 B（AI 选择/有据轻调、QuestionEvidence 与工作台集成）。该候选同时处理 `07` §10 的旧冲突：题库成为正常内容源，但不恢复 AI unavailable 时的静态兜底。
 - 当前门禁：状态仍为 `OPEN`。SPEC 保持 `REVIEW`，DEV-007/007A/007B 保持 `BLOCKED`；只有项目负责人对非 Draft PR exact final head/CI 手动审查明确 PASS 后，才可将 ADR-030 转 Accepted、关闭本冲突并解锁 DEV-007A。本 Agent 不得自行完成这些动作。
+- 首轮审查（REV-034）：项目负责人对 PR #23 old exact head `0f3034d27975cd0695e9963d5e29535d7d574dda` 正式 `REQUEST_CHANGES`，P0=0/P1=3，要求冻结条件 AND/OR/排除优先与非法输入、`journey_policy_v1` 完整 reason/冲突顺序，以及 14 列 purpose 和 `adaptation_reason_code_v1`。该 old-head 结论永久保留；本次仅提交定向修复候选，CON-025 不转 RESOLVED。
 - 需要谁决策：项目负责人确认具体差异及优先级；总控负责把决定写回正式需求、契约、任务卡和追踪，必要时先创建修订 SPEC，不得让 DEV-007 实现 Agent自行解释。
 - 关闭条件：项目负责人对 SPEC-QUESTION-JOURNEY-001 exact final head/CI 的 GitHub 手动审查明确 PASS，确认本轮问题旅程/内容来源偏差已被正式依据承接，并明确允许 DEV-007A 开工；后续若发现其他未对齐项，另行登记而不得静默并入本条。
 

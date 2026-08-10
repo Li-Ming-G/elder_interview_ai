@@ -981,3 +981,16 @@
 - Verification evidence: 在专用空 PostgreSQL 数据库从零应用 11 migrations；lint/typecheck/build/smoke 通过，unit 232、integration 65、auth 13、Chromium E2E 9、auth Chromium E2E 4 全部通过。共享默认测试库的既有 P3009 与默认 4173 端口占用仅作环境诊断，未修改共享库或终止既有进程。
 - Verification boundary: 当前只是 SPEC REVIEW 候选；synthetic fixture 只证明 internal demo 技术 seam，正式内部试用前必须导入负责人题库。CON-025 仍 OPEN，ADR-030 仍 Proposed，DEV-007/007A/007B 仍 BLOCKED；只有项目负责人对非 Draft PR exact final head/CI GitHub 手动审查明确 PASS 后才能改变这些状态。
 - Lesson: 易编辑的内容交换文件与运行时权威事实必须分层；题库出处只能证明“问题从哪里来”，不能证明“为什么能这样轻调”，后者必须由实际访谈证据单独回链。
+
+### 2026-08-10 — SPEC-QUESTION-JOURNEY-001 三项 P1 定向修复
+
+- User outcome: 永久保留 PR #23 old exact head `0f3034d27975cd0695e9963d5e29535d7d574dda`、CI `31371643597` SUCCESS 与正式 REQUEST_CHANGES（P0=0/P1=3），只在原分支冻结条件逻辑、journey 决策和 purpose/adaptation reason；不扩到业务代码、Prisma、runtime 或页面。
+- Review mode: Learning mode；本次重大定向修复恰好一次独立只读复核。复核确认三项都能 docs-only 关闭，并建议把算法唯一事实集中在 `07`，以“规范化输入 → 固定优先级 → 单一决定分支 → 稳定输出”消除 DEV-007A/B 猜测。
+- Review finding: 旧条件契约只列 token，未定义 AND/OR、排除优先和非法输入；阶段只有原则性信号，无法确定冲突时的唯一结果；CSV/item 缺 purpose，而 candidate 已有 purpose，adaptation reason 也无枚举，形成跨模块语义断点。
+- Options considered: 容错去重与冲突排除、严格整批拒绝；输出所有命中信号、只输出最高决定分支；细分多种表层改写码、两值语义分类。采用严格拒绝、最高决定分支和 `surface_wording|grounded_slot_fill` 两值分类，降低内容错误隐藏与枚举组合爆炸。
+- Adopted decision: `question_condition_v1` 采用 applicable all-of/AND、inapplicable any-of/OR、排除优先；整体空值允许，空 token/未知/重复/跨字段同码整批失败，fixture 使用同一 validator。`journey_policy_v1` 冻结完整 reason codes 与 hard safety → conservative → reluctant → retreat → continuous narration → deep → outline → hold 的顺序，保守信号压过正向信号，不消费题数/时间。CSV 升为 14 列必填既有 purpose，item/reader/candidate/snapshot 和轻调保持；adaptation reason 只允许两个受控值。
+- Implementation evidence: 定向同步 `01/03/04/05/07/08/09/10`、ADR-030、CON-025、task board、traceability、REV-034、handoff、DEV-007/A/B 任务卡与提示词、14 列模板/3 条 synthetic fixture；未修改 Prisma、migration、业务代码、runtime contracts、测试或页面。
+- Verification evidence: docs contract、scope/state、`git diff --check`、Prettier、115 个 Markdown 相对链接通过；format/lint/typecheck/build 通过；unit attempt 1 出现既有工作台 1 秒异步时序波动（231/232），未改测试，原样重跑 232/232；专用 PostgreSQL 库 11 migrations deploy/status、integration 65、auth 13、smoke、Chromium E2E 9 与 auth E2E 4 全部通过。
+- Verification boundary: 三项仅为逐项响应候选，不代表项目负责人已关闭 P1。SPEC 保持 REVIEW、CON-025 OPEN、ADR-030 Proposed、DEV-007/007A/007B BLOCKED；新 exact head/CI 必须由项目负责人 GitHub 定向复审，本 Agent 不 PASS/DONE/合并。
+- Lesson: 受控枚举只有与非法输入、冲突优先级和稳定输出顺序一起冻结，才能成为实现契约；“有 reason code”不等于“决策可重放”。内容 purpose 必须从原题贯穿运行时和展示事实，不能让模型按改写正文重新分类。
+- Better future prompt: “请冻结 v1 输入事实、规范化/非法输入行为、固定优先级、单一转移表和稳定 reason-code 顺序；再逐字段证明内容源、runtime projection、candidate 与 snapshot 不漂移。”
