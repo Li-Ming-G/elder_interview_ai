@@ -3,7 +3,7 @@
 ## 状态与审查边界
 
 - 状态：`REVIEW`，不得由实现 Agent 宣布 PASS/DONE 或合并。
-- 基线：`origin/main@12021408242baeac99fdc89e00992bfdb0f14f1c`；分支：`codex/dev-007a-question-bank`；非 Draft PR 创建后补充链接。
+- 基线：`origin/main@12021408242baeac99fdc89e00992bfdb0f14f1c`；分支：`codex/dev-007a-question-bank`；非 Draft [PR #24](https://github.com/Li-Ming-G/elder_interview_ai/pull/24)。
 - 恰好一次 iteration-coach 独立只读复核采用 Learning mode：确认 A 只拥有 question bank release/item 和确定性读取/决策 seam；不得修改 DEV-006 QuestionEvidence writer、attempt/candidate/snapshot 或创建第二套 question history。
 
 ## Migration 与实现
