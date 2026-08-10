@@ -4,12 +4,13 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { API_CONFIG } from '../api-config.js';
 import { AiJobCoordinatorService } from './ai-job-coordinator.service.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
-import { AiPolicyService, PrismaBoundaryPolicyReader } from './ai-policy.service.js';
+import { AiPolicyService, LocalTestBoundaryPolicyFixtureReader } from './ai-policy.service.js';
 import { AiRetentionService } from './ai-retention.service.js';
 import {
   BoundaryPolicyReader,
   DeletionScopeReader,
   LocalTestDeletionScopeFixtureReader,
+  UnavailableBoundaryPolicyReader,
   UnavailableDeletionScopeReader,
 } from './deletion-scope.reader.js';
 import {
@@ -43,8 +44,13 @@ export function createAiRuntimeModule(config: ApiConfig, authModule: DynamicModu
       AiOutputEligibilityService,
       AiPolicyService,
       AiRetentionService,
-      PrismaBoundaryPolicyReader,
-      { provide: BoundaryPolicyReader, useExisting: PrismaBoundaryPolicyReader },
+      localOrTest ? LocalTestBoundaryPolicyFixtureReader : UnavailableBoundaryPolicyReader,
+      {
+        provide: BoundaryPolicyReader,
+        useExisting: localOrTest
+          ? LocalTestBoundaryPolicyFixtureReader
+          : UnavailableBoundaryPolicyReader,
+      },
       localOrTest ? LocalTestDeletionScopeFixtureReader : UnavailableDeletionScopeReader,
       {
         provide: DeletionScopeReader,

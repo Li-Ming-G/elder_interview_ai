@@ -33,7 +33,10 @@ export class AppModule implements NestModule {
       transcriptionModule,
     );
     const aiRuntimeModule = createAiRuntimeModule(config, authModule);
-    const questionEvidenceModule = createQuestionEvidenceModule(aiRuntimeModule);
+    const questionEvidenceModule = createQuestionEvidenceModule(
+      aiRuntimeModule,
+      ['local', 'test'].includes(config.appEnv),
+    );
     return {
       controllers: [HealthController],
       global: true,

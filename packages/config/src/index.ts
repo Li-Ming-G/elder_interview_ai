@@ -8,6 +8,7 @@ const apiConfigSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   AUTH_ALLOWED_ORIGINS: z.string().min(1),
   AUTH_LOGIN_THROTTLE_PEPPER: z.string().min(16),
+  AI_RETENTION_CLEANUP_PEPPER: z.string().min(16),
   AUTH_SESSION_IDLE_TTL_MINUTES: z.coerce.number().int().min(1).default(30),
   AUTH_SESSION_ABSOLUTE_TTL_HOURS: z.coerce.number().int().min(1).default(12),
   AUDIO_STORAGE_ROOT: z.string().min(1).default('.local/audio-storage'),
@@ -27,6 +28,7 @@ export interface ApiConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   authAllowedOrigins: readonly string[];
   authLoginThrottlePepper: string;
+  aiRetentionCleanupPepper: string;
   authSessionIdleTtlMinutes: number;
   authSessionAbsoluteTtlHours: number;
   audioStorageRoot: string;
@@ -63,6 +65,7 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
     authLoginThrottlePepper: result.data.AUTH_LOGIN_THROTTLE_PEPPER,
+    aiRetentionCleanupPepper: result.data.AI_RETENTION_CLEANUP_PEPPER,
     authSessionIdleTtlMinutes: result.data.AUTH_SESSION_IDLE_TTL_MINUTES,
     authSessionAbsoluteTtlHours: result.data.AUTH_SESSION_ABSOLUTE_TTL_HOURS,
     audioStorageRoot: result.data.AUDIO_STORAGE_ROOT,

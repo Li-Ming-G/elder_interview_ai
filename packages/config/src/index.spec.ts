@@ -8,6 +8,7 @@ describe('loadApiConfig', () => {
       APP_ENV: 'test',
       AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
       AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+      AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
       DATABASE_URL: 'postgresql://app:test@127.0.0.1:5433/app_test',
     });
 
@@ -29,6 +30,7 @@ describe('loadApiConfig', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
         DATABASE_URL: sensitiveValue,
       }),
     ).toThrow(ConfigValidationError);
@@ -38,6 +40,7 @@ describe('loadApiConfig', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
         DATABASE_URL: sensitiveValue,
       });
     } catch (error: unknown) {

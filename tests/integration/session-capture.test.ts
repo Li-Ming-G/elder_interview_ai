@@ -47,6 +47,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       APP_ENV: 'test',
       AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
       AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-capture-throttle-pepper',
+      AI_RETENTION_CLEANUP_PEPPER: 'test-only-capture-retention-pepper',
       DATABASE_URL: databaseUrl,
     });
     prisma = new PrismaService(config);

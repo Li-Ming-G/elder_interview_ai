@@ -44,6 +44,7 @@ export default defineConfig({
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4176',
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-r4-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-r4-retention-cleanup-pepper',
         DATABASE_URL: databaseUrl,
       },
       reuseExistingServer: false,

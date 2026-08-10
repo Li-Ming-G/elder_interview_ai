@@ -34,6 +34,7 @@ describe('final-only transcript evidence core', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-transcript-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-transcript-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );

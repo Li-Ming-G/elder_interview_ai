@@ -30,6 +30,7 @@ export class InterviewContextService {
     ]);
     const job = await this.coordinator.freeze({
       actorId: input.actorId,
+      actualQuestionIds: questions.map(({ id }) => id),
       expiresAt: input.expiresAt,
       jobType: 'context_snapshot',
       memoryResolutionIds: memories.map(({ id }) => id),
@@ -38,15 +39,22 @@ export class InterviewContextService {
       sessionIds: [input.consumerSessionId],
       trustedRole: 'interviewer',
     });
+    if (job.replayed) {
+      const existing = await this.prisma.interviewContextSnapshot.findUnique({
+        where: { aiJobId: job.id },
+      });
+      if (job.status === 'succeeded' && existing !== null) return existing.id;
+      throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    }
     const snapshotId = randomUUID();
     await this.coordinator.writeBack(job, async (tx) => {
       const outputId = randomUUID();
       const memoryManifest = job.memories.map(
         (item) => `${item.inputMemoryId}:${item.resolutionId}:${String(item.resolutionRevision)}`,
       );
-      const questionManifest = questions.map(
+      const questionManifest = job.actualQuestions.map(
         (item) =>
-          `actual_question:${item.id}:${String(item.analysisRevision)}:${item.normalizedDigest}`,
+          `actual_question:${item.actualQuestionId}:${String(item.analysisRevision)}:${item.normalizedDigest}`,
       );
       await tx.aiDerivedOutput.create({
         data: {
@@ -66,10 +74,12 @@ export class InterviewContextService {
       await tx.interviewContextSnapshot.create({
         data: {
           actualQuestionManifestHash: manifestHash(questionManifest),
+          actualQuestionCount: job.actualQuestions.length,
           aiDerivedOutputId: outputId,
           aiJobId: job.id,
           consumerSessionId: input.consumerSessionId,
           id: snapshotId,
+          memoryCount: job.memories.length,
           memoryManifestHash: manifestHash(memoryManifest),
           policyRevision: job.policyRevision,
           projectId: input.projectId,
@@ -93,9 +103,13 @@ export class InterviewContextService {
           },
         });
       }
-      for (const [inputOrder, question] of questions.entries()) {
+      for (const [inputOrder, question] of job.actualQuestions.entries()) {
         await tx.contextSnapshotActualQuestion.create({
-          data: { actualQuestionId: question.id, contextSnapshotId: snapshotId, inputOrder },
+          data: {
+            actualQuestionId: question.actualQuestionId,
+            contextSnapshotId: snapshotId,
+            inputOrder,
+          },
         });
         await tx.aiOutputQuestionDependency.create({
           data: {
@@ -103,7 +117,7 @@ export class InterviewContextService {
             dependencyOrder: inputOrder,
             id: randomUUID(),
             targetDigest: question.normalizedDigest,
-            targetId: question.id,
+            targetId: question.actualQuestionId,
             targetKind: 'actual_question',
             targetRevision: question.analysisRevision,
           },

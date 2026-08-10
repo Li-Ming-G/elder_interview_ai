@@ -8,11 +8,36 @@ import { EMPTY_MANIFEST_HASH, manifestHash, sha256 } from '../ai-runtime/ai-prov
 import { StructuredAiProvider } from '../ai-runtime/structured-ai.provider.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
+import {
+  normalizeQuestionDigest,
+  QUESTION_SIMILARITY_THRESHOLD,
+  QUESTION_SIMILARITY_VERSION,
+  QuestionSimilarityMatcher,
+} from './question-similarity.matcher.js';
 
-/** Stable DEV-007 seam. DEV-006 owns the tables; orchestration remains unimplemented. */
-export abstract class QuestionGenerationEvidenceWriter {
-  public abstract recordGenerationAttempt(command: unknown): Promise<string>;
-  public abstract publishDisplaySnapshot(command: unknown): Promise<string>;
+export type QuestionEvidenceActorOrSystem =
+  { actorId: string; kind: 'actor' } | { kind: 'system'; trigger: string };
+
+/**
+ * Stable DEV-007 write seam. DEV-006 owns and exports the port; generation and
+ * presentation orchestration deliberately remain unavailable until DEV-007.
+ */
+export abstract class QuestionEvidenceWriter {
+  public abstract beginGenerationAttempt(
+    command: unknown,
+    actorOrSystem: QuestionEvidenceActorOrSystem,
+    requestId: string,
+  ): Promise<never>;
+  public abstract publishAttemptResult(
+    command: unknown,
+    actorOrSystem: QuestionEvidenceActorOrSystem,
+    requestId: string,
+  ): Promise<never>;
+  public abstract withdrawPresentation(
+    command: unknown,
+    actorOrSystem: QuestionEvidenceActorOrSystem,
+    requestId: string,
+  ): Promise<never>;
 }
 
 export interface ActualAskedItem {
@@ -66,12 +91,28 @@ export class ActualAskedReader {
 }
 
 @Injectable()
-export class QuestionEvidenceService {
+export class QuestionEvidenceService extends QuestionEvidenceWriter {
   public constructor(
     private readonly prisma: PrismaService,
     private readonly coordinator: AiJobCoordinatorService,
+    private readonly eligibility: AiOutputEligibilityService,
     private readonly provider: StructuredAiProvider,
-  ) {}
+    private readonly matcher: QuestionSimilarityMatcher,
+  ) {
+    super();
+  }
+
+  public override beginGenerationAttempt(): Promise<never> {
+    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
+  }
+
+  public override publishAttemptResult(): Promise<never> {
+    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
+  }
+
+  public override withdrawPresentation(): Promise<never> {
+    return Promise.reject(new Error('DEV_007_QUESTION_ORCHESTRATION_NOT_IMPLEMENTED'));
+  }
 
   public async reconcileActualQuestions(input: {
     actorId: string;
@@ -104,16 +145,46 @@ export class QuestionEvidenceService {
       sessionIds: [input.sessionId],
       trustedRole: 'interviewer',
     });
+    if (job.replayed) {
+      const existing = await this.prisma.actualQuestionAnalysis.findUnique({
+        where: { aiJobId: job.id },
+      });
+      if (job.status === 'succeeded' && existing !== null) {
+        return {
+          analysisId: existing.id,
+          judgeability: existing.judgeability as 'judgeable' | 'unjudged',
+          published: existing.isCurrentPublished,
+        };
+      }
+      throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    }
+    const now = new Date();
     const [displaySnapshots, evidenceEvents] = await Promise.all([
       this.prisma.questionDisplaySnapshot.findMany({
         orderBy: [{ displaySequence: 'asc' }, { id: 'asc' }],
-        where: { retentionState: 'active', sessionId: input.sessionId },
+        where: { expiresAt: { gt: now }, retentionState: 'active', sessionId: input.sessionId },
       }),
       this.prisma.questionEvidenceEvent.findMany({
         orderBy: [{ eventAt: 'asc' }, { id: 'asc' }],
         where: { sessionId: input.sessionId },
       }),
     ]);
+    const consumableEvents: typeof evidenceEvents = [];
+    for (const event of evidenceEvents) {
+      const digest = sha256(`${event.eventType}:${event.eventAt.toISOString()}:${event.requestId}`);
+      if (
+        await this.eligibility.isQuestionTargetEligible(
+          input.actorId,
+          'evidence_event',
+          event.id,
+          0,
+          digest,
+          this.prisma,
+        )
+      ) {
+        consumableEvents.push(event);
+      }
+    }
     const questionDependencies = [
       ...displaySnapshots.map((snapshot) => ({
         digest: snapshot.normalizedQuestionDigest,
@@ -121,7 +192,7 @@ export class QuestionEvidenceService {
         kind: 'display_snapshot',
         revision: snapshot.publishedPresentationRevision,
       })),
-      ...evidenceEvents.map((event) => ({
+      ...consumableEvents.map((event) => ({
         digest: sha256(`${event.eventType}:${event.eventAt.toISOString()}:${event.requestId}`),
         id: event.id,
         kind: 'evidence_event',
@@ -133,8 +204,41 @@ export class QuestionEvidenceService {
           this.provider.extractActualQuestions(job.segments),
         )
       : [];
+    const matchesBySnapshot = new Map<string, number>();
+    for (const snapshot of displaySnapshots) {
+      let bestIndex = -1;
+      let bestScore = 0;
+      for (const [index, question] of questions.entries()) {
+        const digest = normalizeQuestionDigest(question.questionText);
+        const score =
+          digest === snapshot.normalizedQuestionDigest
+            ? 1
+            : await this.matcher.score(snapshot.questionText, question.questionText);
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = index;
+        }
+      }
+      if (bestIndex >= 0 && bestScore >= QUESTION_SIMILARITY_THRESHOLD) {
+        matchesBySnapshot.set(snapshot.id, bestIndex);
+      }
+    }
     const analysisId = randomUUID();
     await this.coordinator.writeBack(job, async (tx) => {
+      for (const dependency of questionDependencies) {
+        if (
+          !(await this.eligibility.isQuestionTargetEligible(
+            input.actorId,
+            dependency.kind,
+            dependency.id,
+            dependency.revision,
+            dependency.digest,
+            tx,
+          ))
+        ) {
+          throw new Error('AI_QUESTION_DEPENDENCY_DRIFT');
+        }
+      }
       const previous = await tx.actualQuestionAnalysis.findFirst({
         orderBy: { analysisRevision: 'desc' },
         where: { sessionId: input.sessionId },
@@ -147,7 +251,7 @@ export class QuestionEvidenceService {
             id: analysisId,
             judgeability: 'unjudged',
             projectId: input.projectId,
-            semanticMatchVersion: 'dev-006.v1',
+            semanticMatchVersion: QUESTION_SIMILARITY_VERSION,
             sessionId: input.sessionId,
             status: 'succeeded',
             transcriptStatus: finalization?.transcriptStatus ?? 'not_started',
@@ -198,7 +302,7 @@ export class QuestionEvidenceService {
           projectId: input.projectId,
           publishedAt: new Date(),
           replacesAnalysisId: previous?.isCurrentPublished === true ? previous.id : null,
-          semanticMatchVersion: 'dev-006.v1',
+          semanticMatchVersion: QUESTION_SIMILARITY_VERSION,
           sessionId: input.sessionId,
           status: 'succeeded',
           transcriptStatus: 'drained',
@@ -227,8 +331,9 @@ export class QuestionEvidenceService {
           },
         });
       }
-      const createdQuestionIds = new Map<string, string>();
-      for (const question of questions) {
+      const createdQuestionIds: string[] = [];
+      const matchedQuestionIndexes = new Set(matchesBySnapshot.values());
+      for (const [questionIndex, question] of questions.entries()) {
         const actualQuestionId = randomUUID();
         await tx.actualQuestion.create({
           data: {
@@ -238,10 +343,12 @@ export class QuestionEvidenceService {
             normalizedDigest: normalizeQuestionDigest(question.questionText),
             questionText: question.questionText,
             sessionId: input.sessionId,
-            sourceKind: question.sourceKind,
+            sourceKind: matchedQuestionIndexes.has(questionIndex)
+              ? 'matched_system_suggestion'
+              : question.sourceKind,
           },
         });
-        createdQuestionIds.set(normalizeQuestionDigest(question.questionText), actualQuestionId);
+        createdQuestionIds.push(actualQuestionId);
         for (const [evidenceOrder, segmentId] of question.evidenceSegmentIds.entries()) {
           const membership = segmentInputs.find(
             (segment) => segment.transcriptSegmentId === segmentId,
@@ -259,14 +366,16 @@ export class QuestionEvidenceService {
         }
       }
       const replaceSnapshotIds = new Set(
-        evidenceEvents
+        consumableEvents
           .filter((event) =>
             ['automatic_replace_succeeded', 'manual_next_committed'].includes(event.eventType),
           )
           .flatMap((event) => (event.snapshotId === null ? [] : [event.snapshotId])),
       );
       for (const snapshot of displaySnapshots) {
-        const matchedActualQuestionId = createdQuestionIds.get(snapshot.normalizedQuestionDigest);
+        const matchedIndex = matchesBySnapshot.get(snapshot.id);
+        const matchedActualQuestionId =
+          matchedIndex === undefined ? undefined : createdQuestionIds[matchedIndex];
         await tx.suggestionOutcome.create({
           data: {
             actualQuestionAnalysisId: analysisId,
@@ -279,7 +388,7 @@ export class QuestionEvidenceService {
                   ? 'explicitly_replaced'
                   : 'not_observed',
             questionDisplaySnapshotId: snapshot.id,
-            semanticMatchVersion: 'dev-006.v1',
+            semanticMatchVersion: QUESTION_SIMILARITY_VERSION,
           },
         });
       }
@@ -288,6 +397,4 @@ export class QuestionEvidenceService {
   }
 }
 
-export function normalizeQuestionDigest(value: string): string {
-  return sha256(value.trim().replaceAll(/\s+/gu, ' ').toLocaleLowerCase('zh-CN'));
-}
+export { normalizeQuestionDigest } from './question-similarity.matcher.js';

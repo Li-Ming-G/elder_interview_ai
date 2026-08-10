@@ -4,6 +4,7 @@ import { EMPTY_MANIFEST_HASH, effectiveTextDigest, manifestHash, sha256 } from '
 import {
   AiPolicyUnavailableError,
   LocalTestDeletionScopeFixtureReader,
+  UnavailableBoundaryPolicyReader,
   UnavailableDeletionScopeReader,
 } from './deletion-scope.reader.js';
 import { LocalTestStructuredAiProvider } from './structured-ai.provider.js';
@@ -24,6 +25,12 @@ describe('DEV-006 provenance and fail-closed runtime ports', () => {
     await expect(fixture.assertNoActiveScope('p', ['s'])).resolves.toBeUndefined();
     fixture.blockSession('s');
     await expect(fixture.assertNoActiveScope('p', ['s'])).rejects.toThrow('AI_POLICY_UNAVAILABLE');
+  });
+
+  it('keeps the production boundary reader unavailable instead of returning an empty policy', async () => {
+    await expect(new UnavailableBoundaryPolicyReader().read('p')).rejects.toBeInstanceOf(
+      AiPolicyUnavailableError,
+    );
   });
 
   it('extracts only explicit fictional memory markers and actual question punctuation', async () => {

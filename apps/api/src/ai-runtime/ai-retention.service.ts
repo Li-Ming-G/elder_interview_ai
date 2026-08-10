@@ -282,7 +282,7 @@ export class AiRetentionService {
   }
 
   private hash(kind: string, value: string): string {
-    return createHmac('sha256', this.config.authLoginThrottlePepper)
+    return createHmac('sha256', this.config.aiRetentionCleanupPepper)
       .update(`ai-retention/${kind}/${value}`, 'utf8')
       .digest('hex');
   }

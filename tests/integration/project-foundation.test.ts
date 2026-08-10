@@ -40,6 +40,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         APP_ENV: 'test',
         AUTH_ALLOWED_ORIGINS: ORIGIN,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-project-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-project-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
     );

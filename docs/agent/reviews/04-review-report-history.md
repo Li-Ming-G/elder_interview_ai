@@ -567,3 +567,20 @@ P2：
 - 正式结论：`PASS`；P0=0、P1=0。自动替换参数、manual intent fence、请求与 committed 分离、零副作用历史、REST 正文/WS 无正文通知、硬撤下和 displayed/actual-asked 分离均通过。
 - 合并：PR #21 以 merge commit `10fcc5c6580fa8285f54866f6252e5806b0f932a` 合入 main；SPEC-AI-QUESTION-001 DONE、ADR-029 Accepted、CON-018 RESOLVED。
 - 边界：DEV-007 仍等待 DEV-006；CON-023、真实供应商、生产阈值、真实数据和试点质量门槛未通过。
+
+## REV-033｜DEV-006 PR #22 项目负责人首轮审查
+
+- 审查仓库/PR：`Li-Ming-G/elder_interview_ai`，非 Draft PR #22，分支 `codex/dev-006-memory`。
+- 被审 exact head：`d5073501b170c7e11f2bc3e00395fb8fdf794480`；CI `31357613683` completed / success。绿色 CI 不替代业务、数据与安全契约审查。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=8。DEV-006 保持 `REVIEW`，不得合并或自行宣布 PASS/DONE。
+- P1-1：session scope 未按每个被评估 session 保存 final 高水位，无法区分没有 final 与有 final 但零 eligible。
+- P1-2：job 仅依赖唯一冲突，缺 request 权威重放、trigger dedupe、retry identity 与 input/process evidence。
+- P1-3：provider 返回后的 policy/text/role/memory drift 未持久化 cancelled，可能遗留 provider succeeded + job running。
+- P1-4：restricted/do-not-ask reader 固定空集合 fail-open；producer/read model 缺失时必须明确 fail-closed。
+- P1-5：actual-question 仅 digest 精确相等，不符合 `question-sim-v1` NFKC/标点/全半角和语义相近匹配及负例要求。
+- P1-6：context actual-question membership 未与 memory 同事务冻结/计数/manifest/写回重检，存在 supersede race。
+- P1-7：未正式导出按 `beginGenerationAttempt/publishAttemptResult/withdrawPresentation` 命名与所有权冻结的 QuestionEvidence 写 seam。
+- P1-8：display snapshot/event dependency 未闭合 root active + `expires_at>now`，cleanup HMAC 还复用登录限流 pepper。
+- 定向修复边界：不重写主体，不扩 DEV-007 UI/编排；production boundary producer/read model 缺失时 `AI_POLICY_UNAVAILABLE`，local/test 只用显式 fixture；不新增 `content_marker`/deletion 半模型，不以 no-op/空集合冒充覆盖。CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- 修复候选证据：新增第 11 个 forward migration 与真实 PostgreSQL 约束反例；unit 232/232、integration 65/65、auth 13/13、E2E 9/9、auth E2E 4/4、build/smoke、空库 11 与 legacy 9→11 均本地通过。新 exact head/CI 待 PR #22 push 后绑定。
+- 历史保留：本记录的 old head、CI SUCCESS、REQUEST_CHANGES 与 P1=8 永久有效；后续修复候选或复审结论不得覆盖本次事实。

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import type { AiJobInputMemory, AiJobInputSegment } from '../generated/prisma/client.js';
+import type { AiJobInputMemory, AiJobInputSegment, Prisma } from '../generated/prisma/client.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { effectiveTextDigest, manifestHash, sha256 } from './ai-provenance.js';
 import { AiPolicyService } from './ai-policy.service.js';
@@ -13,11 +13,15 @@ export class AiOutputEligibilityService {
     private readonly policy: AiPolicyService,
   ) {}
 
-  public async isEligible(actorId: string, outputId: string): Promise<boolean> {
+  public async isEligible(
+    actorId: string,
+    outputId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<boolean> {
     try {
-      const output = await this.prisma.aiDerivedOutput.findUnique({ where: { id: outputId } });
+      const output = await db.aiDerivedOutput.findUnique({ where: { id: outputId } });
       if (output === null || output.status !== 'current') return false;
-      const job = await this.prisma.aiJob.findUnique({ where: { id: output.aiJobId } });
+      const job = await db.aiJob.findUnique({ where: { id: output.aiJobId } });
       if (
         job === null ||
         job.status !== 'succeeded' ||
@@ -25,26 +29,27 @@ export class AiOutputEligibilityService {
         job.expiresAt <= new Date()
       )
         return false;
-      const scopes = await this.prisma.aiJobSessionScope.findMany({ where: { aiJobId: job.id } });
+      const scopes = await db.aiJobSessionScope.findMany({ where: { aiJobId: job.id } });
       const policy = await this.policy.assertAllowed(
         actorId,
         job.projectId,
         scopes.map(({ sessionId }) => sessionId),
+        db,
       );
       if (policy.policyRevision !== job.policyRevision) return false;
       for (const scope of scopes) {
-        const session = await this.prisma.interviewSession.findUnique({
+        const session = await db.interviewSession.findUnique({
           where: { id: scope.sessionId },
         });
         if (session === null || session.speakerRoleRevision !== scope.speakerRoleRevision)
           return false;
       }
 
-      const segmentDeps = await this.prisma.aiOutputSegmentDependency.findMany({
+      const segmentDeps = await db.aiOutputSegmentDependency.findMany({
         orderBy: { dependencyOrder: 'asc' },
         where: { aiDerivedOutputId: output.id },
       });
-      const segmentInputs = await this.prisma.aiJobInputSegment.findMany({
+      const segmentInputs = await db.aiJobInputSegment.findMany({
         where: { id: { in: segmentDeps.map(({ aiJobInputSegmentId }) => aiJobInputSegmentId) } },
       });
       const segmentById = new Map(segmentInputs.map((input) => [input.id, input]));
@@ -62,7 +67,7 @@ export class AiOutputEligibilityService {
       )
         return false;
       for (const input of orderedSegments) {
-        const segment = await this.prisma.transcriptSegment.findUnique({
+        const segment = await db.transcriptSegment.findUnique({
           where: { id: input.transcriptSegmentId },
         });
         if (segment === null) return false;
@@ -81,11 +86,11 @@ export class AiOutputEligibilityService {
           return false;
       }
 
-      const memoryDeps = await this.prisma.aiOutputMemoryDependency.findMany({
+      const memoryDeps = await db.aiOutputMemoryDependency.findMany({
         orderBy: { dependencyOrder: 'asc' },
         where: { aiDerivedOutputId: output.id },
       });
-      const memoryInputs = await this.prisma.aiJobInputMemory.findMany({
+      const memoryInputs = await db.aiJobInputMemory.findMany({
         where: { id: { in: memoryDeps.map(({ aiJobInputMemoryId }) => aiJobInputMemoryId) } },
       });
       const memoryById = new Map(memoryInputs.map((input) => [input.id, input]));
@@ -102,12 +107,12 @@ export class AiOutputEligibilityService {
       )
         return false;
       for (const input of orderedMemories) {
-        const resolution = await this.prisma.memoryResolution.findUnique({
+        const resolution = await db.memoryResolution.findUnique({
           where: { id: input.memoryResolutionId },
         });
         const outputResolution =
           output.outputType === 'memory_resolution'
-            ? await this.prisma.memoryResolution.findUnique({
+            ? await db.memoryResolution.findUnique({
                 where: { id: output.businessOutputId },
               })
             : null;
@@ -122,12 +127,12 @@ export class AiOutputEligibilityService {
           output.outputType !== 'memory_resolution' &&
           resolution.authority === 'automatic' &&
           (resolution.aiDerivedOutputId === null ||
-            !(await this.isEligible(actorId, resolution.aiDerivedOutputId)))
+            !(await this.isEligible(actorId, resolution.aiDerivedOutputId, db)))
         )
           return false;
       }
 
-      const questions = await this.prisma.aiOutputQuestionDependency.findMany({
+      const questions = await db.aiOutputQuestionDependency.findMany({
         orderBy: { dependencyOrder: 'asc' },
         where: { aiDerivedOutputId: output.id },
       });
@@ -142,12 +147,13 @@ export class AiOutputEligibilityService {
         return false;
       for (const question of questions) {
         if (
-          !(await this.questionTargetExists(
+          !(await this.isQuestionTargetEligible(
             actorId,
             question.targetKind,
             question.targetId,
             question.targetRevision,
             question.targetDigest,
+            db,
           ))
         ) {
           return false;
@@ -159,42 +165,59 @@ export class AiOutputEligibilityService {
     }
   }
 
-  private async questionTargetExists(
+  public async isQuestionTargetEligible(
     actorId: string,
     kind: string,
     id: string,
     revision: number,
     digest: string,
+    db: Prisma.TransactionClient | PrismaService,
   ): Promise<boolean> {
     if (kind === 'display_snapshot') {
-      const row = await this.prisma.questionDisplaySnapshot.findUnique({ where: { id } });
+      const row = await db.questionDisplaySnapshot.findUnique({ where: { id } });
       return (
         row !== null &&
         row.normalizedQuestionDigest === digest &&
         row.publishedPresentationRevision === revision &&
-        row.retentionState === 'active'
+        row.retentionState === 'active' &&
+        row.expiresAt > new Date()
       );
     }
     if (kind === 'actual_question') {
-      const row = await this.prisma.actualQuestion.findUnique({ where: { id } });
+      const row = await db.actualQuestion.findUnique({ where: { id } });
       if (row === null || row.normalizedDigest !== digest) return false;
-      const analysis = await this.prisma.actualQuestionAnalysis.findUnique({
+      const analysis = await db.actualQuestionAnalysis.findUnique({
         where: { id: row.actualQuestionAnalysisId },
       });
       return (
         analysis !== null &&
         analysis.isCurrentPublished &&
         analysis.aiDerivedOutputId !== null &&
-        (await this.isEligible(actorId, analysis.aiDerivedOutputId))
+        (await this.isEligible(actorId, analysis.aiDerivedOutputId, db))
       );
     }
     if (kind === 'evidence_event') {
-      const row = await this.prisma.questionEvidenceEvent.findUnique({ where: { id } });
-      return (
-        row !== null &&
-        revision === 0 &&
-        sha256(`${row.eventType}:${row.eventAt.toISOString()}:${row.requestId}`) === digest
-      );
+      const row = await db.questionEvidenceEvent.findUnique({ where: { id } });
+      if (
+        row === null ||
+        revision !== 0 ||
+        sha256(`${row.eventType}:${row.eventAt.toISOString()}:${row.requestId}`) !== digest
+      )
+        return false;
+      if (row.retentionOwnerKind === 'ai_job' && row.retentionAiJobId !== null) {
+        const root = await db.aiJob.findUnique({ where: { id: row.retentionAiJobId } });
+        return root !== null && root.retentionState === 'active' && root.expiresAt > new Date();
+      }
+      if (
+        row.retentionOwnerKind === 'display_snapshot' &&
+        row.retentionDisplaySnapshotId !== null
+      ) {
+        const root = await db.questionDisplaySnapshot.findUnique({
+          where: { id: row.retentionDisplaySnapshotId },
+        });
+        return root !== null && root.retentionState === 'active' && root.expiresAt > new Date();
+      }
+      return false;
     }
     return false;
   }

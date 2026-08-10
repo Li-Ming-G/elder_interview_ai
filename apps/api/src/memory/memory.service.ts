@@ -34,13 +34,15 @@ export class CurrentMemoryReader {
   ) {}
 
   public async list(actorId: string, projectId: string): Promise<readonly CurrentMemoryItem[]> {
-    await this.policy.assertAllowed(actorId, projectId, []);
+    const policy = await this.policy.assertAllowed(actorId, projectId, []);
+    const blockedCanonicalKeys = new Set(policy.blockedCanonicalKeys);
     const rows = await this.prisma.memoryResolution.findMany({
       orderBy: [{ memoryType: 'asc' }, { canonicalKey: 'asc' }, { id: 'asc' }],
       where: { projectId, status: 'current' },
     });
     const visible: CurrentMemoryItem[] = [];
     for (const row of rows) {
+      if (blockedCanonicalKeys.has(row.canonicalKey)) continue;
       const allowed =
         row.authority === 'automatic'
           ? row.aiDerivedOutputId !== null &&
@@ -96,6 +98,10 @@ export class MemoryService {
       sessionIds: input.sessionIds,
       trustedRole: 'elder',
     });
+    if (job.replayed) {
+      if (job.status === 'succeeded') return this.current.list(input.actorId, input.projectId);
+      throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    }
     const claims = await this.coordinator.callProvider(job, () =>
       this.provider.extractMemory(job.segments),
     );

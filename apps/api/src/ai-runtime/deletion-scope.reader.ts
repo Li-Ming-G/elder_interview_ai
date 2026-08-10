@@ -66,3 +66,11 @@ export interface BoundaryPolicySnapshot {
 export abstract class BoundaryPolicyReader {
   public abstract read(projectId: string): Promise<BoundaryPolicySnapshot>;
 }
+
+/** Production binding until the authoritative boundary producer/read model exists. */
+@Injectable()
+export class UnavailableBoundaryPolicyReader extends BoundaryPolicyReader {
+  public override read(): Promise<never> {
+    return Promise.reject(new AiPolicyUnavailableError());
+  }
+}

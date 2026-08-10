@@ -938,3 +938,12 @@
 - Adopted decision: production deletion port 未配置即 fail-closed；local/test fixture 明确不算 deletion coverage。provider call 永远在锁外；写回重检 live policy 与所有冻结 revision/digest。actual catalog 只整版可靠发布；context 只消费 current eligible facts。
 - Implementation evidence: forward-only Prisma migration；`ai-runtime`、`memory`、`question-evidence` 模块；consent policy revision producer；unit/PostgreSQL/auth/empty+legacy migration tests；任务板、追踪和交接同步。
 - Verification boundary: DEV-007 generation/display/UI 未实现；CON-023 deletion producer/read model 与传播验收仍 `NOT IMPLEMENTED / NOT VERIFIED`；真实 provider、队列、试点质量和生产部署后置。任务保持 REVIEW，等待项目负责人 GitHub exact-head 手动审查。
+
+### 2026-08-10 — DEV-006 项目负责人八项 P1 定向修复
+
+- User outcome: 保留 PR #22 old head `d5073501b170c7e11f2bc3e00395fb8fdf794480`、CI `31357613683` SUCCESS 与正式 REQUEST_CHANGES P0=0/P1=8，只闭合审查指出的 provenance、幂等、漂移、安全边界、相似度、冻结、模块 seam 与 retention 缺口。
+- Review mode: Correction mode；遵守 iteration-coach 既有独立复核次数约束，复用本任务首次独立只读复核，不为修复再次触发额外复核。
+- Adopted decision: session scope 同时保存 final watermark 与 eligible count；request/trigger/retry/input hash 成为可审计身份；provider 结果写回漂移先持久化 cancelled 再向调用者失败；actual-question 与 memory 在同一冻结事务形成 count/manifest。生产 boundary producer 缺失时与 deletion 一样稳定 fail-closed，test fixture 不计安全覆盖。
+- Implementation evidence: 第 11 个 forward migration；coordinator/policy/eligibility/retention、memory/context、QuestionEvidence 与 deterministic question-sim fake 定向修改；真实 PostgreSQL 反例覆盖 deferred watermark、漂移取消、catalog supersede 和过期/失败 root；全量门禁结果记录在 DEV-006 handoff。
+- Verification boundary: `QuestionEvidenceWriter` 只冻结唯一 owner 和正式方法名，DEV-007 编排到来前显式 unavailable，不用 no-op 伪造 publication；不新增 boundary/deletion 半模型。CON-023 保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。修复候选仍为 REVIEW，只请求项目负责人在 GitHub 对新 exact head 手动定向复审。
+- Lesson: “有最终证据但被资格过滤”与“从未有最终证据”必须是不同持久化事实；响应未知的幂等需要业务身份重放而非碰唯一键；依赖资格必须沿 root 的状态和期限验证，不能只看子记录仍存在。

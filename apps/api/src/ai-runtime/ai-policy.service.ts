@@ -9,19 +9,35 @@ import {
 } from './deletion-scope.reader.js';
 
 export interface AiPolicySnapshot {
+  blockedCanonicalKeys: readonly string[];
   policyRevision: number;
   retentionPolicyVersion: number;
 }
 
 @Injectable()
-export class PrismaBoundaryPolicyReader extends BoundaryPolicyReader {
+export class LocalTestBoundaryPolicyFixtureReader extends BoundaryPolicyReader {
+  private readonly blockedCanonicalKeys = new Map<string, Set<string>>();
+
   public constructor(private readonly prisma: PrismaService) {
     super();
   }
 
   public override async read(projectId: string): Promise<BoundaryPolicySnapshot> {
     const project = await this.prisma.elderProject.findUniqueOrThrow({ where: { id: projectId } });
-    return { blockedCanonicalKeys: [], policyRevision: project.aiPolicyRevision };
+    return {
+      blockedCanonicalKeys: [...(this.blockedCanonicalKeys.get(projectId) ?? new Set<string>())],
+      policyRevision: project.aiPolicyRevision,
+    };
+  }
+
+  public blockCanonicalKey(projectId: string, canonicalKey: string): void {
+    const keys = this.blockedCanonicalKeys.get(projectId) ?? new Set<string>();
+    keys.add(canonicalKey);
+    this.blockedCanonicalKeys.set(projectId, keys);
+  }
+
+  public clear(): void {
+    this.blockedCanonicalKeys.clear();
   }
 }
 
@@ -65,6 +81,7 @@ export class AiPolicyService {
     }
     await this.deletionScopes.assertNoActiveScope(projectId, sessionIds);
     return {
+      blockedCanonicalKeys: boundary.blockedCanonicalKeys,
       policyRevision: project.aiPolicyRevision,
       retentionPolicyVersion: project.aiRetentionPolicyVersion,
     };
