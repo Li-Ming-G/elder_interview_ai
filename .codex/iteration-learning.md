@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、DISC-006、SPEC-DEV-006 与 DISC-AI-QUESTION-001 已完成。DEV-006 与 SPEC-AI-QUESTION-001 READY；DEV-007 继续等待两条前置。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、DISC-006、SPEC-DEV-006 与 DISC-AI-QUESTION-001 已完成。DEV-006 READY；SPEC-AI-QUESTION-001 已形成 REVIEW 候选并等待项目负责人 GitHub exact-head 审查，DEV-007 继续 BLOCKED。真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；SPEC-AI-QUESTION-001 仍需冻结自动替换稳定规则、“下一个问题”幂等、展示历史游标、节流、相似度和最终 REST/WS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；SPEC-AI-QUESTION-001 契约候选仍待项目负责人 GitHub exact-head PASS；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/018/023。CON-018 在该 PASS 前保持 OPEN；补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -161,6 +161,18 @@
 - Status: confirmed
 
 ## Iteration Log
+
+### 2026-08-10 — SPEC-AI-QUESTION-001 单问题契约 REVIEW 候选
+
+- User outcome: 在不重开 ADR-027/028、不实现代码的前提下，给 DEV-007 冻结可执行的自动更新、手动“下一个问题”、只读展示历史、安全投影和跨模块所有权契约。
+- Review mode: Learning mode；iteration-coach 恰好一次独立只读复核，重点挑战 publication/生成意图/安全可见性三条时间轴、cursor 总序、requested 与 committed 事实边界及历史浏览交互。
+- Review finding: 仅按完成时间或 last-writer-wins 会让旧 automatic 覆盖新的手动意图；历史仅按时间排序会碰撞；把 WS replay 当正文载体会绕过动态安全；`manual_next_requested` 不能证明已经换题；浏览历史时的新自动更新不得移动锚点或抢焦点。
+- Options considered: WS 直接携带正文或只发 revision；服务端保存 browse position 或客户端持有 anchor；单一 revision 或 publication/manual intent 分离。采用 REST canonical + 无正文 WS、客户端 anchor、`presentation_revision/display_sequence/manual_intent_sequence` 三分。
+- Adopted decision: 待项目负责人 GitHub 对非 Draft PR exact final head/CI 审查；当前只形成 ADR-029 Proposed 与 REVIEW 契约候选，不自行记为 Accepted/PASS/DONE。
+- Implementation evidence: 更新 `03/04/05/07/08/09/10`、任务板、追踪矩阵、CON-018、ADR-029、任务卡、交接与本 journal；未修改业务代码、Prisma schema/migration、页面或真实模型。本地 format/link/reference/diff、lint/typecheck/build、unit 225、integration 57、auth 13、migration、smoke、Chromium 9 与 auth Chromium 4 均通过；exact final head/CI 由最终交接消息绑定。
+- Verification boundary: CON-018 继续 OPEN、DEV-007 继续 BLOCKED；CON-023 deletion runtime 仍 NOT IMPLEMENTED/NOT VERIFIED。真实 matcher/LLM、生产阈值与试点质量门槛均未决定。
+- Lesson: generation intent order、canonical publication order 与读取时安全 visibility 是三种事实；将它们拆开，才能同时证明手动优先、历史稳定和撤下正文不会从 replay 回流。
+- Better future prompt: “请先分别定义生成意图、权威发布与读取时安全投影的版本轴；手动请求只证明 intent，只有原子 publication 才证明换题；历史 cursor 与 WS 都不得携带持续读取授权。”
 
 ### 2026-08-10 — 下一场单问题产品讨论边界
 

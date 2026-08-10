@@ -655,61 +655,136 @@ POST   /sessions/:id/boundary-candidates/:candidate_id/actions
 
 ### 3.9 AI 建议
 
-首次访谈最小纵向闭环只需要“获取/生成一个当前建议或继续倾听”、系统在出现更合适且具资格的问题时自动更新、“上一个问题 / 回到当前问题”只读浏览展示历史，以及“下一个问题”主动请求新建议。自动或手动替换必须写入不可变展示历史；“下一个问题”必须幂等，并在当前会话排除当前及高度相似问题。历史读取不得触发模型调用、改变 canonical current snapshot 或冒充 actual-question。精确请求、响应、游标、防抖、节流和持久化契约由 `SPEC-AI-QUESTION-001` 冻结后才成为正式实现依据。
+首次访谈最小纵向闭环只提供一个 canonical current presentation、手动“下一个问题”和只读展示历史。REST 是权威读写面；WebSocket 只发送不含问题正文的 revision notification。原规划的 `POST /suggestions/:id/actions` 永久废弃，DEV-007 不得实现采用、已问、忽略、稍后、改写或历史撤销。
+
+正式路径：
 
 ```http
-GET  /sessions/:id/suggestions
-POST /sessions/:id/suggestions/request
+GET  /sessions/:id/suggestions/current
+GET  /sessions/:id/suggestions/history
+GET  /sessions/:id/suggestions/history/:snapshotId
+POST /sessions/:id/suggestions/next
+GET  /sessions/:id/suggestion-requests/:requestId
 ```
 
-原规划的通用 `POST /suggestions/:id/actions` 已冻结，不属于首轮实现范围；DEV-007 不得据此实现采用、已问、忽略、稍后或改写动作。
+#### 3.9.1 canonical current 与动态安全投影
 
-DISC-006 冻结的产品语义必须由 `SPEC-DEV-006` 与 `SPEC-AI-QUESTION-001` 在 DEV-006/007 开工前共同映射为唯一正式契约：
+`GET /sessions/:id/suggestions/current` 返回：
 
-- 查询/生成结果只表达当前问题、继续倾听或 AI 暂不可用；普通 UI 不返回记忆/冲突/置信度管理列表；
-- “下一个问题”每次用户动作只启动一个带稳定 `request_id` 的新 AI attempt；响应未知重试复用原 ID，权威成功或明确失败后下一次动作使用新 ID；不做后台无限重试或基础题自动替代；
-- 响应必须区分不可变 `displayed_snapshot` 与 `future_eligibility`。普通事实/说话人修正可以保留当前屏幕快照，但新生成和跨会话查询必须排除旧 eligibility；
-- `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，服务端普通查询、WebSocket replay 与恢复 snapshot 都不得返回已撤下的问题正文；只返回中性状态和最小撤下原因，不自动生成替代问题；
-- 会后实际问题整理需要单一内部/API seam，至少冻结启动、查询、显式重试、幂等、job 状态、`actual_asked|explicitly_replaced|not_observed|unjudged` 或等价分类、证据引用和分析版本；ASR/角色证据不足时不得作否定结论；
-- 第二次会话只消费当前有效记忆、有效人工边界和“实际问过”问题；明确换掉、未观察到问出和未判断都不能冒充已问。
+```json
+{
+  "session_id": "uuid",
+  "presentation_revision": 42,
+  "kind": "suggestion",
+  "snapshot_id": "uuid",
+  "display_sequence": 8,
+  "question": "后来是什么让您决定离开家乡？",
+  "reason": "长者刚提到第一次离家，但原因尚未展开。",
+  "displayed_at": "2026-08-10T10:00:00.000Z",
+  "withdrawal_reason": null,
+  "history": {
+    "has_older": true
+  }
+}
+```
 
-本 SPEC 冻结共享服务与安全投影；自动替换、手动“下一个问题”、展示历史导航、节流、相似度和最终 REST 路由仍由 `SPEC-AI-QUESTION-001` 冻结，不得提前实现。历史投影必须复用当前问题的动态安全重检；被硬边界撤下的正文不得因历史浏览重新出现。
+- `kind` 为 `suggestion|continue_listening|unavailable|withdrawn`。只有 `suggestion` 返回 question/reason；`continue_listening|unavailable` 的 snapshot/display sequence 可以为空；`withdrawn` 只返回中性 `withdrawal_reason`，正文、原因、evidence、memory、confidence、内部 score 和 provider 信息均为空；
+- `withdrawal_reason` 只允许 `restricted|do_not_ask|deletion_active|consent_revoked|access_revoked|policy_unavailable`。若 actor 已无权访问 session 本身，仍返回 401/403，不用中性 DTO 泄露资源存在；
+- 每次读取都批量重检当前 auth session、assignment、捆绑授权、project 状态、正式 boundary、活动 deletion scope、retention 与 policy revision。cursor、旧 WS event、snapshot ID 和幂等记录都不构成读取授权；
+- 普通说话人/文字/记忆修正、普通冲突或单独 sensitive 可保留已发布正文，但 candidate 已失去 future eligibility。硬边界命中时 current 与 history 一致返回 withdrawn/中性投影，不自动创建新 attempt；边界解除也不自动恢复旧正文；
+- `presentation_revision` 是客户端接受 current update 的唯一 CAS/replay 水位。服务端已发布即构成 displayed snapshot；不引入客户端曝光 ACK。
 
-#### 3.9.1 共享内部服务 seam
+#### 3.9.2 手动“下一个问题”
+
+请求：
+
+```json
+{
+  "request_id": "uuid",
+  "expected_presentation_revision": 42,
+  "expected_snapshot_id": "uuid-or-null"
+}
+```
+
+规则：
+
+- request ID 必须在首次网络请求前持久化，并绑定 actor、session、expected revision/snapshot 与规范化 payload。响应未知只可重放同一 ID；相同绑定返回首次 202/终态响应，不创建第二 attempt；不同绑定返回 409 `IDEMPOTENCY_KEY_REUSED|IDEMPOTENCY_PAYLOAD_MISMATCH`；
+- 服务端按 `request_id -> project -> session -> question_display_state` 加锁。expected current 不匹配时返回 409 `SUGGESTION_CURRENT_CHANGED` 和调用时的安全 current projection，不创建 attempt、job 或 event；
+- 接受请求时原子递增 `manual_intent_sequence`，创建唯一 `manual_next` attempt 和 `manual_next_requested` event，返回 202。该 intent fence 使所有更早 automatic attempt 的晚到结果只能取消；
+- 同一 session 同时只允许一个 `pending|running` manual-next attempt。新 ID 命中单飞返回 409 `SUGGESTION_REQUEST_IN_PROGRESS`，仅返回现有 request ID、状态和 `retry_after_ms`，不返回正文；同一 ID 重放仍返回首次业务状态；
+- 手动请求不受 current dwell 或自动替换分差约束，但仍必须通过 eligibility、安全边界、current/recent displayed、可靠 actual-question 与相似度排除。成功发布新 suggestion 或 continue-listening 时写 `manual_next_committed`；失败、超时或 unavailable 写 `manual_next_failed`，不得据 `manual_next_requested` 推断 `explicitly_replaced`；
+- 生成期间 canonical current 保持不变，响应/状态为 `pending|running`，页面显示“正在准备下一个问题”。权威失败后 current 切为 `unavailable`，但旧 snapshot 仍只作为历史事实存在；不回退基础题、不无限重试；
+- 初始内部配置为同一 actor/session 两次已接受 manual next 至少间隔 3 秒，滚动 60 秒最多 6 次。首次节流拒绝持久化为该 request ID 的权威 429 `AI_SUGGESTION_THROTTLED` 与 `Retry-After`；冷却后新的用户动作使用新 ID。
+
+接受响应：
+
+```json
+{
+  "request_id": "uuid",
+  "attempt_id": "uuid",
+  "status": "pending",
+  "accepted_presentation_revision": 42,
+  "retry_after_ms": 0
+}
+```
+
+`GET /sessions/:id/suggestion-requests/:requestId` 只允许原 actor 或具有同项目明确诊断权限的角色，返回 `pending|running|succeeded|failed|cancelled`、result kind、publication outcome、最小 error code 与最新安全 current projection。它不返回 provider 原文、完整模型输出、内部 score 或未发布 candidate。manual attempt 的总 deadline 初始为 8 秒并配置化；超时后稳定为 `failed/AI_UNAVAILABLE`。
+
+#### 3.9.3 自动替换、排序与竞态
+
+- automatic trigger 继续采用至少 20 秒最短间隔和权威 trigger dedupe。候选只在 future eligible、未命中 §7 的有序排除、且版本化 comparator 判断比 current 严格更合适时发布；attempt succeeded 不等于 published；
+- 内部 `selection_score` 不进入公共 DTO。默认 `selection_policy_version=question-select-v1`，替换要求 candidate score 至少比 current 高 `0.12`；当前 suggestion 至少稳定展示 15 秒；候选再等待 1500 ms debounce，并在 commit 前重新验证 basis revision、manual intent fence、eligibility、policy 与分差；所有阈值配置化并随 attempt/snapshot 记录版本；
+- 同分使用 `(evidence watermark desc, candidate.created_at asc, candidate.id asc)` 确定性 tie-break，但仍必须满足最小分差；不得用模型 confidence 直接决定“更合适”或作为产品事实；
+- automatic 与 automatic 最多单飞一条；重复证据/trigger 返回原 attempt。写回使用 basis presentation revision CAS；较晚完成但基于旧 current 的结果为 `cancelled/stale_basis`，不得 last-writer-wins；
+- manual next 优先于更早 automatic。manual 请求锁先赢时建立 fence，旧 auto 写回 `superseded_by_manual`；auto publication 先赢时 presentation revision 改变，仍基于旧 revision 的 manual 请求稳定返回 `SUGGESTION_CURRENT_CHANGED`，由客户端展示新 current 后再决定是否发起新动作；
+- session 尚无 current presentation 时，initial automatic 可以发布最高排序的 eligible suggestion；没有合格问题时发布 `continue_listening`。已有 visible suggestion 时，automatic 只能用满足分差/dwell/debounce 的新 suggestion 替换，不能用 `continue_listening|unavailable` 自动覆盖；AI unavailable 也不覆盖现有 current。连续失败暂停 automatic，只保留受节流保护的 manual next。
+
+#### 3.9.4 排除与相似度顺序
+
+每次 question generation 固定按以下顺序构建允许集合，并把命中类别与 policy version 写入最小过程记录：
+
+1. 权限、授权、project 状态、`restricted|do_not_ask`、活动 deletion scope、retention、trusted role/content kind 和 derived future eligibility；不能证明安全时直接 unavailable/continue，不进入相似度；
+2. current published question：规范化摘要相同或高度相似即排除；
+3. 本 session 最近 20 个仍在 retention 内的 displayed snapshot，按 display sequence 倒序批量安全读取；撤下正文不得为比较重新投影给调用者，但服务端可在授权的 policy evaluator 内比较不可逆摘要/安全特征；
+4. 当前 published、eligible 的可靠 actual-question catalog，跨 session 排除实际问过的问题；`explicitly_replaced|not_observed|unjudged` 不进入该集合；
+5. 当前 eligible memory 与人工 boundary：memory 用于 grounding/冲突澄清，不能把冲突或 unknown 写成前提；人工 boundary 永远优先于新颖度；
+6. 同一 attempt 内候选去重和风险过滤。
+
+`question-sim-v1` 先对 UTF-8 文本做 Unicode NFKC、ASCII 小写、全角/半角统一、去首尾与连续空白、移除 Unicode 标点；保存 SHA-256 digest。高度相似使用版本化、供应商中立 matcher 的 `[0,1]` score，默认阈值 `>=0.88`，比较目标取最大值；threshold/matcher version 必须随 attempt/candidate/snapshot 记录且配置化。真实 embedding/LLM 供应商不由本 SPEC 选择；DEV-007 必须以固定中文 fixture 同时覆盖同义改写、否定差异、人物/时间槽差异和短问题，未达到 fixture 的实现不得仅靠字符串相等宣称完成。
+
+#### 3.9.5 展示历史、cursor 与刷新恢复
+
+`GET /sessions/:id/suggestions/history` 默认 20、最大 50，按 `(display_sequence desc, snapshot_id desc)` keyset 分页。cursor 是版本化、服务端签名的不透明 token，绑定 session、方向、锚点 sequence/ID、page size 和过滤版本；非法、过期、跨 session 或参数不一致返回 422 `INVALID_SUGGESTION_CURSOR`，不得静默降级首页。新 snapshot 不改变已签发向更早方向 cursor 的结果边界。
+
+每个 item 返回 `snapshot_id/display_sequence/kind/question/reason/displayed_at/withdrawal_reason` 和不透明 `older_cursor/newer_cursor`。服务端对一页 snapshot 及其依赖做有界批量安全裁决，禁止逐项 N+1 policy/permission 查询。硬撤下 item 的 `kind=withdrawn` 且正文为空。
+
+`GET .../history/:snapshotId` 用于刷新恢复某个只读锚点，同时返回相邻 cursor；snapshot 已按 retention 清理或不再可安全定位时返回 410 `SUGGESTION_HISTORY_ITEM_UNAVAILABLE`，客户端回到 current。历史位置只保存在客户端 URL/history state 或 sessionStorage；所有 history GET 都是安全、无副作用读取：不创建 request ID、attempt/job/event/audit outcome，不更新 current/eligibility/排除或 actual-question。浏览中收到新 revision 只显示“当前问题已更新”，不得跳转、抢焦点或移动锚点；“回到当前问题”重新 GET current。
+
+#### 3.9.6 共享内部服务 seam
 
 `QuestionEvidenceModule` 是 generation attempt、candidate、display snapshot/state/event、actual-question analysis/catalog 和 suggestion outcome 的唯一 owner。其他模块只能调用以下语义接口，不得直接维护第二套 question history：
 
 ```text
-QuestionEvidenceService.recordDisplay(command, actor, request_id)
-QuestionEvidenceService.recordReplaceRequested(command, actor, request_id)
+QuestionEvidenceService.beginGenerationAttempt(command, actor_or_system, request_id)
+QuestionEvidenceService.publishAttemptResult(command, actor_or_system, request_id)
+QuestionEvidenceService.withdrawPresentation(command, actor_or_system, request_id)
 QuestionEvidenceService.publishActualQuestionAnalysis(command, system_request_id)
 QuestionEvidenceReader.getCurrentPresentation(session_id, actor)
+QuestionEvidenceReader.listDisplayHistory(session_id, actor, cursor)
+QuestionEvidenceReader.getGenerationRequest(session_id, request_id, actor)
 QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, actor)
 ```
 
 - DEV-006 实现 actual-question analysis/catalog、evidence、可靠版本发布和跨会话 `actual asked` reader；
 - DEV-007 经上述 seam 写 generation/display/replace 事实和读防重复集合，不得直接写 actual question；
-- `recordDisplay` 只在 candidate eligibility 与动态 policy 校验仍成立时原子创建 immutable snapshot 并切换 display state；
+- `publishAttemptResult` 只在 candidate eligibility、basis revision/manual fence 与动态 policy 校验仍成立时，按 `04` §4.39 原子创建 immutable snapshot（如有）并切换 display state；
 - `publishActualQuestionAnalysis` 只有 judgeable 结果可以原子替换 current reliable catalog；unjudged/failed 只更新分析状态，不覆盖可靠目录；
 - 写回每个独立业务输出时必须同时创建它自己的一条 `ai_derived_output` 和完整 dependency manifest：五条 memory claim 就是五条业务记录与五条资格记录；一个 actual-question analysis 版本只有一条 catalog 资格记录，任一 dependency 失效时整版撤下，不按 question 局部保留；
 - 第一版不暴露 memory/冲突/置信度管理响应，也不提供采用、已问、忽略、稍后或改写动作。
 
-普通问题投影统一为：
+只有 `kind=suggestion` 可返回 question/reason。任何读取、页面恢复或 WS notification 后 refetch 都必须实时重检；不能证明安全时返回中性 projection，绝不从 snapshot、cursor 或旧 event 恢复正文，也不自动启动替代 attempt。
 
-```json
-{
-  "kind": "suggestion|continue_listening|unavailable",
-  "snapshot_id": "uuid|null",
-  "question": "string|null",
-  "reason": "string|null",
-  "displayed_at": "timestamp|null",
-  "withdrawal_reason": "restricted|do_not_ask|deletion_active|access_revoked|policy_unavailable|null"
-}
-```
-
-只有 `kind=suggestion` 可返回 question/reason。任何读取、页面恢复或将来 suggestion WS replay 都必须实时重检 assignment、授权、项目状态、正式边界和活动 deletion scope；不能证明安全时返回中性 projection，绝不从 snapshot 恢复正文，也不自动启动替代 attempt。
-
-#### 3.9.2 AI job 两阶段并发协议
+#### 3.9.7 AI job 两阶段并发协议
 
 所有 memory extraction、question generation、actual-question reconcile、session note 和 context snapshot 共用：
 
@@ -719,9 +794,9 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
 5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。
 
-稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`；外部响应不带供应商原文、内部权限详情或正文。
+稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`。suggestion 专用协议错误另含 `AI_SUGGESTION_THROTTLED`、`SUGGESTION_REQUEST_IN_PROGRESS`、`SUGGESTION_CURRENT_CHANGED`、`INVALID_SUGGESTION_CURSOR` 与 `SUGGESTION_HISTORY_ITEM_UNAVAILABLE`；供应商 timeout 映射为公共 `AI_UNAVAILABLE`，内部可记录不含正文的 `AI_PROVIDER_TIMEOUT`。没有合格新问题是成功的 `continue_listening`，不是错误。外部响应不带供应商原文、内部权限详情或正文。
 
-#### 3.9.3 资格与 retention 内部 seam
+#### 3.9.8 资格与 retention 内部 seam
 
 ```text
 AiOutputEligibilityReader.isEligible(ai_derived_output_id, actor)
@@ -803,7 +878,6 @@ GET  /exports/:id
 - 上传音频分片；
 - 初始化和完成音频对象；
 - 创建内容标记；
-- 保存建议操作；
 - 创建导出任务；
 - 撤回授权；
 - 创建删除申请；
@@ -812,7 +886,7 @@ GET  /exports/:id
 - 单段说话人修正；
 - 批量说话人修正预览与执行。
 - 创建 AI job/显式重试；
-- 每次问题生成、自动替换、展示、手动“下一个问题”与历史导航动作；
+- 每次问题生成、自动 publication、手动“下一个问题”接受/发布与硬撤下；历史导航是无副作用 GET，不接受也不需要 `request_id`；
 - 启动、重试与发布实际问题整理。
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
@@ -903,11 +977,32 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 - `asr.status`
 - `heartbeat.ack`
 - `speaker.calibration.updated`
+- `suggestion.presentation.changed`
 - `error`
 
 其中 `speaker.calibration.updated` 由 DEV-004C1 在 1.1 协议实现；其余列出的事件沿用 B1/B2。未列出的下行事件仍保留为后续方向。
 
-问题建议暂不新增正式 WebSocket 事件。`SPEC-AI-QUESTION-001` 若选择 WS，只能复用 §3.9.1 的安全 projection；服务端必须在发送与 replay 时动态重检，事件存储不得让已撤下正文通过旧 payload 回流。
+`suggestion.presentation.changed` 是 `schema_version=1.2` 的无正文 notification；既有 1.1 音频/转录/校准事件不改变。它只通知客户端 REST canonical presentation 已变化，不承载 question/reason/evidence、confidence、内部 score、withdrawal 细节或 provider 信息：
+
+```json
+{
+  "type": "suggestion.presentation.changed",
+  "event_id": "uuid",
+  "event_stream_id": "uuid",
+  "server_sequence": 14,
+  "session_id": "uuid",
+  "timestamp": "2026-08-10T10:00:00+08:00",
+  "schema_version": "1.2",
+  "payload": {
+    "presentation_revision": 42,
+    "kind": "suggestion|continue_listening|unavailable|withdrawn",
+    "snapshot_id": "uuid|null",
+    "change_kind": "initial_display|automatic_replace|manual_next|hard_withdrawal"
+  }
+}
+```
+
+事件只在 §3.9 publication/hard-withdrawal 事务提交后发布；发布失败不回滚数据库事实。客户端收到或 replay 后只比较 revision，较旧/重复 revision 忽略，较新 revision 调用 `GET .../suggestions/current`；浏览历史时只显示“当前问题已更新”，不改变锚点或焦点。事件缓存只保存上述 ID/版本/分类，永不保存正文，因此旧 replay 本身不能绕过硬撤下；replay 窗口过期直接 GET current/history。发送和 replay 前仍复核连接权限，失权时按 §5.5 关闭而不发送资源通知。
 
 ### 5.5 握手、join 与权限
 
@@ -1111,9 +1206,9 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 }
 ```
 
-### 5.10 `suggestion.created` 示例
+### 5.10 suggestion notification 边界
 
-此事件名与历史 payload 仅为早期示例，不是正式协议，DEV-007 不得实现。若 `SPEC-AI-QUESTION-001` 后续启用实时下行，payload 必须是 §3.9.1 的 `kind/snapshot_id/question/reason/displayed_at/withdrawal_reason` 安全投影，不返回 confidence、原始 evidence 正文或备选问题，并遵守发送/replay 动态撤下。
+历史 `suggestion.created` 名称与正文 payload 永久废弃，DEV-007 不得实现。正式实时提示只有 §5.4 的 `suggestion.presentation.changed` 无正文 notification；权威 current/history 内容始终通过 §3.9 REST 动态安全投影读取。
 
 ## 6. 权限规则
 
