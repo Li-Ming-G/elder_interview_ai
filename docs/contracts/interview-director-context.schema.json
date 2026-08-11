@@ -2,12 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://elder-interview.example/schemas/interview-director-context-v1.json",
   "title": "InterviewDirectorContextV1",
+  "$comment": "SPEC-QUESTION-DIRECTOR-001 formal candidate; becomes formal only after exact-head PASS and merge.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "context_schema_version",
-    "versions",
-    "request",
     "current_presentation",
     "interview_state",
     "recent_transcript",
@@ -19,37 +18,11 @@
   ],
   "properties": {
     "context_schema_version": { "const": "interview-director-context-v1" },
-    "versions": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["prompt_bundle", "context_builder", "model_config", "journey_policy", "similarity_policy", "boundary_policy_revision"],
-      "properties": {
-        "prompt_bundle": { "$ref": "#/$defs/versionDigest" },
-        "context_builder": { "$ref": "#/$defs/versionDigest" },
-        "model_config": { "$ref": "#/$defs/versionDigest" },
-        "journey_policy": { "type": "string", "minLength": 1 },
-        "similarity_policy": { "type": "string", "minLength": 1 },
-        "boundary_policy_revision": { "type": "integer", "minimum": 0 }
-      }
-    },
-    "request": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["request_id", "attempt_id", "project_id", "session_id", "trigger_kind"],
-      "properties": {
-        "request_id": { "type": "string", "format": "uuid" },
-        "attempt_id": { "type": "string", "format": "uuid" },
-        "project_id": { "type": "string", "format": "uuid" },
-        "session_id": { "type": "string", "format": "uuid" },
-        "trigger_kind": { "enum": ["automatic", "manual_next", "second_session_opening"] }
-      }
-    },
     "current_presentation": {
       "type": ["object", "null"],
       "additionalProperties": false,
-      "required": ["presentation_revision", "snapshot_id", "text"],
+      "required": ["snapshot_id", "text"],
       "properties": {
-        "presentation_revision": { "type": "integer", "minimum": 0 },
         "snapshot_id": { "type": "string", "format": "uuid" },
         "text": { "type": "string", "maxLength": 300 }
       }
@@ -70,14 +43,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "session_id", "start_ms", "text", "text_revision", "speaker_role_revision", "trusted_role"],
+        "required": ["segment_id", "start_ms", "text", "trusted_role"],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "session_id": { "type": "string", "format": "uuid" },
+          "segment_id": { "type": "string", "format": "uuid" },
           "start_ms": { "type": "integer", "minimum": 0 },
           "text": { "type": "string", "maxLength": 1000 },
-          "text_revision": { "type": "integer", "minimum": 0 },
-          "speaker_role_revision": { "type": "integer", "minimum": 0 },
           "trusted_role": { "enum": ["elder", "interviewer"] }
         }
       }
@@ -88,28 +58,27 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "memory_type", "value_kind", "value", "authority", "evidence_ids"],
+        "required": ["memory_resolution_id", "memory_type", "value_kind", "value", "authority"],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
+          "memory_resolution_id": { "type": "string", "format": "uuid" },
           "memory_type": { "type": "string", "maxLength": 50 },
           "value_kind": { "enum": ["exact", "range", "unknown"] },
           "value": { "type": "string", "maxLength": 500 },
-          "authority": { "type": "string", "maxLength": 50 },
-          "evidence_ids": { "type": "array", "maxItems": 12, "items": { "type": "string", "format": "uuid" } }
+          "authority": { "type": "string", "maxLength": 50 }
         }
       }
     },
-    "actual_asked": { "$ref": "#/$defs/idTextList" },
-    "recently_displayed": { "$ref": "#/$defs/idTextList" },
+    "actual_asked": { "$ref": "#/$defs/actualQuestionList" },
+    "recently_displayed": { "$ref": "#/$defs/displayedQuestionList" },
     "bank_references": {
       "type": "array",
       "maxItems": 30,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "bank", "topic", "question_text", "purpose", "sensitivity"],
+        "required": ["question_bank_item_id", "bank", "topic", "question_text", "purpose", "sensitivity"],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
+          "question_bank_item_id": { "type": "string", "format": "uuid" },
           "bank": { "enum": ["basic", "deep"] },
           "topic": { "type": "string", "maxLength": 80 },
           "question_text": { "type": "string", "maxLength": 300 },
@@ -133,24 +102,28 @@
     }
   },
   "$defs": {
-    "versionDigest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["version", "sha256"],
-      "properties": {
-        "version": { "type": "string", "minLength": 1 },
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
-      }
-    },
-    "idTextList": {
+    "actualQuestionList": {
       "type": "array",
       "maxItems": 40,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "text"],
+        "required": ["actual_question_id", "text"],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
+          "actual_question_id": { "type": "string", "format": "uuid" },
+          "text": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    },
+    "displayedQuestionList": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["snapshot_id", "text"],
+        "properties": {
+          "snapshot_id": { "type": "string", "format": "uuid" },
           "text": { "type": "string", "maxLength": 1000 }
         }
       }

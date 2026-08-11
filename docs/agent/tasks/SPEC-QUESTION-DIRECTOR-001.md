@@ -11,17 +11,18 @@
 
 ## 目标
 
-把实时下一问从“题库白名单内选择/轻调”纠正为“确定性后端冻结可信 Context，单次结构化模型参考但不受题库束缚地生成一个问题，服务端再校验并追加展示历史”。
+把实时下一问从“题库白名单内选择/轻调”纠正为“确定性后端冻结可信 Context，一个实时 Director 参考但不受题库束缚地完成一次逻辑生成，服务端再做基础硬校验并追加展示历史”。
 
 ## 必须冻结
 
 1. 题库是 0..N 可选参考，不是候选合法性来源；无题库引用可合法生成。
 2. source facts 只读，suggestion facts append-only；QuestionEvidence/actual asked/current/history 所有权不变。
-3. provider-neutral `InterviewDirectorContextV1` 的语义、排序、裁剪、版本和 digest。
-4. `InterviewDirectorOutputV1` 的 suggest/continue 结构、单问题、grounding、可选 reference attribution 与严格 Schema。
+3. provider-neutral `InterviewDirectorContextV1` JSON Schema 是 AI 实际输入的唯一技术结构；Markdown 只解释语义、排序、裁剪和空集合行为。
+4. `InterviewDirectorOutputV1` JSON Schema 是 AI 实际输出的唯一技术结构；Markdown 只解释建议、grounding 和可选 attribution 的职责。
 5. 仓库内可编辑、不可变版本化 prompt bundle；数据库记录使用版本/digest，不建设在线管理 UI。
-6. 一个实时模型调用 + 确定性后端编排；模型不直连数据库，不引入第二 planner agent。
-7. 权限、授权、trusted role、restricted/do_not_ask/deletion、retention、重复、幂等、freeze-call-recheck 和 REST/WS/history 规则继续有效。
+6. 一个实时 Director + 确定性后端编排；同一逻辑生成遇 transport/timeout 或第一次返回未过基础硬校验时最多一次完全同输入 retry，不引入 repair prompt、第二 planner/critic 或复杂自然语言事实验证器。
+7. frozen Context seen membership、candidate declared attribution、事实 grounding 与发布资格四者分离；`declared_bank_references=[]` 合法。
+8. 权限、授权、trusted role、restricted/do_not_ask/deletion、retention、重复、幂等、freeze-call-recheck 和 REST/WS/history 规则继续有效。
 
 ## 明确不做
 

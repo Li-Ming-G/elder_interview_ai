@@ -11,7 +11,7 @@
 ## 目标与范围
 
 - 由确定性后端读取 DEV-006 current memory、可靠 actual asked、可信转录/角色/边界、current/recent displayed，以及 A 的 safe bank references/stage，冻结 `InterviewDirectorContextV1`；
-- 用一次结构化模型调用返回一个问题或继续倾听；题库是 0..N 可选参考，允许广泛改写或完全不用；服务端验证 `InterviewDirectorOutputV1`、grounding、单问题、重复、风险与安全边界；
+- 用一个实时 Director 返回一个问题或继续倾听；题库是 0..N 可选参考，允许广泛改写或完全不用；transport/timeout 或第一次返回未过基础硬校验时最多一次完全同输入 retry。服务端验证唯一 Output Schema、引用 ID/subset、重复和安全边界；单问题、grounding/risk 贴切性由 Prompt、评测和人工实践评价；
 - 通过既有 QuestionEvidence writer 发布 candidate/current/history，接入既有 REST、无正文 WS 和工作台；
 - 保留自动替换、manual next、历史锚点、displayed != actual asked、hard withdrawal 和失败降级。
 - prompt 使用仓库内可编辑、不可变版本化 bundle；job 保存 prompt/context/output/context-builder/model-config 版本与 digest，不保存完整真实模型输入。
@@ -25,4 +25,4 @@
 
 ## 验收
 
-逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵；必须证明无题库引用可合法生成、可选参考不冒充 grounding、具体事实前提有可信 ID、源事实只读、prompt/schema 版本可复盘，并通过现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。
+逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵；必须证明无题库引用可合法生成、seen 与 declared 分离、声明引用和 grounding ID 都来自 frozen Context、源事实只读、同输入 retry、prompt/schema 版本可复盘，并通过现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。

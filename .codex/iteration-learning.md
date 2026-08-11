@@ -1043,3 +1043,12 @@
 - Implementation evidence: docs-only 更新 `01/03/04/05/07/08/09/10`、任务板/追踪/冲突/ADR、DEV-007/007B task+prompt，新增 Context/Output Schema、prompt v1、SPEC task/handoff；未修改 Prisma、migration、业务代码或页面。
 - Review evidence: 用户临时委派总控对 PR #25 head `55bf9fba` 代审，REV-036 记录并发/幂等/late publish/阶段/历史恢复等缺口及 `REQUEST_CHANGES`；其旧轻调核心又被本轮产品决定 supersede。
 - Verification boundary: SPEC-QUESTION-DIRECTOR-001 仅到 REVIEW；ADR-031 Proposed、CON-026 OPEN、DEV-007B BLOCKED。PR #25 old head 保留 REQUEST_CHANGES，不得合并；契约 PASS/merge 后以 v2 新分支/PR 选择性移植契约中立实现。
+
+### 2026-08-11 — PR #26 Schema/Retry/题库归因定向一致性修订
+
+- User outcome: 不再让 Markdown、Schema 和 Prompt 各自定义一套 Director 结构；第一版只做一个 Director、一次逻辑生成和基础硬校验，技术失败最多一次完全同输入 retry。题库可选，必须区分模型看过与模型声明使用。
+- Review mode: Correction mode；恰好一次独立只读复核确认 old head `0a75b170` 的四项 P1 均成立，且可在 docs-only 边界关闭，无需新产品问题。
+- Adopted decision: 两份 JSON Schema 分别成为 AI 实际 Context/Output 的唯一技术结构；Prompt 只定义任务和材料作用。job/attempt 另存版本/digest 与 input membership，不把过程元数据塞入模型 Context。seen bank membership、declared attribution、grounding 与 publication eligibility 四分。
+- Retry boundary: `question_generation` primary 遇 transport/timeout 或返回未过基础硬校验后最多一次 `same_input_retry`；Prompt、Context、Output Schema、model config、版本/digest/input hash 完全相同，不回传前次输出或错误。权限、安全、deletion、重复或 writeback 漂移不 retry；第二次失败不创建 candidate、不改变 current/history。
+- Validation boundary: 确定性后端只证明 Schema、ID/subset、权限、安全、版本、retention、重复、幂等与 CAS；自然语言是否真正单问、grounding/risk/purpose 是否贴切由 Prompt、固定评测和人工实践评价，不新增启发式 validator 或第二模型。
+- Verification boundary: 本轮仍是 SPEC REVIEW；ADR-031 Proposed、CON-026 OPEN、DEV-007/007B BLOCKED、PR #25 REQUEST_CHANGES。新 exact head 和 CI 只作为项目负责人定向复审候选，不自行 PASS/DONE/merge。

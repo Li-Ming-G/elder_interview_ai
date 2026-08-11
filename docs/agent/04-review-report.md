@@ -33,6 +33,7 @@
 | SPEC-QUESTION-JOURNEY-001 | REV-034 | PR #23 / final head `5963af98b4a807e5fa1d00ff33f8ef6b6a0e6323` / CI `31380903831` PASS / merge `f0bff3f` | DONE / PASS | 项目负责人定向复审 P0/P1=0；原三项 P1 3/3 CLOSED。old head `0f3034d` REQUEST_CHANGES/P1=3 永久保留；ADR-030 Accepted、CON-025 RESOLVED、DEV-007A READY，DEV-007B 继续 BLOCKED |
 | DEV-007A | REV-035 | PR #24 / final head `6b8e69e1b3170a86699338c7037374029a163978` / CI `31395799408` PASS / merge `7f9a173` | DONE / PASS | 项目负责人定向复审 P0/P1=0；membership seal 与可信 APP_ENV 两项 P1 全部关闭。old head `5cea972` REQUEST_CHANGES/P1=2 永久保留；DEV-007B READY，正式题库仍缺失 |
 | DEV-007B | REV-036 | PR #25 / head `55bf9fba9f721a5f02b9e3224768c644324f1293` / CI `31412038872` PASS | REVIEW / REQUEST_CHANGES | 用户临时委派总控代审；并发/幂等/late writeback/commit eligibility/stage/runtime signal/history recovery 等 P1 与前端 P2 未关闭。更重要的是题库白名单产品契约已被项目负责人纠正，PR #25 停止修补并由 SPEC-QUESTION-DIRECTOR-001 / DEV-007B v2 取代；不得合并 |
+| SPEC-QUESTION-DIRECTOR-001 | REV-037 | PR #26 / old head `0a75b170f9a6bb8dddd04298b74987a420c3f954` / CI `31449510877` PASS | REVIEW / REQUEST_CHANGES | 两份 Schema 未成为唯一结构源、基础硬校验边界过宽、retry 仍是 format repair、seen/declared 题库事实混合；P1=4。定向修订候选等待项目负责人 exact-head 复审，ADR-031/CON-026/DEV-007B 状态不变 |
 
 ## 阅读规则
 
@@ -42,4 +43,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-036`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-037`。

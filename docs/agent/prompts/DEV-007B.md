@@ -7,7 +7,7 @@
 实现范围严格限于：
 
 - 用确定性后端读取 DEV-006 current memory/actual asked、可信转录/角色/边界、current/recent displayed 与 A 的 safe bank references/stage，冻结 `InterviewDirectorContextV1`；
-- 调用一次结构化模型，允许采用、广泛改写或完全不用题库；验证 `InterviewDirectorOutputV1`、单问题、grounding、重复、风险和安全边界；
+- 调用一个实时 Director，允许采用、广泛改写或完全不用题库；transport/timeout 或第一次返回未过基础硬校验时最多一次完全同 Prompt/Context/Output Schema 的 retry。只按唯一 Output Schema、引用 ID/subset、重复和安全边界做确定性验证；单问题与 grounding/risk 贴切性由 Prompt、评测和人工实践评价；
 - 增加仓库内可编辑、不可变版本化 prompt bundle，并记录 prompt/context/output/context-builder/model-config version+digest；
 - 只经 QuestionEvidence writer 发布，接入既有 current/history/next/request-status REST、无正文 WS 与工作台；
 - 完成 `09` §7.6-§7.7、响应式、无障碍、安全和失败矩阵。

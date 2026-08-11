@@ -636,3 +636,13 @@ P2：
 - 已验证实现问题：manual admission 在冻结 job 后才校验 stale current、request replay 未绑定 expected payload、deadline 后 late completion 仍可发布、commit gate 漏验完整 eligibility/actual-asked、阶段变化仍受旧阶段 score 阻断、runtime journey signal builder 使多个阶段分支不可达；前端 history 只读首 50 条且不使用 cursor/anchor，刷新不能恢复历史，移动端隐藏推荐原因等。
 - 产品 stop condition：项目负责人随后明确题库只是参考，模型可以大幅改写或完全生成题库外问题；这与 PR #25 和 ADR-030 的白名单/轻调核心假设冲突。原“机械证明轻调”的审查项不再按旧契约修复，而由 SPEC-QUESTION-DIRECTOR-001 / ADR-031 先行纠偏。
 - 后续：保留本 head/CI/REQUEST_CHANGES 历史。新契约 PASS/merge 后，新建 DEV-007B v2 分支/PR，选择性移植契约中立的 API/WS/history/UI/幂等部分，重写 director/Context/candidate persistence 和相应测试。
+
+## REV-037｜SPEC-QUESTION-DIRECTOR-001 / PR #26 项目负责人定向修订要求
+
+- 审查对象：PR #26 old exact head `0a75b170f9a6bb8dddd04298b74987a420c3f954`；CI `31449510877` SUCCESS。绿色 CI 不替代文档、Schema 与 Prompt 的一致性审查。
+- 正式结论：`REQUEST_CHANGES`；P1=4。SPEC 保持 `REVIEW`，ADR-031 保持 `Proposed`，CON-026 保持 `OPEN`，DEV-007/007B 保持 `BLOCKED`，PR #25 继续 `REQUEST_CHANGES`。
+- P1-1：`05/07` 仍复制与两份 JSON Schema 平行且不一致的 Context/Output shape；必须由 `InterviewDirectorContextV1` 和 `InterviewDirectorOutputV1` 分别成为 AI 实际输入/输出的唯一技术结构。
+- P1-2：第一版只采用“可信 Context → Director → 基础硬校验 → 发布”；后端不得声称能确定性证明复杂自然语言事实蕴含、真正单问或 risk/purpose 贴切，也不引入第二个 AI/critic。
+- P1-3：首次基础校验失败后的第二次调用必须使用完全相同 Prompt、frozen Context、Output Schema 与 model config；不得传旧输出、错误或修复提示。第二次失败不创建 candidate、不改变 current/history。
+- P1-4：frozen Context membership 保存模型实际看过的 `bank_references`；candidate reference 只保存模型声明实际使用的 seen 子集，空集合合法，禁止把全部 seen 自动记为 inspiration。
+- 修订边界：只改正式文档、两份 Schema、Prompt 与直接治理记录；不实现 DEV-007B v2、UI、新题库机制、供应商、复杂语义验证或第二个 AI。新 exact head/CI 后只请求项目负责人定向复审，不自行 PASS/DONE/merge。

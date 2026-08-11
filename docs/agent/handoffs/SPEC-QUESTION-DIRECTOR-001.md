@@ -4,6 +4,8 @@
 
 本候选把题库从强制白名单改为可选参考，同时保留 DEV-006、DEV-007A 与 ADR-027-029 已有的数据库、历史、幂等和安全基座。它是 docs-only 契约纠偏，不是 DEV-007B 实现。
 
+REV-037 对 old head `0a75b170` 的四项 P1 正在本候选中定向修订：两份 JSON Schema 成为唯一 wire structure；Director 只经过基础硬校验；技术失败最多一次完全同输入 retry；seen 题库 membership 与 declared attribution 分离。旧 REQUEST_CHANGES 历史永久保留。
+
 - 分支：`codex/spec-question-director-001`
 - PR：[#26](https://github.com/Li-Ming-G/elder_interview_ai/pull/26)
 - 状态：`REVIEW`；项目负责人 exact-head PASS 前不得合并或解锁 DEV-007B。
@@ -12,15 +14,16 @@
 
 - 新建 DEV-007B v2 分支/PR；PR #25 old head 保留 REQUEST_CHANGES 历史，不直接合并。
 - 可以选择性移植 #25 中契约中立的 current/history/API/WS/UI/幂等代码；director、Context、candidate persistence 与测试按新契约重写。
-- 第一版一个实时模型调用；数据库读写和 Context 构建由普通后端服务负责。
+- 第一版一个实时 Director；一次逻辑生成遇 transport/timeout 或第一次返回未过基础硬校验时最多一次完全同输入 retry，不携带前次输出/错误/修复提示。数据库读写和 Context 构建由普通后端服务负责。
 - 正式题库缺失不阻止虚构数据工程验证，但阻止题库内容、许可和真实问题质量的产品结论。
 
 ## 审查重点
 
-1. 是否彻底消除必填单一题库来源和轻调白名单，而非只把 FK 设 nullable；
-2. Context、Output、Prompt 版本和三类 provenance 是否足够实现；
-3. source facts 只读与 suggestion history 追加持久化是否同时成立；
-4. ADR-027-029、硬安全、retention、幂等与 displayed != actual asked 是否保持。
+1. 两份 JSON Schema 是否是 AI 实际输入/输出的唯一技术结构，Markdown/Prompt 是否已删除平行 shape；
+2. 后端是否只做 Schema、ID/subset、权限、安全、版本、重复等可确定硬校验，没有复杂事实语义 validator 或第二个 AI；
+3. primary 后的 retry 是否完全同 Prompt/Context/Schema/model config，第二次失败是否 0 candidate/current/history mutation；
+4. frozen seen membership 与 candidate declared attribution 是否分开且 declared 空集合合法；
+5. source facts 只读、suggestion history 追加持久化、ADR-027-029 与 displayed != actual asked 是否保持。
 
 ## 本地验证
 
