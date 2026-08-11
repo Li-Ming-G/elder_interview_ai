@@ -6,7 +6,7 @@
 - PR：[PR #27](https://github.com/Li-Ming-G/elder_interview_ai/pull/27)（非 Draft）
 - base：`main@a9cf1c5`
 - implementation commit：`f9f4a22`
-- 状态：`REVIEW`；不得在项目负责人 exact-head 审查前标记 PASS/DONE 或合并。
+- 状态：`DONE`；项目负责人已对 final exact head 手动定向复审 PASS，PR 已合并。
 - old PR #25：继续 REQUEST_CHANGES，不得合并；本分支只选择性继承其契约中立的 API/历史/UI 骨架。
 
 ## 交付结果
@@ -27,7 +27,7 @@
 - auth：4 files / 23 tests PASS。
 - smoke：Web/API/PostgreSQL PASS。
 - Chromium：普通 10/10（含独立 suggestion current/history/refresh/320/390 场景）；真实 Web/API auth Chromium 4/4。
-- GitHub exact-head CI：等待最终治理提交推送后记录。
+- GitHub exact-head CI：`31465809589` completed / success。
 
 ## 边界与审查重点
 
@@ -45,5 +45,11 @@
 - 新证据：unit 覆盖共享 deadline、retry 前 policy/deletion 重查、最近回答与 comparator；PostgreSQL 覆盖 continue bypass、expired current=null、同阶段 fresher grounding 自动替换与紧接 final 的 provider 前 gate。
 - 全量本地回归：format/lint/typecheck/build/diff PASS；unit 45 files / 290 tests；fresh PostgreSQL 13 migrations deploy/status、integration 13 files / 76 tests、auth 4 files / 23 tests；smoke PASS；普通 Chromium 10/10、auth Chromium 4/4。首次在复用的已污染 test DB 上全量 integration/auth 因既有 AI scope FK 与题库版本残留失败，随后使用专用空库完整重跑通过，未改测试目标。
 - 独立只读 iteration-coach 恰好一次，Correction mode；其关于 deterministic comparator、绝对 deadline、逐调用安全重查与 trailing automatic 的意见已吸收。
-- 新 exact head/CI/PR 元数据将在最终推送和 GitHub verify 后回填；在项目负责人复审前不得合并或标 PASS/DONE。
-- 定向实现提交：`67e17e1`；最终 exact head 由随后治理提交形成，并在 PR #27 body/comment 与总控回传中精确记录。
+- 定向实现提交：`67e17e1`；final exact head：`0f03c270b7022ce8dbbce75028afe7e9f3e12cf3`；exact-head CI：`31465809589`。
+
+## 最终接收
+
+- 项目负责人在 PR #27 OPEN、非 Draft、head 未漂移且未合并时，严格绑定 `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3` 给出手动定向复审 `PASS`，P0/P1/P2=0；四项 P1 与一项 P2 全部关闭。
+- GitHub APPROVE 尝试因 integration 返回 `403 Resource not accessible by integration` 未写入 UI；项目负责人明确声明本次手动结论为正式 PASS，审计记录保留该边界。
+- PR #27 已以 merge commit `3bb80df36d484779761cf6bb6d45c302fa8d32d7` 合入 main；DEV-007B DONE，交给父 DEV-007 聚合验收。
+- 旧 REV-038 head `542917229e1f68e60d434a74d6ef81b0cd7548f9` 的 REQUEST_CHANGES/P1=4/P2=1 永久保留；旧 PR #25 继续 REQUEST_CHANGES、不得合并。

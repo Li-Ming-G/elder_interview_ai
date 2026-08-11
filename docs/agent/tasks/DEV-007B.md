@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：Codex DEV-007B v2 Agent
 - 前置依赖：SPEC-QUESTION-DIRECTOR-001 项目负责人 PASS/merge、DEV-007A PASS、DEV-006 DONE、SPEC-AI-QUESTION-001 DONE
 - 输入依据：`03` §9/§11、`04` §§4.36-4.39、`05` §3.9、`07` §§5-10、`09` §7.6-§7.7、ADR-027-031
@@ -31,15 +31,17 @@
 
 - 分支：`codex/dev-007b-v2-interview-director`
 - 非 Draft PR：[PR #27](https://github.com/Li-Ming-G/elder_interview_ai/pull/27)
-- 实现提交：`f9f4a22`；最终 exact head 与 exact-head CI 以 PR 审查包为准。
-- 状态严格保持 REVIEW；旧 PR #25 继续为 REQUEST_CHANGES，不得合并。
+- 实现提交：`f9f4a22`；定向修复提交：`67e17e1`；final exact head：`0f03c270b7022ce8dbbce75028afe7e9f3e12cf3`。
+- exact-head CI：`31465809589` completed / success；merge：`3bb80df36d484779761cf6bb6d45c302fa8d32d7`。
+- 项目负责人手动定向复审 PASS，P0/P1/P2=0；旧 PR #25 继续为 REQUEST_CHANGES，不得合并。
 
-## REV-038 定向修复候选
+## REV-038 定向修复与最终接收
 
 - 旧正式审查严格绑定 PR #27 head `542917229e1f68e60d434a74d6ef81b0cd7548f9`、CI `31458597516`，结论 `REQUEST_CHANGES`（P0=0、P1=4、P2=1）；历史永久保留。
 - journey 的 response/engagement 信号只读取最近一次 interviewer 之后最多 3 条可信 elder 实质 final；`shouldContinueListening=true` 直接发布 `continue_listening`，不调用 Director、不创建 candidate。
 - manual attempt 从持久 `created_at` 起共享 8 秒绝对 deadline；primary/retry 每次调用前重查 policy/deletion，writeback 事务内再次检查截止时间，迟到结果不得发布。
 - automatic 在 provider 调用前执行 20 秒 gate，并采用 trailing latest segment；`question-select-v1` 由后端按 grounding freshness、latest-answer coverage、stage-purpose fit、risk fit 确定性评分，同阶段问题可比较且不引入第二 AI。
 - Director Context 只接收 visible suggestion 且 retention active/unexpired 的 current；expired/hidden/withdrawn 一律投影 `current_presentation=null`，不再用不受限 snapshot fallback。
-- `09` 的旧 DEV-007B 动态状态残留已清理；本候选仍等待新 exact head/CI 和项目负责人定向复审，不构成 PASS/DONE。
-- 定向实现提交：`67e17e1`；最终 exact head 与 exact-head CI 以 PR #27 最新审查包为准。
+- `09` 的旧 DEV-007B 动态状态残留已清理。
+- 项目负责人对 final head `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3`、CI `31465809589` 手动定向复审 PASS，P0/P1/P2=0；GitHub APPROVE 因 integration 403 未写入 UI，本次明确手动结论为正式依据。
+- PR #27 以 merge commit `3bb80df36d484779761cf6bb6d45c302fa8d32d7` 合入 main；DEV-007B DONE，父 DEV-007 转入聚合验收。

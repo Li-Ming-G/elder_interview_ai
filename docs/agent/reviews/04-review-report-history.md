@@ -666,3 +666,12 @@ P2：
 - P2：`09` 末尾残留 DEV-007B `READY/尚未实现` 旧动态状态，定向修复时清理。
 - 已确认主干：自由生成、seen/declared 分离、QuestionEvidence 单一 owner、displayed != actual asked、历史 cursor/anchor/刷新恢复不重开。
 - 当前进展：上述 4 个 P1 与 1 个 P2 已形成定向修复工作区并通过定向 unit/PostgreSQL 证据；此记录仅永久保存旧正式审查，不构成新 head 的复审结论。
+
+### REV-038 定向复审与最终接收
+
+- 定向复审对象：PR #27 final exact head `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3`；CI `31465809589` completed / success；最终锁定时 PR OPEN、非 Draft、未合并且 head 无漂移。
+- 正式结论：项目负责人手动定向复审 `PASS`；P0=0、P1=0、P2=0。journey 最近实质回答/continue bypass、共享 8 秒绝对 deadline 与 retry 前安全重查、provider 前 automatic gate 与 deterministic `question-select-v1`、安全 current projection 四项 P1，以及 `09` 动态状态残留 P2 全部关闭。
+- 审查载体边界：项目负责人尝试将 GitHub APPROVE 精确绑定该 SHA，但 integration 返回 `403 Resource not accessible by integration`，GitHub UI Review 未写入；项目负责人明确声明其当前手动回复即本次 exact-head 正式 PASS。
+- 合并：PR #27 以 merge commit `3bb80df36d484779761cf6bb6d45c302fa8d32d7` 合入 main；该 main 集成点 CI `31468031796` completed / success；DEV-007B DONE，父 DEV-007 转入聚合验收。
+- 历史保留：本节不覆盖同一 REV-038 old head `542917229e1f68e60d434a74d6ef81b0cd7548f9`、CI `31458597516`、REQUEST_CHANGES/P1=4/P2=1；旧 PR #25 继续 OPEN / REQUEST_CHANGES / 不得合并。
+- 边界：正式题库、真实 LLM、生产 boundary/deletion reader、生产部署、问题质量与真实试点仍未验收；CON-023 继续 OPEN。子任务 PASS 不自动构成父 DEV-007 聚合 PASS。

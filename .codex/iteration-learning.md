@@ -1076,3 +1076,11 @@
 - Adopted decision: response/engagement 只看最近 interviewer 后最多 3 条可信 elder 实质 final；continue listening 不调用 Director。attempt `created_at+8s` 是 primary/retry/publication 共同截止；automatic 20 秒门禁位于 provider 前并保留最新 trailing segment；current 只有 visible suggestion + active/unexpired snapshot 才进入 Context。
 - Implementation evidence: `question-selection.ts` 及 unit、coordinator retry unit、orchestration/presentation service、PostgreSQL `question-presentation` 回归，并同步 `05/07/09`、REV-038、task/board/trace/handoff。
 - Verification boundary: 当前仍是修复候选而非项目负责人复审结论；正式 LLM、正式题库、生产 boundary/deletion reader 与真实试点仍未覆盖，CON-023 继续 OPEN，DEV-007B 保持 REVIEW。
+
+### 2026-08-11 — DEV-007B v2 最终接收与父任务聚合验收
+
+- Evidence: 项目负责人在 PR #27 OPEN、非 Draft、未合并且 head 无漂移时，对 final exact head `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3`、CI `31465809589` 手动定向复审 PASS，P0/P1/P2=0；四项 P1 与一项 P2 全部关闭。GitHub APPROVE 因 integration 403 未写入 UI，但项目负责人明确指定当前回复为正式 PASS。
+- Decision: PR #27 以 merge commit `3bb80df36d484779761cf6bb6d45c302fa8d32d7` 合入 main，DEV-007B DONE；old head `5429172` 的 REQUEST_CHANGES/P1=4/P2=1 与旧 PR #25 的 REQUEST_CHANGES 永久保留。
+- Parent gate: DEV-007A/B 与全部专项前置均已 PASS/merge，`main@3bb80df` 的 push CI `31468031796` 完整 verify PASS；但父 DEV-007 明确要求按 `09` 聚合验收，不能从子任务自动推导 DONE。因此父任务转 `VERIFY` 并整理聚合审查包，DEV-008 暂不解锁。
+- Verification boundary: 当前只证明 local/test deterministic fake + synthetic fixture 的纵向工程不变量；正式题库、真实 LLM、生产 boundary/deletion reader、生产部署、问题质量和真实试点仍未证明，CON-023 继续 OPEN。
+- Lesson: exact-head 手动结论可以在 GitHub Review API 受限时作为正式审查依据，但必须同时记录绑定 SHA、CI、PR 锁定状态、API 失败原因与明确的人类结论；父任务的跨模块聚合门禁仍需单独结论。
