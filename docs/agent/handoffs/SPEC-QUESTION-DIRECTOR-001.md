@@ -4,6 +4,10 @@
 
 本候选把题库从强制白名单改为可选参考，同时保留 DEV-006、DEV-007A 与 ADR-027-029 已有的数据库、历史、幂等和安全基座。它是 docs-only 契约纠偏，不是 DEV-007B 实现。
 
+- 分支：`codex/spec-question-director-001`
+- PR：[#26](https://github.com/Li-Ming-G/elder_interview_ai/pull/26)
+- 状态：`REVIEW`；项目负责人 exact-head PASS 前不得合并或解锁 DEV-007B。
+
 ## 后续实现边界
 
 - 新建 DEV-007B v2 分支/PR；PR #25 old head 保留 REQUEST_CHANGES 历史，不直接合并。

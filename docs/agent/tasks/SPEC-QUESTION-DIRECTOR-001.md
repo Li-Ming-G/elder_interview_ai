@@ -7,6 +7,7 @@
 - 前置依赖：DEV-006 DONE、DEV-007A DONE、项目负责人已明确题库仅为参考并授权纠偏
 - 输入依据：`01/03/04/05/07/08/09/10`、ADR-027-030、DEV-006/007A、PR #25 REQUEST_CHANGES
 - 输出：正式规范、ADR-031、DEV-007/007B v2 门禁与提示词、治理和交接
+- PR：[#26](https://github.com/Li-Ming-G/elder_interview_ai/pull/26)
 
 ## 目标
 
@@ -34,4 +35,3 @@
 - docs-only 一致性、链接、格式和仓库门禁通过；
 - 创建非 Draft PR，状态保持 `REVIEW`；
 - 只有项目负责人绑定 exact head 手动 GitHub 审查 PASS 并合并后，才能转 DONE、接受 ADR-031、关闭 CON-026 并解锁 DEV-007B v2。
-
