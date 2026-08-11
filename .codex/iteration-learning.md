@@ -1095,3 +1095,12 @@
 - Parent gate: DEV-007A/B 与全部专项前置均已 PASS/merge，`main@3bb80df` 的 push CI `31468031796` 完整 verify PASS；但父 DEV-007 明确要求按 `09` 聚合验收，不能从子任务自动推导 DONE。因此父任务转 `VERIFY` 并整理聚合审查包，DEV-008 暂不解锁。
 - Verification boundary: 当前只证明 local/test deterministic fake + synthetic fixture 的纵向工程不变量；正式题库、真实 LLM、生产 boundary/deletion reader、生产部署、问题质量和真实试点仍未证明，CON-023 继续 OPEN。
 - Lesson: exact-head 手动结论可以在 GitHub Review API 受限时作为正式审查依据，但必须同时记录绑定 SHA、CI、PR 锁定状态、API 失败原因与明确的人类结论；父任务的跨模块聚合门禁仍需单独结论。
+
+### 2026-08-11 — SPEC-ASR-PROVIDER-001 adapter v2 契约纠偏
+
+- User outcome: 以腾讯实时 ASR V2 单一候选把授权后的标准普通话 PCM 接入真实转录，同时保持原始录音优先、unknown fail-closed、连接级 speaker namespace、明确 drain 与真实双人验收。
+- Review mode: Correction mode；本轮恰好一次独立只读 iteration-coach 复核。它发现现有同步 `accept(frame)->result[]`/void drain、首帧 250ms 事务 deadline 和 runtime 复用无法表达腾讯独立握手、异步结果、新 voice namespace 与 `final=1` drain。按治理先暂停回传；总控随后明确授权“复用供应商中立边界但演进 v2 seam”。
+- Options considered: 在 provider 内隐藏长连接/缓存（会污染事务、namespace 和 drain）；拆成两个 SPEC（增加审查往返）；本 SPEC 冻结一个供应商中立 v2 port、DEV 原子迁移。采用第三种，不新增产品状态或数据库事实。
+- Adopted decision: connect/ready 与业务 session.ready 分离；PCM accepted 只表示 adapter 接管；结果异步绑定 attempt/voice/request/speaker stream；每个新 voice 新 stream 并重校准；当前 voice `final=1` + PCM 终态 + ingestion 才形成 drain receipt；timeout/error 后 fence。v1 不保留并行生产 truth source。
+- Provider correction: 当前腾讯 V2 官方参数未证明 `speaker_diarization=1`，因此只冻结内部 `diarization_required=true` 与目标 `16k_zh_en_speaker_2.0`，wire 参数保持 unknown；营销能力不能替代同 PCM 三次真实双人 replay。
+- Verification boundary: 本轮只形成 REVIEW docs/schema，不读取/测试密钥，不调用 provider，不实现代码/migration/deploy。CON-027 阻塞真实长者试点；DEV-ASR-PROVIDER-001 和真实 LLM 继续受正式 PASS 门禁约束。

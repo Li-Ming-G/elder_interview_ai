@@ -1309,3 +1309,11 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 3. 状态枚举变更必须同步前后端和测试。
 4. 数据迁移必须提供回滚或恢复方案。
 5. 任何契约变更都必须更新测试样例。
+
+## 9. StreamingAsrAdapter v2 内部 port
+
+正式 machine contract 为 `docs/contracts/streaming-asr-provider-v2.schema.json`。它是内部 port，不新增公共 REST/WS 字段或公共状态；客户端既有 `session.ready` 不得表示 provider ready。
+
+旧 `accept(frame)->results[]` 与 `drainAndClose()->void` 生产 seam 被 v2 原子替代：connect/ready 独立；PCM accept 只表示 adapter 接管/入队；结果通过绑定 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 的异步 sink 回传；不匹配或 fenced 的 late/replay/duplicate/out-of-order 结果不得写库。每个新 `voice_id` 必须新建 speaker stream 并发布既有完整 `speaker.calibration.updated` snapshot，不新增半套事件。
+
+结构化 drain receipt 仅在当前 voice `final=1`、accepted PCM 均获得 sent/terminal 结果且相关 final 完成 ingestion 后有效。deadline、cancel、close 或错误会 fence sink；WS close、最后一句或 void resolve 不构成 receipt。稳定安全错误分类和 retryability 以正式 v2 契约为准，对公共 session 只投影既有 `degraded|not_started`。

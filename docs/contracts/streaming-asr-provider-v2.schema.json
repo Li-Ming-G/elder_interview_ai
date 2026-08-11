@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/contracts/streaming-asr-provider-v2.schema.json",
+  "title": "StreamingAsrAdapterV2 provider-neutral contract",
+  "description": "FORMAL. Contract for DEV-ASR-PROVIDER-001. It replaces the v1 accept(frame)->results/drain()->void runtime seam; v1 must not remain as a production truth source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "lifecycle", "namespace", "audio", "result", "drain", "errors"],
+  "properties": {
+    "contract_version": { "const": "streaming-asr-provider-v2" },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "attempt_id"],
+      "properties": {
+        "state": { "enum": ["connect", "ready", "streaming", "stopping", "draining", "drained", "degraded", "not_started", "failed"] },
+        "attempt_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "namespace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "provider_namespace_id", "provider_request_id", "speaker_stream_id"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "provider_namespace_id": { "type": "string", "minLength": 1 },
+        "provider_request_id": { "type": "string", "minLength": 1 },
+        "speaker_stream_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "sample_rate_hz", "channels", "frame_duration_ms", "accepted_through_sequence"],
+      "properties": {
+        "encoding": { "const": "pcm_s16le" },
+        "sample_rate_hz": { "const": 16000 },
+        "channels": { "const": 1 },
+        "frame_duration_ms": { "const": 100 },
+        "accepted_through_sequence": { "type": "integer", "minimum": -1 },
+        "sent_through_sequence": { "type": "integer", "minimum": -1 }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempt_id", "provider_namespace_id", "provider_request_id", "speaker_stream_id", "ingest_key", "kind", "text", "start_ms", "end_ms", "speaker_provider_id"],
+      "properties": {
+        "attempt_id": { "type": "string", "format": "uuid" },
+        "provider_namespace_id": { "type": "string", "minLength": 1 },
+        "provider_request_id": { "type": "string", "minLength": 1 },
+        "speaker_stream_id": { "type": "string", "format": "uuid" },
+        "ingest_key": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["interim", "final"] },
+        "text": { "type": "string" },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "end_ms": { "type": "integer", "minimum": 0 },
+        "speaker_provider_id": { "type": ["string", "null"] }
+      }
+    },
+    "drain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempt_id", "provider_namespace_id", "provider_request_id", "speaker_stream_id", "provider_final_observed", "accepted_through_sequence", "terminal_through_sequence", "results_ingested", "completed_at"],
+      "properties": {
+        "attempt_id": { "type": "string", "format": "uuid" },
+        "provider_namespace_id": { "type": "string", "minLength": 1 },
+        "provider_request_id": { "type": "string", "minLength": 1 },
+        "speaker_stream_id": { "type": "string", "format": "uuid" },
+        "provider_final_observed": { "const": true },
+        "accepted_through_sequence": { "type": "integer", "minimum": -1 },
+        "terminal_through_sequence": { "type": "integer", "minimum": -1 },
+        "results_ingested": { "const": true },
+        "completed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "errors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "retryable", "safe_code"],
+      "properties": {
+        "category": { "enum": ["auth", "signature", "quota", "rate_limit", "engine", "audio", "network", "timeout", "provider", "cancelled", "protocol"] },
+        "retryable": { "type": "boolean" },
+        "safe_code": { "type": "string", "pattern": "^ASR_[A-Z0-9_]+$" }
+      }
+    }
+  }
+}
