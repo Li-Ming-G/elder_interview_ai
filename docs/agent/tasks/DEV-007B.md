@@ -42,3 +42,4 @@
 - automatic 在 provider 调用前执行 20 秒 gate，并采用 trailing latest segment；`question-select-v1` 由后端按 grounding freshness、latest-answer coverage、stage-purpose fit、risk fit 确定性评分，同阶段问题可比较且不引入第二 AI。
 - Director Context 只接收 visible suggestion 且 retention active/unexpired 的 current；expired/hidden/withdrawn 一律投影 `current_presentation=null`，不再用不受限 snapshot fallback。
 - `09` 的旧 DEV-007B 动态状态残留已清理；本候选仍等待新 exact head/CI 和项目负责人定向复审，不构成 PASS/DONE。
+- 定向实现提交：`67e17e1`；最终 exact head 与 exact-head CI 以 PR #27 最新审查包为准。

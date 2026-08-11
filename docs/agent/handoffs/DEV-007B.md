@@ -46,3 +46,4 @@
 - 全量本地回归：format/lint/typecheck/build/diff PASS；unit 45 files / 290 tests；fresh PostgreSQL 13 migrations deploy/status、integration 13 files / 76 tests、auth 4 files / 23 tests；smoke PASS；普通 Chromium 10/10、auth Chromium 4/4。首次在复用的已污染 test DB 上全量 integration/auth 因既有 AI scope FK 与题库版本残留失败，随后使用专用空库完整重跑通过，未改测试目标。
 - 独立只读 iteration-coach 恰好一次，Correction mode；其关于 deterministic comparator、绝对 deadline、逐调用安全重查与 trailing automatic 的意见已吸收。
 - 新 exact head/CI/PR 元数据将在最终推送和 GitHub verify 后回填；在项目负责人复审前不得合并或标 PASS/DONE。
+- 定向实现提交：`67e17e1`；最终 exact head 由随后治理提交形成，并在 PR #27 body/comment 与总控回传中精确记录。
