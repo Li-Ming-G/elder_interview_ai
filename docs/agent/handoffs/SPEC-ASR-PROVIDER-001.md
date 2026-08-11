@@ -5,7 +5,8 @@
 - 状态：REVIEW；不得自宣 PASS/DONE
 - base：`78a64252f253fc09cf87e89c5efe317512ad1243`
 - branch：`codex/spec-asr-provider-001`
-- final head / PR / CI：提交后补充并绑定 exact head
+- PR：[GitHub #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)，OPEN、non-Draft、未合并
+- exact final head / CI：由 GitHub PR 当前 head 与主动审查包绑定；不在承载自身的 commit 中递归写入可变 SHA
 
 ## 已冻结
 
