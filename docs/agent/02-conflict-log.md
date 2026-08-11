@@ -340,6 +340,20 @@
 - 关闭条件：项目负责人对 SPEC-QUESTION-JOURNEY-001 exact final head/CI 的 GitHub 手动审查明确 PASS，确认本轮问题旅程/内容来源偏差已被正式依据承接，并明确允许 DEV-007A 开工；后续若发现其他未对齐项，另行登记而不得静默并入本条。
 
 
+### CON-026｜题库白名单与项目负责人确认的自由生成方向冲突
+
+- 状态：`OPEN`
+- 发现时间：2026-08-11
+- 发现者：项目负责人、总控 Agent
+- 涉及文件与章节：`01/03/04/05/07/08/09/10`、ADR-030、DEV-007/007B、PR #25
+- 冲突内容：现行规则要求每个问题来自 eligible 题库并只做轻调；项目负责人明确题库只作参考，模型应综合可信对话/记忆/历史自由生成，且问题生成不得修改源数据库事实但必须保存展示历史。
+- 受影响任务：DEV-007B 与父 DEV-007 保持 BLOCKED；PR #25 old head 保留 REQUEST_CHANGES，不得合并。
+- 临时处理：以 SPEC-QUESTION-DIRECTOR-001 docs-only PR 冻结两份唯一 Context/Output Schema、Prompt、seen/declared/grounding/eligibility 四类事实和 source-read-only/suggestion-append-only；不在旧契约上继续实现。
+- 需要谁决策：项目负责人对契约 PR exact head 手动 GitHub 审查。
+- 最终决定：候选采用 ADR-031；题库 0..N 可选参考，一个实时 Director 完成一次逻辑生成，受控失败最多一次完全同输入 retry；后端确定性编排和硬安全不变。
+- 需要同步修改的文件：`01/03/04/05/07/08/09/10`、ADR、任务板/追踪、DEV-007/007B task+prompt、handoff/journal。
+- 关闭条件：契约 PR PASS/merge，ADR-031 Accepted，DEV-007B v2 任务门禁和正式实现依据一致。
+
 ## 登记模板
 
 ```text

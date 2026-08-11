@@ -686,10 +686,22 @@ QuestionJourneyService.evaluate(frozen_context, journey_policy_version)
 - import 是全成全败的 draft 创建，`request_id` 绑定 actor、文件 digest、可信 `APP_ENV` 和 validator version；同 ID 异文件或跨部署环境重放稳定冲突；数据库只在同一未提交事务内开放 membership 构建窗口，提交前 seal 并复核实际 item count/canonical digest；
 - activate 在同一事务重检许可、environment scope、release 完整性和 current active，再原子激活新版本/退休旧版本；不得部分启用、直接覆盖 item 或把 CSV 的 `enabled` 当成 active；
 - `synthetic_fixture + fixture_only` 仅允许 local/test 或明确 internal demo；正式内部试用/production 请求稳定拒绝；
-- 未知许可、无 active release、stage/policy 无法构建或 reader 失败时，问题编排失败关闭。没有 eligible item 是成功的 `continue_listening`；LLM/编排不可用仍是 `unavailable`，不得直接把某道 basic 原题作为 UI 兜底；
+- 未知许可或 reader 无法证明某条参考内容安全时不得把该条发送给模型；无 active release 或零 eligible item 只表示 `bank_references=[]`，不阻止模型依据可信对话生成题库外问题。stage/policy 无法构建时失败关闭；LLM/编排不可用仍是 `unavailable`，不得直接把某道 basic 原题作为 UI 兜底；
 - reader 在权威安全门禁通过后先以 `inapplicable_when` 的 any-of/OR 排除，再以 `applicable_when` 的 all-of/AND 纳入，排除优先；eligible item 投影必须包含受控 `purpose`，不得要求上游从正文推断；
 - `QuestionJourneyService` 必须按 `journey_policy_v1` 的单一决定分支和固定 reason-code 顺序返回；相同 frozen context 与 policy version 必须得到相同 stage、reason codes 和 basis hash，输入集合顺序、题数或经过时间不得成为 tie-break；
 - DEV-007A 冻结上述内部 seam 和 deterministic fake，不调用 LLM、不发布 suggestion、不改变页面。任何未来公网/普通管理 API 必须另开契约。
+
+#### 3.9.0A InterviewDirectorContextV1 与结构化输出
+
+后端编排服务是数据库读取、权限、安全、事务、幂等与发布的唯一负责人；模型不访问数据库、不选择表、不执行工具。
+
+- [`InterviewDirectorContextV1`](docs/contracts/interview-director-context.schema.json) 是模型实际收到内容的唯一技术结构；字段、类型、必填性、枚举、长度和集合上限不得在 Markdown、Prompt 或实现中另建平行定义。
+- [`InterviewDirectorOutputV1`](docs/contracts/interview-director-output.schema.json) 是模型实际返回内容的唯一技术结构；suggest/continue 的字段组合和所有枚举以该 Schema 为准。
+- Markdown 只解释语义：Context 由经过权限、安全、可信角色、retention 与稳定裁剪的当前事实组成；Output 只是给人类倾听员的一个建议或继续倾听决定，不能修改任何输入源事实，也不等于实际已问。
+- `Context.bank_references` 是后端本次实际发送、模型实际看过的参考集合；`declared_bank_references` 是模型声明本次实际借鉴的子集，可以为空。二者都不是访谈事实证据或发布资格。
+- `grounding` 是模型声明使用的 Context segment/memory ID。服务端只确定性验证 ID 来自本次 frozen Context，不尝试用复杂自然语言规则证明正文是否被证据语义蕴含。
+
+基础硬校验只包括 JSON/Output Schema、引用 ID 与子集、明显长度等机器可判断结构、既有规范化相似度、动态权限/安全/retention、幂等和 writeback 版本水位。一次一个主要问题、事实前提与引用是否贴切、purpose/risk 是否合适属于 Prompt 规则、固定评测集和人工抽查，不新增启发式语义验证器或第二个 AI/critic。供应商消息封装、token 配额和具体检索算法不属于公共契约。
 
 #### 3.9.1 canonical current 与动态安全投影
 
@@ -769,12 +781,12 @@ QuestionJourneyService.evaluate(frozen_context, journey_policy_version)
 每次 question generation 固定按以下顺序构建允许集合，并把命中类别与 policy version 写入最小过程记录：
 
 1. 权限、授权、project 状态、`restricted|do_not_ask`、活动 deletion scope、retention、trusted role/content kind 和 derived future eligibility；不能证明安全时直接 unavailable/continue，不进入相似度；
-2. 当前 active release、item enabled、source/license、journey stage 和适用/不适用条件；不能证明时不得把条目交给模型；
+2. 当前 active release、item enabled、source/license、journey stage 和适用/不适用条件；不能证明时不得把条目作为参考交给模型，但零参考不阻止基于可信对话生成；
 3. current published question：规范化摘要相同或高度相似即排除；
 4. 本 session 最近 20 个仍在 retention 内的 displayed snapshot，按 display sequence 倒序批量安全读取；撤下正文不得为比较重新投影给调用者，但服务端可在授权的 policy evaluator 内比较不可逆摘要/安全特征；
 5. 当前 published、eligible 的可靠 actual-question catalog，跨 session 排除实际问过的问题；`explicitly_replaced|not_observed|unjudged` 不进入该集合；
-6. 当前 eligible memory 与人工 boundary：memory 用于 grounding/冲突澄清和有据轻调，不能把冲突或 unknown 写成前提；人工 boundary 永远优先于新颖度；
-7. 同一 attempt 内候选去重、轻调边界和风险过滤。
+6. 当前 eligible memory 与人工 boundary：memory 用于 grounding/冲突澄清，不能把冲突或 unknown 写成事实前提；人工 boundary 永远优先于新颖度；
+7. 同一 attempt 内候选去重、Schema/长度等基础结构、grounding ID 与声明题库引用的集合校验。单问题、grounding 是否在自然语言上真正支撑前提以及 risk 是否贴切进入评测和人工抽查，不由确定性后端冒充证明。
 
 `question-sim-v1` 先对 UTF-8 文本做 Unicode NFKC、ASCII 小写、全角/半角统一、去首尾与连续空白、移除 Unicode 标点；保存 SHA-256 digest。高度相似使用版本化、供应商中立 matcher 的 `[0,1]` score，默认阈值 `>=0.88`，比较目标取最大值；threshold/matcher version 必须随 attempt/candidate/snapshot 记录且配置化。真实 embedding/LLM 供应商不由本 SPEC 选择；DEV-007 必须以固定中文 fixture 同时覆盖同义改写、否定差异、人物/时间槽差异和短问题，未达到 fixture 的实现不得仅靠字符串相等宣称完成。
 
@@ -803,7 +815,7 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 
 - DEV-006 实现 actual-question analysis/catalog、evidence、可靠版本发布和跨会话 `actual asked` reader；
 - DEV-007 经上述 seam 写 generation/display/replace 事实和读防重复集合，不得直接写 actual question；
-- DEV-007A 的 QuestionBank/QuestionJourney 模块拥有 release/item、许可激活和阶段判定；DEV-007B 只能经其 reader 取得含 `purpose` 的 eligible item/stage，并把 source item/version、purpose、selection mode、`adaptation_reason_code_v1` 和 journey policy 传入 `beginGenerationAttempt/publishAttemptResult`；QuestionEvidenceModule 仍单一拥有 candidate/publication/history/actual-question；
+- DEV-007A 的 QuestionBank/QuestionJourney 模块拥有 release/item、许可激活、safe reference reader 和阶段判定；DEV-007B 只能经其 reader 取得可选参考与 stage，并把 frozen context、可选 reference attribution、grounding 和 journey policy 传入 `beginGenerationAttempt/publishAttemptResult`；QuestionEvidenceModule 仍单一拥有 candidate/publication/history/actual-question；
 - `publishAttemptResult` 只在 candidate eligibility、basis revision/manual fence 与动态 policy 校验仍成立时，按 `04` §4.39 原子创建 immutable snapshot（如有）并切换 display state；
 - `publishActualQuestionAnalysis` 只有 judgeable 结果可以原子替换 current reliable catalog；unjudged/failed 只更新分析状态，不覆盖可靠目录；
 - 写回每个独立业务输出时必须同时创建它自己的一条 `ai_derived_output` 和完整 dependency manifest：五条 memory claim 就是五条业务记录与五条资格记录；一个 actual-question analysis 版本只有一条 catalog 资格记录，任一 dependency 失效时整版撤下，不按 question 局部保留；
@@ -817,11 +829,11 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 
 1. 输入冻结事务按 `request_id/trigger identity -> project -> session_id 升序` 获取资源锁，重读权限、授权、项目/边界/deletion 状态；写 job、全部 session scope、实际 segment/memory membership 后提交；
    - `request_identity_hash` 持久绑定 action、actor/system trigger、target 与规范化 payload；同 request 响应未知只重放首次 job/结果，同 ID 不同绑定冲突；自动 trigger 另以稳定 `trigger_dedupe_key` 去重，显式 retry 使用新 request ID 并写 `retry_of_job_id`；
-2. 供应商调用期间不持数据库锁；最多一次 primary call 和一次仅处理 JSON/Schema 的 format repair；
+2. 供应商调用期间不持数据库锁。`question_generation` 在同一 attempt/job 内先执行一次 `primary`；transport/timeout 或第一次返回内容未通过 JSON/Output Schema、引用 ID/subset、明显长度/结构等写回前基础硬校验时，允许最多一次 `same_input_retry`。第二次调用的 Prompt、frozen Context、Output Schema、model config、版本/digest 和 input hash 必须与第一次逐值相同，不携带第一次输出、错误原因或修复提示；第一次超时后的迟到结果永不具写回资格；权限、安全、deletion、重复或 writeback 漂移不 retry；
 3. 写回事务按相同资源顺序重锁，重新验证 policy revision、全部 scope/membership/version/digest、权限、授权、边界与 deletion scope；任一漂移则取消 job 并丢弃供应商结果；
 4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
 5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。
-6. context snapshot 在冻结事务内同时证明 memory 与 actual-question 的 current/published/eligible 状态并纳入 input identity；写回事务逐项重检。两事务之间 catalog supersede 必须取消 job，不能写入旧 actual question。
+6. context snapshot 在冻结事务内同时证明 memory、actual-question 与实际发送的题库 `bank_references` membership，并纳入 input identity；写回事务逐项重检。两事务之间 catalog supersede 必须取消 job，不能写入旧 actual question。第二次同输入重试仍失败时 attempt 进入 failed，不创建 candidate、不改变 current/history；之后只有新的“下一个问题”动作才能创建新 request。
 
 稳定错误分类至少包含：`AI_UNAVAILABLE`、`AI_INPUT_STALE`、`AI_POLICY_UNAVAILABLE`、`AI_OUTPUT_SCHEMA_INVALID`、`AI_OUTPUT_BLOCKED`、`DELETION_REQUEST_ACTIVE`、`ACTUAL_QUESTION_UNJUDGED`。suggestion 专用协议错误另含 `AI_SUGGESTION_THROTTLED`、`SUGGESTION_REQUEST_IN_PROGRESS`、`SUGGESTION_CURRENT_CHANGED`、`INVALID_SUGGESTION_CURSOR` 与 `SUGGESTION_HISTORY_ITEM_UNAVAILABLE`；供应商 timeout 映射为公共 `AI_UNAVAILABLE`，内部可记录不含正文的 `AI_PROVIDER_TIMEOUT`。没有合格新问题是成功的 `continue_listening`，不是错误。外部响应不带供应商原文、内部权限详情或正文。
 

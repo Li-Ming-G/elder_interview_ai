@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/interview-director-context-v1.json",
+  "title": "InterviewDirectorContextV1",
+  "$comment": "SPEC-QUESTION-DIRECTOR-001 formal candidate; becomes formal only after exact-head PASS and merge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_schema_version",
+    "current_presentation",
+    "interview_state",
+    "recent_transcript",
+    "current_memories",
+    "actual_asked",
+    "recently_displayed",
+    "bank_references",
+    "boundaries"
+  ],
+  "properties": {
+    "context_schema_version": { "const": "interview-director-context-v1" },
+    "current_presentation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["snapshot_id", "text"],
+      "properties": {
+        "snapshot_id": { "type": "string", "format": "uuid" },
+        "text": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "interview_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journey_stage", "journey_reason_codes", "goal"],
+      "properties": {
+        "journey_stage": { "enum": ["rapport", "life_outline", "story_depth"] },
+        "journey_reason_codes": { "type": "array", "items": { "type": "string" }, "maxItems": 12 },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 300 }
+      }
+    },
+    "recent_transcript": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["segment_id", "start_ms", "text", "trusted_role"],
+        "properties": {
+          "segment_id": { "type": "string", "format": "uuid" },
+          "start_ms": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string", "maxLength": 1000 },
+          "trusted_role": { "enum": ["elder", "interviewer"] }
+        }
+      }
+    },
+    "current_memories": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["memory_resolution_id", "memory_type", "value_kind", "value", "authority"],
+        "properties": {
+          "memory_resolution_id": { "type": "string", "format": "uuid" },
+          "memory_type": { "type": "string", "maxLength": 50 },
+          "value_kind": { "enum": ["exact", "range", "unknown"] },
+          "value": { "type": "string", "maxLength": 500 },
+          "authority": { "type": "string", "maxLength": 50 }
+        }
+      }
+    },
+    "actual_asked": { "$ref": "#/$defs/actualQuestionList" },
+    "recently_displayed": { "$ref": "#/$defs/displayedQuestionList" },
+    "bank_references": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question_bank_item_id", "bank", "topic", "question_text", "purpose", "sensitivity"],
+        "properties": {
+          "question_bank_item_id": { "type": "string", "format": "uuid" },
+          "bank": { "enum": ["basic", "deep"] },
+          "topic": { "type": "string", "maxLength": 80 },
+          "question_text": { "type": "string", "maxLength": 300 },
+          "purpose": { "type": "string", "maxLength": 40 },
+          "sensitivity": { "enum": ["low", "medium", "high"] }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "abstract_scope"],
+        "properties": {
+          "code": { "type": "string", "maxLength": 50 },
+          "abstract_scope": { "type": "string", "maxLength": 160 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "actualQuestionList": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actual_question_id", "text"],
+        "properties": {
+          "actual_question_id": { "type": "string", "format": "uuid" },
+          "text": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    },
+    "displayedQuestionList": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["snapshot_id", "text"],
+        "properties": {
+          "snapshot_id": { "type": "string", "format": "uuid" },
+          "text": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

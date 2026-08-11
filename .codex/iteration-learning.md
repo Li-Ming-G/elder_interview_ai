@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约与 DEV-007A 基础设施已完成。DEV-007B READY；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约与 DEV-007A 基础设施已完成。SPEC-QUESTION-DIRECTOR-001 正在纠正自由生成契约，DEV-007B BLOCKED；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
+- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/026。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
 
 ## Adopted Decisions
 
@@ -1034,3 +1034,21 @@
 - Decision: DEV-007A DONE，DEV-007B READY。B 可消费 A 的 active/eligible/journey seam 与 DEV-006 QuestionEvidence/current memory，但不得改写 A 的 release membership 或另建 history。
 - Guardrail: 正式题库未提供不阻塞 B 的 internal demo 开发，但 fixture 不得成为正式内部试用内容；B 完成也不能替代正式题库来源/许可与内容质量验收。
 - Lesson: 内容基础设施和 AI 编排可以分段验收；只要 A 的版本与环境边界真正封死，B 就能在不接触内容治理底层表的前提下安全迭代。
+### 2026-08-11 — DEV-007 核心纠偏：题库参考、单次模型自由生成
+
+- User outcome: 项目负责人明确下一问应由模型综合当前可信转录、DEV-006 current memory、实际已问、展示历史、阶段和题库参考自由决定；题库不是白名单，可以大幅改写或完全不用。问题生成不得修改源事实，但展示历史必须持久化。
+- Review mode: Correction mode；唯一独立只读复核确认不能只把 source FK 改 nullable，必须同时纠正 Context、Output、Prompt、candidate provenance 和 DEV-007B 门禁，并保留 ADR-027-029 的 QuestionEvidence/current/history/幂等/安全基座。
+- Options considered: 继续在 PR #25 上放宽轻调；增加第二个 planner agent；先做 docs-only 契约纠偏再新建 DEV-007B v2。采用第三种。数据库读取、上下文裁剪、权限、安全、事务和写回由确定性后端服务负责，不是第二个智能体；第一版只有一次实时结构化模型调用。
+- Adopted decision: ADR-031 候选部分取代 ADR-030 的强制题库来源与轻调白名单；题库成为 0..N 可选参考。正式冻结 `InterviewDirectorContextV1`、`InterviewDirectorOutputV1` 与仓库内可编辑/不可变版本化 prompt bundle；reference attribution、事实 grounding 和发布资格分离。
+- Implementation evidence: docs-only 更新 `01/03/04/05/07/08/09/10`、任务板/追踪/冲突/ADR、DEV-007/007B task+prompt，新增 Context/Output Schema、prompt v1、SPEC task/handoff；未修改 Prisma、migration、业务代码或页面。
+- Review evidence: 用户临时委派总控对 PR #25 head `55bf9fba` 代审，REV-036 记录并发/幂等/late publish/阶段/历史恢复等缺口及 `REQUEST_CHANGES`；其旧轻调核心又被本轮产品决定 supersede。
+- Verification boundary: SPEC-QUESTION-DIRECTOR-001 仅到 REVIEW；ADR-031 Proposed、CON-026 OPEN、DEV-007B BLOCKED。PR #25 old head 保留 REQUEST_CHANGES，不得合并；契约 PASS/merge 后以 v2 新分支/PR 选择性移植契约中立实现。
+
+### 2026-08-11 — PR #26 Schema/Retry/题库归因定向一致性修订
+
+- User outcome: 不再让 Markdown、Schema 和 Prompt 各自定义一套 Director 结构；第一版只做一个 Director、一次逻辑生成和基础硬校验，技术失败最多一次完全同输入 retry。题库可选，必须区分模型看过与模型声明使用。
+- Review mode: Correction mode；恰好一次独立只读复核确认 old head `0a75b170` 的四项 P1 均成立，且可在 docs-only 边界关闭，无需新产品问题。
+- Adopted decision: 两份 JSON Schema 分别成为 AI 实际 Context/Output 的唯一技术结构；Prompt 只定义任务和材料作用。job/attempt 另存版本/digest 与 input membership，不把过程元数据塞入模型 Context。seen bank membership、declared attribution、grounding 与 publication eligibility 四分。
+- Retry boundary: `question_generation` primary 遇 transport/timeout 或返回未过基础硬校验后最多一次 `same_input_retry`；Prompt、Context、Output Schema、model config、版本/digest/input hash 完全相同，不回传前次输出或错误。权限、安全、deletion、重复或 writeback 漂移不 retry；第二次失败不创建 candidate、不改变 current/history。
+- Validation boundary: 确定性后端只证明 Schema、ID/subset、权限、安全、版本、retention、重复、幂等与 CAS；自然语言是否真正单问、grounding/risk/purpose 是否贴切由 Prompt、固定评测和人工实践评价，不新增启发式 validator 或第二模型。
+- Verification boundary: 本轮仍是 SPEC REVIEW；ADR-031 Proposed、CON-026 OPEN、DEV-007/007B BLOCKED、PR #25 REQUEST_CHANGES。新 exact head 和 CI 只作为项目负责人定向复审候选，不自行 PASS/DONE/merge。

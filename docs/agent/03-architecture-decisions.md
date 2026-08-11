@@ -292,3 +292,16 @@
 - 所有权：DEV-007A 拥有题库导入/版本/激活、阶段与确定性选择 seam；DEV-007B 消费该 seam 和 DEV-006 facts，经现有 QuestionEvidence writer 发布，不另建 question history。DEV-007A 已解锁；DEV-007B 仍等待 A 通过。
 - 代价：增加内容发布治理、阶段判定与双重 provenance；换取可审计的问题来源、可迭代题库和从破冰到深入的产品节奏，且不要求负责人直接维护运行时数据库。
 - 重新评估条件：真实倾听复盘证明三阶段不足、CSV 无法满足内容协作或确定性筛选质量不足时，可另案扩展；不得在首版预先引入管理后台、向量数据库、固定阶段时钟或自由生成兜底。
+
+## ADR-031｜题库降为可选参考，实时下一问采用单次结构化自由生成
+
+- 状态：Proposed（等待 SPEC-QUESTION-DIRECTOR-001 GitHub 审查）
+- 背景：项目负责人进一步明确，题库用于提供破冰/深入访谈方法和灵感，但真正的下一问应由模型综合当前可信对话、长期记忆、实际已问、近期展示和阶段自由决定；可大幅改写，也可生成题库未覆盖的问题。ADR-030 的白名单/轻调约束把模型错误收缩为选择器。
+- 决定：确定性后端按唯一 Context Schema 构造并冻结 `InterviewDirectorContextV1`，一个实时 Director 返回一个问题或继续倾听，服务端按唯一 `InterviewDirectorOutputV1` 做 Schema、ID/subset、重复和安全等基础硬校验后经 QuestionEvidence 追加发布。模型不访问数据库，不负责权限、查询范围、事务或写回；第一版不建设复杂自然语言事实验证器或第二个 planner/critic。
+- 题库关系：active/licensed/safe 题库条目是 0..N 可选参考，模型可以原样使用、广泛改写或完全不用。frozen Context membership 记录实际发送/看过，candidate reference 只记录模型声明使用的 seen 子集；事实 grounding 和运行时发布资格再分别保存。无 reference 是合法状态，题库 FK 不再是 candidate 资格门禁。
+- 数据边界：题库、转录、memory、actual-question、授权和边界是只读源事实；generation attempt、candidate、display snapshot/history、幂等和过程记录是 append-only 建议事实。保留 ADR-027/028/029 的所有权、displayed != actual asked、current/history/manual-next、REST/WS、安全投影、retention 和 freeze-call-recheck。
+- Prompt：首版使用仓库内可编辑、不可变版本化 bundle，不建设在线管理 UI。两份 JSON Schema 是 AI 实际输入/输出的唯一技术结构，Prompt 不复制平行字段定义。job/attempt 在 Context 之外保存 prompt/context/output/context-builder/model-config 等 version+digest 与 membership/hash，不在技术日志复制完整 prompt、Context 或 provider 原文。
+- Retry：一次逻辑生成先执行 primary；transport/timeout 或第一次返回未过基础硬校验时最多一次完全相同 Prompt、frozen Context、Output Schema 与 model config 的 retry，不传前次输出、错误或修复提示。权限/安全/deletion/重复/writeback 漂移不 retry；第二次仍失败不创建 candidate、不修改 current/history，等待新的用户动作。
+- 取代关系：部分取代 ADR-030 的“题库强制来源、只允许 verbatim/lightly_adapted、无 eligible 原题不得生成、原题 purpose/adaptation reason 为资格门禁”；ADR-030 的题库版本/许可/fixture/导入治理和三阶段旅程继续有效。
+- 代价：自由生成扩大问题质量与事实前提风险，需要严格 Context、Schema、grounding、相似度与真实实践复盘；换取模型真正根据谈话生成最合适下一问，不让题库覆盖范围限制产品价值。
+- 重新评估条件：单次调用在脱敏/真实实践中出现可量化的上下文丢失或质量不足后，才评估检索调用或独立 critic；不得因“数据库需要协调”预先引入第二 planner agent。
