@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/interview-director-context-v1.json",
+  "title": "InterviewDirectorContextV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_schema_version",
+    "versions",
+    "request",
+    "current_presentation",
+    "interview_state",
+    "recent_transcript",
+    "current_memories",
+    "actual_asked",
+    "recently_displayed",
+    "bank_references",
+    "boundaries"
+  ],
+  "properties": {
+    "context_schema_version": { "const": "interview-director-context-v1" },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_bundle", "context_builder", "model_config", "journey_policy", "similarity_policy", "boundary_policy_revision"],
+      "properties": {
+        "prompt_bundle": { "$ref": "#/$defs/versionDigest" },
+        "context_builder": { "$ref": "#/$defs/versionDigest" },
+        "model_config": { "$ref": "#/$defs/versionDigest" },
+        "journey_policy": { "type": "string", "minLength": 1 },
+        "similarity_policy": { "type": "string", "minLength": 1 },
+        "boundary_policy_revision": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_id", "attempt_id", "project_id", "session_id", "trigger_kind"],
+      "properties": {
+        "request_id": { "type": "string", "format": "uuid" },
+        "attempt_id": { "type": "string", "format": "uuid" },
+        "project_id": { "type": "string", "format": "uuid" },
+        "session_id": { "type": "string", "format": "uuid" },
+        "trigger_kind": { "enum": ["automatic", "manual_next", "second_session_opening"] }
+      }
+    },
+    "current_presentation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["presentation_revision", "snapshot_id", "text"],
+      "properties": {
+        "presentation_revision": { "type": "integer", "minimum": 0 },
+        "snapshot_id": { "type": "string", "format": "uuid" },
+        "text": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "interview_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journey_stage", "journey_reason_codes", "goal"],
+      "properties": {
+        "journey_stage": { "enum": ["rapport", "life_outline", "story_depth"] },
+        "journey_reason_codes": { "type": "array", "items": { "type": "string" }, "maxItems": 12 },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 300 }
+      }
+    },
+    "recent_transcript": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "session_id", "start_ms", "text", "text_revision", "speaker_role_revision", "trusted_role"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "session_id": { "type": "string", "format": "uuid" },
+          "start_ms": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string", "maxLength": 1000 },
+          "text_revision": { "type": "integer", "minimum": 0 },
+          "speaker_role_revision": { "type": "integer", "minimum": 0 },
+          "trusted_role": { "enum": ["elder", "interviewer"] }
+        }
+      }
+    },
+    "current_memories": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "memory_type", "value_kind", "value", "authority", "evidence_ids"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "memory_type": { "type": "string", "maxLength": 50 },
+          "value_kind": { "enum": ["exact", "range", "unknown"] },
+          "value": { "type": "string", "maxLength": 500 },
+          "authority": { "type": "string", "maxLength": 50 },
+          "evidence_ids": { "type": "array", "maxItems": 12, "items": { "type": "string", "format": "uuid" } }
+        }
+      }
+    },
+    "actual_asked": { "$ref": "#/$defs/idTextList" },
+    "recently_displayed": { "$ref": "#/$defs/idTextList" },
+    "bank_references": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "bank", "topic", "question_text", "purpose", "sensitivity"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "bank": { "enum": ["basic", "deep"] },
+          "topic": { "type": "string", "maxLength": 80 },
+          "question_text": { "type": "string", "maxLength": 300 },
+          "purpose": { "type": "string", "maxLength": 40 },
+          "sensitivity": { "enum": ["low", "medium", "high"] }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "abstract_scope"],
+        "properties": {
+          "code": { "type": "string", "maxLength": 50 },
+          "abstract_scope": { "type": "string", "maxLength": 160 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "versionDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "idTextList": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "text": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

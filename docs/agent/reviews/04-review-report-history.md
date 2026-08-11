@@ -628,3 +628,11 @@ P2：
 - 正式结论：`PASS`；P0=0、P1=0。数据库 membership seal/count/digest/deferred commit integrity 与可信 `APP_ENV` fixture 门禁两项旧 P1 全部关闭。
 - 合并：PR #24 以 merge commit `7f9a17326f3d388333b63bd889ec09c5de5e5f91` 合入 main；DEV-007A DONE，DEV-007B READY。
 - 边界：当前只证明 synthetic fixture internal demo；项目负责人正式 14 列题库尚未导入，正式内部试用内容、来源/许可和质量仍未验收；CON-023 不变。
+## REV-036｜DEV-007B / PR #25 总控代行审查：REQUEST_CHANGES
+
+- 授权：项目负责人明确要求睡眠期间由总控接管审查，遇到需要产品决策的问题前持续推进。
+- 绑定：PR #25 head `55bf9fba9f721a5f02b9e3224768c644324f1293`，base `e8f3055d757426da063d4216ffb4d789dbc56c14`，CI `31412038872` SUCCESS。
+- 结论：`REQUEST_CHANGES`；不得合并或标记 PASS/DONE。
+- 已验证实现问题：manual admission 在冻结 job 后才校验 stale current、request replay 未绑定 expected payload、deadline 后 late completion 仍可发布、commit gate 漏验完整 eligibility/actual-asked、阶段变化仍受旧阶段 score 阻断、runtime journey signal builder 使多个阶段分支不可达；前端 history 只读首 50 条且不使用 cursor/anchor，刷新不能恢复历史，移动端隐藏推荐原因等。
+- 产品 stop condition：项目负责人随后明确题库只是参考，模型可以大幅改写或完全生成题库外问题；这与 PR #25 和 ADR-030 的白名单/轻调核心假设冲突。原“机械证明轻调”的审查项不再按旧契约修复，而由 SPEC-QUESTION-DIRECTOR-001 / ADR-031 先行纠偏。
+- 后续：保留本 head/CI/REQUEST_CHANGES 历史。新契约 PASS/merge 后，新建 DEV-007B v2 分支/PR，选择性移植契约中立的 API/WS/history/UI/幂等部分，重写 director/Context/candidate persistence 和相应测试。

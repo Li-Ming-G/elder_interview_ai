@@ -1,8 +1,94 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/schemas/InterviewDirectorOutput.json",
-  "title": "InterviewDirectorOutput",
-  "$comment": "占位文件。正式结构以 07-AI访谈引擎规范.md 为准，完成审查前不得用于生产校验。",
+  "$id": "https://elder-interview.example/schemas/interview-director-output-v1.json",
+  "title": "InterviewDirectorOutputV1",
   "type": "object",
-  "additionalProperties": true
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "question",
+    "reason",
+    "purpose",
+    "risk",
+    "grounding",
+    "declared_bank_references",
+    "continue_reason_code"
+  ],
+  "properties": {
+    "decision": { "enum": ["suggest", "continue_listening"] },
+    "question": { "type": ["string", "null"], "minLength": 1, "maxLength": 180 },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "purpose": {
+      "enum": [
+        "detail",
+        "cause",
+        "person",
+        "scene",
+        "emotion",
+        "choice",
+        "conflict",
+        "turning_point",
+        "clarify",
+        "timeline",
+        "transition",
+        null
+      ]
+    },
+    "risk": { "enum": ["low", "medium", "high", null] },
+    "grounding": {
+      "type": "array",
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "enum": ["segment", "memory"] },
+          "id": { "type": "string", "format": "uuid" }
+        }
+      }
+    },
+    "declared_bank_references": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question_bank_item_id", "usage"],
+        "properties": {
+          "question_bank_item_id": { "type": "string", "format": "uuid" },
+          "usage": { "enum": ["inspiration", "adapted", "verbatim"] }
+        }
+      }
+    },
+    "continue_reason_code": {
+      "enum": ["continuous_narration", "insufficient_context", "safety_blocked", null]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "decision": { "const": "suggest" },
+        "question": { "type": "string", "minLength": 1 },
+        "purpose": { "not": { "type": "null" } },
+        "risk": { "not": { "type": "null" } },
+        "continue_reason_code": { "type": "null" }
+      }
+    },
+    {
+      "properties": {
+        "decision": { "const": "continue_listening" },
+        "question": { "type": "null" },
+        "purpose": { "type": "null" },
+        "risk": { "type": "null" },
+        "grounding": { "maxItems": 0 },
+        "declared_bank_references": { "maxItems": 0 },
+        "continue_reason_code": {
+          "enum": ["continuous_narration", "insufficient_context", "safety_blocked"]
+        }
+      }
+    }
+  ]
 }

@@ -35,6 +35,7 @@
 | DEV-005R2C | [任务交接](handoffs/DEV-005R2C.md) | PR #12 head `ae07747`、CI `31246011913`、REV-022 PASS、merge `e455c13`；R2C DONE，DEV-005R2 READY |
 | DEV-005R2 | [任务交接](handoffs/DEV-005R2.md) | PR #14 已合并；REV-024 在 OnePlus/Android 12/Chrome 150 完成控制器真机生命周期验收，R2 DONE、R3 READY；完整 resume/安全结束留 R4 |
 | DOC-002 | HO-025 | 协作文档当前态与历史归档分离完成 |
+| SPEC-QUESTION-DIRECTOR-001 | [交接](handoffs/SPEC-QUESTION-DIRECTOR-001.md) | docs-only 契约纠偏 REVIEW；题库改为可选参考，DEV-007B/PR #25 保持阻塞等待项目负责人审查 |
 
 ## 使用规则
 

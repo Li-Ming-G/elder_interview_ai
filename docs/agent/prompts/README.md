@@ -14,7 +14,7 @@
 ## 已冻结但仍阻塞
 
 - [`DEV-007A.md`](DEV-007A.md)：题库基础设施、旅程阶段与确定性选择 seam；仅在 SPEC-QUESTION-JOURNEY-001 PASS 后启动。
-- [`DEV-007B.md`](DEV-007B.md)：AI 题库选择、有据轻调与工作台集成；仅在 SPEC 与 DEV-007A 均 PASS 后启动。
+- [`DEV-007B.md`](DEV-007B.md)：结构化访谈导演与工作台集成；仅在 SPEC-QUESTION-DIRECTOR-001 与 DEV-007A 均 PASS/merge 后启动。
 
 ## 历史提示词
 
