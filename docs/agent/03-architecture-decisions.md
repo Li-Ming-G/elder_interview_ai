@@ -308,7 +308,7 @@
 
 ## ADR-032｜腾讯实时 ASR V2 采用供应商中立 adapter v2 与连接级 speaker namespace
 
-- 状态：Proposed / REVIEW（等待 SPEC-ASR-PROVIDER-001 exact-head 项目负责人手动审查）
+- 状态：Accepted（SPEC-ASR-PROVIDER-001 final head `84a2173c` 获项目负责人手动 PASS，PR #28 merge `d7b318f`）
 - 背景：既有 `StreamingAsrAdapter` 同步 `accept(frame)->result[]` 与 void drain 只能支撑 deterministic fake，无法表达腾讯 V2 独立握手、异步结果、连接级 voice ID、结构化 drain 和 late-result fence；首帧还受 250ms deadline 且在首次证据事务内。
 - 决定：保留供应商中立注入边界，但由 DEV-ASR-PROVIDER-001 原子迁移到 v2 lifecycle/result sink/drain evidence port；v1 不得保留为并行生产真相源。业务 `session.ready` 与 provider ready 分离，不新增公共产品状态或数据库枚举。
 - namespace：每个新腾讯 `voice_id` 对应新 provider namespace 和新 `speaker_stream_id`；旧 stream 关闭、sink fence、用户重新校准。`enable_speaker_context=0` 且不发送 context ID；provider label 永远不直接等于业务角色。

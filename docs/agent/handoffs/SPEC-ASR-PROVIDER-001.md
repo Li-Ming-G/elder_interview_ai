@@ -2,16 +2,17 @@
 
 ## 基本信息
 
-- 状态：REVIEW；不得自宣 PASS/DONE
+- 状态：DONE（项目负责人 final exact-head PASS、merge 与 main CI 已完成）
 - base：`78a64252f253fc09cf87e89c5efe317512ad1243`
 - branch：`codex/spec-asr-provider-001`
-- PR：[GitHub #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)，OPEN、non-Draft、未合并
-- exact final head / CI：由 GitHub PR 当前 head 与主动审查包绑定；不在承载自身的 commit 中递归写入可变 SHA
+- PR：[GitHub #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)，已合并
+- final head：`84a2173c2b95111d7432b5c3a026494a3f666a3f`；exact-head CI `31484868105` SUCCESS；merge `d7b318fd654d978b60799cd068cbbef33f9c4989`；main CI `31494227785` SUCCESS
 
 ## 正式审查历史
 
 - 项目负责人对 PR #28 old exact head `8d9922bead9a7d70517bafe2245bc44a560b8dc5`、CI `31476068838` 给出正式 `REQUEST_CHANGES`，P0=0、P1=1。
 - 唯一 P1：当前 voice/attempt 的 `final=1`、ingestion complete 与 drain success 不能掩盖此前已知未回补 gap。旧 head、旧 CI 与该结论永久保留；本轮只请求项目负责人定向复审此 P1。
+- 项目负责人随后对 final head `84a2173c2b95111d7432b5c3a026494a3f666a3f`、CI `31484868105` 给出正式 `PASS`，P0=0、P1=0；该 P1 已关闭。PR #28 已合并，契约移交 DEV-ASR-PROVIDER-001。
 
 ## 已冻结
 

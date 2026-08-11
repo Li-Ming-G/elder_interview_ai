@@ -1112,4 +1112,14 @@
 - Options considered: 为 attempt/gap 新增持久表（超出本 P1）；把所有 reconnect 一概 degraded（误伤无 gap lane）；runtime sticky 聚合 + evidence loss 失败关闭 + 既有终态投影。采用第三种。
 - Adopted decision: attempt lifecycle/receipt 只证明一个 voice；session/capture completeness 仅允许 `no_known_gap -> known_unbackfilled_gap`。accepted PCM 无终态、capture coverage 中断或 evidence 丢失形成 sticky gap；后续 connect/ready/final/receipt/reconcile 均不能 clear。A 在首 PCM 前失败或 A/B 连续完整交接不形成 gap，最后 receipt 完整时仍可整体 `drained`。
 - Review evidence: old exact head `8d9922bead9a7d70517bafe2245bc44a560b8dc5`、CI `31476068838` 的正式 REQUEST_CHANGES（P0=0/P1=1）永久保留为 REV-039；定向候选仍为 REVIEW，只请求项目负责人复审该 P1。
+
+### 2026-08-11 — SPEC-ASR-PROVIDER-001 exact-head PASS 与治理收口
+
+- User outcome: 先冻结真实腾讯 ASR 的生命周期、双人标签、安全和验收契约，再进入真实 provider 实现。
+- Review mode: 项目负责人手动定向复审。
+- Review finding: final head `84a2173c2b95111d7432b5c3a026494a3f666a3f`、CI `31484868105` PASS，旧 sticky completeness P1 关闭；old head REQUEST_CHANGES 历史保留。
+- Adopted decision: PR #28 merge `d7b318f`，main CI `31494227785` SUCCESS；SPEC DONE、ADR-032 Accepted、DEV-ASR-PROVIDER-001 READY。CON-027 继续阻塞真实长者/PII，真实 LLM 继续依赖真实 ASR PASS。
+- Implementation evidence: 本轮只有已审契约合并与治理收口；未实现 provider、未读取密钥、未运行真实腾讯或真实音频。
+- Lesson: attempt 成功只证明局部连接收束，不能证明整场数据完整；聚合状态必须保留已知缺口，避免后续成功覆盖早期损失。
+- Better future prompt: “请分别定义每个 ASR 连接的收束证据与整场访谈完整性；任一未回补缺口必须跨重连保持 degraded，直到权威 backfill 明确关闭。”
 - Boundary and risk: 当前不持久化精确 gap interval、不实现 backfill/clear、业务代码或 provider；runtime/coverage evidence 丢失会保守 `degraded`，允许假阴性但禁止假完整。权威 gap ledger 与有证据重算仍归 HARDEN-ASR-001。

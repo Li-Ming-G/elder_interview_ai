@@ -20,7 +20,7 @@
 | DISC-005R-UI | [HO-040](handoffs/DISC-005R-UI.md) | DEV-005R2/3/4、SPEC-AI-QUESTION-001 | 比例与 Android Chrome 主设备已确认；CON-021 等 R2 真机证据，iPhone Safari 延期 |
 | DEV-005R4 / DEV-005 | [最终交接](handoffs/DEV-005R4.md)、[PR #16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)、REV-026 | DEV-006/007 后续任务、总控 | R4 与父 DEV-005 DONE；final head `2fab0ea`、CI `31294084873`、merge `7477dca`，CON-020/021/022 RESOLVED。真实供应商、云存储、iPhone 与生产范围后置 |
 
-| SPEC-ASR-PROVIDER-001 | [契约交接](handoffs/SPEC-ASR-PROVIDER-001.md)、[任务卡](tasks/SPEC-ASR-PROVIDER-001.md)、[PR #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)、ADR-032、REV-039、CON-027 | 项目负责人只定向复审 sticky completeness P1；通过后交 DEV-ASR-PROVIDER-001 | REVIEW；old head `8d9922b`、CI `31476068838` 正式 REQUEST_CHANGES/P1=1 永久保留；候选分离 attempt receipt 与整场 sticky completeness，真实密钥/provider/业务代码均未触碰 |
+| SPEC-ASR-PROVIDER-001 | [契约交接](handoffs/SPEC-ASR-PROVIDER-001.md)、[任务卡](tasks/SPEC-ASR-PROVIDER-001.md)、[PR #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)、ADR-032、REV-039、CON-027 | DEV-ASR-PROVIDER-001 | DONE；final head `84a2173c`、CI `31484868105`、项目负责人定向复审 PASS、merge `d7b318f`、main CI `31494227785` SUCCESS。old head REQUEST_CHANGES/P1=1 永久保留；CON-027 继续阻塞真实长者/PII，真实 provider 验收移交 DEV |
 
 ## 最近已完成交接
 

@@ -6,7 +6,7 @@
 
 ## 状态
 
-状态只以 `docs/agent/00-task-board.md` 为准。当前候选必须保持 REVIEW，等待 non-Draft PR exact-head CI SUCCESS 和项目负责人手动 GitHub 审查。
+状态只以 `docs/agent/00-task-board.md` 为准。PR #28 final head `84a2173c2b95111d7432b5c3a026494a3f666a3f` 已获项目负责人手动 PASS 并以 merge commit `d7b318fd654d978b60799cd068cbbef33f9c4989` 合入 main；任务已治理收口为 DONE。
 
 ## 范围
 
@@ -36,6 +36,14 @@
 - exact-head CI：`31476068838` SUCCESS
 - 项目负责人正式结论：`REQUEST_CHANGES`，P0=0、P1=1
 - 唯一 P1：当前 attempt 成功收束不得掩盖先前已知且未回补的 ASR gap；须冻结 session/capture 级 sticky degradation 聚合。该历史永久保留，定向修复候选仍为 REVIEW。
+
+## 定向复审与最终接收
+
+- PR #28 final head：`84a2173c2b95111d7432b5c3a026494a3f666a3f`
+- exact-head CI：`31484868105` SUCCESS
+- 项目负责人正式结论：`PASS`，P0=0、P1=0；唯一 P1 已关闭。
+- 合并：merge commit `d7b318fd654d978b60799cd068cbbef33f9c4989`；main CI `31494227785` SUCCESS。
+- 治理：ADR-032 Accepted；DEV-ASR-PROVIDER-001 READY；CON-027 继续 OPEN，真实长者/PII 试点仍被阻止。
 
 ## 交付
 

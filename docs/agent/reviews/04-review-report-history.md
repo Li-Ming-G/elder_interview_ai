@@ -684,3 +684,11 @@ P2：
 - 必要回归：voice A accepted PCM 后断线并产生 gap → voice B 新 namespace/new speaker stream → B receipt success → 整场仍 degraded/incomplete；同时覆盖 A 在首个 PCM 前失败或 A/B 连续完整交接的无 gap lane，防止把所有新 voice 永久降级。
 - 当前进展：定向修复候选已在正式 contract/Schema、`04/05/06/09`、ADR、追踪与交接中冻结 attempt/session 分层、sticky 单向聚合、precise gap/no-gap 条件、runtime evidence loss 失败关闭及无 clear 路径；该描述仅记录候选，不构成新 exact-head 复审结论。
 - 历史保留：old head `8d9922bead9a7d70517bafe2245bc44a560b8dc5`、CI `31476068838`、正式 REQUEST_CHANGES/P1=1 永久保留，不得被后续定向复审覆盖。
+
+### REV-039 定向复审与最终接收
+
+- 定向复审对象：PR #28 final exact head `84a2173c2b95111d7432b5c3a026494a3f666a3f`；CI `31484868105` SUCCESS；锁定时 PR OPEN、非 Draft、未合并且 head 无漂移。
+- 正式结论：项目负责人手动定向复审 `PASS`；P0=0、P1=0。attempt drain 与整场 completeness 分层、未回补 gap 跨 attempt sticky、machine Schema 和最终数据库投影全部关闭；无 gap 的连续多-attempt 仍可 drained。
+- 合并：PR #28 以 merge commit `d7b318fd654d978b60799cd068cbbef33f9c4989` 合入 main；main CI `31494227785` completed / success。
+- 治理：SPEC-ASR-PROVIDER-001 DONE、ADR-032 Accepted、DEV-ASR-PROVIDER-001 READY；CON-027 继续 OPEN并阻塞真实长者/PII 试点。
+- 历史保留：本节不覆盖 old head `8d9922b`、CI `31476068838`、REQUEST_CHANGES/P1=1；真实腾讯、目标 Android provider、同 PCM 三次 replay、fault lane 与账单仍归 DEV。
