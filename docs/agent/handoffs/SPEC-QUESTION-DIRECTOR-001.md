@@ -2,13 +2,13 @@
 
 ## 结论
 
-本候选把题库从强制白名单改为可选参考，同时保留 DEV-006、DEV-007A 与 ADR-027-029 已有的数据库、历史、幂等和安全基座。它是 docs-only 契约纠偏，不是 DEV-007B 实现。
+本任务已把题库从强制白名单改为可选参考，同时保留 DEV-006、DEV-007A 与 ADR-027-029 已有的数据库、历史、幂等和安全基座。它是已审查合并的 docs-only 契约，不是 DEV-007B 实现。
 
-REV-037 对 old head `0a75b170` 的四项 P1 正在本候选中定向修订：两份 JSON Schema 成为唯一 wire structure；Director 只经过基础硬校验；技术失败最多一次完全同输入 retry；seen 题库 membership 与 declared attribution 分离。旧 REQUEST_CHANGES 历史永久保留。
+REV-037 对 old head `0a75b170` 的四项 P1 已在 final head `8938d525` 关闭：两份 JSON Schema 成为唯一 wire structure；Director 只经过基础硬校验；技术失败最多一次完全同输入 retry；seen 题库 membership 与 declared attribution 分离。旧 REQUEST_CHANGES 历史永久保留。
 
 - 分支：`codex/spec-question-director-001`
 - PR：[#26](https://github.com/Li-Ming-G/elder_interview_ai/pull/26)
-- 状态：`REVIEW`；项目负责人 exact-head PASS 前不得合并或解锁 DEV-007B。
+- 状态：`DONE`；项目负责人对 final head `8938d525`、CI `31454260127` 定向复审 PASS，PR merge `d320f642`。DEV-007B 仅解锁为 READY，尚未开工。
 
 ## 后续实现边界
 

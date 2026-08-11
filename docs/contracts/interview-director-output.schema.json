@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://elder-interview.example/schemas/interview-director-output-v1.json",
   "title": "InterviewDirectorOutputV1",
-  "$comment": "SPEC-QUESTION-DIRECTOR-001 formal candidate; becomes formal only after exact-head PASS and merge.",
+  "$comment": "Formal machine-readable contract accepted by SPEC-QUESTION-DIRECTOR-001 / REV-037.",
   "type": "object",
   "additionalProperties": false,
   "required": [

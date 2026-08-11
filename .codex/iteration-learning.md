@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约与 DEV-007A 基础设施已完成。SPEC-QUESTION-DIRECTOR-001 正在纠正自由生成契约，DEV-007B BLOCKED；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约、DEV-007A 基础设施与自由生成 Director 契约已完成。DEV-007B v2 READY 但尚未启动；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/026。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
@@ -1052,3 +1052,10 @@
 - Retry boundary: `question_generation` primary 遇 transport/timeout 或返回未过基础硬校验后最多一次 `same_input_retry`；Prompt、Context、Output Schema、model config、版本/digest/input hash 完全相同，不回传前次输出或错误。权限、安全、deletion、重复或 writeback 漂移不 retry；第二次失败不创建 candidate、不改变 current/history。
 - Validation boundary: 确定性后端只证明 Schema、ID/subset、权限、安全、版本、retention、重复、幂等与 CAS；自然语言是否真正单问、grounding/risk/purpose 是否贴切由 Prompt、固定评测和人工实践评价，不新增启发式 validator 或第二模型。
 - Verification boundary: 本轮仍是 SPEC REVIEW；ADR-031 Proposed、CON-026 OPEN、DEV-007/007B BLOCKED、PR #25 REQUEST_CHANGES。新 exact head 和 CI 只作为项目负责人定向复审候选，不自行 PASS/DONE/merge。
+
+### 2026-08-11 — SPEC-QUESTION-DIRECTOR-001 最终接收与 DEV-007B v2 解锁
+
+- Evidence: 项目负责人对 PR #26 final head `8938d525d66f138e7c7b7e3049fe56cbea6bcbb1`、CI `31454260127` 定向复审 PASS，P0/P1=0、P2=1；merge `d320f642a30ee8cc71090ad0d1662b4fc2d08ad6`。old head `0a75b170` REQUEST_CHANGES/P1=4 永久保留。
+- Decision: SPEC DONE、ADR-031 Accepted、CON-026 RESOLVED；两份 Director Schema 转正式，DEV-007B v2 仅解锁为 READY，父 DEV-007 继续等待 B。PR #25 旧白名单实现仍不得合并。
+- P2 closeout: `09` 末尾旧的 Journey SPEC REVIEW / A/B BLOCKED 动态状态句已替换为任务板当前事实，避免规范正文冒充动态状态来源。
+- Verification boundary: 本次治理不启动 DEV-007B，不实现模型/UI/数据库迁移，也不证明正式题库内容、真实 LLM、生产或真实试点可用。

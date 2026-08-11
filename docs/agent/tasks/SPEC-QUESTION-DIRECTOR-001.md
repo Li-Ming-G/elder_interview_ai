@@ -2,12 +2,13 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：总控 Agent
 - 前置依赖：DEV-006 DONE、DEV-007A DONE、项目负责人已明确题库仅为参考并授权纠偏
 - 输入依据：`01/03/04/05/07/08/09/10`、ADR-027-030、DEV-006/007A、PR #25 REQUEST_CHANGES
 - 输出：正式规范、ADR-031、DEV-007/007B v2 门禁与提示词、治理和交接
 - PR：[#26](https://github.com/Li-Ming-G/elder_interview_ai/pull/26)
+- 最终审查：head `8938d525d66f138e7c7b7e3049fe56cbea6bcbb1`、CI `31454260127`、项目负责人 `PASS`、P0/P1=0、merge `d320f642a30ee8cc71090ad0d1662b4fc2d08ad6`
 
 ## 目标
 

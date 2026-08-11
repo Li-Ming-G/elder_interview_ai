@@ -646,3 +646,11 @@ P2：
 - P1-3：首次基础校验失败后的第二次调用必须使用完全相同 Prompt、frozen Context、Output Schema 与 model config；不得传旧输出、错误或修复提示。第二次失败不创建 candidate、不改变 current/history。
 - P1-4：frozen Context membership 保存模型实际看过的 `bank_references`；candidate reference 只保存模型声明实际使用的 seen 子集，空集合合法，禁止把全部 seen 自动记为 inspiration。
 - 修订边界：只改正式文档、两份 Schema、Prompt 与直接治理记录；不实现 DEV-007B v2、UI、新题库机制、供应商、复杂语义验证或第二个 AI。新 exact head/CI 后只请求项目负责人定向复审，不自行 PASS/DONE/merge。
+
+### REV-037 定向复审与最终接收
+
+- 定向复审对象：PR #26 final head `8938d525d66f138e7c7b7e3049fe56cbea6bcbb1`；CI `31454260127` SUCCESS；审查锁定时 PR OPEN、非 Draft、可合并且 head 无漂移。
+- 正式结论：`PASS`；P0=0、P1=0、P2=1。唯一 Director Schema、MVP 基础硬校验、完全同输入 retry、seen/declared 分离四项旧 P1 全部关闭。
+- P2：`09` 末尾残留 SPEC-QUESTION-JOURNEY/DEV-007A/B 的旧动态状态，不阻塞 PASS；已在 merge 后治理提交中改为引用任务板当前事实。
+- 合并：PR #26 以 merge commit `d320f642a30ee8cc71090ad0d1662b4fc2d08ad6` 合入 main；SPEC-QUESTION-DIRECTOR-001 DONE、ADR-031 Accepted、CON-026 RESOLVED、DEV-007B READY。
+- 边界：本结论只接受 Director 契约，不实现 DEV-007B、真实 LLM、题库内容质量、生产设施或真实试点；PR #25 旧白名单实现继续 REQUEST_CHANGES，不得合并。

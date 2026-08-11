@@ -295,7 +295,7 @@
 
 ## ADR-031｜题库降为可选参考，实时下一问采用单次结构化自由生成
 
-- 状态：Proposed（等待 SPEC-QUESTION-DIRECTOR-001 GitHub 审查）
+- 状态：Accepted（PR #26 final head `8938d525` 项目负责人 PASS，merge `d320f642`）
 - 背景：项目负责人进一步明确，题库用于提供破冰/深入访谈方法和灵感，但真正的下一问应由模型综合当前可信对话、长期记忆、实际已问、近期展示和阶段自由决定；可大幅改写，也可生成题库未覆盖的问题。ADR-030 的白名单/轻调约束把模型错误收缩为选择器。
 - 决定：确定性后端按唯一 Context Schema 构造并冻结 `InterviewDirectorContextV1`，一个实时 Director 返回一个问题或继续倾听，服务端按唯一 `InterviewDirectorOutputV1` 做 Schema、ID/subset、重复和安全等基础硬校验后经 QuestionEvidence 追加发布。模型不访问数据库，不负责权限、查询范围、事务或写回；第一版不建设复杂自然语言事实验证器或第二个 planner/critic。
 - 题库关系：active/licensed/safe 题库条目是 0..N 可选参考，模型可以原样使用、广泛改写或完全不用。frozen Context membership 记录实际发送/看过，candidate reference 只记录模型声明使用的 seen 子集；事实 grounding 和运行时发布资格再分别保存。无 reference 是合法状态，题库 FK 不再是 candidate 资格门禁。
