@@ -48,10 +48,15 @@ import {
   QuestionDirectorContract,
 } from './question-director-contract.js';
 import { QuestionDirector } from './question-director.js';
+import {
+  latestSubstantiveElderAnswer,
+  QUESTION_SELECTION_POLICY_VERSION,
+  scoreQuestionSelectionV1,
+} from './question-selection.js';
 
-export const QUESTION_SELECTION_POLICY_VERSION = 'question-select-v1';
 const DEBOUNCE_MS = 1_500;
 const DEADLINE_MS = 8_000;
+const AUTO_MIN_INTERVAL_MS = 20_000;
 
 @Injectable()
 export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestroy {
@@ -75,15 +80,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
 
   public onModuleInit(): void {
     this.unsubscribeFinal = this.realtime.onFinalized(({ segmentId, sessionId }) => {
-      const existing = this.timers.get(sessionId);
-      if (existing !== undefined) clearTimeout(existing);
-      this.timers.set(
-        sessionId,
-        setTimeout(() => {
-          this.timers.delete(sessionId);
-          void this.runAutomatic(sessionId, segmentId).catch(() => undefined);
-        }, DEBOUNCE_MS),
-      );
+      this.scheduleAutomatic(sessionId, segmentId, DEBOUNCE_MS);
     });
   }
 
@@ -133,6 +130,11 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   private async runAutomatic(sessionId: string, segmentId: string): Promise<void> {
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null || session.status !== 'recording') return;
+    const waitMs = await this.automaticProviderWaitMs(sessionId);
+    if (waitMs > 0) {
+      this.scheduleAutomatic(sessionId, segmentId, waitMs);
+      return;
+    }
     const requestId = stableUuid(`auto:${sessionId}:${segmentId}`);
     const state = await this.presentations.generationContext(sessionId);
     const prepared = await this.prepare(session.createdBy, sessionId, 'automatic', requestId, {
@@ -166,7 +168,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         attemptKind,
         basis,
         context: null,
+        deadlineAt: 0,
         job: null,
+        shouldContinueListening: false,
         replayed: true,
         requestId,
       };
@@ -258,6 +262,10 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       throw error;
     }
     const frozenJob = { ...job, inputHash: receipt.frozenInputHash };
+    const persistedAttempt = await this.prisma.questionGenerationAttempt.findUniqueOrThrow({
+      select: { createdAt: true },
+      where: { id: receipt.attemptId },
+    });
     const context = await this.buildContext(
       frozenJob,
       memories,
@@ -274,20 +282,39 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       attemptKind,
       basis,
       context,
+      deadlineAt: persistedAttempt.createdAt.getTime() + DEADLINE_MS,
       job: frozenJob,
       replayed: false,
       requestId,
+      shouldContinueListening: decision.shouldContinueListening,
     };
   }
 
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {
     if (prepared.job === null || prepared.context === null) return;
+    if (prepared.shouldContinueListening) {
+      await this.writer.publishAttemptResult(
+        {
+          attemptId: prepared.attemptId,
+          candidate: null,
+          deadlineAt: prepared.deadlineAt,
+          job: prepared.job,
+          resultKind: 'continue_listening',
+          sessionId: prepared.job.sessionIds[0] ?? '',
+        },
+        prepared.attemptKind === 'automatic'
+          ? { kind: 'system', trigger: prepared.requestId }
+          : { actorId: prepared.actorId, kind: 'actor' },
+        prepared.requestId,
+      );
+      return;
+    }
     const context = prepared.context;
     const output = await this.coordinator.callProviderWithSameInputRetry(
       prepared.job,
       () => this.director.generate({ context, prompt: this.contract.prompt }),
       (value) => this.contract.parseOutput(value, context),
-      DEADLINE_MS,
+      prepared.deadlineAt,
     );
     const candidate: QuestionCandidateResult | null =
       output.decision === 'suggest'
@@ -301,13 +328,20 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
             questionText: output.question,
             reasonText: output.reason,
             risk: output.risk,
-            selectionScore: scoreFor(prepared.context.interview_state.journey_stage, output.risk),
+            selectionScore: scoreQuestionSelectionV1({
+              grounding: output.grounding,
+              purpose: output.purpose,
+              risk: output.risk,
+              segments: prepared.job.segments,
+              stage: prepared.context.interview_state.journey_stage,
+            }),
           }
         : null;
     await this.writer.publishAttemptResult(
       {
         attemptId: prepared.attemptId,
         candidate,
+        deadlineAt: prepared.deadlineAt,
         job: prepared.job,
         resultKind: candidate === null ? 'continue_listening' : 'suggestion',
         sessionId: prepared.job.sessionIds[0] ?? '',
@@ -334,13 +368,6 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       take: 40,
       where: { expiresAt: { gt: new Date() }, retentionState: 'active', sessionId },
     });
-    const current =
-      generation.currentSnapshotId === null
-        ? null
-        : (recentSnapshots.find(({ id }) => id === generation.currentSnapshotId) ??
-          (await this.prisma.questionDisplaySnapshot.findUnique({
-            where: { id: generation.currentSnapshotId },
-          })));
     const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
     const actualById = new Map(actualAsked.map((question) => [question.id, question]));
     return {
@@ -373,7 +400,12 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
             ];
       }),
       current_presentation:
-        current === null ? null : { snapshot_id: current.id, text: current.questionText },
+        generation.currentPresentation === null
+          ? null
+          : {
+              snapshot_id: generation.currentPresentation.id,
+              text: generation.currentPresentation.questionText,
+            },
       interview_state: {
         goal: goalFor(journeyStage),
         journey_reason_codes: [...journeyReasonCodes],
@@ -426,6 +458,38 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       ),
     };
   }
+
+  private scheduleAutomatic(sessionId: string, segmentId: string, delayMs: number): void {
+    const existing = this.timers.get(sessionId);
+    if (existing !== undefined) clearTimeout(existing);
+    this.timers.set(
+      sessionId,
+      setTimeout(
+        () => {
+          this.timers.delete(sessionId);
+          void this.runAutomatic(sessionId, segmentId).catch(() => undefined);
+        },
+        Math.max(0, delayMs),
+      ),
+    );
+  }
+
+  private async automaticProviderWaitMs(sessionId: string): Promise<number> {
+    const recentAttempts = await this.prisma.questionGenerationAttempt.findMany({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { aiJobId: true },
+      take: 100,
+      where: { attemptKind: 'automatic', sessionId },
+    });
+    if (recentAttempts.length === 0) return 0;
+    const latestCall = await this.prisma.aiProviderCall.findFirst({
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      select: { startedAt: true },
+      where: { aiJobId: { in: recentAttempts.map(({ aiJobId }) => aiJobId) } },
+    });
+    if (latestCall === null) return 0;
+    return Math.max(0, latestCall.startedAt.getTime() + AUTO_MIN_INTERVAL_MS - Date.now());
+  }
 }
 
 interface PreparedQuestionAttempt {
@@ -434,9 +498,11 @@ interface PreparedQuestionAttempt {
   attemptKind: QuestionAttemptKind;
   basis: { presentationRevision: number; snapshotId: string | null };
   context: InterviewDirectorContextV1 | null;
+  deadlineAt: number;
   job: FrozenAiJob | null;
   replayed: boolean;
   requestId: string;
+  shouldContinueListening: boolean;
 }
 
 export function inferDirectorJourneySignals(
@@ -444,8 +510,7 @@ export function inferDirectorJourneySignals(
   memories: readonly CurrentMemoryItem[],
 ): readonly JourneyInputSignal[] {
   const signals = new Set<JourneyInputSignal>();
-  const elderText = job.segments
-    .filter(({ trustedRole }) => trustedRole === 'elder')
+  const elderText = latestSubstantiveElderAnswer(job.segments)
     .map(({ text }) => text.trim())
     .join(' ');
   if (elderText.length > 0 && elderText.length < 12) signals.add('response.low_detail');
@@ -515,11 +580,6 @@ function goalFor(stage: 'rapport' | 'life_outline' | 'story_depth'): string {
   if (stage === 'story_depth') return '顺着已经出现的具体故事线索，帮助长者自愿讲出更多细节。';
   if (stage === 'life_outline') return '补全人物、地点、事件和时间线索，形成大致人生轮廓。';
   return '用低压力、开放的问题建立信任和谈话节奏。';
-}
-
-function scoreFor(stage: 'rapport' | 'life_outline' | 'story_depth', risk: string): number {
-  const base = stage === 'story_depth' ? 0.9 : stage === 'life_outline' ? 0.78 : 0.66;
-  return Math.max(0, base - (risk === 'high' ? 0.15 : risk === 'medium' ? 0.05 : 0));
 }
 
 function stableUuid(value: string): string {

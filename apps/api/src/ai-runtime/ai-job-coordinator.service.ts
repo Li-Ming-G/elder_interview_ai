@@ -390,17 +390,26 @@ export class AiJobCoordinatorService {
     job: FrozenAiJob,
     invoke: () => Promise<unknown>,
     validate: (value: unknown) => T,
-    deadlineMs: number,
+    deadlineAt: number,
   ): Promise<T> {
     if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
-    try {
-      await this.policy.assertAllowed(job.requestedBy, job.projectId, job.sessionIds);
-    } catch (error) {
-      await this.cancelJob(job.id, 'AI_POLICY_DRIFT');
-      throw error;
-    }
     let lastError: unknown = new Error('AI_PROVIDER_UNAVAILABLE');
     for (const callNo of [1, 2] as const) {
+      if (deadlineAt - Date.now() <= 0) {
+        lastError = new Error('AI_PROVIDER_TIMEOUT');
+        break;
+      }
+      try {
+        await this.policy.assertAllowed(job.requestedBy, job.projectId, job.sessionIds);
+      } catch (error) {
+        await this.cancelJob(job.id, 'AI_POLICY_DRIFT');
+        throw error;
+      }
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs <= 0) {
+        lastError = new Error('AI_PROVIDER_TIMEOUT');
+        break;
+      }
       const callId = randomUUID();
       const startedAt = new Date();
       await this.prisma.aiProviderCall.create({
@@ -415,8 +424,10 @@ export class AiJobCoordinatorService {
         },
       });
       try {
-        const output = await withDeadline(invoke(), deadlineMs);
+        const output = await withDeadline(invoke(), remainingMs);
+        if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');
         const parsed = validate(output);
+        if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');
         await this.prisma.aiProviderCall.update({
           data: {
             completedAt: new Date(),

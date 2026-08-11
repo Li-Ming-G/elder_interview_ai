@@ -48,10 +48,12 @@ import type {
   PublishQuestionAttemptCommand,
   QuestionAttemptReceipt,
   QuestionPublicationResult,
+  QuestionCandidateResult,
+  QuestionPurpose,
   WithdrawQuestionPresentationCommand,
 } from './question-presentation.types.js';
+import { scoreQuestionSelectionV1 } from '../question-orchestration/question-selection.js';
 
-const AUTO_MIN_INTERVAL_MS = 20_000;
 const AUTO_CURRENT_DWELL_MS = 15_000;
 const AUTO_SCORE_DELTA = 0.12;
 const MANUAL_MIN_INTERVAL_MS = 3_000;
@@ -259,6 +261,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     void requestId;
     const actorId = actorIdOf(actorOrSystem, command.job.requestedBy);
     const outcome = await this.coordinator.writeBack(command.job, async (tx) => {
+      assertBeforeDeadline(command.deadlineAt);
       const attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
         where: { id: command.attemptId },
       });
@@ -290,6 +293,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           attempt,
           state,
           command.candidate,
+          command.job,
           command.job.actualQuestions,
         );
         if (gate !== null) {
@@ -304,6 +308,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           });
           return { change: null, publicationOutcome: gate } as const;
         }
+        assertBeforeDeadline(command.deadlineAt);
         const publication = await this.publishCandidate(tx, command, attempt, state, actorId);
         return publication;
       }
@@ -356,6 +361,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         sessionId: command.sessionId,
         snapshotId: null,
       });
+      assertBeforeDeadline(command.deadlineAt);
       return {
         change: {
           change_kind: attempt.attemptKind === 'manual_next' ? 'manual_next' : 'initial_display',
@@ -595,6 +601,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
 
   public async generationContext(sessionId: string): Promise<{
     currentQuestion: string | null;
+    currentPresentation: { id: string; questionText: string } | null;
     currentSnapshotId: string | null;
     journeyStage: 'rapport' | 'life_outline' | 'story_depth' | null;
     presentationRevision: number;
@@ -609,18 +616,27 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       this.prisma.questionDisplaySnapshot.findMany({
         orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
         take: 20,
-        where: { retentionState: 'active', sessionId },
+        where: { expiresAt: { gt: new Date() }, retentionState: 'active', sessionId },
       }),
     ]);
     const current =
-      state?.currentSnapshotId === null || state?.currentSnapshotId === undefined
+      state?.currentSnapshotId === null ||
+      state?.currentSnapshotId === undefined ||
+      state.visibility !== 'visible' ||
+      state.presentationKind !== 'suggestion'
         ? null
         : (recent.find(({ id }) => id === state.currentSnapshotId) ??
-          (await this.prisma.questionDisplaySnapshot.findUnique({
-            where: { id: state.currentSnapshotId },
+          (await this.prisma.questionDisplaySnapshot.findFirst({
+            where: {
+              expiresAt: { gt: new Date() },
+              id: state.currentSnapshotId,
+              retentionState: 'active',
+            },
           })));
     return {
       currentQuestion: current?.questionText ?? null,
+      currentPresentation:
+        current === null ? null : { id: current.id, questionText: current.questionText },
       currentSnapshotId: state?.currentSnapshotId ?? null,
       journeyStage:
         (latestAttempt?.journeyStage as 'rapport' | 'life_outline' | 'story_depth' | undefined) ??
@@ -969,6 +985,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       sessionId: command.sessionId,
       snapshotId,
     });
+    assertBeforeDeadline(command.deadlineAt);
     return {
       change: {
         change_kind:
@@ -990,6 +1007,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     attempt: QuestionGenerationAttempt,
     state: QuestionDisplayState,
     candidate: NonNullable<PublishQuestionAttemptCommand['candidate']>,
+    job: PublishQuestionAttemptCommand['job'],
     actualQuestions: readonly { actualQuestionId: string; normalizedDigest: string }[],
   ): Promise<'duplicate_filtered' | 'not_better' | null> {
     const seen = await tx.questionGenerationBankInputMembership.findMany({
@@ -1054,14 +1072,69 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     const now = Date.now();
     if (current === null) return null;
     if (current.journeyStage !== attempt.journeyStage) return null;
+    const currentCandidate =
+      current.questionCandidateId === null
+        ? null
+        : await tx.questionCandidate.findUnique({ where: { id: current.questionCandidateId } });
+    const currentGrounding =
+      currentCandidate === null
+        ? []
+        : await this.currentCandidateGrounding(tx, currentCandidate.aiDerivedOutputId);
+    const currentScore =
+      currentCandidate === null
+        ? Number(current.selectionScore)
+        : scoreQuestionSelectionV1({
+            grounding: currentGrounding,
+            purpose: currentCandidate.purpose as QuestionPurpose,
+            risk: currentCandidate.risk as 'low' | 'medium' | 'high',
+            segments: job.segments,
+            stage: attempt.journeyStage as 'rapport' | 'life_outline' | 'story_depth',
+          });
     if (
       now - current.displayedAt.getTime() < AUTO_CURRENT_DWELL_MS ||
-      now - (state.lastAutoPublishedAt?.getTime() ?? 0) < AUTO_MIN_INTERVAL_MS ||
-      candidate.selectionScore - Number(current.selectionScore) < AUTO_SCORE_DELTA
+      candidate.selectionScore - currentScore < AUTO_SCORE_DELTA
     ) {
       return 'not_better';
     }
     return null;
+  }
+
+  private async currentCandidateGrounding(
+    tx: Prisma.TransactionClient,
+    aiDerivedOutputId: string,
+  ): Promise<QuestionCandidateResult['grounding']> {
+    const [segmentDependencies, memoryDependencies] = await Promise.all([
+      tx.aiOutputSegmentDependency.findMany({
+        orderBy: { dependencyOrder: 'asc' },
+        where: { aiDerivedOutputId },
+      }),
+      tx.aiOutputMemoryDependency.findMany({
+        orderBy: { dependencyOrder: 'asc' },
+        where: { aiDerivedOutputId },
+      }),
+    ]);
+    const [segments, memories] = await Promise.all([
+      tx.aiJobInputSegment.findMany({
+        where: {
+          id: { in: segmentDependencies.map(({ aiJobInputSegmentId }) => aiJobInputSegmentId) },
+        },
+      }),
+      tx.aiJobInputMemory.findMany({
+        where: {
+          id: { in: memoryDependencies.map(({ aiJobInputMemoryId }) => aiJobInputMemoryId) },
+        },
+      }),
+    ]);
+    return [
+      ...segments.map(({ transcriptSegmentId }) => ({
+        id: transcriptSegmentId,
+        kind: 'segment' as const,
+      })),
+      ...memories.map(({ memoryResolutionId }) => ({
+        id: memoryResolutionId,
+        kind: 'memory' as const,
+      })),
+    ];
   }
 
   private async currentByActorId(
@@ -1436,6 +1509,10 @@ function throttled(retryAfterMs: number): HttpException {
     },
     429,
   );
+}
+
+function assertBeforeDeadline(deadlineAt: number): void {
+  if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');
 }
 
 function throttleRetryAfter(payload: Prisma.JsonValue): number | null {

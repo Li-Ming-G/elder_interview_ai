@@ -654,3 +654,15 @@ P2：
 - P2：`09` 末尾残留 SPEC-QUESTION-JOURNEY/DEV-007A/B 的旧动态状态，不阻塞 PASS；已在 merge 后治理提交中改为引用任务板当前事实。
 - 合并：PR #26 以 merge commit `d320f642a30ee8cc71090ad0d1662b4fc2d08ad6` 合入 main；SPEC-QUESTION-DIRECTOR-001 DONE、ADR-031 Accepted、CON-026 RESOLVED、DEV-007B READY。
 - 边界：本结论只接受 Director 契约，不实现 DEV-007B、真实 LLM、题库内容质量、生产设施或真实试点；PR #25 旧白名单实现继续 REQUEST_CHANGES，不得合并。
+
+## REV-038｜DEV-007B v2 / PR #27 项目负责人首轮审查
+
+- 审查对象：PR #27 exact head `542917229e1f68e60d434a74d6ef81b0cd7548f9`；CI `31458597516` completed / success；PR 当时 OPEN、非 Draft、mergeable，head 未漂移。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=4、P2=1。DEV-007B 保持 `REVIEW`，父 DEV-007 保持 `BLOCKED`；不得合并或自行宣布 PASS/DONE。
+- P1-1：journey response/engagement 信号错误消费整场 elder 文本，且 `shouldContinueListening=true` 未阻止 Director 调用；必须只看当前/最近实质回答并直接发布 `continue_listening`。
+- P1-2：primary 与 retry 各自拥有 8 秒、retry 前未重查安全状态，可能在前端已显示不可用后迟到发布；必须共享单一 8 秒绝对截止时间，每次供应商调用前重查 policy/deletion，截止后永久失去发布资格。
+- P1-3：automatic 的 20 秒限制位于 provider 调用之后，且旧 score 无法区分同阶段问题；必须在 provider 前节流，并冻结无需第二 AI 的 deterministic `question-select-v1` comparator。
+- P1-4：current snapshot 未命中安全历史查询时会用不检查 retention/expiry 的读取回填正文；expired/hidden/withdrawn current 必须在 Director Context 投影为 null。
+- P2：`09` 末尾残留 DEV-007B `READY/尚未实现` 旧动态状态，定向修复时清理。
+- 已确认主干：自由生成、seen/declared 分离、QuestionEvidence 单一 owner、displayed != actual asked、历史 cursor/anchor/刷新恢复不重开。
+- 当前进展：上述 4 个 P1 与 1 个 P2 已形成定向修复工作区并通过定向 unit/PostgreSQL 证据；此记录仅永久保存旧正式审查，不构成新 head 的复审结论。

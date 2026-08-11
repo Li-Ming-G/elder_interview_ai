@@ -85,6 +85,7 @@ export interface QuestionCandidateResult {
 export interface PublishQuestionAttemptCommand {
   attemptId: string;
   candidate: QuestionCandidateResult | null;
+  deadlineAt: number;
   job: FrozenAiJob;
   resultKind: QuestionResultKind;
   sessionId: string;

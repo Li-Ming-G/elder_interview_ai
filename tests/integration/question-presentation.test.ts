@@ -8,6 +8,7 @@ import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runti
 import type { AuthPrincipal } from '../../apps/api/src/auth/auth.types.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import type { Prisma } from '../../apps/api/src/generated/prisma/client.js';
 import { ActualAskedReader } from '../../apps/api/src/question-evidence/question-evidence.service.js';
 import { QuestionPresentationService } from '../../apps/api/src/question-evidence/question-presentation.service.js';
 import { QuestionOrchestrationService } from '../../apps/api/src/question-orchestration/question-orchestration.service.js';
@@ -369,29 +370,240 @@ describe('DEV-007B constrained question publication', () => {
     });
   });
 
+  it('uses the latest answer, bypasses Director while narration continues, and omits unsafe current text', async () => {
+    const continueSessionId = randomUUID();
+    const continueStreamId = randomUUID();
+    await createSession(continueSessionId, continueStreamId, 2);
+    await prisma.transcriptSegment.createMany({
+      data: [
+        transcript(
+          continueSessionId,
+          continueStreamId,
+          0,
+          '我不想说。后来然后还有很多事。',
+          'elder',
+        ),
+        transcript(
+          continueSessionId,
+          continueStreamId,
+          100,
+          '那我们换一个轻松的话题。',
+          'interviewer',
+        ),
+        transcript(
+          continueSessionId,
+          continueStreamId,
+          200,
+          '我小时候住在河边，后来院子里种了桂花树，然后每年秋天还有很多事情可以慢慢讲。',
+          'elder',
+        ),
+      ],
+    });
+    const generate = vi.spyOn(director, 'generate');
+    const requestId = randomUUID();
+    await orchestration.requestManualNext(actor, continueSessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId,
+    });
+    const outcome = await waitForTerminal(requestId, continueSessionId);
+    const attempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { id: outcome.attempt_id },
+    });
+    expect(outcome).toMatchObject({
+      publication_outcome: 'published',
+      result_kind: 'continue_listening',
+    });
+    expect(generate).not.toHaveBeenCalled();
+    generate.mockRestore();
+    expect(await prisma.aiProviderCall.count({ where: { aiJobId: attempt.aiJobId } })).toBe(0);
+    expect(
+      await prisma.questionCandidate.count({ where: { questionGenerationAttemptId: attempt.id } }),
+    ).toBe(0);
+
+    const unsafeSessionId = randomUUID();
+    const unsafeStreamId = randomUUID();
+    await createSession(unsafeSessionId, unsafeStreamId, 3);
+    await prisma.transcriptSegment.create({
+      data: transcript(
+        unsafeSessionId,
+        unsafeStreamId,
+        0,
+        '我小时候住在河边，院子里有一棵桂花树。',
+        'elder',
+      ),
+    });
+    const firstRequestId = randomUUID();
+    await orchestration.requestManualNext(actor, unsafeSessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId: firstRequestId,
+    });
+    const first = await waitForTerminal(firstRequestId, unsafeSessionId);
+    expect(first.current.snapshot_id).not.toBeNull();
+    await prisma.questionDisplaySnapshot.update({
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+      where: { id: first.current.snapshot_id ?? '' },
+    });
+    await ageManualFence(unsafeSessionId);
+    const seenCurrent: unknown[] = [];
+    const originalGenerate = director.generate.bind(director);
+    const capture = vi.spyOn(director, 'generate').mockImplementation((request) => {
+      seenCurrent.push(request.context.current_presentation);
+      return originalGenerate(request);
+    });
+    const secondRequestId = randomUUID();
+    await orchestration.requestManualNext(actor, unsafeSessionId, {
+      expectedPresentationRevision: first.current.presentation_revision,
+      expectedSnapshotId: first.current.snapshot_id,
+      requestId: secondRequestId,
+    });
+    await waitForTerminal(secondRequestId, unsafeSessionId);
+    capture.mockRestore();
+    expect(seenCurrent[0]).toBeNull();
+  });
+
+  it('replaces a same-stage current from fresher grounding and gates the next automatic call before provider', async () => {
+    const autoSessionId = randomUUID();
+    const autoStreamId = randomUUID();
+    await createSession(autoSessionId, autoStreamId, 4);
+    const firstSegment = transcript(
+      autoSessionId,
+      autoStreamId,
+      0,
+      '我小时候住在河边，那是我一直记得的地方。',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: firstSegment });
+    const firstRequestId = randomUUID();
+    const firstGenerate = vi.spyOn(director, 'generate').mockResolvedValueOnce({
+      continue_reason_code: null,
+      decision: 'suggest',
+      declared_bank_references: [],
+      grounding: [{ id: firstSegment.id, kind: 'segment' }],
+      purpose: 'timeline',
+      question: '您第一次搬到河边时，大约是什么时候？',
+      reason: '先了解这段生活的时间线索。',
+      risk: 'low',
+    });
+    await orchestration.requestManualNext(actor, autoSessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId: firstRequestId,
+    });
+    const first = await waitForTerminal(firstRequestId, autoSessionId);
+    firstGenerate.mockRestore();
+    await prisma.questionDisplaySnapshot.update({
+      data: { displayedAt: new Date(Date.now() - 20_000) },
+      where: { id: first.current.snapshot_id ?? '' },
+    });
+
+    const latestSegment = transcript(
+      autoSessionId,
+      autoStreamId,
+      1_000,
+      'The courtyard had an old osmanthus tree beside the stone wall.',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: latestSegment });
+    const automaticGenerate = vi.spyOn(director, 'generate').mockResolvedValue({
+      continue_reason_code: null,
+      decision: 'suggest',
+      declared_bank_references: [],
+      grounding: [{ id: latestSegment.id, kind: 'segment' }],
+      purpose: 'scene',
+      question: 'What did that courtyard look like around the osmanthus tree?',
+      reason: '刚刚出现了更具体的场景线索。',
+      risk: 'low',
+    });
+    await runAutomatic(autoSessionId, latestSegment.id);
+    expect(automaticGenerate).toHaveBeenCalledTimes(1);
+    expect(await presentations.current(actor, autoSessionId)).toMatchObject({
+      display_sequence: 2,
+      question: 'What did that courtyard look like around the osmanthus tree?',
+    });
+
+    const thirdSegment = transcript(
+      autoSessionId,
+      autoStreamId,
+      2_000,
+      'There was an old wooden stool beneath it.',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: thirdSegment });
+    await runAutomatic(autoSessionId, thirdSegment.id);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(automaticGenerate).toHaveBeenCalledTimes(1);
+    automaticGenerate.mockRestore();
+  });
+
   async function waitForTerminal(
     requestId: string,
+    targetSessionId = sessionId,
   ): Promise<Awaited<ReturnType<QuestionPresentationService['status']>>> {
     for (let index = 0; index < 100; index += 1) {
-      const result = await presentations.status(actor, sessionId, requestId);
+      const result = await presentations.status(actor, targetSessionId, requestId);
       if (['succeeded', 'failed', 'cancelled'].includes(result.status)) return result;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('Suggestion request did not settle');
   }
 
-  async function ageManualFence(): Promise<void> {
+  async function ageManualFence(targetSessionId = sessionId): Promise<void> {
     const old = new Date(Date.now() - 10_000);
     await prisma.questionDisplayState.update({
       data: { lastManualAttemptAcceptedAt: old },
-      where: { sessionId },
+      where: { sessionId: targetSessionId },
     });
     await prisma.questionEvidenceEvent.updateMany({
       data: { eventAt: old },
-      where: { eventType: 'manual_next_requested', sessionId },
+      where: { eventType: 'manual_next_requested', sessionId: targetSessionId },
     });
   }
+
+  async function createSession(
+    targetSessionId: string,
+    streamId: string,
+    sequenceNo: number,
+  ): Promise<void> {
+    await prisma.interviewSession.create({
+      data: { createdBy: actorId, id: targetSessionId, projectId, sequenceNo, status: 'recording' },
+    });
+    await prisma.speakerStream.create({
+      data: { closedAt: new Date(), id: streamId, sessionId: targetSessionId, status: 'closed' },
+    });
+  }
+
+  async function runAutomatic(targetSessionId: string, segmentId: string): Promise<void> {
+    await (
+      orchestration as unknown as {
+        runAutomatic(sessionId: string, finalizedSegmentId: string): Promise<void>;
+      }
+    ).runAutomatic(targetSessionId, segmentId);
+  }
 });
+
+function transcript(
+  targetSessionId: string,
+  streamId: string,
+  startMs: number,
+  originalText: string,
+  originalSpeakerRole: 'elder' | 'interviewer',
+): Prisma.TranscriptSegmentUncheckedCreateInput {
+  return {
+    endMs: startMs + 100,
+    id: randomUUID(),
+    ingestKey: `dev-007b-review-${randomUUID()}`,
+    originalRoleAuthority: 'user_confirmed' as const,
+    originalSpeakerRole,
+    originalText,
+    sessionId: targetSessionId,
+    source: 'fixture' as const,
+    speakerRoleRevision: 0,
+    speakerStreamId: streamId,
+    startMs,
+  };
+}
 
 function fixtureCsv(version: string): string {
   return [

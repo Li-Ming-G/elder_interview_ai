@@ -1067,3 +1067,12 @@
 - Decision: 旧 PR #25 继续 REQUEST_CHANGES；从 main 新建 v2 分支，只移植契约中立骨架。后端确定性负责数据库范围、冻结、权限、安全、幂等、版本和写回，一个 Director 只生成结构化建议。
 - Implementation evidence: 正式 Context/Output Schema validator、可编辑 prompt digest、同输入一次 retry、optional bank/seen-declared 分表、free-generation candidate、QuestionEvidence current/history/manual intent、REST canonical/bodyless WS、cursor/anchor 与跨刷新 UI。
 - Verification boundary: deterministic fake、synthetic fixture、unit/PG/Chromium 只证明工程不变量；正式题库、真实模型、生产 boundary/deletion、问题质量和真实试点均未证明。DEV-007B 保持 REVIEW，等待 PR #27 exact-head CI 与项目负责人手动审查。
+
+### 2026-08-11 — DEV-007B v2 REV-038 定向修复
+
+- User outcome: 永久保留 PR #27 old head `542917229e1f68e60d434a74d6ef81b0cd7548f9`、CI `31458597516` 与正式 `REQUEST_CHANGES`（P0=0、P1=4、P2=1），只修 journey 最近回答/continue bypass、共享 8 秒 deadline、automatic provider 前 gate/同阶段 comparator、安全 current projection和 `09` 状态残留；不重开已通过的自由生成、seen/declared、QuestionEvidence owner、actual asked 与历史恢复主干。
+- Review mode: Correction mode；本轮恰好一次独立只读 iteration-coach 复核。其指出旧文档中的模型 score 维度不能继续作为 publication 权威，必须改为服务端由 frozen evidence 可机械计算的 deterministic comparator，并要求 absolute deadline、每次供应商前安全重查和 trailing automatic 调度。
+- Options considered: 沿用 stage+risk 固定分；增加第二个模型打分；用 grounding freshness、最近回答覆盖、stage-purpose fit、risk fit 的后端公式重评 current/candidate。采用第三种，既能区分同阶段候选，又不把模型自报 score 当事实或引入第二 AI。
+- Adopted decision: response/engagement 只看最近 interviewer 后最多 3 条可信 elder 实质 final；continue listening 不调用 Director。attempt `created_at+8s` 是 primary/retry/publication 共同截止；automatic 20 秒门禁位于 provider 前并保留最新 trailing segment；current 只有 visible suggestion + active/unexpired snapshot 才进入 Context。
+- Implementation evidence: `question-selection.ts` 及 unit、coordinator retry unit、orchestration/presentation service、PostgreSQL `question-presentation` 回归，并同步 `05/07/09`、REV-038、task/board/trace/handoff。
+- Verification boundary: 当前仍是修复候选而非项目负责人复审结论；正式 LLM、正式题库、生产 boundary/deletion reader 与真实试点仍未覆盖，CON-023 继续 OPEN，DEV-007B 保持 REVIEW。
