@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；首次访谈 DEV-005、内部可信转录/说话人 DEV-004、长期记忆 DEV-006、双题库/访谈旅程契约、DEV-007A 基础设施与自由生成 Director 契约已完成。DEV-007B v2 READY 但尚未启动；真实题库、真实供应商、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 等聚合验收。下一条产品化主线调整为先接真实流式 ASR，再接真实 LLM；DISC-ASR-PROVIDER-001 正在独立可见窗口讨论。真实题库、补转录、云存储、iPhone Safari 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；ASR/LLM/对象存储最终供应商；CON-006/007/008/012/013/023/026。补转录由 HARDEN-ASR-001 后置；CON-018/025 已由正式 SPEC 和项目负责人审查解决。
+- Open questions: “拾光”是否为正式品牌名；真实 ASR 的语言/方言范围、数据处理地区、speaker label 门槛与供应商；LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -169,6 +169,17 @@
 - Status: confirmed
 
 ## Iteration Log
+
+### 2026-08-11 — 将真实 ASR 调整为真实 LLM 的前置
+
+- User outcome: 先让系统获得真实访谈中的可靠转录，再用真实转录验证长期记忆和下一问，避免在 deterministic fake 上过早调试 LLM。
+- Review mode: Correction mode；独立只读复核确认顺序纠正成立，但真实 provider、双人临时 speaker label 与 gap/backfill 应拆分，不能做成一个巨型任务。
+- Review finding: 现有 mono/16k/s16le PCM、StreamingAsrAdapter、interim/final、幂等落库、speaker stream、timeline offset、drain 与工作台已具备；production 仍绑定 UnavailableStreamingAsrAdapter。真实 LLM 接入应依赖真实流式 ASR PASS，但不必等待离线补转录。
+- Options considered: 先接 LLM；ASR provider 与全部 backfill 一次完成；先做真实流式 ASR+双人标签，backfill 后置。采用第三种。
+- Adopted decision: 启动独立可见 DISC-ASR-PROVIDER-001；先确定语言/地区/保留/speaker 门槛和供应商试验，再分别进入 SPEC、DEV。真实 LLM provider 后置到真实 ASR PASS。
+- Implementation evidence: 本轮仅调整任务顺序并创建讨论窗口，没有实现供应商 adapter、提交密钥或使用真实访谈资料。
+- Lesson: 先让上游事实真实，再评价下游智能；但“真实上游”不等于首轮必须同时完成全部离线恢复可靠性。
+- Better future prompt: “请先讨论并选择支持普通话、常见口音和单声道双人临时标签的实时 ASR；首版只接流式 provider 和有限重连，gap/backfill 后置，完成后再接真实 LLM。”
 
 ### 2026-08-10 — SPEC-AI-QUESTION-001 单问题契约 REVIEW 候选
 
