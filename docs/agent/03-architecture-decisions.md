@@ -305,3 +305,14 @@
 - 取代关系：部分取代 ADR-030 的“题库强制来源、只允许 verbatim/lightly_adapted、无 eligible 原题不得生成、原题 purpose/adaptation reason 为资格门禁”；ADR-030 的题库版本/许可/fixture/导入治理和三阶段旅程继续有效。
 - 代价：自由生成扩大问题质量与事实前提风险，需要严格 Context、Schema、grounding、相似度与真实实践复盘；换取模型真正根据谈话生成最合适下一问，不让题库覆盖范围限制产品价值。
 - 重新评估条件：单次调用在脱敏/真实实践中出现可量化的上下文丢失或质量不足后，才评估检索调用或独立 critic；不得因“数据库需要协调”预先引入第二 planner agent。
+
+## ADR-032｜腾讯实时 ASR V2 采用供应商中立 adapter v2 与连接级 speaker namespace
+
+- 状态：Proposed / REVIEW（等待 SPEC-ASR-PROVIDER-001 exact-head 项目负责人手动审查）
+- 背景：既有 `StreamingAsrAdapter` 同步 `accept(frame)->result[]` 与 void drain 只能支撑 deterministic fake，无法表达腾讯 V2 独立握手、异步结果、连接级 voice ID、结构化 drain 和 late-result fence；首帧还受 250ms deadline 且在首次证据事务内。
+- 决定：保留供应商中立注入边界，但由 DEV-ASR-PROVIDER-001 原子迁移到 v2 lifecycle/result sink/drain evidence port；v1 不得保留为并行生产真相源。业务 `session.ready` 与 provider ready 分离，不新增公共产品状态或数据库枚举。
+- namespace：每个新腾讯 `voice_id` 对应新 provider namespace 和新 `speaker_stream_id`；旧 stream 关闭、sink fence、用户重新校准。`enable_speaker_context=0` 且不发送 context ID；provider label 永远不直接等于业务角色。
+- drain/completeness：当前 voice `final=1`、截至 accepted sequence 的 PCM 已获得终态且相关 final 完成 ingestion，只形成 attempt 级结构化 receipt；close、最后一句、超时或 void resolve 均不成立。runtime 另行维护 session/capture 级单调 completeness：任一未回补 gap 或 coverage evidence 丢失即 sticky incomplete，后续 voice success 不得清除；只有整场无 gap、attempt 边界连续且最后 receipt 完整才把既有 finalization 投影为 `drained`，否则为 `degraded|not_started`。
+- 供应商：首版唯一候选腾讯实时 ASR V2，标准普通话，目标 `16k_zh_en_speaker_2.0`。内部 `diarization_required=true`，但当前官方未证明 `speaker_diarization=1` wire 参数，禁止发送未证实参数；双人稳定 label 只能由真实三次 replay 验收。
+- 代价：需要 DEV 同时改 adapter/gateway/runtime/finalization/config/metrics/test，重连后用户需重新校准，且进程重建丢失 coverage evidence 时会保守 `degraded`；换取不由后续成功掩盖缺口、可追溯、fail-closed、录音优先的真实 provider 生命周期。
+- 边界：本 ADR 不授权 Prisma migration、第二 provider/diarizer、gap/backfill、真实 LLM、真实长者数据或部署；若实现必须改变数据库权威事实、公共状态或校准体验，先另做契约审查。

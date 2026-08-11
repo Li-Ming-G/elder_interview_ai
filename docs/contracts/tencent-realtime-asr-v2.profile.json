@@ -1,0 +1,61 @@
+{
+  "status": "FORMAL_REVIEW_CANDIDATE",
+  "profile_version": "tencent-realtime-asr-v2-2026-08-11",
+  "contract": "streaming-asr-provider-v2",
+  "provider": "tencent_realtime_asr_v2",
+  "endpoint_allowlist": ["wss://asr.cloud.tencent.com/asr/v2/{appid}"],
+  "engine_model_type": "16k_zh_en_speaker_2.0",
+  "diarization_required": true,
+  "speaker_diarization_wire_parameter": null,
+  "speaker_context": { "enable_speaker_context": 0, "speaker_context_id": null },
+  "audio": {
+    "encoding": "pcm_s16le",
+    "sample_rate_hz": 16000,
+    "channels": 1,
+    "browser_frame_duration_ms": 100,
+    "provider_packet_duration_ms": 200,
+    "provider_packet_bytes": 6400,
+    "pacing": "one_to_one_realtime",
+    "tail_rule": "send_exact_unpadded_tail_before_end"
+  },
+  "timeouts_ms": { "connect": 5000, "ready": 5000, "drain": 10000 },
+  "reconnect": {
+    "max_attempts_after_initial": 2,
+    "backoff_ms": [250, 1000],
+    "gap_policy": "future_pcm_only",
+    "backfill_gap": false,
+    "successful_reconnect_does_not_clear_previous_gap": true
+  },
+  "optional_training_optimization_testing_authorization": false,
+  "sources": [
+    "https://cloud.tencent.com/document/product/1093/131127",
+    "https://cloud.tencent.com/document/product/1093/35682",
+    "https://cloud.tencent.com/document/product/1093/35686",
+    "https://cloud.tencent.com/document/product/301/94121",
+    "https://cloud.tencent.com/document/product/1093/115535",
+    "https://cloud.tencent.com/document/product/1093/35802"
+  ],
+  "classification": {
+    "verified": [
+      "V2 WebSocket handshake precedes audio upload",
+      "voice_id is unique per connection and invalid after close/error",
+      "16k mono 16-bit PCM is supported",
+      "sentence_type 0 is interim and 1 is final",
+      "speaker_id -1 means not separated",
+      "final=1 is explicit all-recognition completion",
+      "16k_zh_en_speaker_2.0 advertises speaker separation enabled by default",
+      "optional optimization authorization may remain disabled"
+    ],
+    "inference": [
+      "two 100ms browser frames are aggregated to the official 200ms/6400-byte packet recommendation",
+      "provider packet pacing is enforced by the backend adapter",
+      "Tencent mainland processing is the approved first-version deployment boundary"
+    ],
+    "unknown": [
+      "speaker_diarization=1 as a V2 wire query parameter",
+      "stable two-person labels for the controlled mono fictional interview until three real-provider replays pass",
+      "the actual billed SKU for the speaker engine until bill reconciliation",
+      "diagnostic log, text/audio retention and DPA sufficiency for a real-elder pilot"
+    ]
+  }
+}
