@@ -12,11 +12,11 @@ v2 port 语义为：`connect` 在数据库锁和首个 250ms PCM accept 之外�
 
 ## 2. 生命周期与 namespace
 
-权威顺序：`connect -> ready -> streaming -> stopping -> draining -> drained`。鉴权前未启动为 `not_started`；流中可恢复错误进入新 attempt，旧 attempt 先 `degraded` 并 fence；不可恢复协议/配置错误为 `failed`，对 session finalization 仍投影为既有 `degraded|not_started`，录音继续。
+这里的权威顺序是 **attempt 级**：`connect -> ready -> streaming -> stopping -> draining -> drained`。鉴权前未启动为 `not_started`；流中可恢复错误进入新 attempt，旧 attempt 先 `degraded` 并 fence；不可恢复协议/配置错误为 `failed`。attempt 状态和 receipt 只描述一个 voice，不直接等于 session/capture 转录完整性；公共 finalization 仍只投影既有 `drained|degraded|not_started`，录音继续。
 
 每次腾讯连接生成全新 `attempt_id`、`voice_id=provider_namespace_id` 和 `provider_request_id`。每个新 voice ID 必须关闭旧 `speaker_stream_id`、创建新 `speaker_stream_id`、清除可信校准并要求用户重新确认；即使同一 capture generation 也不继承 label 或角色。`enable_speaker_context=0` 且不发送 `speaker_context_id`。
 
-有限重连只用于实时后续 PCM：初次连接后最多 2 次，退避 250ms/1000ms。首版不补故障区间；旧 voice 的 late/replay/duplicate/out-of-order 结果因四元组 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 不匹配而丢弃并计数。若需要改变次数、用户校准体验或数据库权威事实，必须另做契约变更。
+有限重连只用于实时后续 PCM：初次连接后最多 2 次，退避 250ms/1000ms。首版不补故障区间；新 attempt 必须继承同一 session runtime 的 completeness 聚合，不得初始化为 clean。旧 voice 的 late/replay/duplicate/out-of-order 结果因四元组 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 不匹配而丢弃并计数。若需要改变次数、用户校准体验或数据库权威事实，必须另做契约变更。
 
 ## 3. 音频、映射与幂等
 
@@ -24,9 +24,29 @@ v2 port 语义为：`connect` 在数据库锁和首个 250ms PCM accept 之外�
 
 腾讯 `sentence_type=0` 映射 interim，仅展示；`sentence_type=1` 映射 final，使用 namespace + sentence identity 构造稳定 `ingest_key` 后幂等持久化。start/end 映射到 session timeline；`speaker_id=-1`、缺失或非法 label 均映射 `speaker_provider_id=null`/角色 `unknown`，AI 不猜。provider label 永远不是 elder/interviewer；只有当前 speaker stream 内用户确认后才 trusted。校准控制句保留证据但从普通 AI 消费排除。
 
-## 4. stop、drain 与错误
+## 4. attempt drain、整场完整性与错误
 
-drained 的必要且充分条件：本地停止新 PCM并成功发送 end；收到当前 voice 的 `final=1`；截至 `accepted_through_sequence` 的 PCM 均有 sent 或明确 terminal 结果；该 namespace 的所有已接收 final 完成幂等 ingestion；结构化 receipt 与当前 attempt 四元组匹配。WS close、最后一条 sentence、无结果或 void resolve 均不是 drain 证据。10 秒 deadline 后 cancel/fence，迟到 sink 不得写库，finalization 为 `degraded`。
+### 4.1 attempt 级结构化 receipt
+
+attempt `drained` receipt 的必要且充分条件：本地停止新 PCM并成功发送 end；收到当前 voice 的 `final=1`；截至 `accepted_through_sequence` 的 PCM 均有 sent 或明确 terminal 结果；该 namespace 的所有已接收 final 完成幂等 ingestion；结构化 receipt 与当前 attempt 四元组匹配。WS close、最后一条 sentence、无结果或 void resolve 均不是 drain 证据。10 秒 deadline 后 cancel/fence，迟到 sink 不得写库。
+
+receipt success 只证明该 attempt 已明确收束，不证明此前或整场没有缺口，也不得直接把 session finalization 写为 `drained`。
+
+### 4.2 session/capture 级 sticky completeness
+
+runtime 必须在所有 attempt 之外维护同一 session/capture 的单调聚合 `session_capture_completeness`：初始 `no_known_gap`，一旦检测到任何已知且尚未回补的 ASR gap，转为 `known_unbackfilled_gap`；本 v2 只允许该单向转移。新 voice 的 connect/ready/streaming、`final=1`、ingestion complete 或 attempt drain success 均不得 reset/clear。runtime/process 或 coverage evidence 丢失而无法证明此前完整时，也必须失败关闭为 `known_unbackfilled_gap`。这可能保守地产生 degraded，但不得产生假完整。
+
+以下条件形成 sticky gap；错误是否 retryable 只决定是否创建新 attempt，不决定 gap 是否存在：
+
+- WS close/error、ready/drain timeout、cancel、协议或 provider 故障，使已 accepted/sent PCM 在 fence 时仍无终态，或 `accepted_through_sequence > terminal_through_sequence`；
+- 已接管 PCM 被旧 sink fence、丢弃、未发送，或没有可归属的明确 terminal；
+- capture 时间轴继续前进但没有 ready attempt，期间 eligible PCM 未被有界保存并由新旧 attempt 连续覆盖，包括 reconnect/backoff 或不可恢复的鉴权、额度、引擎故障后形成的未转录区间；
+- runtime/process/attempt coverage evidence 丢失，且无法证明此前 capture PCM 已由有效 receipt 连续覆盖；
+- 任一旧 attempt 已留下上述缺口，即使当前 attempt 后续成功收束。
+
+以下情况本身不形成 gap：attempt 在分配任何 capture PCM 前握手失败/取消，后继 attempt 从首个 PCM 连续接管；前一 attempt receipt 完整且后一 attempt 从紧邻 sequence/timeline 边界接管、交接期间无 frame 丢失；短时 transport 重连后有界缓存全部按序发送；被 fence 的 late/duplicate/out-of-order 结果所对应音频已经由有效 receipt 完整覆盖；多个零 PCM attempt 后所有实际 PCM 被最终 attempt 连续覆盖。换言之，新 voice 本身不是 gap，未覆盖 PCM/时间区间才是 gap。
+
+stop 时只允许以下整体投影：整场从未建立可用 ASR、也没有可证明的转录覆盖为 `not_started`；存在 `known_unbackfilled_gap`，或 completeness/coverage evidence 丢失、无法证明完整，为 `degraded`；只有聚合始终为 `no_known_gap`、所有 attempt 边界连续且最后 attempt receipt 完整，才为 `drained`。后续 attempt 成功不得掩盖旧 gap。只有未来 `HARDEN-ASR-001` 引入权威 gap ledger/backfill 覆盖证据并明确关闭所有 gap 后，才可另行定义整场 completeness 重算；本 SPEC 不提供 clear/reset/reconcile 恢复路径。
 
 稳定错误分类：鉴权/签名 `ASR_AUTH_FAILED`；未开通/引擎 `ASR_ENGINE_UNAVAILABLE`；额度/欠费 `ASR_QUOTA_EXHAUSTED`；并发/发送过快 `ASR_RATE_LIMITED`；音频 `ASR_AUDIO_INVALID`；网络/供应商 5xxx `ASR_PROVIDER_UNAVAILABLE`；ready/drain 超时 `ASR_TIMEOUT`；协议/身份不匹配 `ASR_PROTOCOL_INVALID`；撤权/访问失效 `ASR_CANCELLED`。只有网络、超时和明确可重试的 provider 错误进入有限重连；鉴权、额度、引擎和协议错误 fail closed。
 
@@ -72,6 +92,6 @@ Unknown/corrected：官方 V2 当前未列 `speaker_diarization` query 参数，
 
 同一受控 PCM 对腾讯 replay 3 次，并分别跑桌面 Chromium 和目标 Android 正式链路；另跑主动断线 fault lane。三次中任一次不能得到两个可由固定校准句区分并经用户确认的临时 label，即产品完整可用 FAIL；不得加第二 diarizer。任一不确定片段必须 unknown，禁止错继承 trusted role。
 
-PASS 候选还必须同时证明：archive/manifest 完整；interim 不落库、final-only 幂等且有序；duplicate/replay/out-of-order 被 fence；控制句不进普通 AI；当前 voice `final=1` 形成结构化 drain；reopen/重连新 speaker stream 并重校准；Android 使用正式采集链路；断线时 `degraded|not_started` 且录音/安全结束继续。fake、单测、宣传或单次供应商运行均不得冒充真实 provider PASS。
+PASS 候选还必须同时证明：archive/manifest 完整；interim 不落库、final-only 幂等且有序；duplicate/replay/out-of-order 被 fence；控制句不进普通 AI；当前 voice `final=1` 形成 attempt 级结构化 receipt；reopen/重连新 speaker stream 并重校准；Android 使用正式采集链路；断线时录音/安全结束继续。主动断线回归必须是：voice A 在 accepted PCM 后断线并形成未回补 gap；voice B 使用新 namespace/new speaker stream，成功 `final=1`、ingestion complete、attempt drain success；session/capture 仍为 `degraded/incomplete`。另须证明无 gap 多-attempt lane（A 在首个 PCM 前失败，或 A receipt 完整且 B 紧邻边界连续接管）可在 B receipt 完整后达到整场 `drained`。runtime/coverage evidence 丢失后即使新 voice 成功也保持 `degraded`，且本 SPEC 无 clear sticky 的入口。fake、单测、宣传或单次供应商运行均不得冒充真实 provider PASS。
 
 `DEV-ASR-PROVIDER-001` 开工条件：本 SPEC exact-head 获项目负责人手动 PASS；测试环境的后端安全注入和预算/配额由负责人就绪但不进入仓库；腾讯账号具备目标引擎/并发；虚构剧本、受控 PCM、桌面/Android 与账单核对方案就绪；真实长者试点的 retention/DPA 门禁仍可保持阻塞。真实 LLM provider 只能在 DEV-ASR-PROVIDER-001 正式 PASS 后启动。

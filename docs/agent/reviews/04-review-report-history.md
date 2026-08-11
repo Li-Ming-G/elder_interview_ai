@@ -675,3 +675,12 @@ P2：
 - 合并：PR #27 以 merge commit `3bb80df36d484779761cf6bb6d45c302fa8d32d7` 合入 main；该 main 集成点 CI `31468031796` completed / success；DEV-007B DONE，父 DEV-007 转入聚合验收。
 - 历史保留：本节不覆盖同一 REV-038 old head `542917229e1f68e60d434a74d6ef81b0cd7548f9`、CI `31458597516`、REQUEST_CHANGES/P1=4/P2=1；旧 PR #25 继续 OPEN / REQUEST_CHANGES / 不得合并。
 - 边界：正式题库、真实 LLM、生产 boundary/deletion reader、生产部署、问题质量与真实试点仍未验收；CON-023 继续 OPEN。子任务 PASS 不自动构成父 DEV-007 聚合 PASS。
+
+## REV-039｜SPEC-ASR-PROVIDER-001 / PR #28 项目负责人首轮审查
+
+- 审查对象：PR #28 exact head `8d9922bead9a7d70517bafe2245bc44a560b8dc5`；CI `31476068838` SUCCESS；PR 为 OPEN、non-Draft、未合并。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=1。SPEC-ASR-PROVIDER-001 保持 `REVIEW`，DEV-ASR-PROVIDER-001 保持 `BLOCKED`；不得合并或自行宣布 PASS/DONE。
+- 唯一 P1：重连后当前 voice/attempt 成功 `final=1`、ingestion complete 与 drain success，不能掩盖此前已知且尚未回补的 ASR gap。必须区分 attempt receipt/state 与 session/capture transcription completeness；任一未回补 gap 对整场 sticky degraded/incomplete，只有未来 HARDEN-ASR-001 的权威 backfill 可另行定义有证据重算。
+- 必要回归：voice A accepted PCM 后断线并产生 gap → voice B 新 namespace/new speaker stream → B receipt success → 整场仍 degraded/incomplete；同时覆盖 A 在首个 PCM 前失败或 A/B 连续完整交接的无 gap lane，防止把所有新 voice 永久降级。
+- 当前进展：定向修复候选已在正式 contract/Schema、`04/05/06/09`、ADR、追踪与交接中冻结 attempt/session 分层、sticky 单向聚合、precise gap/no-gap 条件、runtime evidence loss 失败关闭及无 clear 路径；该描述仅记录候选，不构成新 exact-head 复审结论。
+- 历史保留：old head `8d9922bead9a7d70517bafe2245bc44a560b8dc5`、CI `31476068838`、正式 REQUEST_CHANGES/P1=1 永久保留，不得被后续定向复审覆盖。

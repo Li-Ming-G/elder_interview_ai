@@ -19,7 +19,13 @@
     "tail_rule": "send_exact_unpadded_tail_before_end"
   },
   "timeouts_ms": { "connect": 5000, "ready": 5000, "drain": 10000 },
-  "reconnect": { "max_attempts_after_initial": 2, "backoff_ms": [250, 1000], "backfill_gap": false },
+  "reconnect": {
+    "max_attempts_after_initial": 2,
+    "backoff_ms": [250, 1000],
+    "gap_policy": "future_pcm_only",
+    "backfill_gap": false,
+    "successful_reconnect_does_not_clear_previous_gap": true
+  },
   "optional_training_optimization_testing_authorization": false,
   "sources": [
     "https://cloud.tencent.com/document/product/1093/131127",

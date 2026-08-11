@@ -5,14 +5,16 @@
   "description": "FORMAL. Contract for DEV-ASR-PROVIDER-001. It replaces the v1 accept(frame)->results/drain()->void runtime seam; v1 must not remain as a production truth source.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "lifecycle", "namespace", "audio", "result", "drain", "errors"],
+  "required": ["contract_version", "lifecycle", "namespace", "audio", "result", "drain", "session_capture_completeness", "errors"],
   "properties": {
     "contract_version": { "const": "streaming-asr-provider-v2" },
     "lifecycle": {
+      "description": "Attempt-scoped lifecycle. It never proves session/capture transcription completeness.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "attempt_id"],
+      "required": ["scope", "state", "attempt_id"],
       "properties": {
+        "scope": { "const": "attempt" },
         "state": { "enum": ["connect", "ready", "streaming", "stopping", "draining", "drained", "degraded", "not_started", "failed"] },
         "attempt_id": { "type": "string", "format": "uuid" }
       }
@@ -59,10 +61,13 @@
       }
     },
     "drain": {
+      "title": "AttemptDrainReceipt",
+      "description": "Receipt for one attempt/voice only. Success cannot clear an earlier session/capture gap and cannot by itself project finalization to drained.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["attempt_id", "provider_namespace_id", "provider_request_id", "speaker_stream_id", "provider_final_observed", "accepted_through_sequence", "terminal_through_sequence", "results_ingested", "completed_at"],
+      "required": ["scope", "attempt_id", "provider_namespace_id", "provider_request_id", "speaker_stream_id", "provider_final_observed", "accepted_through_sequence", "terminal_through_sequence", "results_ingested", "completed_at"],
       "properties": {
+        "scope": { "const": "attempt" },
         "attempt_id": { "type": "string", "format": "uuid" },
         "provider_namespace_id": { "type": "string", "minLength": 1 },
         "provider_request_id": { "type": "string", "minLength": 1 },
@@ -74,6 +79,41 @@
         "completed_at": { "type": "string", "format": "date-time" }
       }
     },
+    "session_capture_completeness": {
+      "description": "Runtime session/capture aggregate across every provider attempt. known_unbackfilled_gap is sticky in this contract; only a future HARDEN-ASR-001 authority may define evidence-backed recomputation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "status", "sticky_degraded", "complete_capture_coverage_proven", "unbackfilled_gaps", "clear_authority"],
+      "properties": {
+        "scope": { "const": "session_capture" },
+        "status": { "enum": ["no_known_gap", "known_unbackfilled_gap"] },
+        "sticky_degraded": { "type": "boolean" },
+        "complete_capture_coverage_proven": { "type": "boolean" },
+        "unbackfilled_gaps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unbackfilledGap" }
+        },
+        "clear_authority": { "const": "HARDEN-ASR-001" }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": { "const": "no_known_gap" },
+            "sticky_degraded": { "const": false },
+            "complete_capture_coverage_proven": { "const": true },
+            "unbackfilled_gaps": { "maxItems": 0 }
+          }
+        },
+        {
+          "properties": {
+            "status": { "const": "known_unbackfilled_gap" },
+            "sticky_degraded": { "const": true },
+            "complete_capture_coverage_proven": { "const": false },
+            "unbackfilled_gaps": { "minItems": 1 }
+          }
+        }
+      ]
+    },
     "errors": {
       "type": "object",
       "additionalProperties": false,
@@ -82,6 +122,30 @@
         "category": { "enum": ["auth", "signature", "quota", "rate_limit", "engine", "audio", "network", "timeout", "provider", "cancelled", "protocol"] },
         "retryable": { "type": "boolean" },
         "safe_code": { "type": "string", "pattern": "^ASR_[A-Z0-9_]+$" }
+      }
+    }
+  },
+  "$defs": {
+    "unbackfilledGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_attempt_id", "start_sequence", "end_sequence", "reason", "backfill_status"],
+      "properties": {
+        "source_attempt_id": { "type": ["string", "null"], "format": "uuid" },
+        "start_sequence": { "type": ["integer", "null"], "minimum": 0 },
+        "end_sequence": { "type": ["integer", "null"], "minimum": 0 },
+        "reason": {
+          "enum": [
+            "accepted_not_terminal",
+            "capture_coverage_discontinuity",
+            "ready_timeout_unaccounted_pcm",
+            "drain_timeout_unaccounted_pcm",
+            "cancelled_unaccounted_pcm",
+            "provider_error_unaccounted_pcm",
+            "evidence_lost"
+          ]
+        },
+        "backfill_status": { "const": "unbackfilled" }
       }
     }
   }

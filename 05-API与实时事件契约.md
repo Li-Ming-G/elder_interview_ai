@@ -401,7 +401,7 @@ stop 接受前，既有 interview audio object 的 upload/complete/manifest 继�
 
 - `stopping -> processing`：冻结范围内分片全部可靠保存，audio complete 对存储重新复核且 manifest 完整；
 - `processing -> completed`：transcript 进入 `drained|degraded|not_started`；AI/记忆/建议/工作记录不是条件；
-- stop 接受时服务端持久化当时最高已接受 ASR audio sequence；`drained` 必须来自 adapter 对该 stream 的明确 drain 终止并写完成时间，不得从最后一条 final 或 WebSocket close 推断；stream 不存在、进程重启丢失或无法确认时只能进入 `not_started|degraded`；
+- stop 接受时服务端持久化当时最高已接受 ASR audio sequence；单个 attempt 的明确 drain receipt 只证明该 voice 已收束，不直接等于 session `drained`。只有 session/capture completeness 无已知 gap、全部 attempt coverage 连续且最后 attempt receipt 完整，才写 `drained` 与完成时间；任一旧 attempt 的未回补 gap 必须 sticky `degraded`，后续 voice success 不得清除。不得从最后一条 final 或 WebSocket close 推断；从未建立可用 ASR 为 `not_started`，进程重启丢失 coverage evidence 或无法确认整场完整为 `degraded`；
 - 意外断线且尚无 stop snapshot 可进入 `interrupted`；缺片或 runner 进程故障保持 `stopping|processing` 可 recover；
 - start/confirm/report/resume/stop 共享 `request -> project -> session -> audio` 锁序。stop 先提交时晚到 interrupted report 不得回退；report 先提交时正常 stop 必须改走 `finalize_interrupted`；revoke 先提交时 resume/finalize 拒绝；resume 后 revoke 时新 generation 被置为 interrupted；任何竞态不得产生第二个 object、current generation 或 finalization；
 - 只有 audio commitment 冲突、manifest 已确认不可恢复或重复内部收束失败达到配置上限并需人工处置时进入 `failed`；`failed` 不覆盖已保存音频、manifest、final 转录或授权记录；
@@ -1316,4 +1316,6 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 
 旧 `accept(frame)->results[]` 与 `drainAndClose()->void` 生产 seam 被 v2 原子替代：connect/ready 独立；PCM accept 只表示 adapter 接管/入队；结果通过绑定 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 的异步 sink 回传；不匹配或 fenced 的 late/replay/duplicate/out-of-order 结果不得写库。每个新 `voice_id` 必须新建 speaker stream 并发布既有完整 `speaker.calibration.updated` snapshot，不新增半套事件。
 
-结构化 drain receipt 仅在当前 voice `final=1`、accepted PCM 均获得 sent/terminal 结果且相关 final 完成 ingestion 后有效。deadline、cancel、close 或错误会 fence sink；WS close、最后一句或 void resolve 不构成 receipt。稳定安全错误分类和 retryability 以正式 v2 契约为准，对公共 session 只投影既有 `degraded|not_started`。
+结构化 drain receipt 仅在当前 voice `final=1`、accepted PCM 均获得 sent/terminal 结果且相关 final 完成 ingestion 后有效。它是 attempt-level evidence，不证明整场 completeness。deadline、cancel、close 或错误会 fence sink；WS close、最后一句或 void resolve 不构成 receipt。
+
+runtime 必须跨新 voice 保留 session/capture 级 `no_known_gap -> known_unbackfilled_gap` 单向聚合。WS close/error、timeout、cancel 或可/不可恢复故障只有在造成 accepted PCM 无终态、capture coverage 中断或 evidence 丢失时形成 gap；新 voice 本身不是 gap，零 PCM 失败或相邻 attempt 连续完整交接仍可最终 `drained`。已形成 gap 后，任何 connect/ready/final/receipt/reconcile 都不得 clear；本 SPEC 不新增公共 clear API。只有未来 `HARDEN-ASR-001` 的权威 backfill 可另行定义重算。稳定安全错误分类和 retryability 以正式 v2 契约为准，对公共 session 只投影既有 `drained|degraded|not_started`。

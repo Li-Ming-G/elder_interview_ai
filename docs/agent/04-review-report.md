@@ -35,6 +35,7 @@
 | DEV-007B | REV-036 | PR #25 / head `55bf9fba9f721a5f02b9e3224768c644324f1293` / CI `31412038872` PASS | REVIEW / REQUEST_CHANGES | 用户临时委派总控代审；并发/幂等/late writeback/commit eligibility/stage/runtime signal/history recovery 等 P1 与前端 P2 未关闭。更重要的是题库白名单产品契约已被项目负责人纠正，PR #25 停止修补并由 SPEC-QUESTION-DIRECTOR-001 / DEV-007B v2 取代；不得合并 |
 | SPEC-QUESTION-DIRECTOR-001 | REV-037 | PR #26 / final head `8938d525d66f138e7c7b7e3049fe56cbea6bcbb1` / CI `31454260127` PASS / merge `d320f642` | DONE / PASS | 项目负责人定向复审 P0/P1=0、P2=1；四项旧 P1 全部关闭。P2 旧动态状态句已治理清理；old head `0a75b170` REQUEST_CHANGES/P1=4 永久保留。ADR-031 Accepted、CON-026 RESOLVED、DEV-007B READY |
 | DEV-007B | REV-038 | PR #27 / final head `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3` / CI `31465809589` PASS / merge `3bb80df` | DONE / PASS | 项目负责人手动定向复审 P0/P1/P2=0；四项旧 P1 与一项 P2 全部关闭。old head `5429172` REQUEST_CHANGES/P1=4/P2=1 永久保留；GitHub APPROVE 因 integration 403 未写入 UI，不影响本次明确手动结论。父 DEV-007 转聚合验收；旧 PR #25 继续 REQUEST_CHANGES |
+| SPEC-ASR-PROVIDER-001 | REV-039 | PR #28 / old exact head `8d9922bead9a7d70517bafe2245bc44a560b8dc5` / CI `31476068838` SUCCESS | REVIEW / REQUEST_CHANGES | 项目负责人正式首审 P0=0/P1=1：当前 attempt drain success 不能清除旧的未回补 ASR gap。定向候选已冻结 session/capture sticky completeness、无 gap 多-attempt 与 evidence-loss 失败关闭；等待新 exact-head CI SUCCESS 后只复审该 P1，不得合并或自宣 PASS/DONE |
 
 ## 阅读规则
 
@@ -44,4 +45,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-038`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-039`。
