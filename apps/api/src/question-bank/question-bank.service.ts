@@ -299,6 +299,7 @@ export class QuestionBankReader {
         applicableConditionCodes: item.applicableConditionCodes as QuestionConditionCode[],
         bank: item.bank,
         bankVersion: release.bankVersion,
+        contentDigest: release.contentDigest,
         inapplicableConditionCodes: item.inapplicableConditionCodes as QuestionConditionCode[],
         itemId: item.id,
         licenseStatus: item.licenseStatus as EligibleQuestionBankItem['licenseStatus'],

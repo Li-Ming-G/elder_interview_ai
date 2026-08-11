@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配
+- 状态：`REVIEW`
+- 负责人：Codex DEV-007B v2 Agent
 - 前置依赖：SPEC-QUESTION-DIRECTOR-001 项目负责人 PASS/merge、DEV-007A PASS、DEV-006 DONE、SPEC-AI-QUESTION-001 DONE
 - 输入依据：`03` §9/§11、`04` §§4.36-4.39、`05` §3.9、`07` §§5-10、`09` §7.6-§7.7、ADR-027-031
 - 交接对象：父 DEV-007、项目负责人 GitHub 审查
@@ -26,3 +26,20 @@
 ## 验收
 
 逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵；必须证明无题库引用可合法生成、seen 与 declared 分离、声明引用和 grounding ID 都来自 frozen Context、源事实只读、同输入 retry、prompt/schema 版本可复盘，并通过现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。
+
+## 当前交付
+
+- 分支：`codex/dev-007b-v2-interview-director`
+- 非 Draft PR：[PR #27](https://github.com/Li-Ming-G/elder_interview_ai/pull/27)
+- 实现提交：`f9f4a22`；最终 exact head 与 exact-head CI 以 PR 审查包为准。
+- 状态严格保持 REVIEW；旧 PR #25 继续为 REQUEST_CHANGES，不得合并。
+
+## REV-038 定向修复候选
+
+- 旧正式审查严格绑定 PR #27 head `542917229e1f68e60d434a74d6ef81b0cd7548f9`、CI `31458597516`，结论 `REQUEST_CHANGES`（P0=0、P1=4、P2=1）；历史永久保留。
+- journey 的 response/engagement 信号只读取最近一次 interviewer 之后最多 3 条可信 elder 实质 final；`shouldContinueListening=true` 直接发布 `continue_listening`，不调用 Director、不创建 candidate。
+- manual attempt 从持久 `created_at` 起共享 8 秒绝对 deadline；primary/retry 每次调用前重查 policy/deletion，writeback 事务内再次检查截止时间，迟到结果不得发布。
+- automatic 在 provider 调用前执行 20 秒 gate，并采用 trailing latest segment；`question-select-v1` 由后端按 grounding freshness、latest-answer coverage、stage-purpose fit、risk fit 确定性评分，同阶段问题可比较且不引入第二 AI。
+- Director Context 只接收 visible suggestion 且 retention active/unexpired 的 current；expired/hidden/withdrawn 一律投影 `current_presentation=null`，不再用不受限 snapshot fallback。
+- `09` 的旧 DEV-007B 动态状态残留已清理；本候选仍等待新 exact head/CI 和项目负责人定向复审，不构成 PASS/DONE。
+- 定向实现提交：`67e17e1`；最终 exact head 与 exact-head CI 以 PR #27 最新审查包为准。

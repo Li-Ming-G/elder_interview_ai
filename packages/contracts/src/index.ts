@@ -327,6 +327,7 @@ export interface ResolveSpeakerCalibrationRequest extends IdempotentRequest {
 
 export const INTERVIEW_WS_PATH = '/ws/interviews';
 export const INTERVIEW_WS_SCHEMA_VERSION = '1.1';
+export const SUGGESTION_WS_SCHEMA_VERSION = '1.2';
 export const INTERVIEW_WS_MAX_MESSAGE_BYTES = 8192;
 export const INTERVIEW_PCM_FRAME_BYTES = 3200;
 export const INTERVIEW_PCM_FRAME_DURATION_MS = 100;
@@ -342,6 +343,7 @@ export type InterviewWsServerType =
   | 'error'
   | 'heartbeat.ack'
   | 'speaker.calibration.updated'
+  | 'suggestion.presentation.changed'
   | 'session.ready';
 
 export interface InterviewWsClientEnvelope<TType extends InterviewWsClientType, TPayload> {
@@ -391,8 +393,99 @@ export interface InterviewWsServerEnvelope<TType extends InterviewWsServerType, 
   server_sequence: number;
   session_id: string;
   timestamp: string;
-  schema_version: typeof INTERVIEW_WS_SCHEMA_VERSION;
+  schema_version: typeof INTERVIEW_WS_SCHEMA_VERSION | typeof SUGGESTION_WS_SCHEMA_VERSION;
   payload: TPayload;
+}
+
+export type SuggestionPresentationKind =
+  'suggestion' | 'continue_listening' | 'unavailable' | 'withdrawn';
+
+export type SuggestionWithdrawalReason =
+  | 'restricted'
+  | 'do_not_ask'
+  | 'deletion_active'
+  | 'consent_revoked'
+  | 'access_revoked'
+  | 'policy_unavailable';
+
+export interface SuggestionHistorySummary {
+  has_previous: boolean;
+}
+
+export interface SuggestionPresentationResponse {
+  session_id: string;
+  presentation_revision: number;
+  kind: SuggestionPresentationKind;
+  snapshot_id: string | null;
+  display_sequence: number | null;
+  question: string | null;
+  reason: string | null;
+  displayed_at: string | null;
+  withdrawal_reason: SuggestionWithdrawalReason | null;
+  history: SuggestionHistorySummary;
+}
+
+export interface SuggestionHistoryItem {
+  snapshot_id: string;
+  display_sequence: number;
+  question: string | null;
+  reason: string | null;
+  displayed_at: string;
+  kind: 'suggestion' | 'withdrawn';
+  withdrawal_reason: SuggestionWithdrawalReason | null;
+  older_cursor: string | null;
+  newer_cursor: string | null;
+}
+
+export interface SuggestionHistoryPageResponse {
+  session_id: string;
+  items: SuggestionHistoryItem[];
+  next_cursor: string | null;
+  anchor: string;
+}
+
+export interface SuggestionHistoryItemResponse {
+  session_id: string;
+  anchor: string;
+  item: SuggestionHistoryItem;
+}
+
+export interface ManualNextSuggestionRequest extends IdempotentRequest {
+  expected_presentation_revision: number;
+  expected_snapshot_id: string | null;
+}
+
+export interface SuggestionRequestAcceptedResponse {
+  request_id: string;
+  attempt_id: string;
+  status: 'pending' | 'running';
+  accepted_presentation_revision: number;
+  retry_after_ms: number;
+}
+
+export interface SuggestionRequestStatusResponse {
+  request_id: string;
+  attempt_id: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  result_kind: 'suggestion' | 'continue_listening' | 'unavailable' | null;
+  publication_outcome:
+    | 'published'
+    | 'not_better'
+    | 'duplicate_filtered'
+    | 'stale_basis'
+    | 'superseded_by_manual'
+    | 'policy_blocked'
+    | 'not_applicable'
+    | null;
+  error_code: string | null;
+  current: SuggestionPresentationResponse;
+}
+
+export interface SuggestionPresentationChangedPayload {
+  presentation_revision: number;
+  kind: SuggestionPresentationKind;
+  snapshot_id: string | null;
+  change_kind: 'initial_display' | 'automatic_replace' | 'manual_next' | 'hard_withdrawal';
 }
 
 export interface InterviewWsSessionReadyPayload {

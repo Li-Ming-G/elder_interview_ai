@@ -765,12 +765,13 @@ QuestionJourneyService.evaluate(frozen_context, journey_policy_version)
 }
 ```
 
-`GET /sessions/:id/suggestion-requests/:requestId` 只允许原 actor 或具有同项目明确诊断权限的角色，返回 `pending|running|succeeded|failed|cancelled`、result kind、publication outcome、最小 error code 与最新安全 current projection。它不返回 provider 原文、完整模型输出、内部 score 或未发布 candidate。manual attempt 的总 deadline 初始为 8 秒并配置化；超时后稳定为 `failed/AI_UNAVAILABLE`。
+`GET /sessions/:id/suggestion-requests/:requestId` 只允许原 actor 或具有同项目明确诊断权限的角色，返回 `pending|running|succeeded|failed|cancelled`、result kind、publication outcome、最小 error code 与最新安全 current projection。它不返回 provider 原文、完整模型输出、内部 score 或未发布 candidate。manual attempt 的总 deadline 初始为 8 秒并配置化，从持久 attempt 的 `created_at` 起算，primary、同输入 retry、两次调用前的权限/边界/deletion 重检和最终 publication 共用同一个绝对截止时间；不是每次 provider call 各有 8 秒。截止后稳定为 `failed/AI_UNAVAILABLE`，任何迟到 provider 结果均无 candidate/current/history 写回资格。
 
 #### 3.9.3 自动替换、排序与竞态
 
-- automatic trigger 继续采用至少 20 秒最短间隔和权威 trigger dedupe。候选只在 future eligible、未命中 §7 的有序排除、且版本化 comparator 判断比 current 严格更合适时发布；attempt succeeded 不等于 published；
-- 内部 `selection_score` 不进入公共 DTO。默认 `selection_policy_version=question-select-v1`，替换要求 candidate score 至少比 current 高 `0.12`；当前 suggestion 至少稳定展示 15 秒；候选再等待 1500 ms debounce，并在 commit 前重新验证 basis revision、manual intent fence、eligibility、policy 与分差；所有阈值配置化并随 attempt/snapshot 记录版本；
+- automatic trigger 继续采用至少 20 秒最短 provider 调用间隔和权威 trigger dedupe；20 秒门禁必须发生在 job/provider 调用之前，过早 trigger 以最新 final 做 trailing-edge 重排到下一个可调用时点，不能先调用模型再在 publication 时丢弃，也不能直接丢弃后让安静会话永远不再评估。候选只在 future eligible、未命中 §7 的有序排除、且版本化 comparator 判断比 current 严格更合适时发布；attempt succeeded 不等于 published；
+- 内部 `selection_score` 不进入公共 DTO。默认 `selection_policy_version=question-select-v1`；它是确定性后端对既有 Context/grounding 事实的计算，不是 Director Output 字段、模型 confidence 或第二个 AI。分数固定为 `0.55 × grounding_freshness + 0.20 × latest_answer_coverage + 0.15 × stage_purpose_fit + 0.10 × risk_fit`：`grounding_freshness` 对当前最近实质长者回答的最新 segment/同回答较早 segment/更早 segment/仅 memory/无 grounding 分别为 `1/0.65/0.25/0.20/0`；`latest_answer_coverage` 为 candidate grounding 覆盖该回答 segment 的比例，无最近回答时 memory grounding 为 `0.5`、否则为 `0`；`stage_purpose_fit` 按 `07` §9 的固定 stage-purpose 集合命中为 `1`、否则 `0.5`；`risk_fit` 对 `low|medium|high` 为 `1|0.5|0`。比较 current 时必须用本次 frozen answer 水位和 current candidate 已持久化 grounding 重新计算，不能直接沿用其历史 score。question-sim-v1 仍先独立过滤高度相似文本；
+- 自动替换要求按上述同一 comparator 重算后的 candidate score 至少比 current 高 `0.12`；当前 suggestion 至少稳定展示 15 秒；候选再等待 1500 ms debounce，并在 commit 前重新验证 basis revision、manual intent fence、eligibility、policy 与分差；所有阈值配置化并随 attempt/snapshot 记录版本；
 - 同分使用 `(evidence watermark desc, candidate.created_at asc, candidate.id asc)` 确定性 tie-break，但仍必须满足最小分差；不得用模型 confidence 直接决定“更合适”或作为产品事实；
 - automatic 与 automatic 最多单飞一条；重复证据/trigger 返回原 attempt。写回使用 basis presentation revision CAS；较晚完成但基于旧 current 的结果为 `cancelled/stale_basis`，不得 last-writer-wins；
 - manual next 优先于更早 automatic。manual 请求锁先赢时建立 fence，旧 auto 写回 `superseded_by_manual`；auto publication 先赢时 presentation revision 改变，仍基于旧 revision 的 manual 请求稳定返回 `SUGGESTION_CURRENT_CHANGED`，由客户端展示新 current 后再决定是否发起新动作；
@@ -829,7 +830,7 @@ QuestionEvidenceReader.listCurrentActualAsked(project_id, consumer_session_id, a
 
 1. 输入冻结事务按 `request_id/trigger identity -> project -> session_id 升序` 获取资源锁，重读权限、授权、项目/边界/deletion 状态；写 job、全部 session scope、实际 segment/memory membership 后提交；
    - `request_identity_hash` 持久绑定 action、actor/system trigger、target 与规范化 payload；同 request 响应未知只重放首次 job/结果，同 ID 不同绑定冲突；自动 trigger 另以稳定 `trigger_dedupe_key` 去重，显式 retry 使用新 request ID 并写 `retry_of_job_id`；
-2. 供应商调用期间不持数据库锁。`question_generation` 在同一 attempt/job 内先执行一次 `primary`；transport/timeout 或第一次返回内容未通过 JSON/Output Schema、引用 ID/subset、明显长度/结构等写回前基础硬校验时，允许最多一次 `same_input_retry`。第二次调用的 Prompt、frozen Context、Output Schema、model config、版本/digest 和 input hash 必须与第一次逐值相同，不携带第一次输出、错误原因或修复提示；第一次超时后的迟到结果永不具写回资格；权限、安全、deletion、重复或 writeback 漂移不 retry；
+2. 供应商调用期间不持数据库锁。`question_generation` 在同一 attempt/job 内先执行一次 `primary`；transport/timeout 或第一次返回内容未通过 JSON/Output Schema、引用 ID/subset、明显长度/结构等写回前基础硬校验时，允许最多一次 `same_input_retry`。两次调用与 publication 共用从 attempt 创建时间起算的总 deadline；每次调用前都重新检查权限、授权、边界、deletion 和剩余预算，retry 前检查失败或预算耗尽即失败关闭，不得调用供应商。第二次调用的 Prompt、frozen Context、Output Schema、model config、版本/digest 和 input hash 必须与第一次逐值相同，不携带第一次输出、错误原因或修复提示；第一次超时后的迟到结果永不具写回资格；权限、安全、deletion、重复或 writeback 漂移不 retry；
 3. 写回事务按相同资源顺序重锁，重新验证 policy revision、全部 scope/membership/version/digest、权限、授权、边界与 deletion scope；任一漂移则取消 job 并丢弃供应商结果；
 4. 成功输出、逐业务输出 derived row、expected dependency count/manifest、依赖、current resolution/analysis publish 或 candidate 必须同一事务提交；跨表 deferred constraint 在事务结束前验证 `output_type/business_output_id/project/job` 一致和业务 root 恰好一条反向引用；`succeeded` 不绕过后续动态 eligibility；
 5. deletion producer 与 AI freeze/writeback 争用同一 project/session 资源锁。命中范围的排队 job 取消，在途调用可结束但结果不得持久化。

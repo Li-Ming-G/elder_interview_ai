@@ -7,6 +7,14 @@ export class AiPolicyUnavailableError extends Error {
   }
 }
 
+/** Local/test-only signal used to verify the consumer's deletion-active projection. */
+export class AiDeletionActiveFixtureError extends AiPolicyUnavailableError {
+  public constructor() {
+    super();
+    this.name = 'AiDeletionActiveFixtureError';
+  }
+}
+
 export abstract class DeletionScopeReader {
   public abstract assertNoActiveScope(
     projectId: string,
@@ -52,7 +60,7 @@ export class LocalTestDeletionScopeFixtureReader extends DeletionScopeReader {
       this.blockedProjects.has(projectId) ||
       sessionIds.some((sessionId) => this.blockedSessions.has(sessionId))
     ) {
-      return Promise.reject(new AiPolicyUnavailableError());
+      return Promise.reject(new AiDeletionActiveFixtureError());
     }
     return Promise.resolve();
   }

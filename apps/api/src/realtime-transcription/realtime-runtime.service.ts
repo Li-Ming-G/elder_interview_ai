@@ -5,6 +5,7 @@ import type {
   InterviewWsServerEnvelope,
   InterviewWsServerType,
   SpeakerCalibrationSnapshot,
+  SuggestionPresentationChangedPayload,
 } from '@elder-interview/contracts';
 import { PrismaService } from '../database/prisma.service.js';
 
@@ -44,6 +45,12 @@ export interface SessionRuntime {
   timelineOffsetMs: number;
   queue: CausalQueue;
   subscriber: ((event: InterviewWsServerEnvelope<InterviewWsServerType, unknown>) => void) | null;
+  notificationAuthorizer: (() => Promise<boolean>) | null;
+}
+
+export interface FinalizedTranscriptNotice {
+  segmentId: string;
+  sessionId: string;
 }
 
 export class CausalQueue {
@@ -101,6 +108,7 @@ export class CausalQueueTimeoutError extends Error {}
 @Injectable()
 export class RealtimeRuntimeService {
   private readonly sessions = new Map<string, SessionRuntime>();
+  private readonly finalizedSubscribers = new Set<(notice: FinalizedTranscriptNotice) => void>();
 
   public constructor(private readonly prisma?: PrismaService) {}
 
@@ -201,6 +209,7 @@ export class RealtimeRuntimeService {
       sessionId,
       speakerStreamId,
       subscriber: null,
+      notificationAuthorizer: null,
       timelineOffsetMs,
     };
     this.sessions.set(sessionId, runtime);
@@ -218,6 +227,60 @@ export class RealtimeRuntimeService {
     runtime.subscriber = subscriber;
   }
 
+  public authorizeNotifications(runtime: SessionRuntime, authorizer: () => Promise<boolean>): void {
+    runtime.notificationAuthorizer = authorizer;
+  }
+
+  public onFinalized(subscriber: (notice: FinalizedTranscriptNotice) => void): () => void {
+    this.finalizedSubscribers.add(subscriber);
+    return () => {
+      this.finalizedSubscribers.delete(subscriber);
+    };
+  }
+
+  public notifyFinalized(notice: FinalizedTranscriptNotice): void {
+    for (const subscriber of this.finalizedSubscribers) {
+      try {
+        subscriber(notice);
+      } catch {
+        // Suggestion orchestration is isolated from the recording/transcription path.
+      }
+    }
+  }
+
+  public async publishSuggestionChanged(
+    sessionId: string,
+    payload: SuggestionPresentationChangedPayload,
+  ): Promise<void> {
+    const runtime = this.find(sessionId);
+    if (runtime === null || runtime.subscriber === null) return;
+    if (runtime.notificationAuthorizer === null || !(await runtime.notificationAuthorizer())) {
+      return;
+    }
+    const envelope: InterviewWsServerEnvelope<
+      'suggestion.presentation.changed',
+      SuggestionPresentationChangedPayload
+    > = {
+      event_id: randomUUID(),
+      event_stream_id: runtime.eventStreamId,
+      payload,
+      schema_version: '1.2',
+      server_sequence: runtime.nextServerSequence,
+      session_id: runtime.sessionId,
+      timestamp: new Date().toISOString(),
+      type: 'suggestion.presentation.changed',
+    };
+    runtime.nextServerSequence += 1;
+    runtime.lastTouchedAt = Date.now();
+    runtime.events.push({ createdAt: runtime.lastTouchedAt, envelope });
+    this.prune(runtime);
+    try {
+      runtime.subscriber(envelope);
+    } catch {
+      runtime.subscriber = null;
+    }
+  }
+
   public publishCalibration(runtime: SessionRuntime, snapshot: SpeakerCalibrationSnapshot): void {
     const event = this.append(runtime, 'speaker.calibration.updated', snapshot);
     try {
@@ -226,6 +289,7 @@ export class RealtimeRuntimeService {
       // The canonical event is already in the replay window. A failed live socket write must not
       // roll back the committed marker or let delivery failure create a second event on retry.
       runtime.subscriber = null;
+      runtime.notificationAuthorizer = null;
     }
   }
 

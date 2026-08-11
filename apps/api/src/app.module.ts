@@ -19,6 +19,7 @@ import { createMemoryModule } from './memory/memory.module.js';
 import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
 import { createQuestionEvidenceModule } from './question-evidence/question-evidence.module.js';
 import { createQuestionBankModule } from './question-bank/question-bank.module.js';
+import { createQuestionOrchestrationModule } from './question-orchestration/question-orchestration.module.js';
 import { createRealtimeTranscriptionModule } from './realtime-transcription/realtime-transcription.module.js';
 import { createTranscriptionModule } from './transcription/transcription.module.js';
 
@@ -34,11 +35,22 @@ export class AppModule implements NestModule {
       transcriptionModule,
     );
     const aiRuntimeModule = createAiRuntimeModule(config, authModule);
-    const questionEvidenceModule = createQuestionEvidenceModule(
-      aiRuntimeModule,
-      ['local', 'test'].includes(config.appEnv),
-    );
     const questionBankModule = createQuestionBankModule(authModule, config.appEnv);
+    const questionEvidenceModule = createQuestionEvidenceModule(
+      config,
+      aiRuntimeModule,
+      realtimeModule,
+    );
+    const memoryModule = createMemoryModule(aiRuntimeModule, questionEvidenceModule);
+    const questionOrchestrationModule = createQuestionOrchestrationModule(
+      config,
+      authModule,
+      aiRuntimeModule,
+      memoryModule,
+      questionBankModule,
+      questionEvidenceModule,
+      realtimeModule,
+    );
     return {
       controllers: [HealthController],
       global: true,
@@ -46,7 +58,7 @@ export class AppModule implements NestModule {
         authModule,
         aiRuntimeModule,
         audioModule,
-        createMemoryModule(aiRuntimeModule, questionEvidenceModule),
+        memoryModule,
         createProjectFoundationModule(
           config,
           authModule,
@@ -57,6 +69,7 @@ export class AppModule implements NestModule {
         questionBankModule,
         transcriptionModule,
         questionEvidenceModule,
+        questionOrchestrationModule,
         realtimeModule,
       ],
       module: AppModule,

@@ -8,6 +8,7 @@ export interface FrozenProviderSegment {
   sessionId: string;
   startMs: number;
   text: string;
+  trustedRole: 'elder' | 'interviewer';
 }
 
 export interface StructuredMemoryClaim {
