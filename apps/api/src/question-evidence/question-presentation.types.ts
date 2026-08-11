@@ -9,8 +9,31 @@ import type { JourneyReasonCode } from '../question-bank/question-journey.servic
 
 export type QuestionAttemptKind = 'automatic' | 'manual_next' | 'second_session_opening';
 export type QuestionResultKind = 'suggestion' | 'continue_listening' | 'unavailable';
-export type QuestionSelectionMode = 'verbatim' | 'lightly_adapted';
-export type QuestionAdaptationReason = 'surface_wording' | 'grounded_slot_fill';
+export type QuestionPurpose =
+  | 'detail'
+  | 'cause'
+  | 'person'
+  | 'scene'
+  | 'emotion'
+  | 'choice'
+  | 'conflict'
+  | 'turning_point'
+  | 'clarify'
+  | 'timeline'
+  | 'transition';
+
+export interface QuestionBankInputReference {
+  bank: 'basic' | 'deep';
+  bankVersion: string;
+  contentDigest: string;
+  itemId: string;
+  licenseStatus: 'project_original' | 'verified' | 'fixture_only';
+  purpose: QuestionPurpose;
+  questionId: string;
+  questionText: string;
+  sensitivity: 'low' | 'medium' | 'high';
+  topic: string;
+}
 
 export interface BeginQuestionGenerationCommand {
   attemptKind: QuestionAttemptKind;
@@ -21,6 +44,17 @@ export interface BeginQuestionGenerationCommand {
   journeyPolicyVersion: string;
   journeyReasonCodes: readonly JourneyReasonCode[];
   journeyStage: JourneyStage;
+  bankReferences: readonly QuestionBankInputReference[];
+  promptBundleVersion: string;
+  promptBundleDigest: string;
+  contextSchemaVersion: string;
+  contextSchemaDigest: string;
+  outputSchemaVersion: string;
+  outputSchemaDigest: string;
+  contextBuilderVersion: string;
+  contextBuilderDigest: string;
+  modelConfigVersion: string;
+  modelConfigDigest: string;
   selectionPolicyVersion: string;
   sessionId: string;
   similarityPolicyVersion: string;
@@ -32,24 +66,20 @@ export interface QuestionAttemptReceipt {
   manualIntentSequence: number;
   replayed: boolean;
   status: 'pending' | 'running';
+  frozenInputHash: string;
 }
 
 export interface QuestionCandidateResult {
-  adaptationReasonCode: QuestionAdaptationReason | null;
-  confidence: number;
-  evidenceSegmentIds: readonly string[];
-  groundedSlotValue?: string;
-  memoryResolutionIds: readonly string[];
-  purpose: string;
+  declaredBankReferences: readonly {
+    questionBankItemId: string;
+    usage: 'inspiration' | 'adapted' | 'verbatim';
+  }[];
+  grounding: readonly ({ kind: 'segment'; id: string } | { kind: 'memory'; id: string })[];
+  purpose: QuestionPurpose;
   questionText: string;
   reasonText: string;
   risk: 'low' | 'medium' | 'high';
-  selectionMode: QuestionSelectionMode;
   selectionScore: number;
-  sourceBank: 'basic' | 'deep';
-  sourceBankVersion: string;
-  sourceQuestionBankItemId: string;
-  sourceQuestionId: string;
 }
 
 export interface PublishQuestionAttemptCommand {

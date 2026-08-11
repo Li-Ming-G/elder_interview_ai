@@ -399,6 +399,9 @@ function responseFor(path: string, method: string): unknown {
   if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
     return session('device_check');
   }
+  if (path === `/api/v1/sessions/${SESSION_ID}/suggestions/current` && method === 'GET') {
+    return emptySuggestion();
+  }
   if (path === `/api/v1/sessions/${SESSION_ID}/start` && method === 'POST') {
     return session('recording', 'preparing');
   }
@@ -406,6 +409,21 @@ function responseFor(path: string, method: string): unknown {
     return session('recording', 'active');
   }
   throw new Error(`Unhandled test request: ${method} ${path}`);
+}
+
+function emptySuggestion(): unknown {
+  return {
+    display_sequence: null,
+    displayed_at: null,
+    history: { has_previous: false },
+    kind: 'continue_listening',
+    presentation_revision: 0,
+    question: null,
+    reason: null,
+    session_id: SESSION_ID,
+    snapshot_id: null,
+    withdrawal_reason: null,
+  };
 }
 
 function session(

@@ -18,6 +18,12 @@ type ViewState =
   | { kind: 'current' }
   | { anchor: string; index: number; items: SuggestionHistoryItem[]; kind: 'history' };
 
+interface PendingSuggestionRequest {
+  expectedPresentationRevision: number;
+  expectedSnapshotId: string | null;
+  requestId: string;
+}
+
 export function SuggestionPanel({
   api,
   notificationRevision,
@@ -61,6 +67,24 @@ export function SuggestionPanel({
   }, [readCurrent]);
 
   useEffect(() => {
+    if (typeof api.getSuggestionHistoryItem !== 'function') return;
+    const snapshotId = readHistorySnapshotId(sessionId);
+    if (snapshotId === null) return;
+    void api
+      .getSuggestionHistoryItem(sessionId, snapshotId)
+      .then(({ anchor, item }) => {
+        if (!mounted.current) return;
+        setView({ anchor, index: 0, items: [item], kind: 'history' });
+        setMessage('已恢复先前浏览的问题');
+      })
+      .catch((caught: unknown) => {
+        clearHistorySnapshotId(sessionId);
+        if (caught instanceof InterviewApiError && caught.status === 410) return;
+        if (mounted.current) setError(readableSuggestionError(caught));
+      });
+  }, [api, sessionId]);
+
+  useEffect(() => {
     if (
       notificationRevision === undefined ||
       current === null ||
@@ -90,6 +114,7 @@ export function SuggestionPanel({
       const previousIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
       if (previousIndex >= page.items.length) return;
       setView({ anchor: page.anchor, index: previousIndex, items: page.items, kind: 'history' });
+      writeHistorySnapshotId(sessionId, page.items[previousIndex]?.snapshot_id ?? null);
       setMessage('正在浏览先前显示的问题');
     } catch (caught) {
       if (mounted.current) setError(readableSuggestionError(caught));
@@ -99,9 +124,47 @@ export function SuggestionPanel({
   }
 
   async function returnCurrent(): Promise<void> {
+    clearHistorySnapshotId(sessionId);
     setView({ kind: 'current' });
     setMessage('已回到当前问题');
     await readCurrent();
+  }
+
+  async function navigateHistory(direction: 'older' | 'newer'): Promise<void> {
+    if (view.kind !== 'history' || historyLoading) return;
+    const adjacentIndex = direction === 'older' ? view.index + 1 : view.index - 1;
+    if (adjacentIndex >= 0 && adjacentIndex < view.items.length) {
+      const item = view.items[adjacentIndex];
+      setView({ ...view, index: adjacentIndex });
+      writeHistorySnapshotId(sessionId, item?.snapshot_id ?? null);
+      return;
+    }
+    const currentItem = view.items[view.index];
+    const cursor = direction === 'older' ? currentItem?.older_cursor : currentItem?.newer_cursor;
+    if (cursor === null || cursor === undefined || typeof api.getSuggestionHistory !== 'function') {
+      return;
+    }
+    setHistoryLoading(true);
+    setError(null);
+    try {
+      const page = await api.getSuggestionHistory(sessionId, {
+        anchor: view.anchor,
+        cursor,
+        limit: 20,
+      });
+      if (!mounted.current || page.items.length === 0) return;
+      const nextIndex = direction === 'older' ? 0 : page.items.length - 1;
+      setView({ anchor: page.anchor, index: nextIndex, items: page.items, kind: 'history' });
+      writeHistorySnapshotId(sessionId, page.items[nextIndex]?.snapshot_id ?? null);
+    } catch (caught) {
+      if (caught instanceof InterviewApiError && caught.status === 410) {
+        await returnCurrent();
+      } else if (mounted.current) {
+        setError(readableSuggestionError(caught));
+      }
+    } finally {
+      if (mounted.current) setHistoryLoading(false);
+    }
   }
 
   async function nextQuestion(): Promise<void> {
@@ -117,32 +180,36 @@ export function SuggestionPanel({
     setError(null);
     setMessage('正在准备下一个问题');
     const key = `elder-interview:suggestion-request:${sessionId}`;
-    const requestId = readPendingRequestId(key) ?? crypto.randomUUID();
-    writePendingRequestId(key, requestId);
+    const pending = readPendingRequest(key) ?? {
+      expectedPresentationRevision: current.presentation_revision,
+      expectedSnapshotId: current.snapshot_id,
+      requestId: crypto.randomUUID(),
+    };
+    writePendingRequest(key, pending);
     try {
       await api.requestNextSuggestion(sessionId, {
-        expected_presentation_revision: current.presentation_revision,
-        expected_snapshot_id: current.snapshot_id,
-        request_id: requestId,
+        expected_presentation_revision: pending.expectedPresentationRevision,
+        expected_snapshot_id: pending.expectedSnapshotId,
+        request_id: pending.requestId,
       });
       const terminal = await pollRequest(
         { getSuggestionRequest: api.getSuggestionRequest },
         sessionId,
-        requestId,
+        pending.requestId,
       );
       if (!mounted.current) return;
       if (terminal.status === 'succeeded') {
-        clearPendingRequestId(key);
+        clearPendingRequest(key);
         setCurrent(terminal.current);
         setMessage(terminal.current.kind === 'suggestion' ? '下一个问题已准备好' : '建议继续倾听');
       } else {
-        clearPendingRequestId(key);
+        clearPendingRequest(key);
         setCurrent(terminal.current);
         setError(requestFailureText(terminal));
       }
     } catch (caught) {
       if (caught instanceof InterviewApiError && caught.code !== 'NETWORK_UNAVAILABLE') {
-        clearPendingRequestId(key);
+        clearPendingRequest(key);
       }
       if (mounted.current) setError(readableSuggestionError(caught));
     } finally {
@@ -163,6 +230,7 @@ export function SuggestionPanel({
     <aside
       aria-busy={loading || manualBusy || historyLoading}
       aria-labelledby="suggestion-title"
+      aria-live={kind === 'withdrawn' ? 'assertive' : 'off'}
       className={`suggestion-panel suggestion-panel--${kind}`}
       data-testid="suggestion-panel"
     >
@@ -212,20 +280,22 @@ export function SuggestionPanel({
           <>
             <button
               className="button button--secondary"
-              disabled={view.index >= view.items.length - 1}
-              onClick={() => {
-                setView({ ...view, index: view.index + 1 });
-              }}
+              disabled={
+                historyLoading ||
+                (view.index >= view.items.length - 1 &&
+                  view.items[view.index]?.older_cursor === null)
+              }
+              onClick={() => void navigateHistory('older')}
               type="button"
             >
               更早的问题
             </button>
             <button
               className="button button--secondary"
-              disabled={view.index <= 0}
-              onClick={() => {
-                setView({ ...view, index: view.index - 1 });
-              }}
+              disabled={
+                historyLoading || (view.index <= 0 && view.items[view.index]?.newer_cursor === null)
+              }
+              onClick={() => void navigateHistory('newer')}
               type="button"
             >
               更新的问题
@@ -279,27 +349,63 @@ async function pollRequest(
   throw new InterviewApiError('AI_UNAVAILABLE', '问题建议暂不可用', 503);
 }
 
-function readPendingRequestId(key: string): string | null {
+function readPendingRequest(key: string): PendingSuggestionRequest | null {
   try {
-    return globalThis.sessionStorage.getItem(key);
+    const raw = globalThis.sessionStorage.getItem(key);
+    if (raw === null) return null;
+    const value = JSON.parse(raw) as Partial<PendingSuggestionRequest>;
+    return typeof value.requestId === 'string' &&
+      typeof value.expectedPresentationRevision === 'number' &&
+      (typeof value.expectedSnapshotId === 'string' || value.expectedSnapshotId === null)
+      ? (value as PendingSuggestionRequest)
+      : null;
   } catch {
     return null;
   }
 }
 
-function writePendingRequestId(key: string, value: string): void {
+function writePendingRequest(key: string, value: PendingSuggestionRequest): void {
   try {
-    globalThis.sessionStorage.setItem(key, value);
+    globalThis.sessionStorage.setItem(key, JSON.stringify(value));
   } catch {
     // The in-memory value is still stable for this mounted request.
   }
 }
 
-function clearPendingRequestId(key: string): void {
+function clearPendingRequest(key: string): void {
   try {
     globalThis.sessionStorage.removeItem(key);
   } catch {
     // Storage is an optional recovery aid; canonical request status remains server-side.
+  }
+}
+
+function historyStorageKey(sessionId: string): string {
+  return `elder-interview:suggestion-history:${sessionId}`;
+}
+
+function readHistorySnapshotId(sessionId: string): string | null {
+  try {
+    return globalThis.sessionStorage.getItem(historyStorageKey(sessionId));
+  } catch {
+    return null;
+  }
+}
+
+function writeHistorySnapshotId(sessionId: string, snapshotId: string | null): void {
+  if (snapshotId === null) return;
+  try {
+    globalThis.sessionStorage.setItem(historyStorageKey(sessionId), snapshotId);
+  } catch {
+    // Canonical history remains recoverable through the server-side snapshot endpoint.
+  }
+}
+
+function clearHistorySnapshotId(sessionId: string): void {
+  try {
+    globalThis.sessionStorage.removeItem(historyStorageKey(sessionId));
+  } catch {
+    // Storage is optional; returning to current is still an in-memory action.
   }
 }
 

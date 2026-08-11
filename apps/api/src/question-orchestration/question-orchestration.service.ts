@@ -12,29 +12,41 @@ import {
 import { manifestHash } from '../ai-runtime/ai-provenance.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
-import {
-  ActualAskedReader,
-  QuestionEvidenceWriter,
-} from '../question-evidence/question-evidence.service.js';
-import {
-  QUESTION_SIMILARITY_VERSION,
-  QuestionSimilarityMatcher,
-} from '../question-evidence/question-similarity.matcher.js';
-import { QuestionPresentationService } from '../question-evidence/question-presentation.service.js';
-import type { QuestionAttemptKind } from '../question-evidence/question-presentation.types.js';
 import { CurrentMemoryReader, type CurrentMemoryItem } from '../memory/memory.service.js';
 import { QuestionBankReader } from '../question-bank/question-bank.service.js';
 import type {
   EligibleQuestionBankItem,
   QuestionConditionCode,
 } from '../question-bank/question-bank.types.js';
+import { QuestionBankError } from '../question-bank/question-bank.types.js';
 import {
   JOURNEY_POLICY_VERSION,
   QuestionJourneyService,
   type FrozenJourneyContext,
   type JourneyInputSignal,
 } from '../question-bank/question-journey.service.js';
+import {
+  ActualAskedReader,
+  QuestionEvidenceWriter,
+} from '../question-evidence/question-evidence.service.js';
+import { QUESTION_SIMILARITY_VERSION } from '../question-evidence/question-similarity.matcher.js';
+import { QuestionPresentationService } from '../question-evidence/question-presentation.service.js';
+import type {
+  QuestionAttemptKind,
+  QuestionAttemptReceipt,
+  QuestionBankInputReference,
+  QuestionCandidateResult,
+} from '../question-evidence/question-presentation.types.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
+import {
+  DIRECTOR_CONTEXT_BUILDER_VERSION,
+  DIRECTOR_CONTEXT_SCHEMA_VERSION,
+  DIRECTOR_MODEL_CONFIG_VERSION,
+  DIRECTOR_OUTPUT_SCHEMA_VERSION,
+  DIRECTOR_PROMPT_BUNDLE_VERSION,
+  type InterviewDirectorContextV1,
+  QuestionDirectorContract,
+} from './question-director-contract.js';
 import { QuestionDirector } from './question-director.js';
 
 export const QUESTION_SELECTION_POLICY_VERSION = 'question-select-v1';
@@ -44,7 +56,6 @@ const DEADLINE_MS = 8_000;
 @Injectable()
 export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestroy {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly manualAdmissions = new Map<string, Promise<void>>();
   private unsubscribeFinal: (() => void) | null = null;
 
   public constructor(
@@ -54,8 +65,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     private readonly actualAsked: ActualAskedReader,
     private readonly bank: QuestionBankReader,
     private readonly journey: QuestionJourneyService,
-    private readonly matcher: QuestionSimilarityMatcher,
     private readonly director: QuestionDirector,
+    private readonly contract: QuestionDirectorContract,
     private readonly writer: QuestionEvidenceWriter,
     private readonly presentations: QuestionPresentationService,
     private readonly realtime: RealtimeRuntimeService,
@@ -66,11 +77,13 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     this.unsubscribeFinal = this.realtime.onFinalized(({ segmentId, sessionId }) => {
       const existing = this.timers.get(sessionId);
       if (existing !== undefined) clearTimeout(existing);
-      const timer = setTimeout(() => {
-        this.timers.delete(sessionId);
-        void this.runAutomatic(sessionId, segmentId).catch(() => undefined);
-      }, DEBOUNCE_MS);
-      this.timers.set(sessionId, timer);
+      this.timers.set(
+        sessionId,
+        setTimeout(() => {
+          this.timers.delete(sessionId);
+          void this.runAutomatic(sessionId, segmentId).catch(() => undefined);
+        }, DEBOUNCE_MS),
+      );
     });
   }
 
@@ -89,26 +102,25 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       requestId: string;
     },
   ): Promise<SuggestionRequestAcceptedResponse> {
-    const prepared = await this.withManualAdmission(sessionId, async () => {
-      await this.presentations.assertManualAvailability(actor.id, sessionId, input.requestId);
-      return this.prepare(actor.id, sessionId, 'manual_next', input.requestId, {
-        presentationRevision: input.expectedPresentationRevision,
-        snapshotId: input.expectedSnapshotId,
+    await this.presentations.assertManualAvailability(
+      actor.id,
+      sessionId,
+      input.requestId,
+      input.expectedPresentationRevision,
+      input.expectedSnapshotId,
+    );
+    const prepared = await this.prepare(actor.id, sessionId, 'manual_next', input.requestId, {
+      presentationRevision: input.expectedPresentationRevision,
+      snapshotId: input.expectedSnapshotId,
+    });
+    if (!prepared.replayed) {
+      void this.complete(prepared).catch(async (error: unknown) => {
+        await this.presentations.failAttempt(
+          prepared.attemptId,
+          error instanceof Error ? error.message.slice(0, 80) : 'AI_UNAVAILABLE',
+        );
       });
-    });
-    void Promise.race([
-      this.complete(prepared),
-      new Promise<never>((_resolve, reject) => {
-        setTimeout(() => {
-          reject(new Error('AI_UNAVAILABLE'));
-        }, DEADLINE_MS);
-      }),
-    ]).catch(async (error: unknown) => {
-      await this.presentations.failAttempt(
-        prepared.attemptId,
-        error instanceof Error ? error.message.slice(0, 80) : 'AI_UNAVAILABLE',
-      );
-    });
+    }
     return {
       accepted_presentation_revision: prepared.basis.presentationRevision,
       attempt_id: prepared.attemptId,
@@ -118,32 +130,16 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     };
   }
 
-  private async withManualAdmission<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
-    const previous = this.manualAdmissions.get(sessionId);
-    if (previous !== undefined) await previous.catch(() => undefined);
-    let release = (): void => undefined;
-    const current = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    this.manualAdmissions.set(sessionId, current);
-    try {
-      return await work();
-    } finally {
-      release();
-      if (this.manualAdmissions.get(sessionId) === current) this.manualAdmissions.delete(sessionId);
-    }
-  }
-
   private async runAutomatic(sessionId: string, segmentId: string): Promise<void> {
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null || session.status !== 'recording') return;
     const requestId = stableUuid(`auto:${sessionId}:${segmentId}`);
-    const context = await this.presentations.generationContext(sessionId);
+    const state = await this.presentations.generationContext(sessionId);
     const prepared = await this.prepare(session.createdBy, sessionId, 'automatic', requestId, {
-      presentationRevision: context.presentationRevision,
-      snapshotId: context.currentSnapshotId,
+      presentationRevision: state.presentationRevision,
+      snapshotId: state.currentSnapshotId,
     });
-    await this.complete(prepared);
+    if (!prepared.replayed) await this.complete(prepared);
   }
 
   private async prepare(
@@ -153,6 +149,29 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     requestId: string,
     basis: { presentationRevision: number; snapshotId: string | null },
   ): Promise<PreparedQuestionAttempt> {
+    const replay = await this.prisma.questionGenerationAttempt.findUnique({ where: { requestId } });
+    if (replay !== null) {
+      const replayJob = await this.prisma.aiJob.findUnique({ where: { id: replay.aiJobId } });
+      if (
+        replay.sessionId !== sessionId ||
+        replayJob?.requestedBy !== actorId ||
+        replay.basisPresentationRevision !== basis.presentationRevision ||
+        replay.basisSnapshotId !== basis.snapshotId
+      ) {
+        throw new Error('IDEMPOTENCY_KEY_REUSED');
+      }
+      return {
+        actorId,
+        attemptId: replay.id,
+        attemptKind,
+        basis,
+        context: null,
+        job: null,
+        replayed: true,
+        requestId,
+      };
+    }
+
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null) throw new Error('AI_SESSION_SCOPE_INVALID');
     const [memories, actualAsked, generation] = await Promise.all([
@@ -173,94 +192,118 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         ? { triggerDedupeKey: `question:${sessionId}:${requestId}` }
         : {}),
       trustedRole: 'elder',
+      trustedRoles: ['elder', 'interviewer'],
     });
-    if (job.replayed) {
-      const attempt = await this.prisma.questionGenerationAttempt.findUnique({
-        where: { aiJobId: job.id },
-      });
-      if (attempt === null) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
-      return {
-        actorId,
-        actualAsked,
-        attemptId: attempt.id,
-        attemptKind,
-        basis,
-        eligible: [],
-        job,
-        journeyStage: attempt.journeyStage as 'rapport' | 'life_outline' | 'story_depth',
-        memories,
-        requestId,
-      };
-    }
+    if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+
     const journeyContext = await this.journeyContext(job, generation.journeyStage, memories);
     const decision = this.journey.evaluate(journeyContext, JOURNEY_POLICY_VERSION);
-    const eligible = decision.publicationAllowed
-      ? await this.bank.listEligible(decision.stage, journeyFacts(journeyContext.signals), {
-          environmentScope: ['local', 'test'].includes(this.config.appEnv)
-            ? 'internal_demo'
-            : 'product',
-          policyDecision: 'allowed',
-        })
-      : [];
-    const receipt = await this.writer.beginGenerationAttempt(
-      {
-        attemptKind,
-        basisPresentationRevision: basis.presentationRevision,
-        basisSnapshotId: basis.snapshotId,
-        job,
-        journeyBasisHash: decision.basisHash,
-        journeyPolicyVersion: decision.journeyPolicyVersion,
-        journeyReasonCodes: decision.reasonCodes,
-        journeyStage: decision.stage,
-        selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
-        sessionId,
-        similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
-      },
-      attemptKind === 'automatic'
-        ? { kind: 'system', trigger: requestId }
-        : { actorId, kind: 'actor' },
-      requestId,
+    let references: readonly EligibleQuestionBankItem[] = [];
+    if (decision.publicationAllowed) {
+      try {
+        references = await this.bank.listEligible(
+          decision.stage,
+          journeyFacts(journeyContext.signals),
+          {
+            environmentScope: ['local', 'test'].includes(this.config.appEnv)
+              ? 'internal_demo'
+              : 'product',
+            policyDecision: 'allowed',
+          },
+        );
+      } catch (error) {
+        if (
+          !(error instanceof QuestionBankError) ||
+          error.code !== 'QUESTION_BANK_ACTIVE_RELEASE_UNAVAILABLE'
+        ) {
+          throw error;
+        }
+      }
+    }
+    const bankReferences = references.slice(0, 30).map(toBankInputReference);
+    let receipt: QuestionAttemptReceipt;
+    try {
+      receipt = await this.writer.beginGenerationAttempt(
+        {
+          attemptKind,
+          bankReferences,
+          basisPresentationRevision: basis.presentationRevision,
+          basisSnapshotId: basis.snapshotId,
+          contextBuilderDigest: this.contract.contextBuilderDigest,
+          contextBuilderVersion: DIRECTOR_CONTEXT_BUILDER_VERSION,
+          contextSchemaDigest: this.contract.contextSchemaDigest,
+          contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
+          job,
+          journeyBasisHash: decision.basisHash,
+          journeyPolicyVersion: decision.journeyPolicyVersion,
+          journeyReasonCodes: decision.reasonCodes,
+          journeyStage: decision.stage,
+          modelConfigDigest: this.contract.modelConfigDigest,
+          modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
+          outputSchemaDigest: this.contract.outputSchemaDigest,
+          outputSchemaVersion: DIRECTOR_OUTPUT_SCHEMA_VERSION,
+          promptBundleDigest: this.contract.promptBundleDigest,
+          promptBundleVersion: DIRECTOR_PROMPT_BUNDLE_VERSION,
+          selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
+          sessionId,
+          similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
+        },
+        attemptKind === 'automatic'
+          ? { kind: 'system', trigger: requestId }
+          : { actorId, kind: 'actor' },
+        requestId,
+      );
+    } catch (error) {
+      await this.coordinator.discardUncalledJob(job.id);
+      throw error;
+    }
+    const frozenJob = { ...job, inputHash: receipt.frozenInputHash };
+    const context = await this.buildContext(
+      frozenJob,
+      memories,
+      actualAsked,
+      bankReferences,
+      decision.stage,
+      decision.reasonCodes,
+      generation,
     );
+    this.contract.assertContext(context);
     return {
       actorId,
-      actualAsked,
       attemptId: receipt.attemptId,
       attemptKind,
       basis,
-      eligible: decision.shouldContinueListening ? [] : eligible,
-      job,
-      journeyStage: decision.stage,
-      memories,
+      context,
+      job: frozenJob,
+      replayed: false,
       requestId,
     };
   }
 
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {
-    if (prepared.job.replayed) return;
-    const generation = await this.presentations.generationContext(prepared.job.sessionIds[0] ?? '');
-    const excluded = [
-      ...generation.recentQuestions,
-      ...prepared.actualAsked.map(({ questionText }) => questionText),
-    ];
-    const eligible: EligibleQuestionBankItem[] = [];
-    for (const item of prepared.eligible) {
-      let duplicate = false;
-      for (const prior of excluded) {
-        if ((await this.matcher.score(item.questionText, prior)) >= 0.88) {
-          duplicate = true;
-          break;
-        }
-      }
-      if (!duplicate) eligible.push(item);
-    }
-    const candidate = await this.coordinator.callProvider(prepared.job, () =>
-      this.director.select({
-        attemptKind: prepared.attemptKind,
-        eligible,
-        journeyStage: prepared.journeyStage,
-        memories: prepared.memories,
-      }),
+    if (prepared.job === null || prepared.context === null) return;
+    const context = prepared.context;
+    const output = await this.coordinator.callProviderWithSameInputRetry(
+      prepared.job,
+      () => this.director.generate({ context, prompt: this.contract.prompt }),
+      (value) => this.contract.parseOutput(value, context),
+      DEADLINE_MS,
     );
+    const candidate: QuestionCandidateResult | null =
+      output.decision === 'suggest'
+        ? {
+            declaredBankReferences: output.declared_bank_references.map((reference) => ({
+              questionBankItemId: reference.question_bank_item_id,
+              usage: reference.usage,
+            })),
+            grounding: output.grounding,
+            purpose: output.purpose,
+            questionText: output.question,
+            reasonText: output.reason,
+            risk: output.risk,
+            selectionScore: scoreFor(prepared.context.interview_state.journey_stage, output.risk),
+          }
+        : null;
     await this.writer.publishAttemptResult(
       {
         attemptId: prepared.attemptId,
@@ -276,6 +319,79 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     );
   }
 
+  private async buildContext(
+    job: FrozenAiJob,
+    memories: readonly CurrentMemoryItem[],
+    actualAsked: Awaited<ReturnType<ActualAskedReader['list']>>,
+    bankReferences: readonly QuestionBankInputReference[],
+    journeyStage: 'rapport' | 'life_outline' | 'story_depth',
+    journeyReasonCodes: readonly string[],
+    generation: Awaited<ReturnType<QuestionPresentationService['generationContext']>>,
+  ): Promise<InterviewDirectorContextV1> {
+    const sessionId = job.sessionIds[0] ?? '';
+    const recentSnapshots = await this.prisma.questionDisplaySnapshot.findMany({
+      orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
+      take: 40,
+      where: { expiresAt: { gt: new Date() }, retentionState: 'active', sessionId },
+    });
+    const current =
+      generation.currentSnapshotId === null
+        ? null
+        : (recentSnapshots.find(({ id }) => id === generation.currentSnapshotId) ??
+          (await this.prisma.questionDisplaySnapshot.findUnique({
+            where: { id: generation.currentSnapshotId },
+          })));
+    const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+    const actualById = new Map(actualAsked.map((question) => [question.id, question]));
+    return {
+      actual_asked: job.actualQuestions.flatMap((frozen) => {
+        const item = actualById.get(frozen.actualQuestionId);
+        return item === undefined ? [] : [{ actual_question_id: item.id, text: item.questionText }];
+      }),
+      bank_references: bankReferences.map((item) => ({
+        bank: item.bank,
+        purpose: item.purpose,
+        question_bank_item_id: item.itemId,
+        question_text: item.questionText,
+        sensitivity: item.sensitivity,
+        topic: item.topic,
+      })),
+      boundaries: [],
+      context_schema_version: DIRECTOR_CONTEXT_SCHEMA_VERSION,
+      current_memories: job.memories.flatMap((frozen) => {
+        const memory = memoryById.get(frozen.resolutionId);
+        return memory === undefined
+          ? []
+          : [
+              {
+                authority: memory.authority,
+                memory_resolution_id: memory.id,
+                memory_type: memory.memoryType,
+                value: renderMemoryValue(memory.resolvedValue),
+                value_kind: memoryValueKind(memory),
+              },
+            ];
+      }),
+      current_presentation:
+        current === null ? null : { snapshot_id: current.id, text: current.questionText },
+      interview_state: {
+        goal: goalFor(journeyStage),
+        journey_reason_codes: [...journeyReasonCodes],
+        journey_stage: journeyStage,
+      },
+      recent_transcript: job.segments.slice(-40).map((segment) => ({
+        segment_id: segment.segmentId,
+        start_ms: segment.startMs,
+        text: segment.text,
+        trusted_role: segment.trustedRole,
+      })),
+      recently_displayed: recentSnapshots
+        .slice()
+        .reverse()
+        .map((snapshot) => ({ snapshot_id: snapshot.id, text: snapshot.questionText })),
+    };
+  }
+
   private async journeyContext(
     job: FrozenAiJob,
     currentStage: 'rapport' | 'life_outline' | 'story_depth' | null,
@@ -285,7 +401,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       orderBy: { inputOrder: 'asc' },
       where: { aiJobId: job.id },
     });
-    const signals = inferSignals(job, memories);
+    const signals = inferDirectorJourneySignals(job, memories);
     return {
       boundaryPolicyRevision: job.policyRevision,
       currentStage,
@@ -314,28 +430,41 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
 
 interface PreparedQuestionAttempt {
   actorId: string;
-  actualAsked: Awaited<ReturnType<ActualAskedReader['list']>>;
   attemptId: string;
   attemptKind: QuestionAttemptKind;
   basis: { presentationRevision: number; snapshotId: string | null };
-  eligible: Awaited<ReturnType<QuestionBankReader['listEligible']>>;
-  job: FrozenAiJob;
-  journeyStage: 'rapport' | 'life_outline' | 'story_depth';
-  memories: readonly CurrentMemoryItem[];
+  context: InterviewDirectorContextV1 | null;
+  job: FrozenAiJob | null;
+  replayed: boolean;
   requestId: string;
 }
 
-function inferSignals(
+export function inferDirectorJourneySignals(
   job: FrozenAiJob,
   memories: readonly CurrentMemoryItem[],
 ): readonly JourneyInputSignal[] {
   const signals = new Set<JourneyInputSignal>();
-  if (job.segments.some(({ text }) => text.trim().length >= 8)) signals.add('response.concrete');
+  const elderText = job.segments
+    .filter(({ trustedRole }) => trustedRole === 'elder')
+    .map(({ text }) => text.trim())
+    .join(' ');
+  if (elderText.length > 0 && elderText.length < 12) signals.add('response.low_detail');
+  if (elderText.length >= 12) signals.add('response.concrete');
+  if (/(不.{0,3}想说|不方便|算了|别问|不知道)/u.test(elderText)) {
+    signals.add('response.reluctant');
+  }
+  if (/(后来|接着|然后|还有|再后来)/u.test(elderText) && elderText.length >= 28) {
+    signals.add('engagement.continuous_narration');
+  }
+  if (/(愿意|可以|想讲|印象很深|最难忘)/u.test(elderText)) {
+    signals.add('engagement.willing_to_deepen');
+  }
   for (const memory of memories) {
     if (memory.memoryType === 'person') signals.add('context.person');
     if (memory.memoryType === 'event') signals.add('context.event');
     if (memory.memoryType === 'important_choice') signals.add('context.choice');
     if (memory.memoryType === 'unfinished_story') signals.add('context.unfinished_story');
+    if (memory.memoryType === 'reason_clue') signals.add('context.turning_point');
   }
   return [...signals].sort();
 }
@@ -345,8 +474,6 @@ function journeyFacts(signals: readonly JourneyInputSignal[]): readonly Question
     'response.reluctant',
     'response.low_detail',
     'topic.exhausted',
-    'engagement.continuous_narration',
-    'engagement.willing_to_deepen',
     'response.concrete',
     'context.person',
     'context.event',
@@ -356,6 +483,43 @@ function journeyFacts(signals: readonly JourneyInputSignal[]): readonly Question
     'context.unfinished_story',
   ]);
   return signals.filter((signal) => allowed.has(signal)) as QuestionConditionCode[];
+}
+
+function toBankInputReference(item: EligibleQuestionBankItem): QuestionBankInputReference {
+  return {
+    bank: item.bank,
+    bankVersion: item.bankVersion,
+    contentDigest: item.contentDigest,
+    itemId: item.itemId,
+    licenseStatus: item.licenseStatus,
+    purpose: item.purpose,
+    questionId: item.questionId,
+    questionText: item.questionText,
+    sensitivity: item.sensitivity,
+    topic: item.topic,
+  };
+}
+
+function renderMemoryValue(value: unknown): string {
+  if (typeof value === 'string') return value.slice(0, 500);
+  return JSON.stringify(value).slice(0, 500);
+}
+
+function memoryValueKind(memory: CurrentMemoryItem): 'exact' | 'range' | 'unknown' {
+  if (memory.resolutionKind === 'unknown') return 'unknown';
+  if (memory.resolutionKind === 'range' || Array.isArray(memory.resolvedValue)) return 'range';
+  return 'exact';
+}
+
+function goalFor(stage: 'rapport' | 'life_outline' | 'story_depth'): string {
+  if (stage === 'story_depth') return '顺着已经出现的具体故事线索，帮助长者自愿讲出更多细节。';
+  if (stage === 'life_outline') return '补全人物、地点、事件和时间线索，形成大致人生轮廓。';
+  return '用低压力、开放的问题建立信任和谈话节奏。';
+}
+
+function scoreFor(stage: 'rapport' | 'life_outline' | 'story_depth', risk: string): number {
+  const base = stage === 'story_depth' ? 0.9 : stage === 'life_outline' ? 0.78 : 0.66;
+  return Math.max(0, base - (risk === 'high' ? 0.15 : risk === 'medium' ? 0.05 : 0));
 }
 
 function stableUuid(value: string): string {

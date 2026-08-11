@@ -23,7 +23,7 @@ import {
 
 import { API_CONFIG } from '../api-config.js';
 import { AiJobCoordinatorService } from '../ai-runtime/ai-job-coordinator.service.js';
-import { manifestHash } from '../ai-runtime/ai-provenance.js';
+import { canonicalJson, manifestHash, sha256 } from '../ai-runtime/ai-provenance.js';
 import { AiPolicyService } from '../ai-runtime/ai-policy.service.js';
 import { AiDeletionActiveFixtureError } from '../ai-runtime/deletion-scope.reader.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
@@ -98,7 +98,12 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       await lock(tx, `session:${command.sessionId}`);
       const replay = await tx.questionGenerationAttempt.findUnique({ where: { requestId } });
       if (replay !== null) {
-        if (replay.aiJobId !== command.job.id || replay.sessionId !== command.sessionId) {
+        if (
+          replay.aiJobId !== command.job.id ||
+          replay.sessionId !== command.sessionId ||
+          replay.basisPresentationRevision !== command.basisPresentationRevision ||
+          replay.basisSnapshotId !== command.basisSnapshotId
+        ) {
           throw conflict('IDEMPOTENCY_KEY_REUSED');
         }
         return {
@@ -107,6 +112,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           manualIntentSequence: replay.manualIntentSequence,
           replayed: true,
           status: replay.status === 'pending' ? 'pending' : 'running',
+          frozenInputHash: command.job.inputHash,
         };
       }
       const session = await tx.interviewSession.findUnique({ where: { id: command.sessionId } });
@@ -164,7 +170,17 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           journeyPolicyVersion: command.journeyPolicyVersion,
           journeyReasonCodes: [...command.journeyReasonCodes],
           journeyStage: command.journeyStage,
+          contextBuilderDigest: command.contextBuilderDigest,
+          contextBuilderVersion: command.contextBuilderVersion,
+          contextSchemaDigest: command.contextSchemaDigest,
+          contextSchemaVersion: command.contextSchemaVersion,
           manualIntentSequence,
+          modelConfigDigest: command.modelConfigDigest,
+          modelConfigVersion: command.modelConfigVersion,
+          outputSchemaDigest: command.outputSchemaDigest,
+          outputSchemaVersion: command.outputSchemaVersion,
+          promptBundleDigest: command.promptBundleDigest,
+          promptBundleVersion: command.promptBundleVersion,
           requestId,
           selectionPolicyVersion: command.selectionPolicyVersion,
           sessionId: command.sessionId,
@@ -172,6 +188,46 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           startedAt: now,
           status: 'running',
         },
+      });
+      for (const [inputOrder, reference] of command.bankReferences.entries()) {
+        await tx.questionGenerationBankInputMembership.create({
+          data: {
+            aiJobId: command.job.id,
+            bankVersion: reference.bankVersion,
+            contentDigest: reference.contentDigest,
+            inputOrder,
+            licenseStatus: reference.licenseStatus,
+            questionBankItemId: reference.itemId,
+            questionId: reference.questionId,
+          },
+        });
+      }
+      const frozenInputHash = sha256(
+        canonicalJson({
+          aiJobInputHash: command.job.inputHash,
+          bankReferences: command.bankReferences.map((reference) => ({
+            bankVersion: reference.bankVersion,
+            contentDigest: reference.contentDigest,
+            itemId: reference.itemId,
+            licenseStatus: reference.licenseStatus,
+            questionId: reference.questionId,
+          })),
+          basisPresentationRevision: command.basisPresentationRevision,
+          basisSnapshotId: command.basisSnapshotId,
+          journeyBasisHash: command.journeyBasisHash,
+          manualIntentSequence,
+          versions: {
+            contextBuilder: [command.contextBuilderVersion, command.contextBuilderDigest],
+            contextSchema: [command.contextSchemaVersion, command.contextSchemaDigest],
+            modelConfig: [command.modelConfigVersion, command.modelConfigDigest],
+            outputSchema: [command.outputSchemaVersion, command.outputSchemaDigest],
+            promptBundle: [command.promptBundleVersion, command.promptBundleDigest],
+          },
+        }),
+      );
+      await tx.aiJob.update({
+        data: { inputHash: frozenInputHash },
+        where: { id: command.job.id },
       });
       if (command.attemptKind === 'manual_next') {
         await createEvent(tx, {
@@ -190,6 +246,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         manualIntentSequence,
         replayed: false,
         status: 'running',
+        frozenInputHash,
       };
     });
   }
@@ -228,7 +285,13 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       await this.policy.assertAllowed(actorId, command.job.projectId, [command.sessionId], tx);
 
       if (command.resultKind === 'suggestion' && command.candidate !== null) {
-        const gate = await this.canPublishCandidate(tx, attempt, state, command.candidate);
+        const gate = await this.canPublishCandidate(
+          tx,
+          attempt,
+          state,
+          command.candidate,
+          command.job.actualQuestions,
+        );
         if (gate !== null) {
           await tx.questionGenerationAttempt.update({
             data: {
@@ -494,6 +557,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       }),
     ]);
     return {
+      anchor: anchor.token,
       item: this.projectHistoryItem(row, safe, {
         anchor: anchor.token,
         hasNewer: newer !== null,
@@ -570,6 +634,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     actorId: string,
     sessionId: string,
     requestId: string,
+    expectedPresentationRevision: number,
+    expectedSnapshotId: string | null,
   ): Promise<void> {
     const { projectId } = await this.assertActorAccess(actorId, sessionId);
     const rejection = await this.prisma.$transaction(async (tx) => {
@@ -584,7 +650,10 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           persisted.action !== 'question_suggestion.manual_next_throttled' ||
           persisted.actorId !== actorId ||
           persisted.targetType !== 'interview_session' ||
-          persisted.targetId !== sessionId
+          persisted.targetId !== sessionId ||
+          readNumber(persisted.responsePayload, 'expected_presentation_revision') !==
+            expectedPresentationRevision ||
+          readStringOrNull(persisted.responsePayload, 'expected_snapshot_id') !== expectedSnapshotId
         ) {
           throw conflict('IDEMPOTENCY_KEY_REUSED');
         }
@@ -605,6 +674,12 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         });
       }
       const state = await tx.questionDisplayState.findUnique({ where: { sessionId } });
+      if (
+        (state?.presentationRevision ?? 0) !== expectedPresentationRevision ||
+        (state?.currentSnapshotId ?? null) !== expectedSnapshotId
+      ) {
+        throw conflict('SUGGESTION_CURRENT_CHANGED');
+      }
       const now = Date.now();
       const accepted = await tx.questionEvidenceEvent.findMany({
         orderBy: [{ eventAt: 'asc' }, { id: 'asc' }],
@@ -633,6 +708,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           requestId,
           responsePayload: {
             code: 'AI_SUGGESTION_THROTTLED',
+            expected_presentation_revision: expectedPresentationRevision,
+            expected_snapshot_id: expectedSnapshotId,
             retry_after_ms: retryAfterMs,
           },
           targetId: sessionId,
@@ -649,9 +726,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       where: { id: attemptId },
     });
     if (attempt === null || !['pending', 'running'].includes(attempt.status)) return;
-    const change = await this.prisma.$transaction(async (tx) => {
-      const state = await ensureState(tx, attempt.sessionId, 0);
-      const revision = state.presentationRevision + 1;
+    await this.prisma.$transaction(async (tx) => {
       await tx.questionGenerationAttempt.update({
         data: {
           completedAt: new Date(),
@@ -662,33 +737,17 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         },
         where: { id: attemptId },
       });
-      await tx.questionDisplayState.update({
-        data: {
-          presentationKind: 'unavailable',
-          presentationRevision: revision,
-          visibility: 'none',
-          withdrawalReason: null,
-        },
-        where: { sessionId: attempt.sessionId },
-      });
       await createEvent(tx, {
         actorId: null,
         aiJobId: attempt.aiJobId,
         eventType:
           attempt.attemptKind === 'manual_next' ? 'manual_next_failed' : 'presentation_unavailable',
-        metadata: { attempt_id: attemptId, code, presentation_revision: revision },
+        metadata: { attempt_id: attemptId, code },
         ownerKind: 'ai_job',
         sessionId: attempt.sessionId,
         snapshotId: attempt.basisSnapshotId,
       });
-      return {
-        change_kind: attempt.attemptKind === 'manual_next' ? 'manual_next' : 'initial_display',
-        kind: 'unavailable',
-        presentation_revision: revision,
-        snapshot_id: null,
-      } satisfies SuggestionPresentationChangedPayload;
     });
-    await this.notifier.publish(attempt.sessionId, change).catch(() => undefined);
   }
 
   private async publishCandidate(
@@ -702,17 +761,21 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     if (candidate === null) throw new Error('QUESTION_CANDIDATE_REQUIRED');
     const candidateId = randomUUID();
     const outputId = randomUUID();
+    const evidenceSegmentIds = candidate.grounding
+      .filter((item): item is { kind: 'segment'; id: string } => item.kind === 'segment')
+      .map(({ id }) => id);
+    const memoryResolutionIds = candidate.grounding
+      .filter((item): item is { kind: 'memory'; id: string } => item.kind === 'memory')
+      .map(({ id }) => id);
     const segmentInputs = command.job.segments.filter(({ segmentId }) =>
-      candidate.evidenceSegmentIds.includes(segmentId),
+      evidenceSegmentIds.includes(segmentId),
     );
     const memoryInputs = command.job.memories.filter(({ resolutionId }) =>
-      candidate.memoryResolutionIds.includes(resolutionId),
+      memoryResolutionIds.includes(resolutionId),
     );
     if (
-      segmentInputs.length !== new Set(candidate.evidenceSegmentIds).size ||
-      memoryInputs.length !== new Set(candidate.memoryResolutionIds).size ||
-      (candidate.adaptationReasonCode === 'grounded_slot_fill' &&
-        segmentInputs.length + memoryInputs.length === 0)
+      segmentInputs.length !== new Set(evidenceSegmentIds).size ||
+      memoryInputs.length !== new Set(memoryResolutionIds).size
     ) {
       throw new Error('AI_EVIDENCE_OUTSIDE_FROZEN_INPUT');
     }
@@ -752,9 +815,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     });
     await tx.questionCandidate.create({
       data: {
-        adaptationReasonCode: candidate.adaptationReasonCode,
         aiDerivedOutputId: outputId,
-        confidence: candidate.confidence,
+        generationOrigin: 'model_generated',
         id: candidateId,
         journeyPolicyVersion: attempt.journeyPolicyVersion,
         journeyStage: attempt.journeyStage,
@@ -764,16 +826,45 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         questionText: candidate.questionText,
         reasonText: candidate.reasonText,
         risk: candidate.risk,
-        selectionMode: candidate.selectionMode,
         selectionPolicyVersion: attempt.selectionPolicyVersion,
         selectionScore: candidate.selectionScore,
         similarityPolicyVersion: attempt.similarityPolicyVersion,
-        sourceBank: candidate.sourceBank,
-        sourceBankVersion: candidate.sourceBankVersion,
-        sourceQuestionBankItemId: candidate.sourceQuestionBankItemId,
-        sourceQuestionId: candidate.sourceQuestionId,
       },
     });
+    const seen = await tx.questionGenerationBankInputMembership.findMany({
+      where: { aiJobId: command.job.id },
+    });
+    const seenByItemId = new Map(
+      seen.flatMap((item) =>
+        item.questionBankItemId === null ? [] : [[item.questionBankItemId, item] as const],
+      ),
+    );
+    for (const reference of candidate.declaredBankReferences) {
+      const input = seenByItemId.get(reference.questionBankItemId);
+      if (input === undefined) throw new Error('AI_BANK_REFERENCE_OUTSIDE_FROZEN_INPUT');
+      const item = await tx.questionBankItem.findUnique({
+        include: { release: true },
+        where: { id: reference.questionBankItemId },
+      });
+      if (
+        item === null ||
+        item.questionId !== input.questionId ||
+        item.release.bankVersion !== input.bankVersion
+      ) {
+        throw new Error('AI_BANK_REFERENCE_OUTSIDE_FROZEN_INPUT');
+      }
+      await tx.questionCandidateBankReference.create({
+        data: {
+          bank: item.bank,
+          bankVersion: input.bankVersion,
+          purpose: item.purpose,
+          questionBankItemId: reference.questionBankItemId,
+          questionCandidateId: candidateId,
+          questionId: input.questionId,
+          referenceUsage: reference.usage,
+        },
+      });
+    }
     for (const [dependencyOrder, item] of segmentMemberships.entries()) {
       await tx.aiOutputSegmentDependency.create({
         data: {
@@ -812,9 +903,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     const snapshotId = randomUUID();
     await tx.questionDisplaySnapshot.create({
       data: {
-        adaptationReasonCode: candidate.adaptationReasonCode,
         boundaryPolicyRevision: command.job.policyRevision,
-        contextBuilderVersion: 'dev-007b-context-v1',
+        contextBuilderVersion: attempt.contextBuilderVersion,
         displaySequence: state.nextDisplaySequence,
         displayedAt: now,
         evidenceManifestHash: manifestHash(segmentManifest),
@@ -825,7 +915,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         memoryManifestHash: manifestHash(memoryManifest),
         modelName: 'local-test-question-director',
         normalizedQuestionDigest: normalizeQuestionDigest(candidate.questionText),
-        promptVersion: 'dev-007b-question-v1',
+        promptVersion: attempt.promptBundleVersion,
         publishedPresentationRevision: revision,
         purpose: candidate.purpose,
         questionCandidateId: candidateId,
@@ -837,15 +927,11 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
             ({ segmentId, inputSegmentId }) => `${inputSegmentId}:${segmentId}`,
           ),
         ),
-        schemaVersion: 'dev-007b-question-v1',
-        selectionMode: candidate.selectionMode,
+        schemaVersion: attempt.outputSchemaVersion,
         selectionPolicyVersion: attempt.selectionPolicyVersion,
         selectionScore: candidate.selectionScore,
         sessionId: command.sessionId,
         similarityPolicyVersion: attempt.similarityPolicyVersion,
-        sourceBank: candidate.sourceBank,
-        sourceBankVersion: candidate.sourceBankVersion,
-        sourceQuestionId: candidate.sourceQuestionId,
       },
     });
     await tx.questionDisplayState.update({
@@ -904,45 +990,37 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     attempt: QuestionGenerationAttempt,
     state: QuestionDisplayState,
     candidate: NonNullable<PublishQuestionAttemptCommand['candidate']>,
+    actualQuestions: readonly { actualQuestionId: string; normalizedDigest: string }[],
   ): Promise<'duplicate_filtered' | 'not_better' | null> {
-    const item = await tx.questionBankItem.findUnique({
-      include: { release: true },
-      where: { id: candidate.sourceQuestionBankItemId },
+    const seen = await tx.questionGenerationBankInputMembership.findMany({
+      where: { aiJobId: attempt.aiJobId },
     });
-    if (
-      item === null ||
-      !item.enabled ||
-      item.release.status !== 'active' ||
-      item.questionId !== candidate.sourceQuestionId ||
-      item.release.bankVersion !== candidate.sourceBankVersion ||
-      item.bank !== candidate.sourceBank ||
-      item.purpose !== candidate.purpose ||
-      (candidate.selectionMode === 'verbatim' && item.questionText !== candidate.questionText) ||
-      (candidate.selectionMode === 'lightly_adapted' && candidate.adaptationReasonCode === null) ||
-      (candidate.adaptationReasonCode === 'surface_wording' &&
-        !isApprovedSurfaceWording(item.questionText, candidate.questionText))
-    ) {
-      return 'duplicate_filtered';
-    }
-    if (candidate.adaptationReasonCode === 'grounded_slot_fill') {
-      const slot = candidate.groundedSlotValue?.trim();
-      if (slot === undefined || slot.length === 0 || !candidate.questionText.includes(slot)) {
+    for (const input of seen) {
+      if (input.questionBankItemId === null) return 'duplicate_filtered';
+      const item = await tx.questionBankItem.findUnique({
+        include: { release: true },
+        where: { id: input.questionBankItemId },
+      });
+      const expectedScope = ['local', 'test'].includes(this.config.appEnv)
+        ? 'internal_demo'
+        : 'product';
+      if (
+        item === null ||
+        !item.enabled ||
+        item.release.status !== 'active' ||
+        item.release.environmentScope !== expectedScope ||
+        item.release.bankVersion !== input.bankVersion ||
+        item.release.contentDigest !== input.contentDigest ||
+        item.questionId !== input.questionId ||
+        item.licenseStatus !== input.licenseStatus ||
+        ![
+          'project_original',
+          'verified',
+          ...(expectedScope === 'internal_demo' ? ['fixture_only'] : []),
+        ].includes(item.licenseStatus)
+      ) {
         return 'duplicate_filtered';
       }
-      const [memories, segments] = await Promise.all([
-        tx.memoryResolution.findMany({
-          where: { id: { in: [...candidate.memoryResolutionIds] }, status: 'current' },
-        }),
-        tx.transcriptSegment.findMany({
-          where: { id: { in: [...candidate.evidenceSegmentIds] } },
-        }),
-      ]);
-      const supported =
-        memories.some(({ resolvedValueJson }) => jsonStrings(resolvedValueJson).includes(slot)) ||
-        segments.some(({ correctedText, originalText }) =>
-          (correctedText ?? originalText).includes(slot),
-        );
-      if (!supported) return 'duplicate_filtered';
     }
     const recent = await tx.questionDisplaySnapshot.findMany({
       orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
@@ -958,13 +1036,25 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         return 'duplicate_filtered';
       }
     }
+    for (const prior of actualQuestions) {
+      const actual = await tx.actualQuestion.findUnique({ where: { id: prior.actualQuestionId } });
+      if (
+        actual !== null &&
+        (actual.normalizedDigest === normalizeQuestionDigest(candidate.questionText) ||
+          (await this.matcher.score(actual.questionText, candidate.questionText)) >=
+            QUESTION_SIMILARITY_THRESHOLD)
+      ) {
+        return 'duplicate_filtered';
+      }
+    }
     if (attempt.attemptKind !== 'automatic' || state.currentSnapshotId === null) return null;
     const current = await tx.questionDisplaySnapshot.findUnique({
       where: { id: state.currentSnapshotId },
     });
     const now = Date.now();
+    if (current === null) return null;
+    if (current.journeyStage !== attempt.journeyStage) return null;
     if (
-      current === null ||
       now - current.displayedAt.getTime() < AUTO_CURRENT_DWELL_MS ||
       now - (state.lastAutoPublishedAt?.getTime() ?? 0) < AUTO_MIN_INTERVAL_MS ||
       candidate.selectionScore - Number(current.selectionScore) < AUTO_SCORE_DELTA
@@ -1354,17 +1444,14 @@ function throttleRetryAfter(payload: Prisma.JsonValue): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function isApprovedSurfaceWording(source: string, candidate: string): boolean {
-  return (
-    candidate ===
-      source.replace('如果您愿意，可以先从', '如果您愿意，能从').replace('讲起吗？', '讲讲吗？') &&
-    candidate !== source
-  );
+function readNumber(value: unknown, key: string): number | null {
+  if (typeof value !== 'object' || value === null || !(key in value)) return null;
+  const nested = (value as Record<string, unknown>)[key];
+  return typeof nested === 'number' ? nested : null;
 }
 
-function jsonStrings(value: unknown): string[] {
-  if (typeof value === 'string') return [value];
-  if (Array.isArray(value)) return value.flatMap(jsonStrings);
-  if (typeof value === 'object' && value !== null) return Object.values(value).flatMap(jsonStrings);
-  return [];
+function readStringOrNull(value: unknown, key: string): string | null | undefined {
+  if (typeof value !== 'object' || value === null || !(key in value)) return undefined;
+  const nested = (value as Record<string, unknown>)[key];
+  return typeof nested === 'string' || nested === null ? nested : undefined;
 }

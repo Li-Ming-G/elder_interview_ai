@@ -22,6 +22,7 @@ import type {
   TranscriptSegmentResponse,
   ManualNextSuggestionRequest,
   SuggestionHistoryPageResponse,
+  SuggestionHistoryItemResponse,
   SuggestionPresentationResponse,
   SuggestionRequestAcceptedResponse,
   SuggestionRequestStatusResponse,
@@ -112,6 +113,10 @@ export interface SuggestionApi {
     sessionId: string,
     input?: { anchor?: string | null; cursor?: string | null; limit?: number },
   ) => Promise<SuggestionHistoryPageResponse>;
+  getSuggestionHistoryItem: (
+    sessionId: string,
+    snapshotId: string,
+  ) => Promise<SuggestionHistoryItemResponse>;
   getSuggestionRequest: (
     sessionId: string,
     requestId: string,
@@ -177,6 +182,11 @@ export function createInterviewApi(
       if (input.cursor !== undefined && input.cursor !== null) query.set('cursor', input.cursor);
       return read(`/api/v1/sessions/${sessionId}/suggestions/history?${query.toString()}`);
     },
+    getSuggestionHistoryItem: async (
+      sessionId,
+      snapshotId,
+    ): Promise<SuggestionHistoryItemResponse> =>
+      read(`/api/v1/sessions/${sessionId}/suggestions/history/${snapshotId}`),
     getSuggestionRequest: async (sessionId, requestId): Promise<SuggestionRequestStatusResponse> =>
       read(`/api/v1/sessions/${sessionId}/suggestion-requests/${requestId}`),
     getSpeakerCalibration: async (sessionId): Promise<SpeakerCalibrationSnapshot> =>

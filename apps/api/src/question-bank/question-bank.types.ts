@@ -167,6 +167,7 @@ export interface EligibleQuestionBankItem {
   applicableConditionCodes: readonly QuestionConditionCode[];
   bank: QuestionBankKind;
   bankVersion: string;
+  contentDigest: string;
   inapplicableConditionCodes: readonly QuestionConditionCode[];
   itemId: string;
   licenseStatus: 'project_original' | 'verified' | 'fixture_only';

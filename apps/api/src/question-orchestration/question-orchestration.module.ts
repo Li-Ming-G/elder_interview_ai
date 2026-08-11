@@ -2,6 +2,7 @@ import type { ApiConfig } from '@elder-interview/config';
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { API_CONFIG } from '../api-config.js';
+import { QuestionDirectorContract } from './question-director-contract.js';
 import {
   LocalTestQuestionDirector,
   QuestionDirector,
@@ -44,6 +45,7 @@ export function createQuestionOrchestrationModule(
         useExisting: localOrTest ? LocalTestQuestionDirector : UnavailableQuestionDirector,
       },
       QuestionOrchestrationService,
+      QuestionDirectorContract,
       QuestionRequestActorService,
     ],
   };

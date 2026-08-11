@@ -37,6 +37,27 @@ export function SuggestionPanelHarness(): React.JSX.Element {
         next_cursor: null,
         session_id: SESSION_ID,
       }),
+    getSuggestionHistoryItem: (_sessionId, snapshotId) => {
+      const pageItem =
+        snapshotId === SECOND_SNAPSHOT_ID
+          ? {
+              display_sequence: 1,
+              displayed_at: '2026-08-10T09:59:00.000Z',
+              kind: 'suggestion' as const,
+              newer_cursor: 'synthetic-browser-newer-cursor',
+              older_cursor: null,
+              question: '小时候最常陪伴您的东西是什么？',
+              reason: '先前显示过的 synthetic fixture 问题。',
+              snapshot_id: SECOND_SNAPSHOT_ID,
+              withdrawal_reason: null,
+            }
+          : historyItem(current);
+      return Promise.resolve({
+        anchor: 'synthetic-browser-anchor',
+        item: pageItem,
+        session_id: SESSION_ID,
+      });
+    },
     getSuggestionRequest: (_sessionId, requestId) => {
       const next = secondCurrent();
       setCurrent(next);

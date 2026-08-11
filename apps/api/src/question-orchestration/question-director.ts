@@ -1,24 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
-import type { CurrentMemoryItem } from '../memory/memory.service.js';
 import type {
-  EligibleQuestionBankItem,
-  JourneyStage,
-} from '../question-bank/question-bank.types.js';
-import type {
-  QuestionCandidateResult,
-  QuestionAttemptKind,
-} from '../question-evidence/question-presentation.types.js';
+  InterviewDirectorContextV1,
+  InterviewDirectorOutputV1,
+} from './question-director-contract.js';
 
-export interface QuestionDirectorInput {
-  attemptKind: QuestionAttemptKind;
-  eligible: readonly EligibleQuestionBankItem[];
-  journeyStage: JourneyStage;
-  memories: readonly CurrentMemoryItem[];
+export interface QuestionDirectorRequest {
+  context: InterviewDirectorContextV1;
+  prompt: { system: string; task: string };
 }
 
+/** One provider-neutral Director call. It has no database or tool access. */
 export abstract class QuestionDirector {
-  public abstract select(input: QuestionDirectorInput): Promise<QuestionCandidateResult | null>;
+  public abstract generate(request: QuestionDirectorRequest): Promise<unknown>;
 }
 
 export class QuestionDirectorUnavailableError extends Error {
@@ -29,87 +23,69 @@ export class QuestionDirectorUnavailableError extends Error {
 
 @Injectable()
 export class UnavailableQuestionDirector extends QuestionDirector {
-  public override select(): Promise<never> {
+  public override generate(): Promise<never> {
     return Promise.reject(new QuestionDirectorUnavailableError());
   }
 }
 
-/** Explicit local/test fake. It only returns a selected bank item or a controlled v1 edit. */
+/** Deterministic local/test fake. It can generate without a bank reference. */
 @Injectable()
 export class LocalTestQuestionDirector extends QuestionDirector {
-  public override select(input: QuestionDirectorInput): Promise<QuestionCandidateResult | null> {
-    const item = input.eligible[0];
-    if (item === undefined) return Promise.resolve(null);
-    const grounded =
-      input.attemptKind === 'manual_next' && item.purpose === 'person'
-        ? input.memories.find(
-            ({ canonicalKey, memoryType, resolutionKind }) =>
-              memoryType === 'person' &&
-              resolutionKind === 'single' &&
-              /(^|\.)(important|influence|mentor)(\.|$)/u.test(canonicalKey),
-          )
-        : undefined;
-    const groundedValue = grounded === undefined ? null : firstString(grounded.resolvedValue);
-    const canSurface =
-      input.attemptKind === 'manual_next' &&
-      item.questionText.startsWith('如果您愿意，可以先从') &&
-      item.questionText.endsWith('讲起吗？');
-    const selectionMode = groundedValue !== null || canSurface ? 'lightly_adapted' : 'verbatim';
-    const adaptationReasonCode =
-      groundedValue !== null ? 'grounded_slot_fill' : canSurface ? 'surface_wording' : null;
-    const questionText =
-      groundedValue !== null
-        ? `您年轻时，${groundedValue}是不是一位对您影响很大的人？`
-        : canSurface
-          ? item.questionText
-              .replace('如果您愿意，可以先从', '如果您愿意，能从')
-              .replace('讲起吗？', '讲讲吗？')
-          : item.questionText;
+  public override generate({
+    context,
+  }: QuestionDirectorRequest): Promise<InterviewDirectorOutputV1> {
+    const latestElder = [...context.recent_transcript]
+      .reverse()
+      .find(({ trusted_role }) => trusted_role === 'elder');
+    if (latestElder !== undefined) {
+      return Promise.resolve({
+        continue_reason_code: null,
+        decision: 'suggest',
+        declared_bank_references: [],
+        grounding: [{ id: latestElder.segment_id, kind: 'segment' }],
+        purpose: context.interview_state.journey_stage === 'story_depth' ? 'detail' : 'timeline',
+        question: '您愿意顺着刚才提到的这段经历，再讲讲当时发生了什么吗？',
+        reason: '顺着长者刚刚表达的内容继续，不急着跳到新的主题。',
+        risk: 'low',
+      });
+    }
+    const memory = context.current_memories[0];
+    if (memory !== undefined) {
+      return Promise.resolve({
+        continue_reason_code: null,
+        decision: 'suggest',
+        declared_bank_references: [],
+        grounding: [{ id: memory.memory_resolution_id, kind: 'memory' }],
+        purpose: 'transition',
+        question: '如果您愿意，我们可以从一段您印象较深的经历慢慢讲起吗？',
+        reason: '用开放问题承接已有线索，同时避免把不确定信息说成事实。',
+        risk: 'low',
+      });
+    }
+    const bank = context.bank_references[0];
+    if (bank !== undefined) {
+      return Promise.resolve({
+        continue_reason_code: null,
+        decision: 'suggest',
+        declared_bank_references: [
+          { question_bank_item_id: bank.question_bank_item_id, usage: 'inspiration' },
+        ],
+        grounding: [],
+        purpose: bank.purpose,
+        question: bank.question_text,
+        reason: '当前事实线索较少，先参考低压力题目帮助建立谈话节奏。',
+        risk: bank.sensitivity,
+      });
+    }
     return Promise.resolve({
-      adaptationReasonCode,
-      confidence: 1,
-      evidenceSegmentIds: [],
-      ...(groundedValue === null ? {} : { groundedSlotValue: groundedValue }),
-      memoryResolutionIds: grounded === undefined ? [] : [grounded.id],
-      purpose: item.purpose,
-      questionText,
-      reasonText: reasonFor(input.journeyStage),
-      risk: item.sensitivity,
-      selectionMode,
-      selectionScore: stageScore(input.journeyStage),
-      sourceBank: item.bank,
-      sourceBankVersion: item.bankVersion,
-      sourceQuestionBankItemId: item.itemId,
-      sourceQuestionId: item.questionId,
+      continue_reason_code: 'insufficient_context',
+      decision: 'continue_listening',
+      declared_bank_references: [],
+      grounding: [],
+      purpose: null,
+      question: null,
+      reason: '当前信息还不足以提出自然且有帮助的新问题。',
+      risk: null,
     });
   }
-}
-
-function firstString(value: unknown): string | null {
-  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const nested = firstString(item);
-      if (nested !== null) return nested;
-    }
-  }
-  if (typeof value === 'object' && value !== null) {
-    for (const item of Object.values(value)) {
-      const nested = firstString(item);
-      if (nested !== null) return nested;
-    }
-  }
-  return null;
-}
-
-function reasonFor(stage: JourneyStage): string {
-  if (stage === 'story_depth') return '长者已经给出具体故事线索，可以顺着这一处继续深入。';
-  if (stage === 'life_outline') return '长者已提到具体人物或经历，可以自然补全这段生平轮廓。';
-  return '先用一个低压力的问题建立节奏，让长者按自己的步调展开。';
-}
-
-function stageScore(stage: JourneyStage): number {
-  if (stage === 'story_depth') return 0.9;
-  if (stage === 'life_outline') return 0.76;
-  return 0.62;
 }

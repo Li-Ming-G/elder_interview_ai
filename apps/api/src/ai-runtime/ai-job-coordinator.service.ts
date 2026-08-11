@@ -17,6 +17,22 @@ export interface FrozenActualQuestion {
   normalizedDigest: string;
 }
 
+async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('AI_PROVIDER_TIMEOUT'));
+        }, deadlineMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export interface FrozenAiJob {
   actualQuestions: readonly FrozenActualQuestion[];
   id: string;
@@ -44,6 +60,7 @@ export interface FreezeAiJobRequest {
   sessionIds: readonly string[];
   triggerDedupeKey?: string;
   trustedRole: 'elder' | 'interviewer';
+  trustedRoles?: readonly ('elder' | 'interviewer')[];
 }
 
 interface CancellationResult {
@@ -63,6 +80,7 @@ export class AiJobCoordinatorService {
     const sessionIds = [...new Set(request.sessionIds)].sort();
     const memoryIds = [...new Set(request.memoryResolutionIds ?? [])].sort();
     const actualQuestionIds = [...new Set(request.actualQuestionIds ?? [])];
+    const trustedRoles = [...new Set(request.trustedRoles ?? [request.trustedRole])].sort();
     const requestIdentityHash = this.requestIdentityHash(
       request,
       sessionIds,
@@ -170,14 +188,14 @@ export class AiJobCoordinatorService {
           const projection = projectTrustedSpeakerRole(segment);
           return (
             segment.contentKind === 'conversation' &&
-            projection.trustedEffectiveSpeakerRole === request.trustedRole
+            trustedRoles.includes(projection.trustedEffectiveSpeakerRole as 'elder' | 'interviewer')
           );
         });
         const scopeEntries = eligible.map((segment) => {
           const text = segment.correctedText ?? segment.originalText;
           return `${segment.id}:${String(segment.textRevision)}:${String(segment.speakerRoleRevision)}:${effectiveTextDigest(text)}`;
         });
-        const scopeReason = `${request.jobType}:${request.trustedRole}`;
+        const scopeReason = `${request.jobType}:${trustedRoles.join('+')}`;
         await tx.aiJobSessionScope.create({
           data: {
             aiJobId: jobId,
@@ -221,7 +239,7 @@ export class AiJobCoordinatorService {
               speakerRoleRevision: segment.speakerRoleRevision,
               textRevision: segment.textRevision,
               transcriptSegmentId: segment.id,
-              trustedEffectiveRole: request.trustedRole,
+              trustedEffectiveRole: projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole,
             },
           });
           frozenSegments.push({
@@ -230,6 +248,8 @@ export class AiJobCoordinatorService {
             sessionId: session.id,
             startMs: segment.startMs,
             text,
+            trustedRole: projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole as
+              'elder' | 'interviewer',
           });
           inputOrder += 1;
         }
@@ -291,7 +311,7 @@ export class AiJobCoordinatorService {
             startMs,
           })),
           triggerDedupeKey: request.triggerDedupeKey ?? null,
-          trustedRole: request.trustedRole,
+          trustedRoles,
         }),
       );
       await tx.aiJob.update({
@@ -366,6 +386,75 @@ export class AiJobCoordinatorService {
     }
   }
 
+  public async callProviderWithSameInputRetry<T>(
+    job: FrozenAiJob,
+    invoke: () => Promise<unknown>,
+    validate: (value: unknown) => T,
+    deadlineMs: number,
+  ): Promise<T> {
+    if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    try {
+      await this.policy.assertAllowed(job.requestedBy, job.projectId, job.sessionIds);
+    } catch (error) {
+      await this.cancelJob(job.id, 'AI_POLICY_DRIFT');
+      throw error;
+    }
+    let lastError: unknown = new Error('AI_PROVIDER_UNAVAILABLE');
+    for (const callNo of [1, 2] as const) {
+      const callId = randomUUID();
+      const startedAt = new Date();
+      await this.prisma.aiProviderCall.create({
+        data: {
+          aiJobId: job.id,
+          callKind: callNo === 1 ? 'primary' : 'same_input_retry',
+          callNo,
+          id: callId,
+          inputHash: job.inputHash,
+          startedAt,
+          status: 'running',
+        },
+      });
+      try {
+        const output = await withDeadline(invoke(), deadlineMs);
+        const parsed = validate(output);
+        await this.prisma.aiProviderCall.update({
+          data: {
+            completedAt: new Date(),
+            latencyMs: Date.now() - startedAt.getTime(),
+            outputHash: sha256(canonicalJson(output)),
+            status: 'succeeded',
+          },
+          where: { id: callId },
+        });
+        return parsed;
+      } catch (error) {
+        lastError = error;
+        await this.prisma.aiProviderCall.update({
+          data: {
+            completedAt: new Date(),
+            errorCode: error instanceof Error ? error.message.slice(0, 80) : 'UNKNOWN',
+            latencyMs: Date.now() - startedAt.getTime(),
+            status: 'failed',
+          },
+          where: { id: callId },
+        });
+      }
+    }
+    await this.prisma.aiJob.updateMany({
+      data: { completedAt: new Date(), failureCode: 'PROVIDER_FAILED', status: 'failed' },
+      where: { id: job.id, status: 'running' },
+    });
+    throw lastError;
+  }
+
+  public async discardUncalledJob(jobId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const calls = await tx.aiProviderCall.count({ where: { aiJobId: jobId } });
+      if (calls !== 0) return;
+      await tx.aiJob.deleteMany({ where: { id: jobId, status: { in: ['pending', 'running'] } } });
+    });
+  }
+
   public async writeBack<T>(
     job: FrozenAiJob,
     write: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -409,6 +498,10 @@ export class AiJobCoordinatorService {
   }
 
   private async findDrift(tx: Prisma.TransactionClient, job: FrozenAiJob): Promise<string | null> {
+    const persistedJob = await tx.aiJob.findUnique({ where: { id: job.id } });
+    if (persistedJob?.status !== 'running' || persistedJob.inputHash !== job.inputHash) {
+      return 'AI_JOB_NOT_RUNNING';
+    }
     let currentPolicy;
     try {
       currentPolicy = await this.policy.assertAllowed(

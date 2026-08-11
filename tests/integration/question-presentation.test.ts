@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { loadApiConfig } from '@elder-interview/config';
 import type { INestApplication } from '@nestjs/common';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import type { AuthPrincipal } from '../../apps/api/src/auth/auth.types.js';
@@ -11,6 +11,7 @@ import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import { ActualAskedReader } from '../../apps/api/src/question-evidence/question-evidence.service.js';
 import { QuestionPresentationService } from '../../apps/api/src/question-evidence/question-presentation.service.js';
 import { QuestionOrchestrationService } from '../../apps/api/src/question-orchestration/question-orchestration.service.js';
+import { QuestionDirector } from '../../apps/api/src/question-orchestration/question-director.js';
 import { QuestionBankImportService } from '../../apps/api/src/question-bank/question-bank.service.js';
 
 describe('DEV-007B constrained question publication', () => {
@@ -21,7 +22,9 @@ describe('DEV-007B constrained question publication', () => {
   let actualAsked: ActualAskedReader;
   let deletion: LocalTestDeletionScopeFixtureReader;
   let imports: QuestionBankImportService;
+  let director: QuestionDirector;
   let releaseId: string;
+  const speakerStreamId = randomUUID();
 
   const actorId = randomUUID();
   const projectId = randomUUID();
@@ -54,6 +57,7 @@ describe('DEV-007B constrained question publication', () => {
     actualAsked = app.get(ActualAskedReader);
     deletion = app.get(LocalTestDeletionScopeFixtureReader);
     imports = app.get(QuestionBankImportService);
+    director = app.get(QuestionDirector);
 
     for (const release of await prisma.questionBankRelease.findMany({
       where: { environmentScope: 'internal_demo', status: 'active' },
@@ -101,6 +105,9 @@ describe('DEV-007B constrained question publication', () => {
     await prisma.interviewSession.create({
       data: { createdBy: actorId, id: sessionId, projectId, sequenceNo: 1, status: 'recording' },
     });
+    await prisma.speakerStream.create({
+      data: { closedAt: new Date(), id: speakerStreamId, sessionId, status: 'closed' },
+    });
   });
 
   afterAll(async () => {
@@ -120,6 +127,35 @@ describe('DEV-007B constrained question publication', () => {
   });
 
   it('publishes only licensed fixture candidates through the writer and keeps REST/history safe', async () => {
+    const failedRequestId = randomUUID();
+    const failedInputs: string[] = [];
+    const invalidGenerate = vi.spyOn(director, 'generate').mockImplementation((request) => {
+      failedInputs.push(JSON.stringify(request));
+      return Promise.resolve({ decision: 'suggest', question: 'invalid' });
+    });
+    await orchestration.requestManualNext(actor, sessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId: failedRequestId,
+    });
+    const failed = await waitForTerminal(failedRequestId);
+    invalidGenerate.mockRestore();
+    expect(failed.status).toBe('failed');
+    expect(failed.current).toMatchObject({
+      kind: 'continue_listening',
+      presentation_revision: 0,
+      snapshot_id: null,
+    });
+    expect(failedInputs).toHaveLength(2);
+    expect(failedInputs[1]).toBe(failedInputs[0]);
+    expect(
+      await prisma.questionCandidate.count({
+        where: { questionGenerationAttemptId: failed.attempt_id },
+      }),
+    ).toBe(0);
+    expect(await prisma.questionDisplaySnapshot.count({ where: { sessionId } })).toBe(0);
+    await ageManualFence();
+
     const firstRequestId = randomUUID();
     const accepted = await orchestration.requestManualNext(actor, sessionId, {
       expectedPresentationRevision: 0,
@@ -134,7 +170,7 @@ describe('DEV-007B constrained question publication', () => {
       kind: 'suggestion',
       presentation_revision: 1,
     });
-    expect(first.current.question).toContain('能从小时候住过的地方讲讲吗');
+    expect(first.current.question).toBe('如果您愿意，可以先从小时候住过的地方讲起吗？');
     expect(accepted.attempt_id).toBe(first.attempt_id);
 
     const firstCandidate = await prisma.questionCandidate.findFirstOrThrow({
@@ -144,17 +180,26 @@ describe('DEV-007B constrained question publication', () => {
       where: { id: first.current.snapshot_id ?? '' },
     });
     expect(firstCandidate).toMatchObject({
-      adaptationReasonCode: 'surface_wording',
+      generationOrigin: 'model_generated',
       journeyStage: 'rapport',
       purpose: 'scene',
-      selectionMode: 'lightly_adapted',
-      sourceBank: 'basic',
     });
     expect(firstSnapshot).toMatchObject({
-      adaptationReasonCode: 'surface_wording',
       purpose: firstCandidate.purpose,
-      sourceQuestionId: firstCandidate.sourceQuestionId,
     });
+    const firstAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { id: first.attempt_id },
+    });
+    expect(
+      await prisma.questionGenerationBankInputMembership.count({
+        where: { aiJobId: firstAttempt.aiJobId },
+      }),
+    ).toBeGreaterThan(0);
+    expect(
+      await prisma.questionCandidateBankReference.count({
+        where: { questionCandidateId: firstCandidate.id },
+      }),
+    ).toBe(1);
     expect(await actualAsked.list(actorId, projectId)).toEqual([]);
 
     const replay = await orchestration.requestManualNext(actor, sessionId, {
@@ -188,12 +233,54 @@ describe('DEV-007B constrained question publication', () => {
     ).rejects.toMatchObject({ status: 429 });
     expect(await prisma.aiJob.count({ where: { requestId: throttledRequestId } })).toBe(0);
     const secondRequestId = randomUUID();
+    await prisma.transcriptSegment.create({
+      data: {
+        endMs: 900,
+        ingestKey: `dev-007b-free-${randomUUID()}`,
+        originalRoleAuthority: 'user_confirmed',
+        originalSpeakerRole: 'elder',
+        originalText: '我小时候住在河边，院子里有一棵桂花树。',
+        sessionId,
+        source: 'fixture',
+        speakerRoleRevision: 0,
+        speakerStreamId,
+        startMs: 0,
+      },
+    });
+    const originalGenerate = director.generate.bind(director);
+    const retryInputs: string[] = [];
+    const generate = vi
+      .spyOn(director, 'generate')
+      .mockImplementationOnce((request) => {
+        retryInputs.push(JSON.stringify(request));
+        return Promise.resolve({ decision: 'suggest', question: 'invalid' });
+      })
+      .mockImplementationOnce((request) => {
+        retryInputs.push(JSON.stringify(request));
+        return originalGenerate(request);
+      });
     await orchestration.requestManualNext(actor, sessionId, {
       expectedPresentationRevision: 1,
       expectedSnapshotId: first.current.snapshot_id,
       requestId: secondRequestId,
     });
     const second = await waitForTerminal(secondRequestId);
+    generate.mockRestore();
+    expect(retryInputs).toHaveLength(2);
+    expect(retryInputs[1]).toBe(retryInputs[0]);
+    const secondAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { id: second.attempt_id },
+    });
+    expect(
+      await prisma.aiProviderCall.findMany({
+        orderBy: { callNo: 'asc' },
+        select: { callKind: true, callNo: true, inputHash: true },
+        where: { aiJobId: secondAttempt.aiJobId },
+      }),
+    ).toEqual([
+      expect.objectContaining({ callKind: 'primary', callNo: 1 }),
+      expect.objectContaining({ callKind: 'same_input_retry', callNo: 2 }),
+    ]);
     expect(second.publication_outcome).toBe('published');
     expect(second.current).toMatchObject({ display_sequence: 2, presentation_revision: 2 });
     expect(second.current.snapshot_id).not.toBe(first.current.snapshot_id);
@@ -201,10 +288,14 @@ describe('DEV-007B constrained question publication', () => {
       where: { questionGenerationAttemptId: second.attempt_id },
     });
     expect(secondCandidate).toMatchObject({
-      adaptationReasonCode: null,
-      purpose: 'detail',
-      selectionMode: 'verbatim',
+      generationOrigin: 'model_generated',
+      purpose: 'timeline',
     });
+    expect(
+      await prisma.questionCandidateBankReference.count({
+        where: { questionCandidateId: secondCandidate.id },
+      }),
+    ).toBe(0);
 
     const beforeRead = {
       attempts: await prisma.questionGenerationAttempt.count({ where: { sessionId } }),

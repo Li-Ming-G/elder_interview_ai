@@ -446,6 +446,7 @@ export interface SuggestionHistoryPageResponse {
 
 export interface SuggestionHistoryItemResponse {
   session_id: string;
+  anchor: string;
   item: SuggestionHistoryItem;
 }
 
