@@ -1059,3 +1059,11 @@
 - Decision: SPEC DONE、ADR-031 Accepted、CON-026 RESOLVED；两份 Director Schema 转正式，DEV-007B v2 仅解锁为 READY，父 DEV-007 继续等待 B。PR #25 旧白名单实现仍不得合并。
 - P2 closeout: `09` 末尾旧的 Journey SPEC REVIEW / A/B BLOCKED 动态状态句已替换为任务板当前事实，避免规范正文冒充动态状态来源。
 - Verification boundary: 本次治理不启动 DEV-007B，不实现模型/UI/数据库迁移，也不证明正式题库内容、真实 LLM、生产或真实试点可用。
+
+### 2026-08-11 — DEV-007B v2 自由生成纵向链路候选
+
+- User outcome: 在无需追加产品讨论的前提下，尽快交付“可信数据库 Context → 一个 Director → 基础硬校验 → QuestionEvidence 发布 → 当前问题/历史/UI”的 local/test internal-demo 链路。
+- Review mode: Learning mode；唯一独立只读复核确认没有新的产品偏差，关键不是增加 planner，而是隔离只读来源事实、可失效候选与不可冒充 actual asked 的展示历史。
+- Decision: 旧 PR #25 继续 REQUEST_CHANGES；从 main 新建 v2 分支，只移植契约中立骨架。后端确定性负责数据库范围、冻结、权限、安全、幂等、版本和写回，一个 Director 只生成结构化建议。
+- Implementation evidence: 正式 Context/Output Schema validator、可编辑 prompt digest、同输入一次 retry、optional bank/seen-declared 分表、free-generation candidate、QuestionEvidence current/history/manual intent、REST canonical/bodyless WS、cursor/anchor 与跨刷新 UI。
+- Verification boundary: deterministic fake、synthetic fixture、unit/PG/Chromium 只证明工程不变量；正式题库、真实模型、生产 boundary/deletion、问题质量和真实试点均未证明。DEV-007B 保持 REVIEW，等待 PR #27 exact-head CI 与项目负责人手动审查。

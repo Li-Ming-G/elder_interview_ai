@@ -2,8 +2,8 @@
 
 ## 基本信息
 
-- 状态：`READY`
-- 负责人：待分配
+- 状态：`REVIEW`
+- 负责人：Codex DEV-007B v2 Agent
 - 前置依赖：SPEC-QUESTION-DIRECTOR-001 项目负责人 PASS/merge、DEV-007A PASS、DEV-006 DONE、SPEC-AI-QUESTION-001 DONE
 - 输入依据：`03` §9/§11、`04` §§4.36-4.39、`05` §3.9、`07` §§5-10、`09` §7.6-§7.7、ADR-027-031
 - 交接对象：父 DEV-007、项目负责人 GitHub 审查
@@ -26,3 +26,10 @@
 ## 验收
 
 逐项通过 `09` §7.6 与 §7.7 中属于 B 的矩阵；必须证明无题库引用可合法生成、seen 与 declared 分离、声明引用和 grounding ID 都来自 frozen Context、源事实只读、同输入 retry、prompt/schema 版本可复盘，并通过现有响应式/无障碍/权限/失败门禁。项目负责人 exact-head PASS 前不得 DONE。
+
+## 当前交付
+
+- 分支：`codex/dev-007b-v2-interview-director`
+- 非 Draft PR：[PR #27](https://github.com/Li-Ming-G/elder_interview_ai/pull/27)
+- 实现提交：`f9f4a22`；最终 exact head 与 exact-head CI 以 PR 审查包为准。
+- 状态严格保持 REVIEW；旧 PR #25 继续为 REQUEST_CHANGES，不得合并。
