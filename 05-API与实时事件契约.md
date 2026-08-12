@@ -114,7 +114,23 @@ POST   /projects/:id/restore
 }
 ```
 
-`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。列表和详情不返回未分配项目；不存在、软删除、隐私删除或未分配均不得泄露项目正文。
+`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。
+
+`GET /projects` 返回 `ProjectListResponse.items: ProjectListProjection[]`。普通分支为 `projection=ordinary`，只包含 `draft|ready|active|completed`、`deleted_at=null` 且 actor 仍有有效 assignment 的项目。`restricted` 且 actor 仍有有效 assignment 时不得复用 `ProjectResponse`，必须只返回以下固定最小分支：
+
+```json
+{
+  "project_id": "opaque-uuid",
+  "projection": "restricted",
+  "status": "restricted",
+  "display_label": "受限项目",
+  "status_label": "当前不可访问"
+}
+```
+
+该分支不得增加 `project_id` 以外的第二项目标识，不得返回 `display_name`、出生年份/年龄、籍贯、城市、`created_by`、`status_before_restriction`、授权/服务条款、最近操作人、会话计数/时长/状态、正文、对象键、provider payload、`primary_action` 或可点击深链。客户端只渲染固定中性文案且不渲染主按钮。`status=deleted`、`deleted_at!=null`、assignment 撤销/不存在、隐私删除 tombstone 或不存在的项目完全不返回，不以空字段或受限占位暴露存在性。
+
+`GET /projects/:id` 是普通项目详情，不返回上述中性 list projection。它与普通 prepare/workbench/review 所用的 service term、consent、session 详情读取均要求当前有效 assignment、项目 `deleted_at=null` 且状态不是 `restricted|deleted`；任一门禁失败返回统一 403/404，不返回正文。深链、旧 cursor、`created_by`、本机 archive 或曾经访问过都不构成读取授权。
 
 `DELETE /projects/:id` 与 `/restore` 只用于普通、可恢复的软删除：前者设置 `deleted_at` 但不执行隐私物理清理，后者只清除该软删除标记。它们不得替代 deletion-request 流程；存在非终态删除申请或项目已因 completed project scope 请求进入 `status=deleted` 时，普通删除/恢复返回 409 `PROJECT_DELETION_LOCKED`，物理删除完成后的项目永远不得 restore。
 
@@ -124,7 +140,9 @@ POST   /projects/:id/restore
 GET /projects/:id/sessions?cursor=<opaque>&limit=20
 ```
 
-响应按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。未认证 401；无有效 assignment、项目不可见或跨项目 cursor 失败关闭，不通过空列表泄露存在性。`restricted|deleted` 项目不得返回会话正文事实，普通工作区只显示中性受限投影。
+响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
+
+分页 cursor 是版本化、服务端签名的不透明 token，至少绑定 `project_id + created_at + id`，并绑定排序方向、page size 与当前过滤版本；`created_at/id` 是签发页最后一项的 keyset anchor。缺失签名、解析失败、内容篡改、过期/版本失效、跨项目复用、参数不一致或当前 assignment/项目普通可见性失效均失败关闭：非法 cursor 返回 422 `INVALID_SESSION_CURSOR`，当前资源权限失效返回 403/404；不得静默降级首页或用空列表掩盖。`restricted` 项目不提供 session page，首页只保留 §3.1 的项目级中性受限投影；`deleted`、软删除和 assignment 失效项目完全不可见。
 
 | 权威 session/finalization 事实 | `home_state` | `primary_action`（唯一中文动作） | `review_access` |
 |---|---|---|---|
@@ -173,7 +191,7 @@ GET  /projects/:id/service-terms
 }
 ```
 
-分钟、次数和金额使用非负整数；`currency` 为三位大写 ISO 4217 代码。服务端写入 `explained_at`、`explained_by`、`effective_from`；新记录生效时把上一条当前记录写 `superseded_at`，不覆盖历史。只有被分配倾听员可提交和读取；内部虚构数据允许价格为 0。
+分钟、次数和金额使用非负整数；`currency` 为三位大写 ISO 4217 代码。服务端写入 `explained_at`、`explained_by`、`effective_from`；新记录生效时把上一条当前记录写 `superseded_at`，不覆盖历史。只有被分配倾听员可提交和读取；普通读取还要求项目未软删除且状态不是 `restricted|deleted`。内部虚构数据允许价格为 0。
 
 ### 3.4 授权
 
@@ -205,6 +223,8 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 ```
 
 创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
+
+`GET /projects/:id/consents` 属于普通 prepare/detail 读取，要求当前有效 assignment、项目未软删除且状态不是 `restricted|deleted`；失败不得返回授权文本版本、方式、时间、操作者、音频对象 ID 或任何历史记录。中性首页占位不能调用或嵌入本接口结果。
 
 撤回请求至少包含新的 `request_id`：
 
@@ -255,6 +275,7 @@ POST /sessions/:id/capture/interrupted
 POST /sessions/:id/capture/abandon-empty
 POST /sessions/:id/stop
 POST /sessions/:id/recover
+GET  /sessions/:id/evidence-finalization
 ```
 
 `POST /projects/:id/sessions` 请求固定为 `{ "request_id": "uuid" }`，只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
@@ -283,7 +304,7 @@ POST /sessions/:id/recover
 
 #### 3.5.1 公共会话结束 snapshot
 
-`GET /sessions/:id`、stop 和 recover 返回同一 `InterviewSessionResponse` snapshot。结束前 `finalization=null`；结束收束存在后至少返回：
+普通资源门禁仍有效时，`GET /sessions/:id`、stop 和 recover 返回同一 `InterviewSessionResponse` snapshot。结束前 `finalization=null`；结束收束存在后至少返回：
 
 ```json
 {
@@ -338,6 +359,8 @@ POST /sessions/:id/recover
 
 响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
 
+该公共 snapshot 只用于普通 prepare/workbench/review 及仍满足普通资源门禁的 stop/recover：每次读取必须有当前有效 assignment，项目未软删除且状态不是 `restricted|deleted`。`interview_session.created_by` 与 `session_finalization.created_by` 都只用于审计/受限证据归属，绝不能作为 `GET /sessions/:id` 或普通页面读取的 assignment fallback。门禁失败不返回项目 ID、session 状态、capture/finalization、时间或失败分类。
+
 #### 3.5.2 stop
 
 客户端必须先停止新 PCM、停止 MediaRecorder并收到最终 `dataavailable`，再冻结并持久化以下请求及稳定 `request_id`：
@@ -389,6 +412,10 @@ stop 接受前，既有 interview audio object 的 upload/complete/manifest 继�
 - 该例外不允许读取录音/转录正文，不允许下载、修改已上传分片、增加 sequence、扩大 count、继续 PCM、继续 AI 或执行其他项目操作；每次使用写入最小审计；
 - auth session 过期/登出时不得匿名继续。用户重新认证且账号仍 active 后，服务端按原 actor 与冻结 finalization 授予上述受限能力；账号停用或无法重新认证时只保留服务端已保存事实并进入 `interrupted` 或最终 `failed`，不得签发长期浏览器 bearer token；
 - 授权撤回同时停止新采集、新 ASR/AI 任务和普通查询/导出；已经开始的 final drain 只可收束 stop 前已接受 PCM、不得扩大内容范围。撤回不能删除或覆盖 stop 前已产生的原始证据；物理删除仍走 deletion request。
+
+上述例外的查询只能走 `GET /sessions/:id/evidence-finalization`。它要求：stop snapshot 已在限制前持久化；当前账号仍 active 且已重新认证；actor 精确等于冻结 finalization 的原操作者；目标 session/audio object/commitments 仍存在。响应固定为 `EvidenceFinalizationResponse`，只含 `session_id/audio_object_id/session_status/expected_chunk_count/recording_status/upload_status/uploaded_chunk_count/manifest_checksum/failure_code`。不得返回 `project_id`、`created_by`、capture generation/stream、transcript 状态或正文、服务/授权正文、对象键、下载地址、provider payload、首页状态或主动作。没有 finalization、actor 不符、账号停用、资源已删除或 scope 已完成清理均失败关闭且不泄露存在性。
+
+受限原操作者调用 `recover(action=reconcile)` 时只能返回同一 `EvidenceFinalizationResponse`；不能借 recover 获得公共 `InterviewSessionResponse`。Home、prepare、workbench、review 和普通 session/project/service-term/consent reader 禁止调用该 seam，前端也不得把它路由成可浏览页面。服务端可以内部使用 `created_by` 判定冻结证据归属，但不得把该字段返回客户端或将其泛化为普通读取权限。
 
 #### 3.5.4 recover
 

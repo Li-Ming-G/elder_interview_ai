@@ -338,3 +338,13 @@
 - 取舍：A1 增加最小 project-session read model，A3 增加 IndexedDB 前向 upgrade、session 索引/回执和跨标签页事务测试；换取普通用户无需深链、UI 只有一个事实来源，并防止本机清理被误解为隐私删除。
 - 审查边界：本 ADR 只接收 docs/machine-contract 决定，不代表 A1/A2/A3/008D 已实现或通过；DEV-007 当前状态不作为本切片前置。
 - 接收边界：本 ADR 的契约已接收，但只解锁 DEV-008A1；A2/A3 继续等待 A1 PASS/merge，DEV-008D 与 CON-023 不因本决定解锁或关闭。
+
+## ADR-035｜restricted 首页使用独立最小投影，并隔离 evidence-finalization 例外
+
+- 状态：`Proposed`；等待 SPEC-DEV-008A1-ACCESS 非 Draft PR exact-head CI SUCCESS 后由已获授权总控手动审查。
+- 背景：ADR-034/`05` 已要求仍有 assignment 的 restricted 项目在首页显示中性受限投影，但 shared `ProjectResponse` 必含长者称呼、出生年龄、籍贯、城市和 `created_by`，没有可安全实现的受限分支。DEV-008A1 的唯一独立只读 Correction 在编码前阻断，并同时发现普通 session 详情可能把 finalization/session `created_by` 当 assignment fallback、restricted prepare 深链仍可读取项目/服务/授权正文。
+- 决定：`GET /projects` 使用判别联合 `ProjectListProjection`。ordinary 分支只服务普通可见项目；restricted 分支固定只含 opaque `project_id`、`projection=restricted`、`status=restricted`、`display_label=受限项目`、`status_label=当前不可访问`，无 session 行、统计、正文或主动作。deleted、软删除与 assignment 失效完全无行。
+- Cursor：session page cursor 是签名 opaque token，绑定 `project_id + created_at + id`、方向、page size 与过滤版本；跨项目、篡改、过期、参数或权限漂移失败关闭，不降级首页。
+- 权限分层：普通 Home 之外的 project/service-term/consent/session 详情与 prepare/workbench/review 始终要求当前有效 assignment 和 ordinary project visibility，`created_by` 不产生读取权。限制前已经冻结 stop snapshot 的原操作者只可通过 `EvidenceFinalizationResponse` 收束 commitment 范围内证据；该响应无 project/transcript/页面事实，不能成为普通读取旁路。
+- 数据边界：本决定只增加 read model/shared DTO，不新增表、migration、项目状态、授权语义、deletion scope 或产品页面。业务实现和测试仍归 DEV-008A1。
+- 复核边界：复用 DEV-008A1 已完成的唯一 Correction，不启动第二次 iteration-coach；A1 在本 ADR Accepted/契约 merge 前保持 `BLOCKED`。

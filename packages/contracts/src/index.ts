@@ -57,6 +57,25 @@ export interface ProjectResponse extends CreateProjectRequest {
   updated_at: string;
 }
 
+export interface ProjectListOrdinaryProjection extends Omit<ProjectResponse, 'status'> {
+  projection: 'ordinary';
+  status: Exclude<ProjectStatus, 'restricted' | 'deleted'>;
+}
+
+export interface ProjectListRestrictedProjection {
+  project_id: string;
+  projection: 'restricted';
+  status: 'restricted';
+  display_label: '受限项目';
+  status_label: '当前不可访问';
+}
+
+export type ProjectListProjection = ProjectListOrdinaryProjection | ProjectListRestrictedProjection;
+
+export interface ProjectListResponse {
+  items: ProjectListProjection[];
+}
+
 export interface CreateServiceTermRequest {
   included_minutes: number;
   estimated_session_count: number;
@@ -171,6 +190,71 @@ export interface SessionFinalizationSnapshot {
     | null;
   processing_started_at: string | null;
   completed_at: string | null;
+}
+
+export type SessionHomeState =
+  | 'preparation_required'
+  | 'interview_active'
+  | 'interview_interrupted'
+  | 'saving_audio'
+  | 'transcript_processing'
+  | 'review_ready'
+  | 'no_audio_captured'
+  | 'saved_with_warning'
+  | 'save_failed';
+
+export type SessionPrimaryAction =
+  | 'continue_preparation'
+  | 'return_to_interview'
+  | 'resolve_interruption'
+  | 'view_save_progress'
+  | 'view_review'
+  | 'view_save_facts';
+
+export type SessionReviewAccess = 'unavailable' | 'read_only';
+
+export interface ProjectSessionListItem {
+  id: string;
+  project_id: string;
+  sequence_no: number;
+  status: InterviewSessionStatus;
+  capture_failure_code: 'NO_AUDIO_CAPTURED' | null;
+  capture: Pick<SessionCaptureSnapshot, 'status'> | null;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  finalization: Pick<
+    SessionFinalizationSnapshot,
+    | 'recording_status'
+    | 'upload_status'
+    | 'transcript_status'
+    | 'failure_code'
+    | 'manifest_checksum'
+  > | null;
+  home_state: SessionHomeState;
+  primary_action: SessionPrimaryAction;
+  review_access: SessionReviewAccess;
+}
+
+export interface ProjectSessionListResponse {
+  items: ProjectSessionListItem[];
+  next_cursor: string | null;
+}
+
+export interface EvidenceFinalizationResponse {
+  session_id: string;
+  audio_object_id: string;
+  session_status: Extract<
+    InterviewSessionStatus,
+    'stopping' | 'processing' | 'completed' | 'failed'
+  >;
+  expected_chunk_count: number;
+  recording_status: SessionFinalizationSnapshot['recording_status'];
+  upload_status: SessionFinalizationSnapshot['upload_status'];
+  uploaded_chunk_count: number;
+  manifest_checksum: string | null;
+  failure_code: SessionFinalizationSnapshot['failure_code'];
 }
 
 export interface SessionChunkCommitment {

@@ -720,3 +720,11 @@ P2：
 - 合并与集成：PR #31 以 merge commit `91e5e7ed042f598359827ae63daf464e12e2ef76` 合入 main；main CI `31573985661` completed / success。
 - 治理：SPEC-DEV-008A DONE、ADR-034 Accepted、仅 DEV-008A1 READY；父 DEV-008A、A2、A3、008D 保持 BLOCKED，A2/A3 等 A1 PASS/merge，CON-023 继续 OPEN。
 - 历史与范围：old head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` / REQUEST_CHANGES/P1=3 永久保留。本次只接收 docs/machine-contract/governance，不代表 session list、UI、IndexedDB upgrade、播放、本机删除或服务端隐私删除已经实现，也不改变 DEV-007 状态。
+
+## REV-042｜SPEC-DEV-008A1-ACCESS restricted 读取契约候选
+
+- 审查对象：[PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33) / `codex/spec-dev-008a1-access-projection` 相对 `origin/main@29bdce17c0b9b81c965078fd12600b340b564194` 的 docs/shared-contract 候选；final exact head 与 exact-head CI 由最终审查包绑定。
+- 当前结论：`PENDING`。任务保持 `REVIEW`，CON-028 为 `DECIDED`，ADR-035 为 `Proposed`，DEV-008A1 保持 `BLOCKED`；执行 Agent不得自行给出 PASS/DONE/merge。
+- 复核来源：DEV-008A1 实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62` 在零改动阶段按 iteration-coach 完成恰好一次独立只读 Correction；总控随后正式裁决最小受限占位路线。本 docs-only 候选复用该证据，不启动第二次复核。
+- 待审重点：restricted+有效 assignment 是否只返回闭合最小 DTO；deleted/软删除/assignment 失效是否完全不可见；session cursor 是否绑定 project/keyset anchor 并能拒绝跨项目/篡改/失效；普通 session/project/service/consent reader 是否拒绝 `created_by`/深链旁路；evidence-finalization 是否只保留冻结证据收束所需字段且不能驱动普通页面。
+- 范围：只修改正式文档、shared TypeScript machine contract 与治理记录；无业务代码、Prisma、migration、页面、测试实现、部署、密钥或真实数据改动。CI SUCCESS 只能证明门禁通过，不自动构成契约审查 PASS。

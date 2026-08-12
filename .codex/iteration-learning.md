@@ -1177,3 +1177,15 @@
 - Historical boundary: old head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 的 REQUEST_CHANGES/P1=3 永久保留；后续 PASS 关闭问题但不改写首轮事实。
 - DEV handoff: 只解锁 DEV-008A1 为 READY；父 DEV-008A、A2、A3、008D 继续 BLOCKED，A2/A3 等 A1 PASS/merge，CON-023 继续 OPEN。未实现 A1、业务代码、Prisma、migration、session list、UI、IndexedDB upgrade、播放或任何删除 runtime。
 - Lesson: 契约 SPEC 的接收只解除被它直接阻塞的第一段实现，不应把父任务或可并行后续切片一并提升；把 exact-head PASS、merge commit 和 main CI 串成不可分割证据链，才能安全做治理状态迁移。
+
+### 2026-08-12 — DEV-008A1 restricted 读取契约开工前修正
+
+- User outcome: 在不泄露 restricted 项目正文的前提下保留一个可理解的首页中性占位，并让 DEV-008A1 获得可机械实现、可安全测试的项目列表/分页/详情读取边界。
+- Review mode: Correction mode；沿用 DEV-008A1 实现窗口已完成的唯一独立只读复核，不启动第二次 iteration-coach。复核窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`、子 Agent `019ff55e-3879-77e3-b539-b924d3fc330d` 在零改动阶段发现 shared `ProjectResponse` 与中性 restricted 投影冲突，并确认 session `created_by` 与 restricted prepare 深链旁路。
+- Review finding: 复用 `ProjectResponse` 会泄露长者称呼、出生年龄、地域与创建来源；置空违反非空 DTO；直接排除又改变已冻结首页语义。普通 finalization 证据收束例外若继续复用公共 `InterviewSessionResponse`，还会把最小证据保存权限扩大成普通页面读取权。
+- Options considered: 复用并清空 ProjectResponse；完全隐藏 restricted；独立最小 restricted 分支并保持 deleted/软删除/assignment 失效不可见。总控正式采用第三种。
+- Adopted decision: 新增判别联合 `ProjectListProjection`、正式 session page DTO 与 `EvidenceFinalizationResponse`；restricted 分支只含 opaque project ID、固定 discriminator/status 和中性标签，无会话/统计/主动作。session cursor 签名绑定 project+created_at+id；普通 readers 要求 assignment+ordinary visibility；限制前冻结 stop 的原 actor 只走专属最小 seam。
+- Implementation evidence: 同步 `03/04/05/08/09/10`、shared contracts、任务板/任务卡/追踪、CON-028、ADR-035、REV-042 与交接；无业务代码、Prisma、migration、页面或测试实现。
+- Verification boundary: 候选保持 REVIEW；exact-head CI 与总控手动审查前不转 Accepted/Resolved/DONE，不恢复 A1。A1 恢复后仍须实现并测试 handler/repository/cursor/UI 与深链反例。
+- Lesson: “允许把冻结证据保存完整”不是“允许继续浏览项目”。减权后的例外必须使用字段闭合的专属 DTO；否则审计字段或恢复接口很容易演变成横向权限旁路。
+- Better future prompt: “为 restricted 首页定义独立判别 DTO，仅保留 opaque ID 和固定中性标签；ordinary detail 继续要求当前 assignment。若要保全撤权前已冻结证据，另设不含项目/正文/页面动作的最小 finalization seam，并以 cursor 篡改和 created_by 绕权反例验收。”
