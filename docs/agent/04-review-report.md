@@ -37,7 +37,8 @@
 | DEV-007B | REV-038 | PR #27 / final head `0f03c270b7022ce8dbbce75028afe7e9f3e12cf3` / CI `31465809589` PASS / merge `3bb80df` | DONE / PASS | 项目负责人手动定向复审 P0/P1/P2=0；四项旧 P1 与一项 P2 全部关闭。old head `5429172` REQUEST_CHANGES/P1=4/P2=1 永久保留；GitHub APPROVE 因 integration 403 未写入 UI，不影响本次明确手动结论。父 DEV-007 转聚合验收；旧 PR #25 继续 REQUEST_CHANGES |
 | SPEC-ASR-PROVIDER-001 | REV-039 | PR #28 / final head `84a2173c2b95111d7432b5c3a026494a3f666a3f` / CI `31484868105` PASS / merge `d7b318f` | DONE / PASS | 项目负责人定向复审 P0/P1=0；attempt drain 与整场 completeness 分层、未回补 gap sticky degradation、machine Schema 与最终数据库投影全部关闭。old head `8d9922b` REQUEST_CHANGES/P1=1 永久保留；main CI `31494227785` SUCCESS，ADR-032 Accepted，DEV-ASR-PROVIDER-001 READY；CON-027 继续 OPEN |
 | SPEC-ASR-WIRE-PARAM-001 | REV-040 | [PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) / final head `650f856c918639a7b992294b805873d7052ab44e` / CI `31556525476` PASS / merge `1e18ea83` / main CI `31560488220` PASS | DONE / PASS | 项目负责人手动 exact-head 审查 P0/P1/P2=0；wire required/omit/canonical 规则与 ADR-033 partial supersede 接收。旧 ADR-032、SPEC-ASR-PROVIDER-001、REV-039 与 REVIEW 候选历史永久保留；该结论不证明 close 1005 根因或 DEV provider PASS |
-| SPEC-DEV-008A | REV-041 | [PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) / final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` PASS / merge `91e5e7ed` / main CI `31573985661` SUCCESS | DONE / PASS | 项目负责人明确授权总控手动定向复审，P0/P1=0；四 create 权威幂等、逐 session 首页动作矩阵、local archive 条件 Schema/12 个正反例三项旧 P1 全部关闭。old head `19604291` / CI `31571463898` REQUEST_CHANGES/P1=3 永久保留；ADR-034 Accepted，仅 DEV-008A1 READY，A2/A3/008D 继续 BLOCKED，CON-023 OPEN |
+| SPEC-DEV-008A | REV-041 | [PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) / final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` PASS / merge `91e5e7ed` / main CI `31573985661` SUCCESS | DONE / PASS | 项目负责人明确授权总控手动定向复审，P0/P1=0；四 create 权威幂等、逐 session 首页动作矩阵、local archive 条件 Schema/12 个正反例三项旧 P1 全部关闭。old head `19604291` / CI `31571463898` REQUEST_CHANGES/P1=3 永久保留；ADR-034 Accepted；当时仅将 DEV-008A1 转为 READY，后续 CON-028/REV-042 已将其暂时改为 BLOCKED；A2/A3/008D 继续 BLOCKED，CON-023 OPEN |
+| SPEC-DEV-008A1-ACCESS | REV-042 | branch `codex/spec-dev-008a1-access-projection`；非 Draft PR/exact head/CI 以最终审查包为准 | REVIEW / PENDING | restricted 最小首页 DTO、session cursor 绑定、普通深链与专属 evidence-finalization 隔离候选；项目负责人已授权总控承担 exact-head 手动审查。执行 Agent 无权 PASS/DONE/merge，DEV-008A1 暂时 BLOCKED |
 
 ## 阅读规则
 
@@ -47,4 +48,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-041`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-042`。
