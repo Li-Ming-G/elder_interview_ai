@@ -8,6 +8,8 @@ import type {
   DeviceCheckRequest,
   InterviewSessionResponse,
   ProjectResponse,
+  ProjectListResponse,
+  ProjectSessionListResponse,
   RecoverSessionRequest,
   ReportCaptureInterruptedRequest,
   ServiceTermResponse,
@@ -51,6 +53,14 @@ export interface InterviewApi {
   createSession(projectId: string): Promise<InterviewSessionResponse>;
   deviceCheck(sessionId: string, request: DeviceCheckRequest): Promise<InterviewSessionResponse>;
   loadPreparation(projectId: string, sessionId: string | null): Promise<PreparationData>;
+}
+
+export interface HomeApi {
+  listProjects: () => Promise<ProjectListResponse>;
+  listProjectSessions: (
+    projectId: string,
+    input?: { cursor?: string | null; limit?: number },
+  ) => Promise<ProjectSessionListResponse>;
 }
 
 export interface InterviewCaptureApi {
@@ -130,6 +140,7 @@ export interface SuggestionApi {
 export function createInterviewApi(
   csrfToken: string,
 ): InterviewApi &
+  HomeApi &
   InterviewCaptureApi &
   SpeakerCalibrationApi &
   SpeakerCorrectionApi &
@@ -227,8 +238,22 @@ export function createInterviewApi(
       }
       return { consents, project, serviceTerms, session };
     },
-    recoverSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
-      write(`/api/v1/sessions/${sessionId}/recover`, request),
+    listProjects: async (): Promise<ProjectListResponse> => read('/api/v1/projects'),
+    listProjectSessions: async (projectId, input = {}): Promise<ProjectSessionListResponse> => {
+      const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
+      if (input.cursor !== undefined && input.cursor !== null) query.set('cursor', input.cursor);
+      return read(`/api/v1/projects/${projectId}/sessions?${query.toString()}`);
+    },
+    recoverSession: async (sessionId, recovery): Promise<InterviewSessionResponse> => {
+      const response = await write<InterviewSessionResponse | { session_id: string }>(
+        `/api/v1/sessions/${sessionId}/recover`,
+        recovery,
+      );
+      if (!('project_id' in response)) {
+        throw new InterviewApiError('FORBIDDEN', '当前访谈已不可在普通页面访问', 403);
+      }
+      return response;
+    },
     reportCaptureInterrupted: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
     requestNextSuggestion: async (sessionId, input): Promise<SuggestionRequestAcceptedResponse> =>

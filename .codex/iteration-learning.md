@@ -1197,3 +1197,14 @@
 - Governance transition: SPEC-DEV-008A1-ACCESS REVIEW→DONE，ADR-035 Proposed→Accepted，CON-028 DECIDED→RESOLVED，DEV-008A1 BLOCKED→READY。父 DEV-008A、A2、A3、008D 保持 BLOCKED，CON-023 继续 OPEN。
 - Historical boundary: DEV-008A1 唯一 Correction 与 REV-042 `PENDING` 候选历史永久保留；本次只接收 docs/shared-contract 安全接缝，不代表 A1 业务实现、Prisma/migration、页面或运行时安全回归已完成。
 - Lesson: 权限收口应把“普通读取权”和“撤权前冻结证据的最小收束权”建模为字段闭合的不同 DTO；治理解锁也只能恢复直接受阻的实现切片，不能连带提升父任务或下游。
+
+### 2026-08-12 — DEV-008A1 Home 与降权读取实现候选
+
+- User outcome: 让倾听员登录后从唯一工作区看见当前有效 assignment 的项目和访谈，并由服务端唯一动作恢复 prepare/workbench/只读回顾壳；restricted 可理解但不泄漏，撤权前冻结证据只能在专属最小 seam 收束。
+- Review mode: 复用开工前唯一 Correction，不重复启动 iteration-coach。Correction 对实现的实质影响是拒绝复用 `ProjectResponse/InterviewSessionResponse` 承载降权读：restricted 使用闭合最小投影，ordinary reader 与 `EvidenceFinalizationResponse` 分离，created_by 不成为普通授权。
+- Options considered: 前端基于 completed 猜动作；普通详情接口返回后再裁字段；服务端在 formal session page 生成唯一矩阵并让 typed deep link 重新验证同一投影。采用第三种，因为授权和状态组合只能由拥有完整事实的服务端稳定解释。
+- Adopted decision: project list 对 restricted 只返回固定中性标签；session page 使用 project-bound 签名 keyset cursor；Home 只消费 `home_state/primary_action/review_access`；prepare/workbench/review/save-facts 所有深链继续要求当前 ordinary access，只有原 finalization actor 可消费无项目正文/无页面动作的 evidence seam。
+- Implementation evidence: A1 API、共享 Home/route shells、权限和幂等回放裁剪反例、三视口 Chromium 已形成候选；fresh PostgreSQL integration 79/79、auth 23/23，unit 309/309，普通 Chromium 13/13、auth Chromium 4/4，静态/build/smoke 全绿。
+- Verification boundary: 候选保持 REVIEW，等待非 Draft PR exact-head CI 与项目负责人手动审查；不自宣 PASS/DONE/merge。A2/A3/008D、服务器删除、导出、ASR/LLM/PWA/App、QuestionEvidence/题库/AI history 未实现，CON-023 不变。
+- Lesson: 幂等响应也是权限投影的一部分。即使 request identity 正确，权限在首次响应后下降时也不能原样回放更宽 DTO；必须先重新评估当前 ordinary access，再把回放裁到专属最小证据，且异步收束之后还要再次检查权限与 replay binding。
+- Better future prompt: “把当前 assignment/ordinary visibility、稳定 cursor 和服务端动作矩阵作为同一 read model；所有 typed deep link 重用该投影，降权幂等回放只能缩窄不能恢复正文，并用跨项目 cursor、created_by、permission drift、restricted/deleted 和 DTO 白名单反例验收。”

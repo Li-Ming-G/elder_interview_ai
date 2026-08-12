@@ -39,6 +39,7 @@
 | SPEC-ASR-WIRE-PARAM-001 | REV-040 | [PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) / final head `650f856c918639a7b992294b805873d7052ab44e` / CI `31556525476` PASS / merge `1e18ea83` / main CI `31560488220` PASS | DONE / PASS | 项目负责人手动 exact-head 审查 P0/P1/P2=0；wire required/omit/canonical 规则与 ADR-033 partial supersede 接收。旧 ADR-032、SPEC-ASR-PROVIDER-001、REV-039 与 REVIEW 候选历史永久保留；该结论不证明 close 1005 根因或 DEV provider PASS |
 | SPEC-DEV-008A | REV-041 | [PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) / final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` PASS / merge `91e5e7ed` / main CI `31573985661` SUCCESS | DONE / PASS | 项目负责人明确授权总控手动定向复审，P0/P1=0；四 create 权威幂等、逐 session 首页动作矩阵、local archive 条件 Schema/12 个正反例三项旧 P1 全部关闭。old head `19604291` / CI `31571463898` REQUEST_CHANGES/P1=3 永久保留；ADR-034 Accepted；当时仅将 DEV-008A1 转为 READY，后续 CON-028/REV-042 已将其暂时改为 BLOCKED；A2/A3/008D 继续 BLOCKED，CON-023 OPEN |
 | SPEC-DEV-008A1-ACCESS | REV-042 | [PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33) / final exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` SUCCESS / merge `18ba7381` / main CI `31587442461` SUCCESS | DONE / PASS | 项目负责人正式审查 P0/P1/P2=0；restricted 最小 DTO、cursor 绑定、普通深链与专属 evidence-finalization 隔离正式接收。候选 PENDING 历史永久保留；ADR-035 Accepted、CON-028 RESOLVED、A1 READY，但 A1 runtime 尚未实现 |
+| DEV-008A1 | REV-043 | `codex/dev-008a1-listener-home` / base `d82e14da` / PR 与 final exact head 待绑定 | REVIEW / PENDING | A1 runtime、安全反例和三视口候选已完成本地全门禁；等待非 Draft PR exact-head CI SUCCESS 与项目负责人手动审查。执行 Agent 不给出 PASS/DONE、不合并；A2/A3 继续 BLOCKED |
 
 ## 阅读规则
 
@@ -48,4 +49,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-042`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-043`。

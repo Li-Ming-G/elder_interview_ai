@@ -1,6 +1,8 @@
 import type {
   ConsentResponse,
   InterviewSessionResponse,
+  ProjectListOrdinaryProjection,
+  ProjectListRestrictedProjection,
   ProjectResponse,
   ServiceTermResponse,
 } from '@elder-interview/contracts';
@@ -26,6 +28,23 @@ export function mapProject(project: ElderProject): ProjectResponse {
     native_place: project.nativePlace,
     status: project.status,
     updated_at: project.updatedAt.toISOString(),
+  };
+}
+
+export function mapProjectListOrdinary(project: ElderProject): ProjectListOrdinaryProjection {
+  if (project.status === 'restricted' || project.status === 'deleted') {
+    throw new Error('Project is not ordinary');
+  }
+  return { ...mapProject(project), projection: 'ordinary', status: project.status };
+}
+
+export function mapProjectListRestricted(projectId: string): ProjectListRestrictedProjection {
+  return {
+    display_label: '受限项目',
+    project_id: projectId,
+    projection: 'restricted',
+    status: 'restricted',
+    status_label: '当前不可访问',
   };
 }
 

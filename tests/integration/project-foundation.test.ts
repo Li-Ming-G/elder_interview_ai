@@ -147,7 +147,9 @@ describe('project, bundled consent and interview start vertical seam', () => {
     const denied = await listenerB.get(`/api/v1/projects/${projectId}`).set('Origin', ORIGIN);
     expect(denied.status).toBe(403);
     expect((denied.body as ErrorBody).code).toBe('FORBIDDEN');
-    expect((await listenerB.get('/api/v1/projects').set('Origin', ORIGIN)).body).toEqual([]);
+    expect((await listenerB.get('/api/v1/projects').set('Origin', ORIGIN)).body).toEqual({
+      items: [],
+    });
 
     const draftSession = await listenerA
       .post(`/api/v1/projects/${projectId}/sessions`)

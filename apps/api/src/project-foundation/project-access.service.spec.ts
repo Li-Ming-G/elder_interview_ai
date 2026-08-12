@@ -97,4 +97,19 @@ describe('ProjectAccessService', () => {
       new ProjectAccessService(reader, authorization).assertCanAccess(ACTOR, PROJECT.projectId),
     ).rejects.toBe(denial);
   });
+
+  it('rejects a restricted project from ordinary readers after checking assignment', async () => {
+    const reader: ProjectAccessReader = {
+      findAccessSnapshot: vi.fn(() => Promise.resolve({ ...PROJECT, status: 'restricted' })),
+    };
+    const assertResourceAccess = vi.fn(() => Promise.resolve());
+
+    await expect(
+      new ProjectAccessService(reader, { assertResourceAccess }).assertCanReadOrdinary(
+        ACTOR,
+        PROJECT.projectId,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(assertResourceAccess).toHaveBeenCalledOnce();
+  });
 });
