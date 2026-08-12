@@ -788,3 +788,10 @@ P2：
 - 定向候选：`BrowserConsentCapture.dispose()` 可等待且幂等，等待并发 start 后停止 recorder/track，再退订全部 listener并封闭实例；页面显式返回等待 dispose 后导航，unmount 执行同一防线，mounted guard 阻断异步状态写入。
 - 数据边界：dispose 不 freeze、不 upload、不 complete、不删除 archive/delivery/job，也不生成新 job/ID。真实 Chromium 验证 recorder inactive、全部 track ended、已有分片保留、仅一个未冻结 job，重进继续相同 job ID。
 - 候选证据：定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 与 format/lint/typecheck/build/diff 全绿。等待新 exact head/CI 与该 P1 的定向复审；本记录不构成 PASS/DONE/merge。
+
+### REV-045 adjacent StrictMode P1 与再修复候选
+
+- 中间审查对象：exact head `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` SUCCESS；该 head 已关闭原麦克风释放 P1，但不作为 PASS 候选。
+- Adjacent P1：`apps/web/src/main.tsx` 使用 React `<StrictMode>`，而页面 `mounted` ref 只在初始化为 true；effect 第一次 cleanup 置 false，第二次 setup 未恢复，导致开发模式后续 `save/showMessage/endAction` 状态更新被永久抑制。原 component/E2E 未以 StrictMode 包裹覆盖。
+- 再修复：lifecycle effect 每次 setup 显式 `mounted.current=true`，cleanup 仍置 false 并 dispose/退订。新增 StrictMode setup→cleanup→setup 回归，证明初始化后 project/service workflow 继续推进、busy 复位且授权录音状态/说明消息可见；原离页 dispose、track stop、单一 job 恢复测试保留。
+- 候选证据：定向 unit/component 6/6、全量 unit 320/320、新入口 5/5；中间修复上的普通 Chromium 18/18、smoke 与本次静态/build 证据保持。等待再修复 exact head/CI 与定向复审，状态仍为 REVIEW / REQUEST_CHANGES。

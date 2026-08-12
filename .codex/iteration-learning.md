@@ -1254,3 +1254,11 @@
 - Verification evidence: 定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 通过；真实浏览器直接验证 recorder inactive、所有 track ended、单一 job 与已有 archive 分片保持。静态、lint、typecheck、build、diff 全绿。
 - Lesson: SPA 页面所有权结束不是浏览器采集生命周期结束；涉及麦克风的 controller 必须显式拥有“可等待释放”契约，用户导航与组件卸载都调用同一路径，同时把采集停止与业务 complete 严格分开。
 - Verification boundary: old head 的 REQUEST_CHANGES/P1=1 永久保留；当前仍是定向修复候选，保持 REVIEW，等待新 exact-head CI 与外部复审，不扩 A3/008D/导出/ASR/LLM/PWA。
+
+### 2026-08-12 — DEV-008A2 StrictMode adjacent P1 再修复
+
+- Review evidence: 中间 head `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` SUCCESS 已释放离页麦克风，但定向复审指出 React `<StrictMode>` 会 setup→cleanup→setup；`mounted` 仅初始化为 true 且 cleanup 置 false，第二次 setup 后所有 guarded state update 会被永久抑制。
+- Correction: lifecycle effect 每次 setup 显式恢复 `mounted.current=true`；cleanup 仍负责 false、dispose 与 unsubscribe。没有改变录音 job、业务 complete、API/DTO/Prisma 或导航语义。
+- Verification evidence: StrictMode 包裹的 component 回归实际推进 project→service term→consent audio，并验证 busy 复位、录音 snapshot 与说明消息继续更新；定向 suite 6/6，原麦克风释放与同一 job 恢复证据保留。
+- Lesson: `isMounted` ref 不是一次性构造状态，而是 effect lifecycle 状态；在 StrictMode 下 setup 与 cleanup 必须对称写入，测试也必须让组件经过开发模式的双调用路径。
+- Verification boundary: `d240afd3` 原 P1 与 `cce98c8f` adjacent P1 均永久保留；当前仍 REVIEW，等待再修复 exact-head CI/复审，不自宣关闭或合并。

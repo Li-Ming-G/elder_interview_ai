@@ -94,6 +94,7 @@ export function NewInterviewPage({
   }, [actorId, store]);
 
   useEffect(() => {
+    mounted.current = true;
     return (): void => {
       mounted.current = false;
       const controller = capture.current;

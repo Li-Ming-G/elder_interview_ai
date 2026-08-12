@@ -2,6 +2,7 @@
 
 import { IDBFactory } from 'fake-indexeddb';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectResponse } from '@elder-interview/contracts';
@@ -104,27 +105,51 @@ describe('NewInterviewPage', () => {
     expect(capture.unsubscribe).toHaveBeenCalledTimes(1);
     capture.emit({ error: null, persistedChunkCount: 2, status: 'stopped' });
   });
+
+  it('restores mounted state after the StrictMode setup-cleanup-setup cycle', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    await workflowStore.create(ACTOR_ID);
+    const capture = new FakeConsentCapture(() => Promise.resolve());
+    renderPage(readyApi(), { capture, strict: true, workflowStore });
+
+    await reachConsentRecording();
+    fireEvent.click(screen.getByRole('button', { name: '录制授权' }));
+
+    await screen.findByText(/正在录制 ·/);
+    await screen.findByText(/正在录制授权。请完整朗读固定文本/);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '返回工作区' }).disabled).toBe(
+      false,
+    );
+  });
 });
 
 function renderPage(
   api: MockApi,
-  options: { capture?: ConsentCapture; navigate?: (path: string, replace?: boolean) => void } = {},
+  options: {
+    capture?: ConsentCapture;
+    navigate?: (path: string, replace?: boolean) => void;
+    strict?: boolean;
+    workflowStore?: IndexedDbNewInterviewWorkflowStore;
+  } = {},
 ): ReturnType<typeof render> {
   const configuredCapture = options.capture;
   const captureProps =
     configuredCapture === undefined
       ? {}
       : { captureFactory: (): ConsentCapture => configuredCapture };
-  return render(
+  const page = (
     <NewInterviewPage
       {...captureProps}
       actorId={ACTOR_ID}
       api={api}
       csrfToken="csrf-test"
       navigate={options.navigate ?? vi.fn()}
-      workflowStore={new IndexedDbNewInterviewWorkflowStore(new IDBFactory())}
-    />,
+      workflowStore={
+        options.workflowStore ?? new IndexedDbNewInterviewWorkflowStore(new IDBFactory())
+      }
+    />
   );
+  return render(options.strict === true ? <StrictMode>{page}</StrictMode> : page);
 }
 
 async function reachConsentRecording(): Promise<void> {
