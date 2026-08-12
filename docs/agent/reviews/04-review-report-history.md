@@ -755,3 +755,12 @@ P2：
 - 合并与集成：PR #35 以 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8` 合入 main；main CI `31593387265` completed / success。
 - 治理：DEV-008A1 `REVIEW→DONE`；DEV-008A2 与 DEV-008A3 `BLOCKED→READY` 并可独立并行；父 DEV-008A `BLOCKED→IN_PROGRESS`，继续等待 A2/A3 各自 PASS/merge 与父任务聚合验收。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 历史与范围：上方 REV-043 `PENDING` 候选永久保留。本 PASS 只接受 A1 共享首页、列表、路由与权限接缝；不代表 A2 新建访谈、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成；无 Prisma schema/migration 变更。
+
+## REV-044｜SPEC-DEV-008A3-PREFLIGHT total bytes 契约候选
+
+- 审查对象：`codex/spec-dev-008a3-finalization-size` 相对 `origin/main@51e2337ea86739e209ad696804de7decbcf7a9df` 的 docs/shared-contract 候选；非 Draft PR、final exact head 与 exact-head CI 由最终审查包绑定。
+- 当前结论：`PENDING`。SPEC-DEV-008A3-PREFLIGHT 保持 `REVIEW`，ADR-036 为 `Proposed`，CON-029 为 `OPEN`；DEV-008A3 保持 `BLOCKED`。执行 Agent 不得自行给出 PASS/DONE、不得合并。
+- iteration-coach：A3 原实现窗口在零改动阶段完成唯一 Correction 并暂停；本契约窗口按要求完成恰好一次独立只读复核，模式为 Learning，结论 `NO-PAUSE`。复核确认 contract-first 阶段使用 optional+nullable 兼容形态，A3 mapper 落地后普通 canonical GET 必须显式返回 key。
+- 候选内容：公共 `SessionFinalizationSnapshot.total_size_bytes` 仅投影同一 session 关联现有 `AudioObject.totalSizeBytes`；未证明 finalization 时为 null，complete lane 必须为精确非负 safe integer；missing/null/unsafe/不一致一律按 legacy/corrupt 失败关闭且不得当 0。
+- 白名单与验证：仅 ordinary `InterviewSessionResponse.finalization` 增字段；`ProjectSessionListItem` 与 `EvidenceFinalizationResponse` 不扩字段。A3 后续必须覆盖 mapper/API lifecycle、ordinary auth/assignment/restricted/deleted/created_by、fresh identity/count/bytes/chunk sum/checksum/local metadata mismatch 及 legacy/null 矩阵。
+- 范围：无业务 service/controller/mapper、Prisma/migration、IndexedDB、页面、A2、ASR、007、008D、服务器删除或 CON-023 改动。绿色 CI 仅是自动门禁，不自动构成 exact-head 手动审查 PASS。

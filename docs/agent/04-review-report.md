@@ -40,6 +40,7 @@
 | SPEC-DEV-008A | REV-041 | [PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) / final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` PASS / merge `91e5e7ed` / main CI `31573985661` SUCCESS | DONE / PASS | 项目负责人明确授权总控手动定向复审，P0/P1=0；四 create 权威幂等、逐 session 首页动作矩阵、local archive 条件 Schema/12 个正反例三项旧 P1 全部关闭。old head `19604291` / CI `31571463898` REQUEST_CHANGES/P1=3 永久保留；ADR-034 Accepted；当时仅将 DEV-008A1 转为 READY，后续 CON-028/REV-042 已将其暂时改为 BLOCKED；A2/A3/008D 继续 BLOCKED，CON-023 OPEN |
 | SPEC-DEV-008A1-ACCESS | REV-042 | [PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33) / final exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` SUCCESS / merge `18ba7381` / main CI `31587442461` SUCCESS | DONE / PASS | 项目负责人正式审查 P0/P1/P2=0；restricted 最小 DTO、cursor 绑定、普通深链与专属 evidence-finalization 隔离正式接收。候选 PENDING 历史永久保留；ADR-035 Accepted、CON-028 RESOLVED、A1 READY，但 A1 runtime 尚未实现 |
 | DEV-008A1 | REV-043 | [PR #35](https://github.com/Li-Ming-G/elder_interview_ai/pull/35) / final exact head `4bc1c00598801cb0d83f5da466b0c1d6514f3c74` / CI `31592543835` SUCCESS / merge `29e3f993` / main CI `31593387265` SUCCESS | DONE / PASS | 项目负责人手动独立审查 P0/P1/P2=0；restricted/hidden、签名 cursor、普通读取与 evidence-finalization 隔离、降权幂等裁剪、唯一 Home 与三视口全部接收。候选 PENDING 历史永久保留；A2/A3 READY，父 A IN_PROGRESS；008D 与 CON-023 不变 |
+| SPEC-DEV-008A3-PREFLIGHT | REV-044 | `codex/spec-dev-008a3-finalization-size` / base `51e2337ea86739e209ad696804de7decbcf7a9df`；PR/final exact head/CI 待绑定 | REVIEW / PENDING | total bytes additive nullable 投影与 ordinary/list/evidence 白名单候选；A3 保持 BLOCKED。等待非 Draft PR exact-head CI SUCCESS 与获授权总控手动审查；不得自行 PASS/DONE/merge |
 
 ## 阅读规则
 
@@ -49,4 +50,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-043`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-044`。

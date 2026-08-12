@@ -386,6 +386,20 @@
 - 关闭证据：项目负责人对 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` 正式 PASS（P0/P1/P2=0）；GitHub 记录 [issuecomment-5265462316](https://github.com/Li-Ming-G/elder_interview_ai/pull/33#issuecomment-5265462316)。PR merge `18ba7381f7ba747c2fb3beefe28297c6d063a174`，main CI `31587442461` SUCCESS；ADR-035 Accepted，SPEC-DEV-008A1-ACCESS DONE，DEV-008A1 恢复 READY。
 - 历史边界：本次关闭只接收 docs/shared-contract 安全接缝；原 Correction、`DECIDED`/`PENDING` 候选历史永久保留，不代表 A1 handler/repository/cursor/UI 或安全回归已实现。
 
+### CON-029｜A3 fresh delete preflight 缺少 finalization total bytes 公共字段
+
+- 状态：`OPEN`（方向已裁决，等待 exact-head PASS/merge）
+- 发现时间：2026-08-12
+- 发现者：DEV-008A3 开工前唯一 iteration-coach Correction；实现窗口 `019ff5db-a0dd-7060-875f-8ee454a84469`，只读复核 `019ff5e0-47d2-7d92-8148-7eff63ec61a9`
+- 涉及文件与章节：`04` §4.24-4.25/§4.44、`05` §3.1/§3.5.1/§3.5.3/§3.6.1、`08` §5/§14.1、`09` §10.4、`10` §4/§7、shared contracts、DEV-008A3、ADR-034/035
+- 冲突内容：正式 `05` 要求 A3 将 manifest 的 chunk count/total bytes 与 session finalization 对照，但公共 `SessionFinalizationSnapshot` 只有 expected/uploaded count 与 manifest checksum，没有 `total_size_bytes`。静默跳过会削弱删除安全门；A3 自行补字段又会未经审查改变公共 API。
+- 发现时处理：DEV-008A3 在零改动、未建分支/PR的阶段暂停并回传；没有修改业务 mapper、Prisma、IndexedDB、页面或删除语义。
+- 总控正式决定：采用方案 A。公共 snapshot 增加 additive optional+nullable `total_size_bytes`，只从既有 `AudioObject.totalSizeBytes` 投影；不新增 Prisma 字段/migration。A3 runtime 后 ordinary canonical GET 必须显式带键；缺键/null/unsafe/mismatch 对播放和本机删除失败关闭。
+- 白名单决定：A1 `ProjectSessionListItem` 不扩字段；restricted `EvidenceFinalizationResponse` 不扩字段。A3 只能使用当前 assignment + ordinary visibility 下的 canonical session GET，不能用列表、created_by、本机 archive 或 evidence seam 绕权。
+- 需要同步修改：SPEC-DEV-008A3-PREFLIGHT、`04/05/08/09/10`、packages/contracts、ADR-036、任务板/追踪/审查/交接/journal。
+- 受影响任务：本 SPEC 保持 `REVIEW`；DEV-008A3 在本 SPEC exact-head PASS/merge 前保持 `BLOCKED`。A2、DEV-008D 与 CON-023 状态不变。
+- 关闭条件：项目负责人授权总控对非 Draft PR final exact head/CI 手动审查 PASS，PR merge 且 main CI 成功；关闭只解锁 A3 runtime，不代表 A3 或服务器隐私删除完成。
+
 ## 登记模板
 
 ```text

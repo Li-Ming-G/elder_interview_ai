@@ -180,6 +180,12 @@ export interface SessionFinalizationSnapshot {
   recording_status: 'recording' | 'stopped' | 'interrupted';
   upload_status: FinalizationUploadStatus;
   uploaded_chunk_count: number;
+  /**
+   * Additive contract-first field. A3's ordinary canonical session mapper must
+   * emit this key explicitly: null until the linked audio object is proven
+   * complete, otherwise the exact safe-integer AudioObject.totalSizeBytes.
+   */
+  total_size_bytes?: number | null;
   manifest_checksum: string | null;
   transcript_status: FinalizationTranscriptStatus;
   transcript_error_code: 'ASR_UNAVAILABLE' | 'ASR_DRAIN_TIMEOUT' | 'ASR_DRAIN_INCOMPLETE' | null;
