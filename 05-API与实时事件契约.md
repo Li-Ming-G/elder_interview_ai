@@ -1314,6 +1314,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 
 正式 machine contract 为 `docs/contracts/streaming-asr-provider-v2.schema.json`。它是内部 port，不新增公共 REST/WS 字段或公共状态；客户端既有 `session.ready` 不得表示 provider ready。
 
+腾讯实际连接 query 只以 `docs/contracts/tencent-realtime-asr-v2.profile.json` 为供应商事实源：`speaker_diarization=1`、`enable_speaker_context=0` 必须同时出现在实际 URL 与签名 canonical query；`speaker_context_id` 必须从实际 query map 和 canonical query 中完全省略，不能传空字符串。先对除 `signature` 外的实际 query key 按字典序构造 canonical query，再计算签名并 URL encode 后追加 `signature`。
+
 旧 `accept(frame)->results[]` 与 `drainAndClose()->void` 生产 seam 被 v2 原子替代：connect/ready 独立；PCM accept 只表示 adapter 接管/入队；结果通过绑定 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 的异步 sink 回传；不匹配或 fenced 的 late/replay/duplicate/out-of-order 结果不得写库。每个新 `voice_id` 必须新建 speaker stream 并发布既有完整 `speaker.calibration.updated` snapshot，不新增半套事件。
 
 结构化 drain receipt 仅在当前 voice `final=1`、accepted PCM 均获得 sent/terminal 结果且相关 final 完成 ingestion 后有效。它是 attempt-level evidence，不证明整场 completeness。deadline、cancel、close 或错误会 fence sink；WS close、最后一句或 void resolve 不构成 receipt。
