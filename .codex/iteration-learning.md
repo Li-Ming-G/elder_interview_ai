@@ -1235,3 +1235,14 @@
 - Decision: SPEC-DEV-008A3-PREFLIGHT `DONE`、ADR-036 `Accepted`、CON-029 `RESOLVED`，DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - Verification boundary: 本次只登记已经完成的 docs/shared-contract 审查、合并与 main 集成门禁；没有修改业务 mapper/controller、Prisma/migration、IndexedDB、UI 或测试，也没有实现 A3。A3 仍须以 runtime exact-key、safe integer、ordinary 权限、fresh/legacy/null/mismatch 测试证明接缝实际输出和失败关闭。
 - Lesson: 契约收口的 DONE 只解除实现前置，不可被写成下游 runtime 已完成；治理 closeout 必须同时保留候选历史、绑定 exact head/CI/merge/main CI，并明确未改变的父任务、并行任务和安全冲突。
+
+### 2026-08-12 — DEV-008A3 回顾与本机副本实现候选
+
+- User outcome: 倾听员在唯一工作区只读回顾已结束访谈的原始/修订转录，且仅在本机完整 archive 与最新服务器权威事实全部一致时播放或删除本机副本；任何页面文案都不能把本机清理冒充服务器隐私删除。
+- Review mode: 复用本实现窗口开工前恰好一次 Correction，不重复启动 iteration-coach。该 Correction 让实现零改动暂停，直到 SPEC-DEV-008A3-PREFLIGHT/ADR-036/REV-044 正式补齐并接收 `total_size_bytes` 接缝后才从新 main 恢复。
+- Options considered: 只对 manifest 与本机做比对；从服务器下载录音替代本机缺片；把 canonical session、manifest 与本机逐片事实收束为闭合 preflight。采用第三种，既不新增 API，也避免在缺片/陈旧事实下播放或删除。
+- Adopted candidate: ordinary mapper 显式 exact/null key；fresh session+manifest 逐项验证 identity/count/bytes/chunk sum/checksum/metadata/Blob SHA-256；完整 archive 才创建 Object URL。IDB v5 复用 capture 共锁，并在一个事务内重检、清 current/legacy/delivery/state/jobs/reports/checkpoint、写最小回执；失败显式 abort。
+- Implementation evidence: A1 唯一 shell 中完成只读回顾、容量近似、完整播放与本机删除；unit 329/329，fresh PostgreSQL integration 79/79、auth 23/23，真实 Chromium 5/5，lint/typecheck/format/build 全绿。三视口截图已目视检查。
+- Verification boundary: 当前只到 REVIEW/REV-045 PENDING；非 Draft PR exact-head CI 与项目负责人手动审查尚待形成。无 server delete/deletion_request、导出、编辑、题库/AI history、ASR/LLM、A2/008D/PWA/App；CON-023 不变。
+- Lesson: 原子事务的 catch 不能只等待 completion；某些同步请求异常发生在 transaction 自动 abort 之前，若不显式 `abort()`，更早的 delete 可能提交。删除安全必须用故意破坏最后写入的测试证明“前面全部恢复”，而不只是检查最终抛错。
+- Better future prompt: “先以 fresh canonical session 和 manifest 闭合验证完整 archive，再持有 capture 同名 Web Lock 进入一个 readwrite transaction；事务内重检 identity/active/pending，任何同步或异步错误显式 abort，并用最后一步回执写失败证明此前所有删除回滚。”

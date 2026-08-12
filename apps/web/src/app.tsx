@@ -10,6 +10,7 @@ import { createBrowserInterviewCaptureController } from './interview/browser-int
 import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
 import { ErrorState, HomeFrame, HomeShell } from './home/home-shell.js';
 import { ComingSoonRoute, SessionPlaceholderRoute } from './home/route-placeholder.js';
+import { SessionReviewRoute } from './home/session-review-route.js';
 
 export function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
@@ -222,7 +223,18 @@ export function App(): React.JSX.Element {
     return <ComingSoonRoute navigate={navigate} />;
   }
 
-  if (route?.kind === 'review' || route?.kind === 'save_facts') {
+  if (route?.kind === 'review') {
+    return (
+      <SessionReviewRoute
+        api={interviewApi}
+        navigate={navigate}
+        projectId={route.projectId}
+        sessionId={route.sessionId}
+      />
+    );
+  }
+
+  if (route?.kind === 'save_facts') {
     return (
       <SessionPlaceholderRoute
         api={interviewApi}

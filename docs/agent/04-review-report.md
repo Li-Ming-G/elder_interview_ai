@@ -41,6 +41,7 @@
 | SPEC-DEV-008A1-ACCESS | REV-042 | [PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33) / final exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` SUCCESS / merge `18ba7381` / main CI `31587442461` SUCCESS | DONE / PASS | 项目负责人正式审查 P0/P1/P2=0；restricted 最小 DTO、cursor 绑定、普通深链与专属 evidence-finalization 隔离正式接收。候选 PENDING 历史永久保留；ADR-035 Accepted、CON-028 RESOLVED、A1 READY，但 A1 runtime 尚未实现 |
 | DEV-008A1 | REV-043 | [PR #35](https://github.com/Li-Ming-G/elder_interview_ai/pull/35) / final exact head `4bc1c00598801cb0d83f5da466b0c1d6514f3c74` / CI `31592543835` SUCCESS / merge `29e3f993` / main CI `31593387265` SUCCESS | DONE / PASS | 项目负责人手动独立审查 P0/P1/P2=0；restricted/hidden、签名 cursor、普通读取与 evidence-finalization 隔离、降权幂等裁剪、唯一 Home 与三视口全部接收。候选 PENDING 历史永久保留；A2/A3 READY，父 A IN_PROGRESS；008D 与 CON-023 不变 |
 | SPEC-DEV-008A3-PREFLIGHT | REV-044 | [PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37) / final exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095` SUCCESS / merge `60f60cb6` / main CI `31598183784` SUCCESS | DONE / PASS | 项目负责人手动独立审查 P0/P1/P2=0；total bytes 权威来源、nullable lifecycle、ordinary/list/evidence 白名单与 fresh/legacy 失败关闭矩阵接收。候选 PENDING 历史永久保留；ADR-036 Accepted、CON-029 RESOLVED、A3 READY；008D/CON-023 不变 |
+| DEV-008A3 | REV-045 | `codex/dev-008a3-local-review` / base `4fc46456869ab01d9880d1aa92e7cd838bf920a8` / 非 Draft PR 与 final exact head/CI 待绑定 | REVIEW / PENDING | runtime exact-key、fresh preflight、只读转录/完整播放、IDB v5 与原子本机删除候选；本地全量静态、unit、真实 PostgreSQL/API、真实 Chromium 矩阵已通过。等待项目负责人 exact-head 手动审查；执行 Agent 不得自行 PASS/DONE/merge。服务器录音/转录/记忆未删除，CON-023 不变 |
 
 ## 阅读规则
 
@@ -50,4 +51,4 @@
 
 ## 历史索引
 
-历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-044`。
+历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前已包含 `REV-001` 至 `REV-045`。

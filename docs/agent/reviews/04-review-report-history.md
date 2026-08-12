@@ -772,3 +772,15 @@ P2：
 - 合并与集成：PR #37 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main；main CI `31598183784` completed / success。
 - 治理：SPEC-DEV-008A3-PREFLIGHT `REVIEW→DONE`；ADR-036 `Proposed→Accepted`；CON-029 `OPEN→RESOLVED`；DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - 历史与范围：上方 REV-044 `PENDING` 候选永久保留。本 PASS 只接受 docs/shared-contract 接缝；不代表 A3 mapper/controller、IndexedDB、页面、回顾/播放/本机删除或服务器隐私删除已实现。无 Prisma schema/migration 或业务 runtime 改动。
+
+## REV-045｜DEV-008A3 已结束访谈回顾与本机副本管理候选
+
+- 审查对象：`codex/dev-008a3-local-review` 相对 `origin/main@4fc46456869ab01d9880d1aa92e7cd838bf920a8` 的实现候选；启动时 main CI `31599184357` completed / success。非 Draft PR、final exact head 与 exact-head CI 由最终审查包绑定。
+- 当前结论：`PENDING`。DEV-008A3 保持 `REVIEW`；执行 Agent 不得自行给出 PASS/DONE、不得合并。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 `READY`，DEV-008D `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- iteration-coach：实现窗口开工前恰好一次独立只读复核发现 finalization total bytes 高影响公共接缝并以零改动暂停；总控随后通过 SPEC-DEV-008A3-PREFLIGHT/ADR-036/REV-044 正式冻结并接收方案 A。本次从已接收 main 恢复，未重复触发复核。
+- 候选内容：ordinary session mapper 始终显式输出 exact/null `total_size_bytes`；A1 唯一 shell/route/action/read access 内新增原始/修订转录只读与本机完整 archive 播放；fresh session+manifest preflight 逐项核对 session/audio identity、count、bytes、chunk sum、checksum、逐片 metadata 与 Blob SHA-256，不请求不存在的 server audio download API。
+- 删除安全：IndexedDB v4→v5 前向升级新增最小回执与索引；复用 `elder-interview:capture:{sessionId}` Web Lock；一个 readwrite transaction 重新检查 active/dirty、pending delivery 与 archive identity，清 current/legacy/delivery/state/formal job/all reports/checkpoint 并写回执。任一同步或异步事务错误显式 abort，重复删除稳定；清站后回到 unknown。
+- 失败关闭：active/dirty、锁不可用、pending delivery、offline/stale/missing/null/unsafe/mismatch preflight 与 failed delete-unsafe 全部零写入；完整 archive 才播放，缺片/Blob 不可读不部分播放。failed complete 仅可回顾/播放，不能删除。
+- 自动证据：lint、typecheck、format、build 全绿；unit 52 files / 329 tests；formal Schema 定向 1/1；新隔离 PostgreSQL 完整 13 migrations/status 后 integration 14 files / 79 tests、auth 4 files / 23 tests；真实 Chromium 5/5 覆盖三视口、44px/focus/live region/reduced motion/overflow、双 tab、legacy upgrade、刷新、清站与卸载原子性。
+- 失败历史：首次 Playwright 使用默认 4173 端口因已有进程占用而未进入测试，改为独立 4293/4294/4295 后通过；首次 PostgreSQL 诊断只设置 `TEST_DATABASE_URL`，Prisma 未获得 `DATABASE_URL` 并落到空库缺表，临时库删除后同时设置两变量以全新库复跑通过；初次严格 lint 暴露测试回调类型/await 与断言问题，修复后仓库 lint 清零。以上均未通过放宽目标或删除失败路径处理。
+- 范围：没有 Prisma schema/migration、server delete/deletion_request、导出、转录或说话人编辑、题库/AI history、ASR/LLM、A2、007、008D、PWA/App 或第二套 shell/token/navigation；“本机删除”文案与结果始终明确服务器录音、转录和记忆仍保留。
