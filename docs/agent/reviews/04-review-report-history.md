@@ -701,3 +701,14 @@ P2：
 - 合并：总控按 accepted exact head 合并 PR #29，merge commit/main 集成点为 `1e18ea83cd5a1d4953bb92fd251637ed6107c322`，main CI `31560488220` completed / success。SPEC-ASR-WIRE-PARAM-001 DONE，ADR-033 Accepted，DEV-ASR-PROVIDER-001 的一次同虚构 TTS PCM/`reconnect=0` 诊断门禁已满足。
 - 历史保留：ADR-032、SPEC-ASR-PROVIDER-001、REV-039 及其旧 wire-unknown 事实按当时证据永久保留；本 REV-040 不改写旧结论，只记录后续官方一手证据促成的正式修正。
 - 边界：未修改业务代码、Prisma、migration、provider、密钥或部署，未连接腾讯。PASS 不证明 close 1005 根因，也不证明双人 label、三次 replay、桌面/Android、主动断线、账单、数据治理或 DEV provider 验收通过；CON-027 继续 OPEN。
+
+## REV-041｜SPEC-DEV-008A / PR #31 项目负责人首轮审查
+
+- 审查对象：[PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) exact head `19604291e751f1403272183d314d367c0de593b0`；CI `31571463898` completed / success；PR 为 OPEN、non-Draft、未合并。
+- 正式结论：`REQUEST_CHANGES`；P0=0、P1=3。SPEC-DEV-008A 保持 `REVIEW`，DEV-008A/A1/A2/A3/008D 保持 `BLOCKED`；不得合并或自行宣布 PASS/DONE。
+- P1-1：`09` 要求 project/service term/consent/session create 在响应未知或刷新后不重复，但四个 POST 缺 request ID 和权威 replay；GET 无法唯一识别一次未知创建，可能重复业务记录、历史和审计。project 尚无 target ID 时也必须冻结 create binding identity；consent record 的 ID 不得与 consent audio init/chunk/complete 混用。
+- P1-2：首页把所有未完成会话映射“继续访谈”、只让 completed 回顾，与 stopping/processing/failed 生命周期冲突。必须逐 session/finalization 冻结唯一主动作、可见状态、只读回顾、播放和本机删除边界，processing 不得误标为继续。
+- P1-3：formal `local-audio-archive-v1` 缺 state discriminator 交叉约束，允许 complete+不可播放/pending、deleted+本机 payload/playback，且 delete success/replay 可无 `deleted_at`。必须先冻结唯一 projection 优先级，再由 Schema 机械拒绝矛盾组合，并补正反 fixture。
+- 其余主体通过：网页-only、A1→A2/A3 拆分、正式口头 consent、统一 UI、本机删除 capture lock+fresh manifest+单 IDB 事务、无倾听员导出、local deletion≠server deletion、DEV-007 无依赖均无新 P0/P1。
+- 定向修复候选：四 create 统一首次请求前持久 ID 与 actor/action/target-or-create-identity/payload hash authoritative replay；server read model 输出完整 session 动作矩阵；local projection 固定 active/dirty > pending > server unverified > receipt/empty > verified completeness，并增加条件 Schema 与正反 fixture。该描述只记录候选，不构成新 head 复审结论。
+- 历史保留：本记录 old exact head、CI SUCCESS、REQUEST_CHANGES/P1=3 永久有效；后续定向复审不得覆盖、改写或删除本次事实。

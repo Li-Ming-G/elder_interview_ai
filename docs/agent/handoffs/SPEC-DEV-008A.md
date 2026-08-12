@@ -5,7 +5,7 @@
 - 状态：`REVIEW`
 - base：`origin/main@a349f8947eabe2eb5444ed2cf3c20e386c75bdb5`
 - branch：`codex/spec-dev-008a-listener-workspace`
-- PR：创建后由非 Draft PR 与最终审查包绑定；exact final head/CI 以 PR Checks 和执行任务最终消息为准，避免提交自引用
+- PR：[PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31)，OPEN、非 Draft、未合并；exact final head/CI 以 PR Checks 和执行任务最终消息为准，避免提交自引用
 - 审查权：只请求项目负责人手动 GitHub 审查；本任务不 PASS/DONE/merge
 
 ## 已完成
@@ -22,10 +22,13 @@
 
 - A1 先 PASS/merge；之后 A2/A3 可由独立任务并行；
 - A2 的 draft 不冒充可开始，必须走 project→service term→正式口头 consent→session/device-check/start；
+- A2 的 project/service term/consent/session create 在首次请求前持久化各自稳定 request ID；同一 authoritative seam 绑定 actor/action/target-or-project-create-identity/canonical payload hash，响应未知只重放原 ID；
+- A1 列表直接消费服务端 `home_state/primary_action/review_access` 唯一投影；processing 进入只读回顾而非继续，failed 按 NO_AUDIO_CAPTURED/complete manifest/其他失败分流；
 - A3 播放只使用与 fresh server manifest 对应的完整本机 archive，当前无 server download；
 - 删除使用 `elder-interview:capture:{session}` exclusive Web Lock；锁内核验 capture stopped、session processing/completed、server manifest complete、pending=0、无 active/dirty；
 - 一个 IndexedDB transaction 清 archive/delivery/state/formal job/all reports/checkpoint/legacy chunks，并写无正文最小回执；abort 零部分清理，replay 稳定；
 - 浏览器清站后原因不可证明，投影 `missing_unknown`；storage estimate 只为 origin-wide approximate；
+- 本机 projection 唯一优先级为 active/dirty > pending > server unverified > receipt/empty > verified completeness；Schema 锁定 state/count/pending/playback，成功/replay 必有稳定 deleted_at，blocked/abort 必为 null；
 - 服务器 audio/transcript/memory 继续保留，正式 privacy deletion 只由 DEV-008D 实现。
 
 ## iteration-coach
@@ -35,6 +38,7 @@
 ## 本地验证
 
 - `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`git diff --check`：通过；
+- formal `local-audio-archive-v1` 由 Ajv 2020 编译，12 个 projection/delete_result 正反 fixture 与 `expected_valid` 全部一致；
 - docs-only 路径、修改文档内链、任务板/任务卡状态和 machine contract parse/structure：通过；
 - unit：45 files / 290 tests；integration：13 files / 76 tests；auth：4 files / 23 tests；均通过；
 - clean 临时 PostgreSQL：13 migrations deploy/status 通过，测试后精确删除临时库；
@@ -43,6 +47,14 @@
 
 首次使用共享测试库运行 integration 时命中其他运行遗留的固定题库版本，改用全新隔离临时库后通过；首次自定义 auth E2E API 端口与现有 Vite proxy 不一致导致连接拒绝，恢复仓库默认 API 端口后通过。两次均未修改代码/测试，临时库已清理。
 
+## REV-041 old-head 审查与定向修复
+
+- 项目负责人对 PR #31 exact head `19604291e751f1403272183d314d367c0de593b0`、CI `31571463898` SUCCESS 给出 `REQUEST_CHANGES`；P0=0、P1=3；该历史永久保留；
+- P1-1：四个 A2 create 原无权威响应未知幂等 seam；当前候选补齐首次请求前持久 ID、项目 create identity、payload hash、同事务首次快照与冲突语义；
+- P1-2：旧“未完成=继续、completed=回顾”与生命周期冲突；当前候选补齐 created 至 failed 的唯一首页动作、只读回顾/播放/删除边界；
+- P1-3：旧 formal Schema 接受矛盾组合；当前候选补齐确定性 projection 优先级、条件 Schema、成功/失败 deleted_at 与 12 个正反 fixture；
+- 以上只是待定向复审候选，不表示旧 P1 已由执行 Agent关闭，不构成 PASS/DONE。
+
 ## 未实现与风险
 
 - 本次没有业务代码、Prisma/migration、测试代码或部署改动；A1/A2/A3/008D 全部 `BLOCKED`；
@@ -50,7 +62,7 @@
 - 本机 archive 被浏览器清理时无法证明原因；没有 server audio download，因此本机缺失后不可播放；
 - `navigator.storage.estimate()` 不是 session/设备磁盘事实；浏览器未承诺删除后立即回收等量空间；
 - CON-023 正式 deletion runtime 继续 `NOT IMPLEMENTED / NOT VERIFIED`，真实试点仍被其阻塞；
-- 项目负责人可能要求调整回顾可用的 session 终态或 A1 read model 粒度，需在实现前以审查结论为准。
+- 当前三项修复仍待项目负责人只针对 REV-041 P1-1/P1-2/P1-3 定向复审；在新 exact-head 明确 PASS 前不得实现 A1/A2/A3。
 
 ## 下一位必须先读取
 

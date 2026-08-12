@@ -1161,3 +1161,11 @@
 - Verification boundary: SPEC 只到 REVIEW；A1/A2/A3/008D 全部 BLOCKED。没有实现 session list、UI、IndexedDB upgrade、播放、local delete 或 server delete；CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - Lesson: “设备上没有 Blob”与“隐私资料已删除”是不同事实。若既要删除恢复数据又要跨刷新诚实区分用户成功操作，就需要在同一原子事务保留无正文最小回执；浏览器清站连回执也消失时，原因必须回到 unknown，而不是通过猜测补齐审计。
 - Better future prompt: “先用唯一 home shell 建立列表与路由，再让新建和回顾复用它；本机副本删除与 capture 竞争同一锁，单事务覆盖 current/legacy 全部 session 记录并写最小回执，明确服务器资料仍保留。”
+
+### 2026-08-12 — SPEC-DEV-008A REV-041 定向契约修复
+
+- old exact head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 的绿色门禁未覆盖三类契约可执行性：响应未知的 create identity、session lifecycle 到首页动作，以及机器 Schema 的跨字段一致性；项目负责人结论为 REQUEST_CHANGES/P1=3，历史永久保留。
+- 修正：A2 四个 create 统一为“首次请求前持久 request ID + actor/action/target-or-create-identity/payload hash + authoritative replay”；project create 的无 target 身份固定为 `project:create:{actor_id}:{request_id}`。
+- 修正：首页不再用“未完成/已完成”二分，而以服务端 session/finalization 事实输出唯一 action；processing、failed complete manifest、NO_AUDIO_CAPTURED 分别有明确只读回顾/播放/删除边界。
+- 修正：本机 projection 先冻结唯一优先级，再由 Schema 条件约束 state/count/pending/playback/deleted_at，并以正反 fixture 防止语义回退。
+- 教训：文档验收中的“响应丢失可恢复”“状态一致”“formal Schema”必须同时给出权威 identity、完整状态矩阵和机械不可表达矛盾的约束，不能只靠叙述性目标或 GET 重读。

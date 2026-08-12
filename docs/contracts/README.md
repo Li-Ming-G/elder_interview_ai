@@ -14,3 +14,4 @@
 - `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；
 - `streaming-asr-provider-v2.md`：v1→v2 迁移、腾讯映射、安全、指标、成本与真实 provider 验收的唯一技术契约。
 - `local-audio-archive-v1.schema.json`：`LocalAudioArchiveV1`，正式；定义当前 origin IndexedDB 访谈 archive 的本机投影、删除结果和最小回执。它不是服务端 deletion request、隐私删除审计或跨设备档案。
+- `fixtures/local-audio-archive-v1.fixtures.json`：上述 Schema 的正反例集合；`expected_valid=false` 条目用于机械证明矛盾 state/count/playback/pending/deleted_at 组合会被拒绝。

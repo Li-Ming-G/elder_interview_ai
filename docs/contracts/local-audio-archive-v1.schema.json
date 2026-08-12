@@ -22,6 +22,7 @@
         "kind",
         "session_id",
         "state",
+        "state_basis",
         "archive_bytes",
         "archive_chunk_count",
         "pending_delivery_count",
@@ -43,6 +44,22 @@
             "blocked_pending_delivery",
             "blocked_server_unverified"
           ]
+        },
+        "state_basis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "active_or_dirty",
+            "server_manifest_verified",
+            "deletion_receipt_present",
+            "local_archive_complete"
+          ],
+          "properties": {
+            "active_or_dirty": { "type": "boolean" },
+            "server_manifest_verified": { "type": "boolean" },
+            "deletion_receipt_present": { "type": "boolean" },
+            "local_archive_complete": { "type": "boolean" }
+          }
         },
         "archive_bytes": { "$ref": "#/$defs/nonNegativeInteger" },
         "archive_chunk_count": { "$ref": "#/$defs/nonNegativeInteger" },
@@ -66,7 +83,134 @@
         },
         "playback_available": { "type": "boolean" },
         "server_audio_retained": { "const": true }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "archive_chunk_count": { "const": 0 } } },
+          "then": { "properties": { "archive_bytes": { "const": 0 } } }
+        },
+        {
+          "if": { "properties": { "archive_bytes": { "const": 0 } } },
+          "then": { "properties": { "archive_chunk_count": { "const": 0 } } }
+        },
+        {
+          "if": { "properties": { "state": { "const": "available_complete" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "type": "integer", "minimum": 1 },
+              "archive_chunk_count": { "type": "integer", "minimum": 1 },
+              "pending_delivery_count": { "const": 0 },
+              "state_basis": {
+                "properties": {
+                  "active_or_dirty": { "const": false },
+                  "server_manifest_verified": { "const": true },
+                  "deletion_receipt_present": { "const": false },
+                  "local_archive_complete": { "const": true }
+                }
+              },
+              "playback_available": { "const": true }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "available_incomplete" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "type": "integer", "minimum": 1 },
+              "archive_chunk_count": { "type": "integer", "minimum": 1 },
+              "pending_delivery_count": { "const": 0 },
+              "state_basis": {
+                "properties": {
+                  "active_or_dirty": { "const": false },
+                  "server_manifest_verified": { "const": true },
+                  "deletion_receipt_present": { "const": false },
+                  "local_archive_complete": { "const": false }
+                }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "deleted_on_device" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "const": 0 },
+              "archive_chunk_count": { "const": 0 },
+              "pending_delivery_count": { "const": 0 },
+              "state_basis": {
+                "properties": {
+                  "active_or_dirty": { "const": false },
+                  "deletion_receipt_present": { "const": true },
+                  "local_archive_complete": { "const": false }
+                }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "missing_unknown" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "const": 0 },
+              "archive_chunk_count": { "const": 0 },
+              "pending_delivery_count": { "const": 0 },
+              "state_basis": {
+                "properties": {
+                  "active_or_dirty": { "const": false },
+                  "deletion_receipt_present": { "const": false },
+                  "local_archive_complete": { "const": false }
+                }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "blocked_active_or_dirty" } } },
+          "then": {
+            "properties": {
+              "state_basis": {
+                "properties": { "active_or_dirty": { "const": true } }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "blocked_pending_delivery" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "type": "integer", "minimum": 1 },
+              "archive_chunk_count": { "type": "integer", "minimum": 1 },
+              "pending_delivery_count": { "type": "integer", "minimum": 1 },
+              "state_basis": {
+                "properties": { "active_or_dirty": { "const": false } }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "const": "blocked_server_unverified" } } },
+          "then": {
+            "properties": {
+              "archive_bytes": { "type": "integer", "minimum": 1 },
+              "archive_chunk_count": { "type": "integer", "minimum": 1 },
+              "pending_delivery_count": { "const": 0 },
+              "state_basis": {
+                "properties": {
+                  "active_or_dirty": { "const": false },
+                  "server_manifest_verified": { "const": false },
+                  "deletion_receipt_present": { "const": false }
+                }
+              },
+              "playback_available": { "const": false }
+            }
+          }
+        }
+      ]
     },
     "deleteResult": {
       "type": "object",
@@ -76,6 +220,7 @@
         "kind",
         "session_id",
         "result",
+        "deleted_at",
         "server_audio_retained",
         "server_transcript_retained",
         "server_memory_retained"
@@ -95,14 +240,33 @@
             "transaction_aborted"
           ]
         },
-        "deleted_at": {
-          "type": ["string", "null"],
-          "format": "date-time"
-        },
+        "deleted_at": { "type": ["string", "null"], "format": "date-time" },
         "server_audio_retained": { "const": true },
         "server_transcript_retained": { "const": true },
         "server_memory_retained": { "const": true }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "result": { "enum": ["deleted", "already_deleted"] },
+            "deleted_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        {
+          "properties": {
+            "result": {
+              "enum": [
+                "blocked_active_or_dirty",
+                "blocked_pending_delivery",
+                "blocked_server_unverified",
+                "lock_unavailable",
+                "transaction_aborted"
+              ]
+            },
+            "deleted_at": { "type": "null" }
+          }
+        }
+      ]
     },
     "deletionReceipt": {
       "type": "object",

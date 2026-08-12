@@ -36,12 +36,14 @@
 - 创建 draft 只是第一步，不能显示“可开始”；
 - 普通 UI 复用既有正式 API 和 MVP 口头授权证据；`electronic|written` 等 fixture 只限 local/test，不进入普通 UI；
 - 不新增绕过授权的生产捷径，不改变既有 start 门禁。
+- project/service term/consent/session 四个 create 均在首次请求前持久化稳定 request ID，并由同一 authoritative seam 绑定 actor/action/target-or-project-create-identity/canonical payload hash；响应未知只重放原 ID，同 ID 异绑定冲突；consent record ID 与 consent audio 各动作 ID 分离。
 
 ### C. 最小回顾
 
 - 仅限已结束、原始录音已有权威 manifest 的 session；
 - 本机完整 archive 播放；原始/已有修订转录只读；本机 archive 字节和 origin 级近似容量；本机副本删除；
 - 不含题库、AI 问题历史、记忆/工作记录、文本编辑、说话人修正、复杂标记、服务端下载、导出或正式隐私删除。
+- 首页逐 session 动作按 `03` §17.2/`05` §3.1 唯一投影：processing 不属于继续；failed 依 NO_AUDIO_CAPTURED、complete manifest 或其他失败确定是否只读回顾/播放，本机删除仍只限 processing/completed。
 
 ### D. 本机副本安全契约
 
@@ -52,6 +54,7 @@
 - 单个 IndexedDB `readwrite` transaction 覆盖 archive/delivery/session-state/formal job/all interruption reports/checkpoint/legacy chunks，并原子写最小回执；失败 abort、零部分清理；
 - replay 为稳定 `already_deleted`；清站导致回执消失后只投影 `missing_unknown`；
 - `archive_bytes` 精确，storage estimate 只为 origin-wide approximate；
+- projection 按 active/dirty > pending > server unverified > receipt/empty > verified completeness 唯一计算；Schema 条件锁定 state/count/pending/playback，delete success/replay 必有稳定 `deleted_at`，blocked/abort 必为 null；
 - 确认和成功文案明确服务器录音、转录、记忆仍保留。
 
 ### E. 产品与平台边界
@@ -93,4 +96,4 @@
 
 ## 当前审查候选
 
-尚未获得项目负责人结论。push、PR 与 CI 成功均不构成 PASS；任务保持 `REVIEW`，A1/A2/A3/008D 保持 `BLOCKED`。
+REV-041 已对 PR #31 old exact head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 给出 `REQUEST_CHANGES`，P0=0、P1=3。旧结论永久保留；当前只形成三项定向修复候选，尚未获得项目负责人定向复审。push、PR 与 CI 成功均不构成 PASS；任务保持 `REVIEW`，A1/A2/A3/008D 保持 `BLOCKED`。

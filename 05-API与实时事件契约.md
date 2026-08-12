@@ -40,6 +40,7 @@ GET  /auth/csrf
 
 ```json
 {
+  "request_id": "uuid",
   "display_name": "虚构长者称呼",
   "birth_year": null,
   "approximate_age": null,
@@ -104,6 +105,7 @@ POST   /projects/:id/restore
 
 ```json
 {
+  "request_id": "uuid",
   "display_name": "虚构长者称呼",
   "birth_year": null,
   "approximate_age": null,
@@ -122,7 +124,21 @@ POST   /projects/:id/restore
 GET /projects/:id/sessions?cursor=<opaque>&limit=20
 ```
 
-响应按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status`。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。未认证 401；无有效 assignment、项目不可见或跨项目 cursor 失败关闭，不通过空列表泄露存在性。`restricted|deleted` 项目不得返回会话正文事实，普通工作区只显示中性受限投影。
+响应按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。未认证 401；无有效 assignment、项目不可见或跨项目 cursor 失败关闭，不通过空列表泄露存在性。`restricted|deleted` 项目不得返回会话正文事实，普通工作区只显示中性受限投影。
+
+| 权威 session/finalization 事实 | `home_state` | `primary_action`（唯一中文动作） | `review_access` |
+|---|---|---|---|
+| `created|device_check` | `preparation_required` | `continue_preparation`（继续准备） | `unavailable` |
+| `recording|reconnecting` | `interview_active` | `return_to_interview`（返回访谈） | `unavailable` |
+| `interrupted` | `interview_interrupted` | `resolve_interruption`（处理访谈中断） | `unavailable` |
+| `stopping` | `saving_audio` | `view_save_progress`（查看保存进度） | `unavailable` |
+| `processing`，且 finalization upload complete/manifest checksum 非空 | `transcript_processing` | `view_review`（查看回顾） | `read_only` |
+| `completed` | `review_ready` | `view_review`（查看回顾） | `read_only` |
+| `failed` + `capture_failure_code=NO_AUDIO_CAPTURED` + `finalization=null` | `no_audio_captured` | `view_save_facts`（查看保存事实） | `unavailable` |
+| `failed` + finalization upload complete/manifest checksum 非空 | `saved_with_warning` | `view_review`（查看回顾） | `read_only` |
+| 其他 `failed` 或任何无法证明的组合 | `save_failed` | `view_save_facts`（查看保存事实） | `unavailable` |
+
+`processing` 不能投影“继续访谈”；它已拒绝新 PCM，回顾页显示“录音已安全保存 · 转录处理中”，只读展示当时已有转录和本机事实。`failed+read_only` 允许查看已有转录及经 fresh complete manifest 验证的本机录音，但本机删除仍只允许 session `processing|completed`，因此 failed 回顾必须灰置删除并说明需人工处理。`NO_AUDIO_CAPTURED` 没有录音/转录可回顾，不播放、不删除。`stopping` 仍可能补传 commitment，只能返回保存进度，同页离开边界继续遵循 `03` §12。
 
 该 read model 只解决 A1 的列表和路由，不改变 session 所有权或 start 门禁。首页不得从 project status、列表计数或本地状态推断“可开始”；A2 仍须依次调用正式 project/service-term/consent/session/device-check/start 接口。
 
@@ -147,6 +163,7 @@ GET  /projects/:id/service-terms
 
 ```json
 {
+  "request_id": "uuid",
   "included_minutes": 60,
   "estimated_session_count": 2,
   "expected_current_minutes": 30,
@@ -178,6 +195,7 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 
 ```json
 {
+  "request_id": "uuid",
   "consent_type": "recording_transcription_ai",
   "consent_text_version": "mvp-v1",
   "consent_method": "electronic",
@@ -239,7 +257,11 @@ POST /sessions/:id/stop
 POST /sessions/:id/recover
 ```
 
-`POST /projects/:id/sessions` 只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+`POST /projects/:id/sessions` 请求固定为 `{ "request_id": "uuid" }`，只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+
+`POST /projects`、`POST /projects/:id/service-terms`、`POST /projects/:id/consents`、`POST /projects/:id/sessions` 都必须在首次网络请求前由 A2 将稳定 `request_id` 持久化到当前 origin 的新建访谈 workflow 记录。响应未知、刷新或重开后复用原 ID重放；只有收到首次结果或权威 replay 并将返回资源 ID/版本推进到 workflow 下一步后，才清除该步骤 ID。GET 只用于展示/核对，不能凭相似字段猜测某次未知 POST 是否成功。
+
+四个 create API 使用 `04` §4.23 同一 authoritative idempotency seam：project create 绑定 `action=project.create`、actor、`create_identity=project:create:{actor_id}:{request_id}` 与规范化 payload；其余依次绑定 `service_term.create|consent.create|session.create`、actor、目标 project 与规范化 payload。首次业务记录、assignment/历史/审计和响应快照与 idempotency record 同事务提交；一致重放返回首次结果。相同 ID 的 actor/action/target-or-create-identity/payload 任一不同均 409 `IDEMPOTENCY_KEY_REUSED`。consent record creation 的 request ID 独立于 consent audio init/chunk/complete 的各自 request ID。
 
 `POST /sessions/:id/device-check` 请求至少包含：
 
@@ -476,6 +498,16 @@ manifest 响应返回对象状态、purpose、project/session、chunk count、to
 - `deleted_on_device`：同 origin 最小删除回执存在且 payload stores 已为空；
 - `missing_unknown`：无 payload、无回执，可能由用户、浏览器或系统清理，原因不可证明；
 - `blocked_active_or_dirty`、`blocked_pending_delivery`、`blocked_server_unverified`：删除安全门禁未满足。
+
+投影必须同时返回 `state_basis.active_or_dirty|server_manifest_verified|deletion_receipt_present|local_archive_complete` 四个布尔事实，并对同一次 fresh 读取按以下优先级选出唯一 state，命中后不再下落：
+
+1. 任一 capture/job/checkpoint active、interrupted recovery 或 dirty → `blocked_active_or_dirty`；即使同时 pending 或服务器不可达也保持该状态；
+2. 无 active/dirty 且 `pending_delivery_count>=1` → `blocked_pending_delivery`；
+3. 无上述阻塞、本机有 archive payload，但 fresh session/manifest 不可取得或不能证明匹配 → `blocked_server_unverified`；
+4. 无 payload 且匹配的最小回执存在 → `deleted_on_device`；无 payload 且无回执 → `missing_unknown`；
+5. payload 存在、fresh server manifest 已验证后，本机连续且可读 → `available_complete`，否则 → `available_incomplete`。
+
+`playback_available=true` 只允许 `available_complete`，且必须 `archive_bytes>=1`、`archive_chunk_count>=1`、pending=0。`deleted_on_device|missing_unknown` 的 bytes/chunks/pending 全为 0；`available_incomplete|blocked_*` 均不得宣称可播放；`blocked_pending_delivery` 的 pending 至少为 1。Schema 以条件分支机械拒绝矛盾组合，A3 不得先构造宽松对象再由 UI 猜测修正。
 
 容量事实分两层：`archive_bytes` 是对当前 session archive payload 的精确求和；`navigator.storage.estimate()` 的 `usage/quota/available` 是整个 origin 的近似值，缺失时为 `null`，不得写成当前 session 字节、可回收字节或设备剩余磁盘。删除后的空间回收时间由浏览器决定，UI 不承诺立即增加等量 available。
 
@@ -949,6 +981,7 @@ GET  /exports/:id
 
 以下写操作必须接受 `request_id`：
 
+- 创建 project、service term、consent record 与 interview session；
 - 开始访谈；
 - 结束访谈（待 `SPEC-SESSION-END-001` 冻结具体动作绑定和响应快照）；
 - 上传音频分片；
@@ -967,7 +1000,7 @@ GET  /exports/:id
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
-`request_id` 在需要幂等的业务写操作间全局唯一。首次成功请求必须把 action、操作者、目标资源和最小响应快照持久化；相同 `request_id` 且绑定信息一致时返回首次响应快照，不得产生重复状态变化、业务记录或审计。相同 `request_id` 被不同 action、操作者或目标资源复用时返回 409 `IDEMPOTENCY_KEY_REUSED`，不得返回其他资源结果。
+`request_id` 在需要幂等的业务写操作间全局唯一。首次成功请求必须把 action、操作者、现有目标或明确的 create identity、规范化 payload hash 和最小响应快照持久化；相同 `request_id` 且绑定信息一致时返回首次响应快照，不得产生重复状态变化、业务记录或审计。相同 `request_id` 被不同 action、操作者、目标/create identity 或 payload 复用时返回 409 `IDEMPOTENCY_KEY_REUSED`，不得返回其他资源结果。project 尚无目标 ID 时按 §3.1 固定绑定 `project:create:{actor_id}:{request_id}`，不得由实现另选 display name、时间窗口或“最近项目”作为身份。
 
 幂等键锁只负责相同请求重放；开始访谈、撤回授权等状态变化还必须按 session、consent 或 project 业务资源串行化，或使用带前置状态的原子更新。不同 `request_id` 并发命中同一资源时只能有一个请求完成该次合法状态变化。
 
