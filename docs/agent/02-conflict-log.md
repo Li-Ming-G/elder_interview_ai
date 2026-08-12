@@ -374,16 +374,17 @@
 
 ### CON-028｜restricted 首页投影缺少最小机器 DTO，普通 finalization/prepare reader 存在权限旁路
 
-- 状态：`DECIDED`
+- 状态：`RESOLVED`
 - 发现时间：2026-08-12
 - 发现者：DEV-008A1 唯一 iteration-coach 独立只读 Correction（实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`）
 - 涉及文件与章节：`03` §3.1/§17.2、`04` §4.2-4.6、`05` §3.1/§3.3-3.5.4、`08` §4.5/§5、`09` §10.3、`10` §5.1、ADR-034、shared contracts、DEV-008A1
 - 冲突内容：正式文本要求 restricted+有效 assignment 在首页显示中性受限投影，但唯一 shared `ProjectResponse` 必含长者称呼、出生/年龄、籍贯、城市与 `created_by`。置空违反 DTO，复用会泄露正文，直接隐藏又改变首页语义。复核同时确认普通 `GET /sessions/:id` 可能以 session/finalization `created_by` 绕过当前 assignment，restricted prepare 深链也可能返回 project/service-term/consent 正文。
-- 受影响任务：DEV-008A1 保持零改动 `BLOCKED`；A2/A3 和父 A 的既有阻塞不变。
+- 受影响任务：发现时 DEV-008A1 保持零改动 `BLOCKED`；A2/A3 和父 A 的既有阻塞不变。关闭后仅 DEV-008A1 恢复 `READY`。
 - 总控正式决定：只有 restricted 且当前有效 assignment 仍存在时，首页返回独立最小中性投影；deleted、软删除、assignment 失效完全不可见。session cursor 绑定 `project_id + created_at + id` 并签名失败关闭。普通 Home/prepare/workbench/review readers 不得用 `created_by` 或 evidence-finalization 例外绕权；限制前已冻结 stop 的原 actor 只走专属最小 seam。
 - 候选写回：SPEC-DEV-008A1-ACCESS 同步正式规范、`ProjectListProjection`/`ProjectSessionListResponse`/`EvidenceFinalizationResponse`、ADR-035、测试与协作门禁；不改业务代码、Prisma、migration、页面或测试实现。
 - iteration-coach：原 DEV-008A1 已完成恰好一次 Correction；本 docs-only 修正和后续恢复不得启动第二次复核。
-- 关闭条件：SPEC-DEV-008A1-ACCESS 非 Draft PR exact-head CI SUCCESS，经已获授权总控明确 PASS 并合并；ADR-035 转 Accepted；随后 DEV-008A1 恢复 READY。当前执行 Agent不得自行标为 RESOLVED。
+- 关闭证据：项目负责人对 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` 正式 PASS（P0/P1/P2=0）；GitHub 记录 [issuecomment-5265462316](https://github.com/Li-Ming-G/elder_interview_ai/pull/33#issuecomment-5265462316)。PR merge `18ba7381f7ba747c2fb3beefe28297c6d063a174`，main CI `31587442461` SUCCESS；ADR-035 Accepted，SPEC-DEV-008A1-ACCESS DONE，DEV-008A1 恢复 READY。
+- 历史边界：本次关闭只接收 docs/shared-contract 安全接缝；原 Correction、`DECIDED`/`PENDING` 候选历史永久保留，不代表 A1 handler/repository/cursor/UI 或安全回归已实现。
 
 ## 登记模板
 

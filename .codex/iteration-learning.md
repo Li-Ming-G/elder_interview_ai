@@ -1189,3 +1189,11 @@
 - Verification boundary: 候选保持 REVIEW；exact-head CI 与总控手动审查前不转 Accepted/Resolved/DONE，不恢复 A1。A1 恢复后仍须实现并测试 handler/repository/cursor/UI 与深链反例。
 - Lesson: “允许把冻结证据保存完整”不是“允许继续浏览项目”。减权后的例外必须使用字段闭合的专属 DTO；否则审计字段或恢复接口很容易演变成横向权限旁路。
 - Better future prompt: “为 restricted 首页定义独立判别 DTO，仅保留 opaque ID 和固定中性标签；ordinary detail 继续要求当前 assignment。若要保全撤权前已冻结证据，另设不含项目/正文/页面动作的最小 finalization seam，并以 cursor 篡改和 created_by 绕权反例验收。”
+
+### 2026-08-12 — SPEC-DEV-008A1-ACCESS exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人正式审查 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712`，结论 PASS，P0/P1/P2=0；GitHub 记录为 issuecomment `5265462316`。
+- Merge evidence: PR #33 merge commit `18ba7381f7ba747c2fb3beefe28297c6d063a174`；对应 main CI `31587442461` completed / success。
+- Governance transition: SPEC-DEV-008A1-ACCESS REVIEW→DONE，ADR-035 Proposed→Accepted，CON-028 DECIDED→RESOLVED，DEV-008A1 BLOCKED→READY。父 DEV-008A、A2、A3、008D 保持 BLOCKED，CON-023 继续 OPEN。
+- Historical boundary: DEV-008A1 唯一 Correction 与 REV-042 `PENDING` 候选历史永久保留；本次只接收 docs/shared-contract 安全接缝，不代表 A1 业务实现、Prisma/migration、页面或运行时安全回归已完成。
+- Lesson: 权限收口应把“普通读取权”和“撤权前冻结证据的最小收束权”建模为字段闭合的不同 DTO；治理解锁也只能恢复直接受阻的实现切片，不能连带提升父任务或下游。
