@@ -129,7 +129,7 @@ test('two tabs serialize local deletion, commit all stores, replay receipt and s
 
   await page.reload();
   await expect(page.getByText('已从此浏览器删除')).toBeVisible();
-  await expect(page.getByText(/服务器录音、转录和记忆仍保留/u).first()).toBeVisible();
+  await expect(page.getByText(/服务器录音、转录、记忆和审计仍保留/u).first()).toBeVisible();
 
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
@@ -145,6 +145,61 @@ test('two tabs serialize local deletion, commit all stores, replay receipt and s
   await page.reload();
   await expect(page.getByText('此浏览器未找到副本')).toBeVisible();
   await expect(page.getByText(/无法判断具体原因/u)).toBeVisible();
+});
+
+test('danger confirmation keeps keyboard focus inside and restores it on cancel and success', async ({
+  page,
+}) => {
+  await mockReviewApi(page, []);
+  await page.goto('/');
+  await seedVersionFourArchive(page);
+  await page.goto(REVIEW_PATH);
+  const trigger = page.getByRole('button', { name: '只删除此浏览器副本' });
+  await expect(trigger).toBeEnabled();
+
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
+  await expect(dialog).toContainText('这里只删除当前浏览器/此设备副本');
+  await expect(dialog).toContainText('服务器录音、转录、记忆和审计仍保留');
+  await expect(dialog).toContainText('需走独立删除申请流程；本页面不提供该流程');
+  expect(
+    await dialog
+      .getByRole('button')
+      .evaluateAll((buttons) =>
+        buttons.every((button) => button.getBoundingClientRect().height >= 44),
+      ),
+  ).toBe(true);
+  expect(
+    await page
+      .getByRole('button', { name: '取消' })
+      .evaluate((button) => getComputedStyle(button).outlineWidth),
+  ).toBe('3px');
+
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: '确认删除本机副本' })).toBeFocused();
+  expect(
+    await page
+      .getByRole('button', { name: '确认删除本机副本' })
+      .evaluate((button) => getComputedStyle(button).outlineWidth),
+  ).toBe('3px');
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: '确认删除本机副本' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const notice = page.getByText(/此浏览器中的录音副本已删除/u);
+  await expect(notice).toBeVisible();
+  await expect(notice).toBeFocused();
+  await expect(notice).toContainText('服务器录音、转录、记忆和审计仍保留');
 });
 
 test('unload before the receipt completion never exposes a mixed local state', async ({

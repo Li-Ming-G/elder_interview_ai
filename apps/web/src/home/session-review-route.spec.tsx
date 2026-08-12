@@ -37,7 +37,9 @@ describe('SessionReviewRoute', () => {
     expect(screen.getByText('原始', { selector: '.transcript-label' })).toBeTruthy();
     expect(screen.getByText('修订', { selector: '.transcript-label' })).toBeTruthy();
     expect(
-      screen.getByText('此处只管理当前浏览器/此设备上的录音副本。服务器录音、转录和记忆仍保留。'),
+      screen.getByText(
+        '此处只管理当前浏览器/此设备上的录音副本。服务器录音、转录、记忆和审计仍保留。',
+      ),
     ).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByText(/导出|问题历史|记忆详情/u)).toBeNull();
@@ -83,16 +85,46 @@ describe('SessionReviewRoute', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: '只删除此浏览器副本' }));
-    expect(screen.getByRole('alertdialog').textContent).toContain(
-      '服务器录音、转录和记忆仍保留；这不是服务器隐私删除。',
-    );
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog.textContent).toContain('这里只删除当前浏览器/此设备副本');
+    expect(dialog.textContent).toContain('服务器录音、转录、记忆和审计仍保留');
+    expect(dialog.textContent).toContain('需走独立删除申请流程；本页面不提供该流程');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: '取消' }));
+    });
     fireEvent.click(screen.getByRole('button', { name: '确认删除本机副本' }));
     await waitFor(() => {
       expect(vi.mocked(archive.delete).mock.calls).toEqual([[SESSION_ID]]);
     });
     expect((await screen.findByText(/此浏览器中的录音副本已删除/u)).textContent).toContain(
-      '服务器录音、转录和记忆仍保留',
+      '服务器录音、转录、记忆和审计仍保留',
     );
+    expect(document.activeElement).toBe(screen.getByText(/此浏览器中的录音副本已删除/u));
+  });
+
+  it('moves focus into the danger confirmation and restores it on cancel', async () => {
+    const { api, archive } = fixture();
+    render(
+      <SessionReviewRoute
+        api={api}
+        archiveService={archive}
+        navigate={vi.fn()}
+        projectId={PROJECT_ID}
+        sessionId={SESSION_ID}
+      />,
+    );
+
+    const trigger = await screen.findByRole('button', { name: '只删除此浏览器副本' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: '取消' }));
+    });
+    fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    });
   });
 
   it('keeps failed complete sessions playable while disabling local deletion', async () => {

@@ -1246,3 +1246,11 @@
 - Verification boundary: 当前只到 REVIEW/REV-045 PENDING；非 Draft PR exact-head CI 与项目负责人手动审查尚待形成。无 server delete/deletion_request、导出、编辑、题库/AI history、ASR/LLM、A2/008D/PWA/App；CON-023 不变。
 - Lesson: 原子事务的 catch 不能只等待 completion；某些同步请求异常发生在 transaction 自动 abort 之前，若不显式 `abort()`，更早的 delete 可能提交。删除安全必须用故意破坏最后写入的测试证明“前面全部恢复”，而不只是检查最终抛错。
 - Better future prompt: “先以 fresh canonical session 和 manifest 闭合验证完整 archive，再持有 capture 同名 Web Lock 进入一个 readwrite transaction；事务内重检 identity/active/pending，任何同步或异步错误显式 abort，并用最后一步回执写失败证明此前所有删除回滚。”
+
+### 2026-08-12 — DEV-008A3 删除确认文案与焦点定向修复
+
+- Review evidence: PR #40 reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 收到 P1=1、阻塞接收 P2=1：删除确认未完整说明审计保留/独立申请方向，alertdialog 未管理进入与关闭焦点。其余 archive/preflight/transaction 主干未发现新 P0/P1。
+- Adopted fix: 常驻、确认、成功/已删除提示补齐服务器录音、转录、记忆和审计仍保留；确认层仅说明正式隐私删除需走独立申请且本页不提供，不添加链接或 deletion runtime。默认聚焦取消，Tab/Shift+Tab 留在两动作内，Escape/取消回触发按钮，成功聚焦 live 结果。
+- Evidence: component 5/5、unit 330/330、真实 Chromium 6/6、lint/typecheck/format/build 通过。首次浏览器回归仅旧文案断言未同步而失败，更新期望后全部通过；受限运行环境曾让 Chromium 在启动阶段失败，权限恢复后隔离端口真实重跑通过。
+- Integration boundary: 此为 A2 合入前的中间修复，不形成最终 exact-head 包。A2 closeout 后必须对齐最新 main、合并双方 route/API/styles，解决治理冲突并给 A3 重新分配唯一 review ID，再重跑完整门禁；任务继续 REVIEW、不合并。
+- Lesson: 对危险确认而言，完整边界文案和焦点生命周期是同一个安全交互：默认安全动作、键盘不逃逸、取消回原触发点、成功落到结果状态，必须用真实键盘序列验证，不能只断言 dialog 存在。

@@ -784,3 +784,10 @@ P2：
 - 自动证据：lint、typecheck、format、build 全绿；unit 52 files / 329 tests；formal Schema 定向 1/1；新隔离 PostgreSQL 完整 13 migrations/status 后 integration 14 files / 79 tests、auth 4 files / 23 tests；真实 Chromium 5/5 覆盖三视口、44px/focus/live region/reduced motion/overflow、双 tab、legacy upgrade、刷新、清站与卸载原子性。
 - 失败历史：首次 Playwright 使用默认 4173 端口因已有进程占用而未进入测试，改为独立 4293/4294/4295 后通过；首次 PostgreSQL 诊断只设置 `TEST_DATABASE_URL`，Prisma 未获得 `DATABASE_URL` 并落到空库缺表，临时库删除后同时设置两变量以全新库复跑通过；初次严格 lint 暴露测试回调类型/await 与断言问题，修复后仓库 lint 清零。以上均未通过放宽目标或删除失败路径处理。
 - 范围：没有 Prisma schema/migration、server delete/deletion_request、导出、转录或说话人编辑、题库/AI history、ASR/LLM、A2、007、008D、PWA/App 或第二套 shell/token/navigation；“本机删除”文案与结果始终明确服务器录音、转录和记忆仍保留。
+
+### reviewed head `70b8fe8` 独立审查与中间修复
+
+- 独立结论：`REQUEST_CHANGES`；P1=1、阻塞接收的 P2=1。P1 为删除确认、常驻/成功提示未完整写明服务器审计保留与正式隐私删除需走独立申请；P2 为 `alertdialog` 未把焦点移入，也未在取消/成功后恢复合理焦点。其余 fresh manifest/bytes/Blob、共锁、单事务回滚、receipt 与权限主干未发现新 P0/P1。
+- 当前分支修复：确认层逐项写明只删当前浏览器/设备副本，服务器录音、转录、记忆与审计保留；独立申请流程只作边界说明，不建死链、不实现 deletion request。打开默认聚焦取消，Tab/Shift+Tab 在确认/取消间循环，Escape/取消恢复触发按钮，成功聚焦 `aria-live` 结果。
+- 中间验证：component 5/5、全量 unit 330/330、真实 Chromium 6/6；三视口、双 tab、legacy/刷新/清站/卸载原子性保持，新增键盘进入/循环/Escape/取消/成功焦点反例。首次 Chromium 回归仅旧断言仍匹配未含“审计”的文案而失败，更新期望后全绿；未放宽产品目标。
+- Integration gate：A2/A3 都基于 `4fc4645`，并在共享代码与治理文件冲突、暂占同一 REV-045。当前小节仅记录分支中间修复，不是最终 exact-head 复审包；A2 PASS/merge/closeout 后必须对齐最新 main，保留 A2+A3 路由/API/样式语义，解决治理冲突，并将 A3 改为当时唯一的新 REV-ID 后重跑完整门禁。

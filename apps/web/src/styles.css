@@ -449,6 +449,11 @@ p {
   font-weight: 650;
 }
 
+.review-live:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .review-player {
   width: 100%;
   margin-top: 1rem;

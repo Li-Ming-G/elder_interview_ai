@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type {
   InterviewSessionResponse,
   ProjectSessionListItem,
@@ -43,6 +43,22 @@ export function SessionReviewRoute({
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const confirmDeleteRef = useRef<HTMLButtonElement | null>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement | null>(null);
+  const focusAfterDialogRef = useRef<'notice' | 'trigger' | null>(null);
+
+  useEffect(() => {
+    if (confirmingDelete) {
+      cancelDeleteRef.current?.focus();
+      return;
+    }
+    const target = focusAfterDialogRef.current;
+    focusAfterDialogRef.current = null;
+    if (target === 'notice') noticeRef.current?.focus();
+    if (target === 'trigger') deleteTriggerRef.current?.focus();
+  }, [confirmingDelete]);
 
   useEffect(() => {
     let current = true;
@@ -96,16 +112,18 @@ export function SessionReviewRoute({
   async function deleteLocalCopy(): Promise<void> {
     setBusy(true);
     setNotice(null);
+    let focusTarget: 'notice' | 'trigger' = 'trigger';
     try {
       const result = await archive.delete(sessionId);
       if (result.result === 'deleted' || result.result === 'already_deleted') {
+        focusTarget = 'notice';
         playbackRef.current?.revoke();
         playbackRef.current = null;
         setPlayback(null);
         setNotice(
           result.result === 'deleted'
-            ? '此浏览器中的录音副本已删除。服务器录音、转录和记忆仍保留。'
-            : '此浏览器中的录音副本此前已删除。服务器录音、转录和记忆仍保留。',
+            ? '此浏览器中的录音副本已删除。服务器录音、转录、记忆和审计仍保留。'
+            : '此浏览器中的录音副本此前已删除。服务器录音、转录、记忆和审计仍保留。',
         );
       } else {
         setNotice(deleteBlockedMessage(result.result));
@@ -113,7 +131,28 @@ export function SessionReviewRoute({
       setProjection(await archive.project(sessionId));
     } finally {
       setBusy(false);
-      setConfirmingDelete(false);
+      closeDeleteConfirmation(focusTarget);
+    }
+  }
+
+  function closeDeleteConfirmation(target: 'notice' | 'trigger'): void {
+    focusAfterDialogRef.current = target;
+    setConfirmingDelete(false);
+  }
+
+  function handleDeleteDialogKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key === 'Escape' && !busy) {
+      event.preventDefault();
+      closeDeleteConfirmation('trigger');
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    if (event.shiftKey && document.activeElement === confirmDeleteRef.current) {
+      event.preventDefault();
+      cancelDeleteRef.current?.focus();
+    } else if (!event.shiftKey && document.activeElement === cancelDeleteRef.current) {
+      event.preventDefault();
+      confirmDeleteRef.current?.focus();
     }
   }
 
@@ -159,7 +198,7 @@ export function SessionReviewRoute({
               </StatusBadge>
             </div>
             <p className="privacy-boundary">
-              此处只管理当前浏览器/此设备上的录音副本。服务器录音、转录和记忆仍保留。
+              此处只管理当前浏览器/此设备上的录音副本。服务器录音、转录、记忆和审计仍保留。
             </p>
             <dl className="review-facts">
               <div>
@@ -195,6 +234,7 @@ export function SessionReviewRoute({
                 onClick={() => {
                   setConfirmingDelete(true);
                 }}
+                ref={deleteTriggerRef}
                 type="button"
               >
                 只删除此浏览器副本
@@ -218,15 +258,21 @@ export function SessionReviewRoute({
               <div
                 className="delete-confirmation"
                 role="alertdialog"
+                aria-describedby="delete-description"
                 aria-labelledby="delete-title"
+                aria-modal="true"
+                onKeyDown={handleDeleteDialogKeyDown}
               >
                 <h3 id="delete-title">只删除此浏览器/此设备副本？</h3>
-                <p>服务器录音、转录和记忆仍保留；这不是服务器隐私删除。</p>
+                <p id="delete-description">
+                  这里只删除当前浏览器/此设备副本；服务器录音、转录、记忆和审计仍保留。如需正式隐私删除，需走独立删除申请流程；本页面不提供该流程。
+                </p>
                 <div className="review-actions">
                   <button
                     className="button button--danger"
                     disabled={busy}
                     onClick={() => void deleteLocalCopy()}
+                    ref={confirmDeleteRef}
                     type="button"
                   >
                     确认删除本机副本
@@ -235,8 +281,9 @@ export function SessionReviewRoute({
                     className="button button--secondary"
                     disabled={busy}
                     onClick={() => {
-                      setConfirmingDelete(false);
+                      closeDeleteConfirmation('trigger');
                     }}
+                    ref={cancelDeleteRef}
                     type="button"
                   >
                     取消
@@ -244,7 +291,7 @@ export function SessionReviewRoute({
                 </div>
               </div>
             ) : null}
-            <p className="review-live" aria-live="polite">
+            <p className="review-live" aria-live="polite" ref={noticeRef} tabIndex={-1}>
               {notice}
             </p>
           </section>
@@ -340,7 +387,7 @@ function projectionHelp(state: LocalAudioArchiveProjection['state']): string {
     blocked_active_or_dirty: '检测到采集或恢复事实，当前不会读取、播放或删除本机录音。',
     blocked_pending_delivery: '仍有录音分片等待保存，当前不会播放或删除。',
     blocked_server_unverified: '暂时无法用最新服务器事实核验本机副本，当前不会播放或删除。',
-    deleted_on_device: '本机删除回执已提交；服务器录音、转录和记忆仍保留。',
+    deleted_on_device: '本机删除回执已提交；服务器录音、转录、记忆和审计仍保留。',
     missing_unknown: '副本可能从未保存、已被浏览器清理或由用户清站；无法判断具体原因。',
   }[state];
 }
