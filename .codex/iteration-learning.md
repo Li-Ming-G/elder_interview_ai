@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 与 DEV-008A1 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS，A2 READY；A3 因 finalization total bytes 公共接缝缺口保持 BLOCKED，等待 SPEC-DEV-008A3-PREFLIGHT exact-head PASS/merge；008D 继续 BLOCKED。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1 与 SPEC-DEV-008A3-PREFLIGHT 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS，A2/A3 READY；008D 继续 BLOCKED。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
@@ -1228,3 +1228,10 @@
 - Verification boundary: 本轮仅冻结契约与测试矩阵，保持 REVIEW；A3 在 exact-head PASS/merge 前 BLOCKED。后续实现必须验证 mapper/API lifecycle 与 safe integer、ordinary auth/assignment/restricted/deleted/created_by，以及 fresh identity/count/bytes/chunk sum/checksum/local metadata 与 legacy/null 失败关闭；CON-023 不变。
 - Lesson: contract-first 兼容性和最终 wire 义务可以分层表达：候选类型允许旧 mapper 暂时缺省，不代表新消费者可以把缺省视为成功。真正安全的删除前置必须把“字段存在”“来源可信”“数值可精确表达”和“本地/服务端一致”同时成立作为一个闭合谓词。
 - Better future prompt: “先确认可复用的权威持久事实，再冻结 nullable lifecycle、响应白名单与 safe-integer 边界；若契约阶段不能改 mapper，明确区分 additive optional 兼容期和 runtime 必须显式发 key 的最终义务，并把 missing/null/mismatch 都写成失败关闭反例。”
+
+### 2026-08-12 — SPEC-DEV-008A3-PREFLIGHT 最终接收与 A3 恢复 READY
+
+- Evidence: 项目负责人对 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742`、CI `31597563095` 手动独立审查 PASS，P0/P1/P2=0；正式评论 `issuecomment-5266978939`。PR merge `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8`，对应 main CI `31598183784` SUCCESS。
+- Decision: SPEC-DEV-008A3-PREFLIGHT `DONE`、ADR-036 `Accepted`、CON-029 `RESOLVED`，DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
+- Verification boundary: 本次只登记已经完成的 docs/shared-contract 审查、合并与 main 集成门禁；没有修改业务 mapper/controller、Prisma/migration、IndexedDB、UI 或测试，也没有实现 A3。A3 仍须以 runtime exact-key、safe integer、ordinary 权限、fresh/legacy/null/mismatch 测试证明接缝实际输出和失败关闭。
+- Lesson: 契约收口的 DONE 只解除实现前置，不可被写成下游 runtime 已完成；治理 closeout 必须同时保留候选历史、绑定 exact head/CI/merge/main CI，并明确未改变的父任务、并行任务和安全冲突。

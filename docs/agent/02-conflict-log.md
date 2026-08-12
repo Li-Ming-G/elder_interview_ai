@@ -388,7 +388,7 @@
 
 ### CON-029｜A3 fresh delete preflight 缺少 finalization total bytes 公共字段
 
-- 状态：`OPEN`（方向已裁决，等待 exact-head PASS/merge）
+- 状态：`RESOLVED`
 - 发现时间：2026-08-12
 - 发现者：DEV-008A3 开工前唯一 iteration-coach Correction；实现窗口 `019ff5db-a0dd-7060-875f-8ee454a84469`，只读复核 `019ff5e0-47d2-7d92-8148-7eff63ec61a9`
 - 涉及文件与章节：`04` §4.24-4.25/§4.44、`05` §3.1/§3.5.1/§3.5.3/§3.6.1、`08` §5/§14.1、`09` §10.4、`10` §4/§7、shared contracts、DEV-008A3、ADR-034/035
@@ -397,8 +397,10 @@
 - 总控正式决定：采用方案 A。公共 snapshot 增加 additive optional+nullable `total_size_bytes`，只从既有 `AudioObject.totalSizeBytes` 投影；不新增 Prisma 字段/migration。A3 runtime 后 ordinary canonical GET 必须显式带键；缺键/null/unsafe/mismatch 对播放和本机删除失败关闭。
 - 白名单决定：A1 `ProjectSessionListItem` 不扩字段；restricted `EvidenceFinalizationResponse` 不扩字段。A3 只能使用当前 assignment + ordinary visibility 下的 canonical session GET，不能用列表、created_by、本机 archive 或 evidence seam 绕权。
 - 需要同步修改：SPEC-DEV-008A3-PREFLIGHT、`04/05/08/09/10`、packages/contracts、ADR-036、任务板/追踪/审查/交接/journal。
-- 受影响任务：本 SPEC 保持 `REVIEW`；DEV-008A3 在本 SPEC exact-head PASS/merge 前保持 `BLOCKED`。A2、DEV-008D 与 CON-023 状态不变。
+- 受影响任务：本 SPEC 候选阶段保持 `REVIEW`；DEV-008A3 在本 SPEC exact-head PASS/merge 前保持 `BLOCKED`。A2、DEV-008D 与 CON-023 状态不变。
 - 关闭条件：项目负责人授权总控对非 Draft PR final exact head/CI 手动审查 PASS，PR merge 且 main CI 成功；关闭只解锁 A3 runtime，不代表 A3 或服务器隐私删除完成。
+- 关闭证据（2026-08-12）：项目负责人对 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095` 手动独立审查 PASS（P0/P1/P2=0）；正式记录为 [issuecomment-5266978939](https://github.com/Li-Ming-G/elder_interview_ai/pull/37#issuecomment-5266978939)。PR 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main，main CI `31598183784` SUCCESS。关闭条件全部满足，DEV-008A3 恢复 `READY`。
+- 历史与边界：原 Correction、方案 A、REV-044 `PENDING` 候选历史永久保留。本关闭只证明 contract-first 接缝已接收；A3 mapper/controller、IndexedDB、页面与 runtime 测试仍未实现。DEV-008A2 保持 `READY`，父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 
 ## 登记模板
 

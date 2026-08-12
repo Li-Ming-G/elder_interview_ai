@@ -7,3 +7,5 @@
 SPEC-DEV-008A 的统一倾听员工作区、最小回顾、本机副本和 A1/A2/A3/008D 拆分候选见 [`SPEC-DEV-008A.md`](SPEC-DEV-008A.md)。
 
 DEV-008A1 的共享 Home、formal project/session read model、权限降级接缝、REV-043 exact-head PASS/merge 和 A2/A3 解锁边界见 [`DEV-008A1.md`](DEV-008A1.md)。A2/A3 执行时必须复用该交接，不得重新建立 shell/routes/read model 或改变 008D/CON-023 边界。
+
+SPEC-DEV-008A3-PREFLIGHT 的 finalization total bytes 接缝、REV-044 exact-head PASS/merge、CON-029 关闭与 A3 runtime 门禁见 [`SPEC-DEV-008A3-PREFLIGHT.md`](SPEC-DEV-008A3-PREFLIGHT.md)。该接收只解锁 A3，不代表回顾、本机删除或服务器隐私删除已实现。
