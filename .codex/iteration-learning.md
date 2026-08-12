@@ -1169,3 +1169,11 @@
 - 修正：首页不再用“未完成/已完成”二分，而以服务端 session/finalization 事实输出唯一 action；processing、failed complete manifest、NO_AUDIO_CAPTURED 分别有明确只读回顾/播放/删除边界。
 - 修正：本机 projection 先冻结唯一优先级，再由 Schema 条件约束 state/count/pending/playback/deleted_at，并以正反 fixture 防止语义回退。
 - 教训：文档验收中的“响应丢失可恢复”“状态一致”“formal Schema”必须同时给出权威 identity、完整状态矩阵和机械不可表达矛盾的约束，不能只靠叙述性目标或 GET 重读。
+
+### 2026-08-12 — SPEC-DEV-008A exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人明确授权总控手动定向复审 PR #31 final exact head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324`，正式结论 PASS，P0/P1=0；GitHub 记录为 issuecomment `5263644971`。
+- Adopted decision: A2 四 create authoritative replay、session 首页动作矩阵、local archive projection/Schema 正反例正式接收，ADR-034 Accepted。PR #31 merge `91e5e7ed042f598359827ae63daf464e12e2ef76`，main CI `31573985661` SUCCESS，SPEC-DEV-008A DONE。
+- Historical boundary: old head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 的 REQUEST_CHANGES/P1=3 永久保留；后续 PASS 关闭问题但不改写首轮事实。
+- DEV handoff: 只解锁 DEV-008A1 为 READY；父 DEV-008A、A2、A3、008D 继续 BLOCKED，A2/A3 等 A1 PASS/merge，CON-023 继续 OPEN。未实现 A1、业务代码、Prisma、migration、session list、UI、IndexedDB upgrade、播放或任何删除 runtime。
+- Lesson: 契约 SPEC 的接收只解除被它直接阻塞的第一段实现，不应把父任务或可并行后续切片一并提升；把 exact-head PASS、merge commit 和 main CI 串成不可分割证据链，才能安全做治理状态迁移。

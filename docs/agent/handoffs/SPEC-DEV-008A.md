@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - base：`origin/main@a349f8947eabe2eb5444ed2cf3c20e386c75bdb5`
 - branch：`codex/spec-dev-008a-listener-workspace`
-- PR：[PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31)，OPEN、非 Draft、未合并；exact final head/CI 以 PR Checks 和执行任务最终消息为准，避免提交自引用
-- 审查权：只请求项目负责人手动 GitHub 审查；本任务不 PASS/DONE/merge
+- PR：[PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31)，final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` PASS；merge `91e5e7ed042f598359827ae63daf464e12e2ef76` / main CI `31573985661` SUCCESS
+- 审查：项目负责人明确授权总控手动定向复审，P0/P1=0；正式记录见 [issuecomment-5263644971](https://github.com/Li-Ming-G/elder_interview_ai/pull/31#issuecomment-5263644971)
 
 ## 已完成
 
@@ -53,17 +53,24 @@
 - P1-1：四个 A2 create 原无权威响应未知幂等 seam；当前候选补齐首次请求前持久 ID、项目 create identity、payload hash、同事务首次快照与冲突语义；
 - P1-2：旧“未完成=继续、completed=回顾”与生命周期冲突；当前候选补齐 created 至 failed 的唯一首页动作、只读回顾/播放/删除边界；
 - P1-3：旧 formal Schema 接受矛盾组合；当前候选补齐确定性 projection 优先级、条件 Schema、成功/失败 deleted_at 与 12 个正反 fixture；
-- 以上只是待定向复审候选，不表示旧 P1 已由执行 Agent关闭，不构成 PASS/DONE。
+- 以上候选随后由项目负责人授权总控对 final exact head 定向复审；旧 P1 在新 head 上关闭，但本节 old-head REQUEST_CHANGES 历史不被覆盖。
+
+## REV-041 定向复审与最终接收
+
+- final exact head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / exact-head CI `31573583324` completed / success；
+- 项目负责人明确授权总控承担本目标手动审查，总控正式结论 `PASS`，P0/P1=0；P1-1/P1-2/P1-3 全部 CLOSED；
+- PR #31 以 merge commit `91e5e7ed042f598359827ae63daf464e12e2ef76` 合入 main，main CI `31573985661` completed / success；
+- SPEC-DEV-008A `DONE`、ADR-034 `Accepted`、DEV-008A1 `READY`；父 DEV-008A、A2、A3、008D 继续 `BLOCKED`，CON-023 继续 `OPEN`。
 
 ## 未实现与风险
 
-- 本次没有业务代码、Prisma/migration、测试代码或部署改动；A1/A2/A3/008D 全部 `BLOCKED`；
+- 本次没有业务代码、Prisma/migration、测试代码或部署改动；A1 仅转 `READY` 且尚未实现，父 A/A2/A3/008D 继续 `BLOCKED`；
 - session list endpoint、UI、IndexedDB v5+ upgrade、回执 store/index、播放和删除均尚未实现/验证；
 - 本机 archive 被浏览器清理时无法证明原因；没有 server audio download，因此本机缺失后不可播放；
 - `navigator.storage.estimate()` 不是 session/设备磁盘事实；浏览器未承诺删除后立即回收等量空间；
 - CON-023 正式 deletion runtime 继续 `NOT IMPLEMENTED / NOT VERIFIED`，真实试点仍被其阻塞；
-- 当前三项修复仍待项目负责人只针对 REV-041 P1-1/P1-2/P1-3 定向复审；在新 exact-head 明确 PASS 前不得实现 A1/A2/A3。
+- A1 可按本交接独立启动实现；A2/A3 在 A1 exact-head PASS/merge 前不得启动，008D 仍须独立安全计划并关闭 CON-023 才能解除真实试点门禁。
 
 ## 下一位必须先读取
 
-`AGENTS.md`、`00/01/02`、`03/04/05/06/08/09/10`、本交接、SPEC/DEV-008A/A1/A2/A3/008D 任务卡、ADR-034、CON-023、`local-audio-archive-v1`，以及 DEV-003C/005R2C/005R2/005R4 最新交接。
+DEV-008A1 执行任务必须先读取 `AGENTS.md`、`00/01/02`、`03/04/05/06/08/09/10`、本交接、SPEC/DEV-008A/A1/A2/A3/008D 任务卡、ADR-034、CON-023、`local-audio-archive-v1`，以及 DEV-003C/005R2C/005R2/005R4 最新交接。

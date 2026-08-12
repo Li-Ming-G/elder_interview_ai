@@ -712,3 +712,11 @@ P2：
 - 其余主体通过：网页-only、A1→A2/A3 拆分、正式口头 consent、统一 UI、本机删除 capture lock+fresh manifest+单 IDB 事务、无倾听员导出、local deletion≠server deletion、DEV-007 无依赖均无新 P0/P1。
 - 定向修复候选：四 create 统一首次请求前持久 ID 与 actor/action/target-or-create-identity/payload hash authoritative replay；server read model 输出完整 session 动作矩阵；local projection 固定 active/dirty > pending > server unverified > receipt/empty > verified completeness，并增加条件 Schema 与正反 fixture。该描述只记录候选，不构成新 head 复审结论。
 - 历史保留：本记录 old exact head、CI SUCCESS、REQUEST_CHANGES/P1=3 永久有效；后续定向复审不得覆盖、改写或删除本次事实。
+
+### REV-041 定向复审与最终接收
+
+- 授权与审查对象：项目负责人明确授权总控承担本目标手动审查；定向复审严格绑定 [PR #31](https://github.com/Li-Ming-G/elder_interview_ai/pull/31) final exact head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` 与 exact-head CI `31573583324` completed / success；正式 GitHub 记录为 [issuecomment-5263644971](https://github.com/Li-Ming-G/elder_interview_ai/pull/31#issuecomment-5263644971)。
+- 正式结论：`PASS`；P0=0、P1=0。P1-1 四 create 稳定 request identity/authoritative replay、P1-2 session lifecycle 唯一首页动作、P1-3 local archive 确定性优先级/条件 Schema/12 个正反例全部 CLOSED。
+- 合并与集成：PR #31 以 merge commit `91e5e7ed042f598359827ae63daf464e12e2ef76` 合入 main；main CI `31573985661` completed / success。
+- 治理：SPEC-DEV-008A DONE、ADR-034 Accepted、仅 DEV-008A1 READY；父 DEV-008A、A2、A3、008D 保持 BLOCKED，A2/A3 等 A1 PASS/merge，CON-023 继续 OPEN。
+- 历史与范围：old head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` / REQUEST_CHANGES/P1=3 永久保留。本次只接收 docs/machine-contract/governance，不代表 session list、UI、IndexedDB upgrade、播放、本机删除或服务端隐私删除已经实现，也不改变 DEV-007 状态。
