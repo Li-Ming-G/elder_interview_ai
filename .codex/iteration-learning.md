@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1 与 SPEC-DEV-008A3-PREFLIGHT 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS；A2 新建完整授权入口当前为 REVIEW 候选，A3 READY，008D 继续 BLOCKED。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1、SPEC-DEV-008A3-PREFLIGHT 与 DEV-008A2 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS；A3 保持 REVIEW 并等待基于 A2 merge 后的新 main 整合，008D 继续 BLOCKED。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
@@ -1263,3 +1263,10 @@
 - Lesson: `isMounted` ref 不是一次性构造状态，而是 effect lifecycle 状态；在 StrictMode 下 setup 与 cleanup 必须对称写入，测试也必须让组件经过开发模式的双调用路径。
 - Verification boundary: `d240afd3` 原 P1 与 `cce98c8f` adjacent P1 均永久保留；当前仍 REVIEW，等待再修复 exact-head CI/复审，不自宣关闭或合并。
 - CI failure history: StrictMode 修复 head `ef85c3b` 的 CI `31607585915` 在既有 native MediaRecorder audio-buffer 用例首次分片读取为 0，普通 E2E 17/18；其余到 smoke 的全部门禁成功。本地该文件双 worker repeat 9/9，新增 P1 用例未失败；不为清绿修改产品或测试目标，以新 exact head 重跑完整门禁。
+
+### 2026-08-12 — DEV-008A2 exact-head 接收与治理收口
+
+- Evidence: PR #39 accepted exact head `1ad334de678b242fa0eb3e399af9138053ac251f`、CI `31608031668` SUCCESS；获授权总控手动审查 PASS，P0/P1/P2=0，正式评论 `issuecomment-5268364704`。PR 以 merge commit `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 合入 main，main CI `31609156286` SUCCESS。
+- Decision: DEV-008A2 `REVIEW→DONE`；父 DEV-008A 保持 `IN_PROGRESS`。REV-045 唯一归属 A2；A3 分支临时同号修正为主线 REV-046，A3 保持 `REVIEW` 并等待基于新 main 整合。DEV-008D 与 CON-023 不变。
+- Verification boundary: `d240afd3` REQUEST_CHANGES/麦克风释放 P1、`cce98c8f` StrictMode adjacent P1、`ef85c3b` / CI `31607585915` audio-buffer flake 永久保留；最终 PASS 不覆盖失败历史。本 closeout 不改业务代码、Prisma/migration、A3 实现、ASR、DEV-007 或 DEV-008D，也不替 A3 或父任务给出 PASS/DONE。
+- Lesson: 并行分支的临时审查编号必须按实际先合入顺序在主线唯一化；修正编号只改变治理引用，不得改写另一路分支的审查意见或实现事实。

@@ -795,3 +795,18 @@ P2：
 - Adjacent P1：`apps/web/src/main.tsx` 使用 React `<StrictMode>`，而页面 `mounted` ref 只在初始化为 true；effect 第一次 cleanup 置 false，第二次 setup 未恢复，导致开发模式后续 `save/showMessage/endAction` 状态更新被永久抑制。原 component/E2E 未以 StrictMode 包裹覆盖。
 - 再修复：lifecycle effect 每次 setup 显式 `mounted.current=true`，cleanup 仍置 false 并 dispose/退订。新增 StrictMode setup→cleanup→setup 回归，证明初始化后 project/service workflow 继续推进、busy 复位且授权录音状态/说明消息可见；原离页 dispose、track stop、单一 job 恢复测试保留。
 - 候选证据：定向 unit/component 6/6、全量 unit 320/320、新入口 5/5；中间修复上的普通 Chromium 18/18、smoke 与本次静态/build 证据保持。head `ef85c3b` 的 CI `31607585915` 仅既有原生 audio-buffer 分片时序用例失败（E2E 17/18），本地该文件 repeat 9/9，未修改测试目标；等待新 exact head 全量 CI 与定向复审，状态仍为 REVIEW / REQUEST_CHANGES。
+
+### REV-045 final exact-head 接收与合并
+
+- accepted exact head：`1ad334de678b242fa0eb3e399af9138053ac251f`；exact-head CI `31608031668` completed / success。
+- 审查结论：获项目负责人授权的总控手动审查 `PASS`，P0=0、P1=0、P2=0；正式记录为 [issuecomment-5268364704](https://github.com/Li-Ming-G/elder_interview_ai/pull/39#issuecomment-5268364704)。
+- 关闭范围：授权录音离页 `dispose()`、同一 job/分片恢复、StrictMode mounted guard、四 create 权威幂等、正式口头授权与 start 漂移/撤权失败关闭均在 accepted head 接收；不扩入 A3、008D、ASR、DEV-007、导出或 PWA/App。
+- 失败历史：old `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` 的 `REQUEST_CHANGES` 与麦克风释放 P1、middle `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` 的 StrictMode adjacent P1、`ef85c3b81a24ead486457659a82809244b3953c4` / CI `31607585915` 的既有 audio-buffer 时序 flake 永久保留，不被最终 PASS 覆盖。
+- 合并与集成：PR #39 以 merge commit `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 合入 main；main CI `31609156286` completed / success。
+- 治理：DEV-008A2 `REVIEW→DONE`；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A3 保持 `REVIEW` 并等待基于新 main 整合，DEV-008D 与 CON-023 不变。REV-045 唯一归属 A2；A3 分支临时同号不覆盖本记录。
+
+## REV-046｜DEV-008A3 基于新 main 整合等待记录
+
+- 编号协调：A2 已先以正式 REV-045 PASS/merge，因此 A3 分支临时 `REV-045` 不再是主线有效编号；A3 唯一编号修正为 REV-046。该修正只解决治理 ID 冲突，不改写 A3 分支已有审查意见、实现或测试事实。
+- 当前结论：`REVIEW / INTEGRATION REQUIRED`。A3 须基于 A2 merge `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 后的最新 main 解决共享代码与治理冲突，形成新的 final exact head/CI 包后再接受审查。
+- 边界：本记录不是 A3 PASS/DONE，也不替代 A3 exact-head 审查；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
