@@ -774,7 +774,7 @@ P2：
 
 ## REV-045｜DEV-008A2 新建访谈完整纵向入口实现候选
 
-- 审查对象：branch `codex/dev-008a2-new-interview`，base `51e2337ea86739e209ad696804de7decbcf7a9df`；非 Draft PR、final exact head 与 exact-head CI 待后续绑定。
+- 审查对象：[非 Draft PR #39](https://github.com/Li-Ming-G/elder_interview_ai/pull/39)，branch `codex/dev-008a2-new-interview`，启动 base `51e2337ea86739e209ad696804de7decbcf7a9df`，最终整合 base `4fc46456869ab01d9880d1aa92e7cd838bf920a8`；final exact head 与 exact-head CI 待后续绑定。
 - 当前结论：`PENDING / REVIEW`。本记录只由执行 Agent整理候选证据与请求手动审查，不是 PASS；不得标记 DONE 或合并。
 - iteration-coach：开工前恰好一次独立只读 Learning 复核，结论 `NO-PAUSE`。复核确认 A2 四 create 的 DTO/Prisma/service/IndexedDB 缺口和 `mvp-v1` start version gate 均已有正式契约，未要求新增产品或公共语义。
 - 候选实现：A1 唯一 Home 内完成 project→service term→fresh consent audio→recorded-verbal consent→session→prepare/device-check→start；四 create 首次联网前持久稳定 request ID 与 frozen payload，authoritative replay 绑定 actor/action/target-or-project-create-identity/RFC 8785 payload hash；普通 UI 不含 electronic/written。
