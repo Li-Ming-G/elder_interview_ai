@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1 与 SPEC-DEV-008A3-PREFLIGHT 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS，A2/A3 READY；008D 继续 BLOCKED。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1 与 SPEC-DEV-008A3-PREFLIGHT 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS；A2 新建完整授权入口当前为 REVIEW 候选，A3 READY，008D 继续 BLOCKED。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
@@ -1216,7 +1216,6 @@
 - Governance transition: DEV-008A1 REVIEW→DONE，DEV-008A2/A3 BLOCKED→READY，父 DEV-008A BLOCKED→IN_PROGRESS。A2/A3 已补齐 `10` §3 要求的正式任务字段，可在复用 A1 唯一 shell/routes/read model 的前提下独立并行；其 runtime 仍未实现。
 - Historical boundary: REV-043 `PENDING` 候选永久保留；本 PASS 只接收 A1 runtime/UI/security seam，不代表 A2 新建入口、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成。DEV-008D 保持 BLOCKED，CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。
 - Lesson: 下游解锁必须同时满足技术前置和治理可执行性。A1 PASS/merge 解除 A2/A3 的技术阻塞后，仍应在转 READY 前补齐正式任务字段和所有权边界；父任务进入进行中不等于任一未实现子任务已完成。
-
 ### 2026-08-12 — SPEC-DEV-008A3-PREFLIGHT finalization total bytes 接缝
 
 - User outcome: 在不扩大 A3 产品范围的前提下，让本机副本 fresh delete preflight 能把本地 archive 与服务器权威完整性事实做机械比对，同时保持本机删除不等于服务器删除。
@@ -1235,3 +1234,14 @@
 - Decision: SPEC-DEV-008A3-PREFLIGHT `DONE`、ADR-036 `Accepted`、CON-029 `RESOLVED`，DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - Verification boundary: 本次只登记已经完成的 docs/shared-contract 审查、合并与 main 集成门禁；没有修改业务 mapper/controller、Prisma/migration、IndexedDB、UI 或测试，也没有实现 A3。A3 仍须以 runtime exact-key、safe integer、ordinary 权限、fresh/legacy/null/mismatch 测试证明接缝实际输出和失败关闭。
 - Lesson: 契约收口的 DONE 只解除实现前置，不可被写成下游 runtime 已完成；治理 closeout 必须同时保留候选历史、绑定 exact head/CI/merge/main CI，并明确未改变的父任务、并行任务和安全冲突。
+
+### 2026-08-12 — DEV-008A2 新建访谈完整纵向入口候选
+
+- User outcome: 倾听员从 A1 唯一工作区真正完成 project→service term→正式口头授权→session→prepare/device-check→start，而不是创建 draft 后冒充成功。
+- Review mode: Learning mode；开工前恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。
+- Review finding: 四 create 缺 request ID 接线、服务端 authoritative replay、Prisma create identity/hash 和浏览器持久 workflow；start 缺 `mvp-v1` version gate。这些均是 REV-041/ADR-034 已接收契约的实现缺口，不需要新公共设计。CON-012 通过一次授权一个新音频对象规避，不裁决跨版本复用。
+- Adopted decision: request ID/payload/step 在首次 fetch 前写入 actor-bound IndexedDB；服务端 request lock 后校验 actor/action/target-or-create-identity/hash，再做 project/session resource lock并同事务提交业务、历史/assignment、audit、response snapshot。普通 UI 只走 fresh complete `recorded_verbal/mvp-v1`，start 对版本/撤权/assignment drift 失败关闭。
+- Implementation evidence: fresh PostgreSQL 14 migrations、integration 80/80、unit 316/316、真实 auth Chromium 5/5、新入口 Chromium 4/4，三视口与 accessibility/overflow 证据全绿；REV-045 候选保持 REVIEW。实现期间 main 的 A3 前置契约占用 REV-044，本候选按全局序号顺延，不改变产品实现。
+- Lesson: “先持久化再联网”不仅是生成 UUID 的顺序，还要求动作锁在持久化之前接管，否则极窄双击窗口仍可能让本地权威记录与实际首个 POST 分叉。授权音频恢复同理：未冻结 job 可续录，已冻结 job 只能重放保存，不得追加新内容。
+- Better future prompt: “为每个 create 把 pre-network durable identity、payload freeze、unknown-only replay、server binding 和 response ACK 写成同一个状态机；把 UI 双击锁放在持久化之前，并明确 frozen audio job 只能继续保存，不能重新录制。”
+- Verification boundary: 当前只请求 exact-head 手动审查，不自宣 PASS/DONE/merge；不关闭真实授权文本、真实 PII/试点、服务器删除、A3、ASR/LLM/PWA 等后续门禁。

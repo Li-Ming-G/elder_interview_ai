@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { loadApiConfig } from '@elder-interview/config';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -134,6 +136,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         current_city: null,
         display_name: '虚构长者甲',
         native_place: null,
+        request_id: randomUUID(),
       });
     expect(createdProject.status).toBe(201);
     expect(createdProject.body).toMatchObject({ display_name: '虚构长者甲', status: 'draft' });
@@ -155,7 +158,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/projects/${projectId}/sessions`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({});
+      .send({ request_id: randomUUID() });
     expect(draftSession.status).toBe(201);
     expect(draftSession.body).toMatchObject({
       project_id: projectId,
@@ -201,6 +204,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         included_minutes: 60,
         overtime_price_minor: 0,
         overtime_unit_minutes: 30,
+        request_id: randomUUID(),
       });
     expect(firstTerm.status).toBe(201);
     expect(
@@ -219,6 +223,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T08:00:00.000Z',
+        request_id: randomUUID(),
       });
     expect(unverifiableVerbal.status).toBe(409);
     expect((unverifiableVerbal.body as ErrorBody).code).toBe('CONSENT_AUDIO_NOT_VERIFIED');
@@ -234,6 +239,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T08:00:00.000Z',
+        request_id: randomUUID(),
       });
     expect(firstConsent.status).toBe(201);
     expect(
@@ -280,6 +286,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         included_minutes: 90,
         overtime_price_minor: 0,
         overtime_unit_minutes: 30,
+        request_id: randomUUID(),
       });
     expect(secondTerm.status).toBe(201);
     const terms = await prisma.serviceTerm.findMany({
@@ -301,9 +308,33 @@ describe('project, bundled consent and interview start vertical seam', () => {
         consent_text_version: 'mvp-v2',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T09:00:00.000Z',
+        request_id: randomUUID(),
       });
     expect(secondConsent.status).toBe(201);
     const secondConsentId = (secondConsent.body as IdBody).id;
+    const driftSession = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: randomUUID() });
+    const driftSessionId = (driftSession.body as IdBody).id;
+    await listenerA
+      .post(`/api/v1/sessions/${driftSessionId}/device-check`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ input_detected: true, microphone_permission: 'granted' });
+    const driftStart = await listenerA
+      .post(`/api/v1/sessions/${driftSessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({
+        audio_stream_id: randomUUID(),
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: randomUUID(),
+      });
+    expect(driftStart.status).toBe(409);
+    expect((driftStart.body as ErrorBody).code).toBe('CONSENT_REQUIRED');
+    expect(await prisma.audioObject.count({ where: { sessionId: driftSessionId } })).toBe(0);
     const revokeRequestId = '00000000-0000-4000-8000-000000000103';
     const revoked = await listenerA
       .post(`/api/v1/consents/${secondConsentId}/revoke`)
@@ -344,11 +375,139 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post(`/api/v1/projects/${projectId}/sessions`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({});
+      .send({ request_id: randomUUID() });
     expect(sessionAfterWithdrawal.status).toBe(409);
     expect((sessionAfterWithdrawal.body as ErrorBody).code).toBe('PROJECT_NOT_STARTABLE');
 
     expect(csrfB).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('authoritatively replays all four creates and rejects changed bindings', async () => {
+    const server = application().getHttpServer() as SupertestApp;
+    const listenerA = request.agent(server);
+    const listenerB = request.agent(server);
+    const loginA = await listenerA
+      .post('/api/v1/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: 'project-listener-a@example.test', password: PASSWORD });
+    const loginB = await listenerB
+      .post('/api/v1/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: 'project-listener-b@example.test', password: PASSWORD });
+    const csrfA = (loginA.body as LoginBody).csrf_token;
+    const csrfB = (loginB.body as LoginBody).csrf_token;
+
+    const projectRequestId = randomUUID();
+    const projectPayload = { display_name: '虚构 A2 幂等项目', request_id: projectRequestId };
+    const created = await listenerA
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(projectPayload);
+    const replayedProject = await listenerA
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(projectPayload);
+    expect(replayedProject.body).toEqual(created.body);
+    const projectId = (created.body as IdBody).id;
+    expect(
+      await prisma.elderProject.count({ where: { displayName: projectPayload.display_name } }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'project.create', requestId: projectRequestId },
+      }),
+    ).toBe(1);
+    const crossActor = await listenerB
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfB)
+      .send(projectPayload);
+    expect((crossActor.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
+    const changedProjectPayload = await listenerA
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ display_name: '不同项目', request_id: projectRequestId });
+    expect((changedProjectPayload.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
+
+    const termRequestId = randomUUID();
+    const termPayload = {
+      currency: 'CNY',
+      estimated_session_count: 1,
+      expected_current_minutes: 30,
+      included_minutes: 30,
+      overtime_price_minor: 0,
+      overtime_unit_minutes: 30,
+      request_id: termRequestId,
+    };
+    const term = await listenerA
+      .post(`/api/v1/projects/${projectId}/service-terms`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(termPayload);
+    const termReplay = await listenerA
+      .post(`/api/v1/projects/${projectId}/service-terms`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(termPayload);
+    expect(termReplay.body).toEqual(term.body);
+    expect(await prisma.serviceTerm.count({ where: { projectId } })).toBe(1);
+    const otherProject = await listenerA
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ display_name: '虚构 A2 其他目标', request_id: randomUUID() });
+    const changedTarget = await listenerA
+      .post(`/api/v1/projects/${(otherProject.body as IdBody).id}/service-terms`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(termPayload);
+    expect((changedTarget.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
+
+    const consentRequestId = randomUUID();
+    const consentPayload = {
+      consent_audio_object_id: null,
+      consent_method: 'electronic',
+      consent_text_version: 'mvp-v1',
+      consent_type: 'recording_transcription_ai',
+      consented_at: '2026-08-12T12:00:00.000Z',
+      request_id: consentRequestId,
+    };
+    const consent = await listenerA
+      .post(`/api/v1/projects/${projectId}/consents`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(consentPayload);
+    const consentReplay = await listenerA
+      .post(`/api/v1/projects/${projectId}/consents`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send(consentPayload);
+    expect(consentReplay.body).toEqual(consent.body);
+    expect(await prisma.consentRecord.count({ where: { projectId } })).toBe(1);
+
+    const sessionRequestId = randomUUID();
+    const session = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: sessionRequestId });
+    const sessionReplay = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: sessionRequestId });
+    expect(sessionReplay.body).toEqual(session.body);
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+
+    const crossAction = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: consentRequestId });
+    expect((crossAction.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
   });
 
   it('serializes concurrent session numbering', async () => {
@@ -363,7 +522,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post('/api/v1/projects')
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrf)
-      .send({ display_name: '虚构并发场次项目' });
+      .send({ display_name: '虚构并发场次项目', request_id: randomUUID() });
     const projectId = (project.body as IdBody).id;
 
     const responses = await Promise.all(
@@ -372,7 +531,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
           .post(`/api/v1/projects/${projectId}/sessions`)
           .set('Origin', ORIGIN)
           .set('X-CSRF-Token', csrf)
-          .send({}),
+          .send({ request_id: randomUUID() }),
       ),
     );
     expect(responses.every((response) => response.status === 201)).toBe(true);
@@ -400,7 +559,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post('/api/v1/projects')
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({ display_name: '虚构幂等并发项目' });
+      .send({ display_name: '虚构幂等并发项目', request_id: randomUUID() });
     const projectId = (project.body as IdBody).id;
     await listenerA
       .post(`/api/v1/projects/${projectId}/service-terms`)
@@ -413,6 +572,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         included_minutes: 60,
         overtime_price_minor: 0,
         overtime_unit_minutes: 30,
+        request_id: randomUUID(),
       });
     const consent = await listenerA
       .post(`/api/v1/projects/${projectId}/consents`)
@@ -424,6 +584,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T10:00:00.000Z',
+        request_id: randomUUID(),
       });
     const consentId = (consent.body as IdBody).id;
 
@@ -433,7 +594,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
           .post(`/api/v1/projects/${projectId}/sessions`)
           .set('Origin', ORIGIN)
           .set('X-CSRF-Token', csrfA)
-          .send({});
+          .send({ request_id: randomUUID() });
         const sessionId = (created.body as IdBody).id;
         await listenerA
           .post(`/api/v1/sessions/${sessionId}/device-check`)
@@ -582,7 +743,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .post('/api/v1/projects')
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrf)
-      .send({ display_name: '虚构授权竞态项目' });
+      .send({ display_name: '虚构授权竞态项目', request_id: randomUUID() });
     const projectId = (project.body as IdBody).id;
     await listener
       .post(`/api/v1/projects/${projectId}/service-terms`)
@@ -595,6 +756,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         included_minutes: 30,
         overtime_price_minor: 0,
         overtime_unit_minutes: 30,
+        request_id: randomUUID(),
       });
     const original = await listener
       .post(`/api/v1/projects/${projectId}/consents`)
@@ -606,6 +768,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T11:00:00.000Z',
+        request_id: randomUUID(),
       });
     const originalId = (original.body as IdBody).id;
     const [appended, revoked] = await Promise.all([
@@ -619,6 +782,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
           consent_text_version: 'mvp-v2',
           consent_type: 'recording_transcription_ai',
           consented_at: '2026-08-03T11:01:00.000Z',
+          request_id: randomUUID(),
         }),
       listener
         .post(`/api/v1/consents/${originalId}/revoke`)
@@ -662,7 +826,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         .post('/api/v1/projects')
         .set('Origin', ORIGIN)
         .set('X-CSRF-Token', csrf)
-        .send({ display_name: '虚构原子回滚项目' });
+        .send({ display_name: '虚构原子回滚项目', request_id: randomUUID() });
       expect(failed.status).toBe(500);
       expect(await prisma.elderProject.count({ where: { displayName: '虚构原子回滚项目' } })).toBe(
         0,

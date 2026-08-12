@@ -1046,15 +1046,15 @@ model QuestionCandidate {
 }
 
 model QuestionGenerationBankInputMembership {
-  id                         String   @id @default(uuid()) @db.Uuid
-  aiJobId                    String   @map("ai_job_id") @db.Uuid
-  questionBankItemId         String?  @map("question_bank_item_id") @db.Uuid
-  inputOrder                 Int      @map("input_order")
-  questionId                 String   @map("question_id") @db.VarChar(120)
-  bankVersion                String   @map("bank_version") @db.VarChar(80)
-  contentDigest              String   @map("content_digest") @db.Char(64)
-  licenseStatus              String   @map("license_status") @db.VarChar(24)
-  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                 String   @id @default(uuid()) @db.Uuid
+  aiJobId            String   @map("ai_job_id") @db.Uuid
+  questionBankItemId String?  @map("question_bank_item_id") @db.Uuid
+  inputOrder         Int      @map("input_order")
+  questionId         String   @map("question_id") @db.VarChar(120)
+  bankVersion        String   @map("bank_version") @db.VarChar(80)
+  contentDigest      String   @map("content_digest") @db.Char(64)
+  licenseStatus      String   @map("license_status") @db.VarChar(24)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([aiJobId, inputOrder])
   @@unique([aiJobId, questionBankItemId])
@@ -1062,15 +1062,15 @@ model QuestionGenerationBankInputMembership {
 }
 
 model QuestionCandidateBankReference {
-  id                         String   @id @default(uuid()) @db.Uuid
-  questionCandidateId        String   @map("question_candidate_id") @db.Uuid
-  questionBankItemId         String?  @map("question_bank_item_id") @db.Uuid
-  questionId                 String   @map("question_id") @db.VarChar(120)
-  bankVersion                String   @map("bank_version") @db.VarChar(80)
-  bank                       String   @db.VarChar(16)
-  purpose                    String   @db.VarChar(40)
-  referenceUsage             String   @map("reference_usage") @db.VarChar(24)
-  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                  String   @id @default(uuid()) @db.Uuid
+  questionCandidateId String   @map("question_candidate_id") @db.Uuid
+  questionBankItemId  String?  @map("question_bank_item_id") @db.Uuid
+  questionId          String   @map("question_id") @db.VarChar(120)
+  bankVersion         String   @map("bank_version") @db.VarChar(80)
+  bank                String   @db.VarChar(16)
+  purpose             String   @db.VarChar(40)
+  referenceUsage      String   @map("reference_usage") @db.VarChar(24)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([questionCandidateId, questionBankItemId])
   @@map("question_candidate_bank_reference")
@@ -1368,15 +1368,17 @@ model SpeakerCorrectionOperationSegment {
 }
 
 model IdempotencyRecord {
-  id              String   @id @default(uuid()) @db.Uuid
-  requestId       String   @unique @map("request_id") @db.Uuid
-  action          String   @db.VarChar(100)
-  actorId         String   @map("actor_id") @db.Uuid
-  targetType      String   @map("target_type") @db.VarChar(80)
-  targetId        String   @map("target_id") @db.Uuid
-  responsePayload Json     @map("response_payload") @db.JsonB
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  actor           User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  id                 String   @id @default(uuid()) @db.Uuid
+  requestId          String   @unique @map("request_id") @db.Uuid
+  action             String   @db.VarChar(100)
+  actorId            String   @map("actor_id") @db.Uuid
+  targetType         String   @map("target_type") @db.VarChar(80)
+  targetId           String?  @map("target_id") @db.Uuid
+  createIdentity     String?  @map("create_identity") @db.VarChar(240)
+  requestPayloadHash String?  @map("request_payload_hash") @db.VarChar(64)
+  responsePayload    Json     @map("response_payload") @db.JsonB
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor              User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@map("idempotency_record")
 }

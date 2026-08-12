@@ -755,7 +755,6 @@ P2：
 - 合并与集成：PR #35 以 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8` 合入 main；main CI `31593387265` completed / success。
 - 治理：DEV-008A1 `REVIEW→DONE`；DEV-008A2 与 DEV-008A3 `BLOCKED→READY` 并可独立并行；父 DEV-008A `BLOCKED→IN_PROGRESS`，继续等待 A2/A3 各自 PASS/merge 与父任务聚合验收。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 历史与范围：上方 REV-043 `PENDING` 候选永久保留。本 PASS 只接受 A1 共享首页、列表、路由与权限接缝；不代表 A2 新建访谈、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成；无 Prisma schema/migration 变更。
-
 ## REV-044｜SPEC-DEV-008A3-PREFLIGHT total bytes 契约候选
 
 - 审查对象：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37) / `codex/spec-dev-008a3-finalization-size` 相对 `origin/main@51e2337ea86739e209ad696804de7decbcf7a9df` 的 docs/shared-contract 候选；PR 为非 Draft，final exact head 与 exact-head CI 由最终审查包绑定。
@@ -772,3 +771,12 @@ P2：
 - 合并与集成：PR #37 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main；main CI `31598183784` completed / success。
 - 治理：SPEC-DEV-008A3-PREFLIGHT `REVIEW→DONE`；ADR-036 `Proposed→Accepted`；CON-029 `OPEN→RESOLVED`；DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - 历史与范围：上方 REV-044 `PENDING` 候选永久保留。本 PASS 只接受 docs/shared-contract 接缝；不代表 A3 mapper/controller、IndexedDB、页面、回顾/播放/本机删除或服务器隐私删除已实现。无 Prisma schema/migration 或业务 runtime 改动。
+
+## REV-045｜DEV-008A2 新建访谈完整纵向入口实现候选
+
+- 审查对象：branch `codex/dev-008a2-new-interview`，base `51e2337ea86739e209ad696804de7decbcf7a9df`；非 Draft PR、final exact head 与 exact-head CI 待后续绑定。
+- 当前结论：`PENDING / REVIEW`。本记录只由执行 Agent整理候选证据与请求手动审查，不是 PASS；不得标记 DONE 或合并。
+- iteration-coach：开工前恰好一次独立只读 Learning 复核，结论 `NO-PAUSE`。复核确认 A2 四 create 的 DTO/Prisma/service/IndexedDB 缺口和 `mvp-v1` start version gate 均已有正式契约，未要求新增产品或公共语义。
+- 候选实现：A1 唯一 Home 内完成 project→service term→fresh consent audio→recorded-verbal consent→session→prepare/device-check→start；四 create 首次联网前持久稳定 request ID 与 frozen payload，authoritative replay 绑定 actor/action/target-or-project-create-identity/RFC 8785 payload hash；普通 UI 不含 electronic/written。
+- 候选安全证据：fresh PostgreSQL 14 migrations 后 integration 80/80；版本漂移、撤权、assignment drift start 均失败且零 audio；同 ID 异 actor/action/target/payload 409 且无重复业务/历史/审计。真实 auth Chromium 5/5，新入口 4/4，unit 316/316，三视口截图目视检查。
+- 范围边界：不含 A3 回顾/播放/local delete、008D/server deletion、导出、ASR/LLM/007、PWA/App。CON-012 只通过每次授权新音频对象规避，CON-023 不变；真实授权文本审查和真实长者/PII 试点门禁未关闭。

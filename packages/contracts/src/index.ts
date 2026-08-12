@@ -41,7 +41,7 @@ export interface LogoutResponse {
 
 export type ProjectStatus = 'draft' | 'ready' | 'active' | 'completed' | 'restricted' | 'deleted';
 
-export interface CreateProjectRequest {
+export interface ProjectDetails {
   display_name: string;
   birth_year: number | null;
   approximate_age: number | null;
@@ -49,7 +49,9 @@ export interface CreateProjectRequest {
   current_city: string | null;
 }
 
-export interface ProjectResponse extends CreateProjectRequest {
+export interface CreateProjectRequest extends ProjectDetails, IdempotentRequest {}
+
+export interface ProjectResponse extends ProjectDetails {
   id: string;
   status: ProjectStatus;
   created_by: string | null;
@@ -76,7 +78,7 @@ export interface ProjectListResponse {
   items: ProjectListProjection[];
 }
 
-export interface CreateServiceTermRequest {
+export interface ServiceTermDetails {
   included_minutes: number;
   estimated_session_count: number;
   expected_current_minutes: number;
@@ -85,7 +87,9 @@ export interface CreateServiceTermRequest {
   currency: string;
 }
 
-export interface ServiceTermResponse extends CreateServiceTermRequest {
+export interface CreateServiceTermRequest extends ServiceTermDetails, IdempotentRequest {}
+
+export interface ServiceTermResponse extends ServiceTermDetails {
   id: string;
   project_id: string;
   explained_at: string;
@@ -99,7 +103,7 @@ export type ConsentType = 'recording_transcription_ai';
 export type ConsentMethod = 'recorded_verbal' | 'electronic' | 'written';
 export type ConsentStatus = 'pending' | 'valid' | 'revoked' | 'expired';
 
-export interface CreateConsentRequest {
+export interface ConsentDetails {
   consent_type: ConsentType;
   consent_text_version: string;
   consent_method: ConsentMethod;
@@ -107,7 +111,9 @@ export interface CreateConsentRequest {
   consent_audio_object_id: string | null;
 }
 
-export interface ConsentResponse extends CreateConsentRequest {
+export interface CreateConsentRequest extends ConsentDetails, IdempotentRequest {}
+
+export interface ConsentResponse extends ConsentDetails {
   id: string;
   project_id: string;
   status: ConsentStatus;
