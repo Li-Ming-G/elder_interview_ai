@@ -5,7 +5,7 @@
 - 状态：`REVIEW`
 - base：`origin/main@29bdce17c0b9b81c965078fd12600b340b564194`
 - branch：`codex/spec-dev-008a1-access-projection`
-- PR/exact head/CI：提交与远端门禁完成后以审查包为准
+- PR：[非 Draft PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33)；exact head/CI 以最终审查包为准
 - 审查：项目负责人已授权总控承担本目标 exact-head 手动审查；当前无 PASS/DONE/merge 结论
 
 ## 已完成

@@ -5,6 +5,7 @@
 - 状态：`REVIEW`
 - 负责人：独立 docs-only 契约 Agent
 - 分支：`codex/spec-dev-008a1-access-projection`
+- PR：[非 Draft PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33)
 - 基线：`origin/main@29bdce17c0b9b81c965078fd12600b340b564194`
 - 前置：SPEC-DEV-008A DONE；DEV-008A1 开工前唯一 iteration-coach Correction 已完成；总控已正式裁决产品/安全方向
 - 输入：`03/04/05/08/09/10` 相关条款、ADR-034、REV-041、SPEC-DEV-008A 与 DEV-008A1 任务/交接、DEV-008A1 实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`

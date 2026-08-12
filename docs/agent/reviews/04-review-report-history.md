@@ -723,7 +723,7 @@ P2：
 
 ## REV-042｜SPEC-DEV-008A1-ACCESS restricted 读取契约候选
 
-- 审查对象：`codex/spec-dev-008a1-access-projection` 相对 `origin/main@29bdce17c0b9b81c965078fd12600b340b564194` 的 docs/shared-contract 候选；非 Draft PR、final exact head 与 exact-head CI 由最终审查包绑定。
+- 审查对象：[PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33) / `codex/spec-dev-008a1-access-projection` 相对 `origin/main@29bdce17c0b9b81c965078fd12600b340b564194` 的 docs/shared-contract 候选；final exact head 与 exact-head CI 由最终审查包绑定。
 - 当前结论：`PENDING`。任务保持 `REVIEW`，CON-028 为 `DECIDED`，ADR-035 为 `Proposed`，DEV-008A1 保持 `BLOCKED`；执行 Agent不得自行给出 PASS/DONE/merge。
 - 复核来源：DEV-008A1 实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62` 在零改动阶段按 iteration-coach 完成恰好一次独立只读 Correction；总控随后正式裁决最小受限占位路线。本 docs-only 候选复用该证据，不启动第二次复核。
 - 待审重点：restricted+有效 assignment 是否只返回闭合最小 DTO；deleted/软删除/assignment 失效是否完全不可见；session cursor 是否绑定 project/keyset anchor 并能拒绝跨项目/篡改/失效；普通 session/project/service/consent reader 是否拒绝 `created_by`/深链旁路；evidence-finalization 是否只保留冻结证据收束所需字段且不能驱动普通页面。
