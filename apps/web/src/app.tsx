@@ -6,10 +6,11 @@ import { checkMicrophoneInput } from './interview/microphone-check.js';
 import { PreparationPage } from './interview/preparation-page.js';
 import { parseInterviewRoute } from './interview/routes.js';
 import { WorkbenchShell } from './interview/workbench-shell.js';
+import { NewInterviewPage } from './interview/new-interview-page.js';
 import { createBrowserInterviewCaptureController } from './interview/browser-interview-capture-controller.js';
 import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
 import { ErrorState, HomeFrame, HomeShell } from './home/home-shell.js';
-import { ComingSoonRoute, SessionPlaceholderRoute } from './home/route-placeholder.js';
+import { SessionPlaceholderRoute } from './home/route-placeholder.js';
 import { SessionReviewRoute } from './home/session-review-route.js';
 
 export function App(): React.JSX.Element {
@@ -197,6 +198,7 @@ export function App(): React.JSX.Element {
   if (route?.kind === 'preparation') {
     return (
       <PreparationPage
+        actorId={user.id}
         api={interviewApi}
         captureController={(sessionId) => captureController(route.projectId, sessionId)}
         checkMicrophone={checkMicrophoneInput}
@@ -220,7 +222,14 @@ export function App(): React.JSX.Element {
   }
 
   if (route?.kind === 'new_interview') {
-    return <ComingSoonRoute navigate={navigate} />;
+    return (
+      <NewInterviewPage
+        actorId={user.id}
+        api={interviewApi}
+        csrfToken={csrfToken}
+        navigate={navigate}
+      />
+    );
   }
 
   if (route?.kind === 'review') {

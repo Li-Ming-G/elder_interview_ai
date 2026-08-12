@@ -260,7 +260,6 @@ export function SessionReviewRoute({
                 role="alertdialog"
                 aria-describedby="delete-description"
                 aria-labelledby="delete-title"
-                aria-modal="true"
                 onKeyDown={handleDeleteDialogKeyDown}
               >
                 <h3 id="delete-title">只删除此浏览器/此设备副本？</h3>

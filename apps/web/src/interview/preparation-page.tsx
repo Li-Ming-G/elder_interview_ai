@@ -7,14 +7,21 @@ import type { MicrophoneChecker } from './microphone-check.js';
 import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
 import { preparationPath, workbenchPath } from './routes.js';
 import type { InterviewCaptureController } from './interview-capture-controller.js';
+import { IndexedDbNewInterviewWorkflowStore } from './new-interview-workflow-store.js';
 
 interface PreparationPageProps {
+  actorId: string;
   api: InterviewApi;
   captureController: (sessionId: string) => Pick<InterviewCaptureController, 'start'>;
   checkMicrophone: MicrophoneChecker;
   initialSessionId: string | null;
   navigate: (path: string, replace?: boolean) => void;
   projectId: string;
+}
+
+interface PreparationSessionRequestStore {
+  acknowledgeDetachedSession(actorId: string, projectId: string): Promise<void>;
+  getOrCreateDetachedSessionRequestId(actorId: string, projectId: string): Promise<string>;
 }
 
 type LoadState =
@@ -29,6 +36,7 @@ type DeviceState =
   | { kind: 'failed'; message: string; permission: 'denied' | 'granted' | 'unknown' };
 
 export function PreparationPage({
+  actorId,
   api,
   captureController,
   checkMicrophone,
@@ -41,6 +49,13 @@ export function PreparationPage({
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionLock = useRef(false);
+  const workflowStore = useMemo<PreparationSessionRequestStore>(
+    () =>
+      typeof globalThis.indexedDB === 'undefined'
+        ? new InMemoryPreparationSessionRequestStore()
+        : new IndexedDbNewInterviewWorkflowStore(),
+    [],
+  );
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
@@ -91,7 +106,12 @@ export function PreparationPage({
 
       let session = loadState.data.session;
       if (session === null) {
-        session = await api.createSession(projectId);
+        const requestId = await workflowStore.getOrCreateDetachedSessionRequestId(
+          actorId,
+          projectId,
+        );
+        session = await api.createSession(projectId, { request_id: requestId });
+        await workflowStore.acknowledgeDetachedSession(actorId, projectId);
         navigate(preparationPath(projectId, session.id), true);
       }
       if (session.status !== 'created' && session.status !== 'device_check') {
@@ -404,4 +424,18 @@ function readableError(error: unknown, fallback: string): string {
 function safeProjectName(value: string): string {
   const normalized = value.trim();
   return normalized.length === 0 || /^[?？�\s]+$/u.test(normalized) ? '这位长者' : normalized;
+}
+
+class InMemoryPreparationSessionRequestStore implements PreparationSessionRequestStore {
+  private requestId: string | null = null;
+
+  public acknowledgeDetachedSession(): Promise<void> {
+    this.requestId = null;
+    return Promise.resolve();
+  }
+
+  public getOrCreateDetachedSessionRequestId(): Promise<string> {
+    this.requestId ??= globalThis.crypto.randomUUID();
+    return Promise.resolve(this.requestId);
+  }
 }

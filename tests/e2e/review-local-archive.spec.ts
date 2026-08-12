@@ -161,6 +161,7 @@ test('danger confirmation keeps keyboard focus inside and restores it on cancel 
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
+  await expect(dialog).not.toHaveAttribute('aria-modal', 'true');
   await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
   await expect(dialog).toContainText('这里只删除当前浏览器/此设备副本');
   await expect(dialog).toContainText('服务器录音、转录、记忆和审计仍保留');

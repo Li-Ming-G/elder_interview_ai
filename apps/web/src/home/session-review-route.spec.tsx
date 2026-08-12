@@ -86,6 +86,7 @@ describe('SessionReviewRoute', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '只删除此浏览器副本' }));
     const dialog = screen.getByRole('alertdialog');
+    expect(dialog.getAttribute('aria-modal')).toBeNull();
     expect(dialog.textContent).toContain('这里只删除当前浏览器/此设备副本');
     expect(dialog.textContent).toContain('服务器录音、转录、记忆和审计仍保留');
     expect(dialog.textContent).toContain('需走独立删除申请流程；本页面不提供该流程');

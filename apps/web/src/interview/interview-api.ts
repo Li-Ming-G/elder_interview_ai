@@ -5,8 +5,12 @@ import type {
   ApiErrorEnvelope,
   ConfirmCaptureActiveRequest,
   ConsentResponse,
+  CreateConsentRequest,
+  CreateProjectRequest,
+  CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
+  IdempotentRequest,
   ProjectResponse,
   ProjectListResponse,
   ProjectSessionListResponse,
@@ -50,9 +54,19 @@ export interface PreparationData {
 }
 
 export interface InterviewApi {
-  createSession(projectId: string): Promise<InterviewSessionResponse>;
+  createSession(projectId: string, request: IdempotentRequest): Promise<InterviewSessionResponse>;
   deviceCheck(sessionId: string, request: DeviceCheckRequest): Promise<InterviewSessionResponse>;
   loadPreparation(projectId: string, sessionId: string | null): Promise<PreparationData>;
+}
+
+export interface NewInterviewApi {
+  createConsent(projectId: string, request: CreateConsentRequest): Promise<ConsentResponse>;
+  createProject(request: CreateProjectRequest): Promise<ProjectResponse>;
+  createServiceTerm(
+    projectId: string,
+    request: CreateServiceTermRequest,
+  ): Promise<ServiceTermResponse>;
+  createSession(projectId: string, request: IdempotentRequest): Promise<InterviewSessionResponse>;
 }
 
 export interface HomeApi {
@@ -148,6 +162,7 @@ export function createInterviewApi(
 ): InterviewApi &
   HomeApi &
   ReviewApi &
+  NewInterviewApi &
   InterviewCaptureApi &
   SpeakerCalibrationApi &
   SpeakerCorrectionApi &
@@ -165,6 +180,16 @@ export function createInterviewApi(
         'X-CSRF-Token': csrfToken,
       },
       method: 'POST',
+    });
+  }
+
+  async function createWrite<T>(path: string, body: unknown): Promise<T> {
+    return request<T>(path, {
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000),
     });
   }
 
@@ -186,8 +211,14 @@ export function createInterviewApi(
       write(`/api/v1/audio-objects/${audioObjectId}/complete`, complete),
     confirmCaptureActive: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
-    createSession: async (projectId): Promise<InterviewSessionResponse> =>
-      write(`/api/v1/projects/${projectId}/sessions`),
+    createConsent: async (projectId, input): Promise<ConsentResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/consents`, input),
+    createProject: async (input): Promise<ProjectResponse> =>
+      createWrite('/api/v1/projects', input),
+    createServiceTerm: async (projectId, input): Promise<ServiceTermResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/service-terms`, input),
+    createSession: async (projectId, input): Promise<InterviewSessionResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/sessions`, input),
     deviceCheck: async (sessionId, deviceCheck): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
     getSession: async (sessionId): Promise<InterviewSessionResponse> =>

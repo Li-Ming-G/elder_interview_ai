@@ -153,9 +153,14 @@ export class ProjectFoundationController {
   @Post('projects/:id/sessions')
   public async createSession(
     @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
     @Req() request: AuthenticatedRequest,
   ): Promise<InterviewSessionResponse> {
-    return this.projects.createSession(await this.actors.from(request), validateUuid(id));
+    return this.projects.createSession(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateIdempotentRequest(body).request_id,
+    );
   }
 
   @Get('sessions/:id')

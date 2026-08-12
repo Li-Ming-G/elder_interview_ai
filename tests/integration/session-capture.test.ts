@@ -721,7 +721,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'capture-v2',
+        consentTextVersion: 'mvp-v1',
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,
@@ -894,7 +894,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const consent = await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'capture-v1',
+        consentTextVersion: 'mvp-v1',
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,

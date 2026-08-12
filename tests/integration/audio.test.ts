@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { access, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,7 +96,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .post(`/api/v1/projects/${projectId}/sessions`)
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', csrfA)
-      .send({});
+      .send({ request_id: randomUUID() });
     const sessionId = (session.body as IdBody).id;
 
     const invalidInterview = await listenerA
@@ -239,6 +239,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T08:00:00.000Z',
+        request_id: randomUUID(),
       });
     expect(consent.status).toBe(201);
     expect(consent.body).toMatchObject({
@@ -259,6 +260,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T08:01:00.000Z',
+        request_id: randomUUID(),
       });
     expect(crossProjectConsent.status).toBe(409);
     expect((crossProjectConsent.body as ErrorBody).code).toBe('CONSENT_AUDIO_NOT_VERIFIED');
@@ -360,6 +362,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T09:00:00.000Z',
+        request_id: randomUUID(),
       });
     expect(unverifiedConsent.status).toBe(409);
     expect((unverifiedConsent.body as ErrorBody).code).toBe('CONSENT_AUDIO_NOT_VERIFIED');
@@ -531,7 +534,7 @@ async function createProject(agent: Agent, csrf: string, displayName: string): P
     .post('/api/v1/projects')
     .set('Origin', ORIGIN)
     .set('X-CSRF-Token', csrf)
-    .send({ display_name: displayName });
+    .send({ display_name: displayName, request_id: randomUUID() });
   expect(response.status).toBe(201);
   return (response.body as IdBody).id;
 }
@@ -548,6 +551,7 @@ async function appendServiceTerm(agent: Agent, csrf: string, projectId: string):
       included_minutes: 30,
       overtime_price_minor: 0,
       overtime_unit_minutes: 30,
+      request_id: randomUUID(),
     });
   expect(response.status).toBe(201);
 }

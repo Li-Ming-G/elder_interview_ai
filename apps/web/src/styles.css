@@ -1377,6 +1377,113 @@ p {
   }
 }
 
+.new-interview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.new-interview-header p:not(.context-label) {
+  max-width: 62ch;
+  margin-bottom: 0;
+}
+
+.workflow-steps {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.6rem;
+  padding: 1.5rem 0 0.4rem;
+  margin: 0;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.workflow-steps li {
+  flex: 0 0 auto;
+}
+
+.workflow-steps [aria-current='step'] .status-badge {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.workflow-resume,
+.workflow-message,
+.workflow-frozen {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--accent-soft);
+}
+
+.new-interview-panel {
+  max-width: 54rem;
+  padding: 2rem;
+  margin-top: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+}
+
+.new-interview-panel > form > p:not(.context-label),
+.new-interview-panel > div > p:not(.context-label) {
+  max-width: 66ch;
+}
+
+.workflow-form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.5rem 0;
+}
+
+.workflow-form-grid label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.workflow-form-grid label:first-child {
+  grid-column: 1 / -1;
+}
+
+.workflow-form-grid input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.workflow-form-grid input:disabled {
+  color: var(--muted-ink);
+  background: var(--surface-subtle);
+}
+
+.consent-notice {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1.25rem 1.25rem 1.25rem 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  color: var(--ink);
+  background: var(--surface-subtle);
+  line-height: 1.55;
+}
+
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
 @media (max-width: 48rem) {
   h1 {
     font-size: 2rem;
@@ -1391,6 +1498,23 @@ p {
   .home-shell {
     width: min(100% - 2rem, 72rem);
     padding: 2.5rem 0 4rem;
+  }
+
+  .new-interview-header {
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .new-interview-panel {
+    padding: 1.25rem;
+  }
+
+  .workflow-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-form-grid label:first-child {
+    grid-column: 1;
   }
 
   .home-header {
@@ -1620,6 +1744,17 @@ p {
 
   .review-actions .button {
     width: 100%;
+  }
+
+  .new-interview-header .button,
+  .workflow-actions .button,
+  .new-interview-panel > form > .button,
+  .new-interview-panel > div > .button {
+    width: 100%;
+  }
+
+  .workflow-actions {
+    flex-direction: column;
   }
 
   .project-group__header,

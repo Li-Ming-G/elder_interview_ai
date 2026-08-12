@@ -755,7 +755,6 @@ P2：
 - 合并与集成：PR #35 以 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8` 合入 main；main CI `31593387265` completed / success。
 - 治理：DEV-008A1 `REVIEW→DONE`；DEV-008A2 与 DEV-008A3 `BLOCKED→READY` 并可独立并行；父 DEV-008A `BLOCKED→IN_PROGRESS`，继续等待 A2/A3 各自 PASS/merge 与父任务聚合验收。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 历史与范围：上方 REV-043 `PENDING` 候选永久保留。本 PASS 只接受 A1 共享首页、列表、路由与权限接缝；不代表 A2 新建访谈、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成；无 Prisma schema/migration 变更。
-
 ## REV-044｜SPEC-DEV-008A3-PREFLIGHT total bytes 契约候选
 
 - 审查对象：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37) / `codex/spec-dev-008a3-finalization-size` 相对 `origin/main@51e2337ea86739e209ad696804de7decbcf7a9df` 的 docs/shared-contract 候选；PR 为非 Draft，final exact head 与 exact-head CI 由最终审查包绑定。
@@ -773,7 +772,7 @@ P2：
 - 治理：SPEC-DEV-008A3-PREFLIGHT `REVIEW→DONE`；ADR-036 `Proposed→Accepted`；CON-029 `OPEN→RESOLVED`；DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - 历史与范围：上方 REV-044 `PENDING` 候选永久保留。本 PASS 只接受 docs/shared-contract 接缝；不代表 A3 mapper/controller、IndexedDB、页面、回顾/播放/本机删除或服务器隐私删除已实现。无 Prisma schema/migration 或业务 runtime 改动。
 
-## REV-045｜DEV-008A3 已结束访谈回顾与本机副本管理候选
+## PR #40 分支中间审查历史｜DEV-008A3（主线唯一编号 REV-046）
 
 - 审查对象：[PR #40](https://github.com/Li-Ming-G/elder_interview_ai/pull/40) / `codex/dev-008a3-local-review` 相对 `origin/main@4fc46456869ab01d9880d1aa92e7cd838bf920a8` 的实现候选；启动时 main CI `31599184357` completed / success。PR 为非 Draft，final exact head 与 exact-head CI 由最终审查包绑定。
 - 当前结论：`PENDING`。DEV-008A3 保持 `REVIEW`；执行 Agent 不得自行给出 PASS/DONE、不得合并。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 `READY`，DEV-008D `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
@@ -791,3 +790,44 @@ P2：
 - 当前分支修复：确认层逐项写明只删当前浏览器/设备副本，服务器录音、转录、记忆与审计保留；独立申请流程只作边界说明，不建死链、不实现 deletion request。打开默认聚焦取消，Tab/Shift+Tab 在确认/取消间循环，Escape/取消恢复触发按钮，成功聚焦 `aria-live` 结果。
 - 中间验证：component 5/5、全量 unit 330/330、真实 Chromium 6/6；三视口、双 tab、legacy/刷新/清站/卸载原子性保持，新增键盘进入/循环/Escape/取消/成功焦点反例。首次 Chromium 回归仅旧断言仍匹配未含“审计”的文案而失败，更新期望后全绿；未放宽产品目标。
 - Integration gate：A2/A3 都基于 `4fc4645`，并在共享代码与治理文件冲突、暂占同一 REV-045。当前小节仅记录分支中间修复，不是最终 exact-head 复审包；A2 PASS/merge/closeout 后必须对齐最新 main，保留 A2+A3 路由/API/样式语义，解决治理冲突，并将 A3 改为当时唯一的新 REV-ID 后重跑完整门禁。
+## REV-045｜DEV-008A2 新建访谈完整纵向入口实现候选
+
+- 审查对象：[非 Draft PR #39](https://github.com/Li-Ming-G/elder_interview_ai/pull/39)，branch `codex/dev-008a2-new-interview`，启动 base `51e2337ea86739e209ad696804de7decbcf7a9df`，最终整合 base `4fc46456869ab01d9880d1aa92e7cd838bf920a8`；old exact head `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` SUCCESS。
+- 当前结论：`PENDING / REVIEW`。本记录只由执行 Agent整理候选证据与请求手动审查，不是 PASS；不得标记 DONE 或合并。
+- iteration-coach：开工前恰好一次独立只读 Learning 复核，结论 `NO-PAUSE`。复核确认 A2 四 create 的 DTO/Prisma/service/IndexedDB 缺口和 `mvp-v1` start version gate 均已有正式契约，未要求新增产品或公共语义。
+- 候选实现：A1 唯一 Home 内完成 project→service term→fresh consent audio→recorded-verbal consent→session→prepare/device-check→start；四 create 首次联网前持久稳定 request ID 与 frozen payload，authoritative replay 绑定 actor/action/target-or-project-create-identity/RFC 8785 payload hash；普通 UI 不含 electronic/written。
+- 候选安全证据：fresh PostgreSQL 14 migrations 后 integration 80/80；版本漂移、撤权、assignment drift start 均失败且零 audio；同 ID 异 actor/action/target/payload 409 且无重复业务/历史/审计。真实 auth Chromium 5/5，新入口 4/4，unit 316/316，三视口截图目视检查。
+- 范围边界：不含 A3 回顾/播放/local delete、008D/server deletion、导出、ASR/LLM/007、PWA/App。CON-012 只通过每次授权新音频对象规避，CON-023 不变；真实授权文本审查和真实长者/PII 试点门禁未关闭。
+
+### REV-045 old exact-head 独立审查与 P1 定向修复候选
+
+- 正式旧结论：old head `d240afd31bc94015e10b01b179550088ed85083d`、CI `31600521245` 虽全绿，独立审查仍为 `REQUEST_CHANGES`，P0=0、P1=1；DEV-008A2 保持 REVIEW，PR 不得合并。
+- P1：授权录音中“返回工作区”仍启用，SPA `pushState` 不触发整页 unload；页面 cleanup 只丢弃引用，capture 无 dispose，导致 MediaRecorder/MediaStream 可能继续持有麦克风并写分片，而 UI 已失去停止入口。
+- 定向候选：`BrowserConsentCapture.dispose()` 可等待且幂等，等待并发 start 后停止 recorder/track，再退订全部 listener并封闭实例；页面显式返回等待 dispose 后导航，unmount 执行同一防线，mounted guard 阻断异步状态写入。
+- 数据边界：dispose 不 freeze、不 upload、不 complete、不删除 archive/delivery/job，也不生成新 job/ID。真实 Chromium 验证 recorder inactive、全部 track ended、已有分片保留、仅一个未冻结 job，重进继续相同 job ID。
+- 候选证据：定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 与 format/lint/typecheck/build/diff 全绿。等待新 exact head/CI 与该 P1 的定向复审；本记录不构成 PASS/DONE/merge。
+
+### REV-045 adjacent StrictMode P1 与再修复候选
+
+- 中间审查对象：exact head `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` SUCCESS；该 head 已关闭原麦克风释放 P1，但不作为 PASS 候选。
+- Adjacent P1：`apps/web/src/main.tsx` 使用 React `<StrictMode>`，而页面 `mounted` ref 只在初始化为 true；effect 第一次 cleanup 置 false，第二次 setup 未恢复，导致开发模式后续 `save/showMessage/endAction` 状态更新被永久抑制。原 component/E2E 未以 StrictMode 包裹覆盖。
+- 再修复：lifecycle effect 每次 setup 显式 `mounted.current=true`，cleanup 仍置 false 并 dispose/退订。新增 StrictMode setup→cleanup→setup 回归，证明初始化后 project/service workflow 继续推进、busy 复位且授权录音状态/说明消息可见；原离页 dispose、track stop、单一 job 恢复测试保留。
+- 候选证据：定向 unit/component 6/6、全量 unit 320/320、新入口 5/5；中间修复上的普通 Chromium 18/18、smoke 与本次静态/build 证据保持。head `ef85c3b` 的 CI `31607585915` 仅既有原生 audio-buffer 分片时序用例失败（E2E 17/18），本地该文件 repeat 9/9，未修改测试目标；等待新 exact head 全量 CI 与定向复审，状态仍为 REVIEW / REQUEST_CHANGES。
+
+### REV-045 final exact-head 接收与合并
+
+- accepted exact head：`1ad334de678b242fa0eb3e399af9138053ac251f`；exact-head CI `31608031668` completed / success。
+- 审查结论：获项目负责人授权的总控手动审查 `PASS`，P0=0、P1=0、P2=0；正式记录为 [issuecomment-5268364704](https://github.com/Li-Ming-G/elder_interview_ai/pull/39#issuecomment-5268364704)。
+- 关闭范围：授权录音离页 `dispose()`、同一 job/分片恢复、StrictMode mounted guard、四 create 权威幂等、正式口头授权与 start 漂移/撤权失败关闭均在 accepted head 接收；不扩入 A3、008D、ASR、DEV-007、导出或 PWA/App。
+- 失败历史：old `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` 的 `REQUEST_CHANGES` 与麦克风释放 P1、middle `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` 的 StrictMode adjacent P1、`ef85c3b81a24ead486457659a82809244b3953c4` / CI `31607585915` 的既有 audio-buffer 时序 flake 永久保留，不被最终 PASS 覆盖。
+- 合并与集成：PR #39 以 merge commit `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 合入 main；main CI `31609156286` completed / success。
+- 治理：DEV-008A2 `REVIEW→DONE`；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A3 保持 `REVIEW` 并等待基于新 main 整合，DEV-008D 与 CON-023 不变。REV-045 唯一归属 A2；A3 分支临时同号不覆盖本记录。
+
+## REV-046｜DEV-008A3 基于 final main 的整合候选
+
+- 编号协调：A2 已先以正式 REV-045 PASS/merge，因此 A3 分支临时 `REV-045` 不再是主线有效编号；A3 唯一编号修正为 REV-046。该修正只解决治理 ID 冲突，不改写 A3 分支已有审查意见、实现或测试事实。
+- 整合对象：A2 closeout 后的 final `origin/main@5035c119fa5a3eeb7999d305f5c052672dc50d25` / CI `31610391026` SUCCESS。人工保留 NewInterviewApi + ReviewApi、new + review routes、授权录音生命周期、本机 archive 与两套响应式样式语义，没有整文件选择单侧覆盖。
+- 当前结论：`REVIEW / PENDING EXACT-HEAD CI`。本地完整矩阵已通过：fresh PostgreSQL 14 migrations deploy/status、integration 80/80、auth 23/23；unit 56 files / 341 tests、formal Schema 1/1；普通 Chromium 24/24（A2 新入口 5/5、A3 回顾 6/6）与 fresh auth Chromium 5/5；format/lint/typecheck/build 全绿。
+- 语义修正：危险确认为非模态 `alertdialog`，不再虚构 `aria-modal=true`；仍默认聚焦安全的“取消”，真实键盘覆盖 Tab/Shift+Tab、Escape/取消回触发点、成功聚焦 live result、44px 与 visible focus。隐私文案逐项说明仅删当前浏览器/设备副本，服务器录音、转录、记忆和审计仍保留，正式隐私删除需走本页未提供的独立申请流程。
+- 失败历史：合并后首次 typecheck 因 Prisma client 未按 A2 schema 重新生成失败，运行正式 generate 后通过；首次 lint 发现已被 A2 新入口替代的 ComingSoonRoute 未使用，删除失效 import 后通过。fresh DB 编排曾因过短超时、PowerShell `${taskDb}` 插值和误用密码三次在有效迁移前失败，明确临时库均删除，随后按 `.env.example` 在新库全绿。首次 auth Chromium 把 API 端口改到 3106，但 Vite 正式代理固定 3101，登录前 5/5 失败；删除临时库后恢复 3101 并在另一新库 5/5 通过。未放宽目标或修改测试判定。
+- 边界：本记录不是 A3 PASS/DONE，也不替代 A3 exact-head 审查；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
