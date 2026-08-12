@@ -352,7 +352,7 @@
 
 ## ADR-036｜finalization 总字节复用 AudioObject 权威事实并按未证明失败关闭
 
-- 状态：`Proposed`；等待 SPEC-DEV-008A3-PREFLIGHT 非 Draft PR exact-head CI 与项目负责人授权总控手动审查。
+- 状态：`Accepted`；REV-044 绑定 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095`，项目负责人手动独立审查 PASS（P0/P1/P2=0）；merge `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` / main CI `31598183784` SUCCESS。
 - 背景：`05` §3.6.1 已要求 A3 fresh delete preflight 将 manifest 的 chunk count/total bytes 与 session finalization 对照，但公共 `SessionFinalizationSnapshot` 没有 total bytes。DEV-008A3 开工前唯一 iteration-coach Correction 在零改动阶段阻断；现有 `AudioObject.totalSizeBytes` 与 `AudioManifestResponse.total_size_bytes` 已提供数据库和 manifest 权威事实。
 - 决定：公共 `SessionFinalizationSnapshot` additive 增加 optional+nullable `total_size_bytes`。值只从同一 finalization 关联的 `AudioObject.totalSizeBytes` 投影，不新增 Prisma 字段/migration，不复制到 `session_finalization`，不从客户端、本机 archive、commitment 或已上传数量反推。optional 只用于 contract-first 兼容旧 typed producer；A3 runtime 后 ordinary canonical GET 必须显式带键。
 - lifecycle：`awaiting_upload|verifying|unrecoverable` 与任何未证明/legacy/unsafe 事实返回 null；正常 `complete` 返回精确非负 safe integer。正常 `processing|completed` 与 `failed + complete manifest` 必须非空。complete+缺键/null/unsafe/mismatch 不使整个只读 session 不可见，但必须关闭 A3 播放和本机删除，绝不能按 0 处理。
@@ -360,3 +360,4 @@
 - 一致性：A3 必须 fresh 证明 session/finalization/manifest identity、expected/manifest/local count、finalization/manifest/chunk-sum/local bytes、checksum 与逐片元数据全部一致；任一 missing/null/stale/mismatch 都为 `blocked_server_unverified`，零回执、零部分删除、零服务端写入。
 - 取舍：分阶段 optional 让 docs/contract PR 不越界修改业务 mapper且 CI 可通过，但若没有 A3 exact-key 白名单测试会有永久漏发风险；因此 runtime 显式 key 与 legacy/null 反例是解锁后的硬门禁。
 - 边界：不改变 local deletion≠server deletion、权限、删除范围、CON-023、DEV-008D、首页动作矩阵或 evidence-finalization 例外；不实现 A3、IndexedDB、页面、服务端下载或服务器删除。
+- 接收边界：只接受 contract-first total bytes 接缝并解锁 DEV-008A3 runtime；ordinary mapper 显式 key、safe integer、权限白名单与 fresh/legacy 失败关闭仍须由 A3 实现和验收。父 DEV-008A、DEV-008A2、DEV-008D 与 CON-023 状态不因本 ADR 改变。

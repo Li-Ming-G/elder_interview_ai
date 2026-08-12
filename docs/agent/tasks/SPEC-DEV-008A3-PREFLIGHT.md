@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立 docs/contract 执行窗口
 - base：`origin/main@51e2337ea86739e209ad696804de7decbcf7a9df`；main CI `31594298585` SUCCESS
 - 分支：`codex/spec-dev-008a3-finalization-size`
-- PR：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37)，非 Draft；exact final head/CI 由最终审查包绑定
+- PR：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37)，非 Draft；final exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095` SUCCESS；[项目负责人 PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/37#issuecomment-5266978939)，P0/P1/P2=0；merge `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` / main CI `31598183784` SUCCESS
 - 前置：SPEC-DEV-008A、SPEC-DEV-008A1-ACCESS、DEV-008A1 均已 exact-head PASS/merge；DEV-008A3 开工前唯一 Correction 已在零改动阶段确认缺口；总控已冻结方案 A
 - 输入：`00/01/02/03/04/05/08/09/10`、SPEC-DEV-008A/A3 task/handoff、formal `local-audio-archive-v1`、ADR-034/035、REV-041/043、A3 暂停窗口 `019ff5db-a0dd-7060-875f-8ee454a84469` 与只读复核 `019ff5e0-47d2-7d92-8148-7eff63ec61a9`
 - 风险：contract optional 被 runtime 永久漏发、unsafe BigInt 静默舍入、terminal null 被当 0、首页/evidence 最小 DTO 被无意扩宽、本机删除在事实不一致时错误放行
@@ -51,5 +51,5 @@
 ## 验收与状态纪律
 
 - 运行 format/lint/typecheck/build/unit、formal Schema fixtures 与 docs/链接/状态检查；完整 GitHub CI 必须绑定 exact final head 并 SUCCESS；
-- 候选以非 Draft PR 保持 `REVIEW`；项目负责人已授权总控承担本阶段 exact-head 手动审查，但本执行窗口不得自行 PASS/DONE/merge；
-- DEV-008A3 在本 SPEC exact-head PASS/merge 前保持 `BLOCKED`。PASS/merge 只解锁 A3 runtime，不代表回顾、播放、IndexedDB 删除或服务器隐私删除已实现。
+- 候选阶段曾以非 Draft PR 保持 `REVIEW`；REV-044 现已由项目负责人对 exact head/CI 手动独立审查 PASS，且 merge/main CI 完成；
+- 本 SPEC 因此 `DONE`，ADR-036 `Accepted`，CON-029 `RESOLVED`，DEV-008A3 恢复 `READY`。该接收只解锁 A3 runtime，不代表回顾、播放、IndexedDB 删除或服务器隐私删除已实现；父 A、A2、008D 与 CON-023 保持原状态。

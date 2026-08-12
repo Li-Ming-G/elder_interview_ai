@@ -764,3 +764,11 @@ P2：
 - 候选内容：公共 `SessionFinalizationSnapshot.total_size_bytes` 仅投影同一 session 关联现有 `AudioObject.totalSizeBytes`；未证明 finalization 时为 null，complete lane 必须为精确非负 safe integer；missing/null/unsafe/不一致一律按 legacy/corrupt 失败关闭且不得当 0。
 - 白名单与验证：仅 ordinary `InterviewSessionResponse.finalization` 增字段；`ProjectSessionListItem` 与 `EvidenceFinalizationResponse` 不扩字段。A3 后续必须覆盖 mapper/API lifecycle、ordinary auth/assignment/restricted/deleted/created_by、fresh identity/count/bytes/chunk sum/checksum/local metadata mismatch 及 legacy/null 矩阵。
 - 范围：无业务 service/controller/mapper、Prisma/migration、IndexedDB、页面、A2、ASR、007、008D、服务器删除或 CON-023 改动。绿色 CI 仅是自动门禁，不自动构成 exact-head 手动审查 PASS。
+
+### REV-044 final exact-head 审查与接收
+
+- 审查对象：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37) final exact head `70167688202117364e5cab74c9a320e0a7d76742`，base `main@51e2337ea86739e209ad696804de7decbcf7a9df`；exact-head CI `31597563095` completed / success；正式记录为 [issuecomment-5266978939](https://github.com/Li-Ming-G/elder_interview_ai/pull/37#issuecomment-5266978939)。
+- 正式结论：项目负责人手动独立审查 `PASS`；P0=0、P1=0、P2=0。`total_size_bytes` 仅来自关联 `AudioObject.totalSizeBytes`、optional+nullable 兼容期与 runtime 显式 key 义务、safe integer/lifecycle、ordinary/list/evidence 白名单及 fresh preflight 闭合全部接收。
+- 合并与集成：PR #37 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main；main CI `31598183784` completed / success。
+- 治理：SPEC-DEV-008A3-PREFLIGHT `REVIEW→DONE`；ADR-036 `Proposed→Accepted`；CON-029 `OPEN→RESOLVED`；DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
+- 历史与范围：上方 REV-044 `PENDING` 候选永久保留。本 PASS 只接受 docs/shared-contract 接缝；不代表 A3 mapper/controller、IndexedDB、页面、回顾/播放/本机删除或服务器隐私删除已实现。无 Prisma schema/migration 或业务 runtime 改动。
