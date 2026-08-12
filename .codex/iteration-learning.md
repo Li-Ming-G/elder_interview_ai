@@ -1123,3 +1123,13 @@
 - Lesson: attempt 成功只证明局部连接收束，不能证明整场数据完整；聚合状态必须保留已知缺口，避免后续成功覆盖早期损失。
 - Better future prompt: “请分别定义每个 ASR 连接的收束证据与整场访谈完整性；任一未回补缺口必须跨重连保持 degraded，直到权威 backfill 明确关闭。”
 - Boundary and risk: 当前不持久化精确 gap interval、不实现 backfill/clear、业务代码或 provider；runtime/coverage evidence 丢失会保守 `degraded`，允许假阴性但禁止假完整。权威 gap ledger 与有证据重算仍归 HARDEN-ASR-001。
+
+### 2026-08-12 — 腾讯 V2 话者分离 wire 事实修正候选
+
+- User outcome: 修正腾讯实时 ASR V2 话者分离 wire 参数的过时正式事实，让 DEV-ASR-PROVIDER-001 在新契约 exact-head 获项目负责人 PASS 后，用同一虚构 TTS PCM、`reconnect=0` 做一次隔离诊断，而不把 close 1005 根因写成已证明。
+- Review mode: Correction mode；按 iteration-coach 恰好一次独立只读复核。复核确认不能静默改写 ADR-032 或只改 Markdown；应新增 Proposed ADR-033 部分取代窄供应商事实，并同步 machine profile 的 required/omit/canonical 规则。
+- New evidence: 腾讯官方会议话者分离指南明确 `speaker_diarization=1`；官方 Go SDK 固定 commit `257f9f56bcd592bff1faea9b4ce0f1ef90cea803` 中通用 recognizer 默认 0、专用 speaker recognizer 默认 1，且 query key 排序后签名；V2 文档确认目标 engine 支持/默认话者分离与实际 query 签名范围。
+- Candidate decision: 实际 query 必发并签名 `speaker_diarization=1`、`enable_speaker_context=0`；`speaker_context_id` 必须省略而非传空值。目标 engine、新 voice→新 speaker stream→重新人工确认、unknown fail-closed、sticky completeness、安全/授权与原始录音优先全部不变。
+- Adopted decision: pending project-owner review；任务 `SPEC-ASR-WIRE-PARAM-001`、ADR-033 与正式契约候选保持 REVIEW。ADR-032、SPEC-ASR-PROVIDER-001、REV-039 和既有 PASS/merge 历史永久保留，CON-027 继续 OPEN。
+- Verification boundary: 本轮 docs-only，不改业务代码、Prisma、migration、provider、密钥或部署，不连接腾讯。单次诊断不证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并走腾讯支持。
+- Better future prompt: “请把供应商实际 query map、canonical query 和签名覆盖作为一个不可分割的契约，并为 required、omit 和 empty 分别提供机械可验证表示；后续一手证据推翻 Accepted ADR 的事实前提时，只新增 partial-supersede 决定，不改写历史正文。”

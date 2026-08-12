@@ -316,3 +316,12 @@
 - 供应商：首版唯一候选腾讯实时 ASR V2，标准普通话，目标 `16k_zh_en_speaker_2.0`。内部 `diarization_required=true`，但当前官方未证明 `speaker_diarization=1` wire 参数，禁止发送未证实参数；双人稳定 label 只能由真实三次 replay 验收。
 - 代价：需要 DEV 同时改 adapter/gateway/runtime/finalization/config/metrics/test，重连后用户需重新校准，且进程重建丢失 coverage evidence 时会保守 `degraded`；换取不由后续成功掩盖缺口、可追溯、fail-closed、录音优先的真实 provider 生命周期。
 - 边界：本 ADR 不授权 Prisma migration、第二 provider/diarizer、gap/backfill、真实 LLM、真实长者数据或部署；若实现必须改变数据库权威事实、公共状态或校准体验，先另做契约审查。
+
+## ADR-033｜腾讯 V2 话者分离 wire 参数纳入实际 query 与签名
+
+- 状态：Proposed（SPEC-ASR-WIRE-PARAM-001 保持 REVIEW，等待项目负责人对 non-Draft PR exact head 手动审查）
+- 背景：ADR-032 在当时已核对的 V2 通用参数表未列出 `speaker_diarization` 的前提下，保守记录“wire 参数未证明、禁止发送”。后续腾讯官方会议话者分离指南明确 `speaker_diarization=1`，官方 Go SDK 固定 commit `257f9f56bcd592bff1faea9b4ce0f1ef90cea803` 进一步证明该 key 与 speaker context key 被序列化、排序并纳入签名；原供应商事实前提已过时。
+- 决定：目标 `16k_zh_en_speaker_2.0` 与内部 `diarization_required=true` 不变。腾讯实际 query 必发 `speaker_diarization=1`、`enable_speaker_context=0`，两者都进入 canonical query；`speaker_context_id` 从实际 query 与 canonical query 完全省略，不传空值。先构造除 `signature` 外的实际 query map，按 parameter name 字典序 canonicalize，再 HMAC-SHA1/base64，最后 URL encode signature 并追加。
+- 取代关系：只部分取代 ADR-032 中“`speaker_diarization=1` 未证明、禁止发送”的供应商事实，以及与之直接相关的 context query 表达；ADR-032 的 Accepted 状态与历史正文永久保留。adapter v2、连接级 namespace、新 voice 新 speaker stream 并重新校准、attempt drain、sticky completeness、unknown fail-closed、安全和真实验收决定全部继续有效。
+- 诊断边界：本 ADR 获项目负责人 exact-head PASS 后，DEV 可用同一虚构 TTS PCM、同一账号/endpoint/engine/其余 query、单连接、`reconnect=0` 做一次受控诊断连接。该结果不能证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并转腾讯支持。
+- 代价与风险：`speaker_context_id` 的省略与空值会形成不同 canonical query；实现与 fixture 必须机械区分。新增必发参数可能改变供应商响应，但不改变产品状态、数据库、权限或授权边界。

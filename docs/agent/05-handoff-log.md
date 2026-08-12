@@ -21,6 +21,7 @@
 | DEV-005R4 / DEV-005 | [最终交接](handoffs/DEV-005R4.md)、[PR #16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)、REV-026 | DEV-006/007 后续任务、总控 | R4 与父 DEV-005 DONE；final head `2fab0ea`、CI `31294084873`、merge `7477dca`，CON-020/021/022 RESOLVED。真实供应商、云存储、iPhone 与生产范围后置 |
 
 | SPEC-ASR-PROVIDER-001 | [契约交接](handoffs/SPEC-ASR-PROVIDER-001.md)、[任务卡](tasks/SPEC-ASR-PROVIDER-001.md)、[PR #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)、ADR-032、REV-039、CON-027 | DEV-ASR-PROVIDER-001 | DONE；final head `84a2173c`、CI `31484868105`、项目负责人定向复审 PASS、merge `d7b318f`、main CI `31494227785` SUCCESS。old head REQUEST_CHANGES/P1=1 永久保留；CON-027 继续阻塞真实长者/PII，真实 provider 验收移交 DEV |
+| SPEC-ASR-WIRE-PARAM-001 | [修正交接](handoffs/SPEC-ASR-WIRE-PARAM-001.md)、[任务卡](tasks/SPEC-ASR-WIRE-PARAM-001.md)、[PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29)、ADR-033 | 项目负责人手动 GitHub 审查；通过后交 DEV-ASR-PROVIDER-001 | REVIEW；腾讯官方指南与固定 SDK commit 已证明 `speaker_diarization=1` wire/signature 事实。旧 ADR-032、SPEC/REV-039/PASS 历史不改；等待 non-Draft PR exact head 与 CI 审查，不自宣 PASS/DONE/merge |
 
 ## 最近已完成交接
 
