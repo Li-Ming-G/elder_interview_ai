@@ -325,3 +325,15 @@
 - 取代关系：只部分取代 ADR-032 中“`speaker_diarization=1` 未证明、禁止发送”的供应商事实，以及与之直接相关的 context query 表达；ADR-032 的 Accepted 状态与历史正文永久保留。adapter v2、连接级 namespace、新 voice 新 speaker stream 并重新校准、attempt drain、sticky completeness、unknown fail-closed、安全和真实验收决定全部继续有效。
 - 诊断边界：本 ADR 获项目负责人 exact-head PASS 后，DEV 可用同一虚构 TTS PCM、同一账号/endpoint/engine/其余 query、单连接、`reconnect=0` 做一次受控诊断连接。该结果不能证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并转腾讯支持。
 - 代价与风险：`speaker_context_id` 的省略与空值会形成不同 canonical query；实现与 fixture 必须机械区分。新增必发参数可能改变供应商响应，但不改变产品状态、数据库、权限或授权边界。
+
+## ADR-034｜统一响应式倾听员工作区，并分离本机副本删除与服务器隐私删除
+
+- 状态：`Proposed`；等待 SPEC-DEV-008A 非 Draft PR exact-head 项目负责人手动审查。
+- 背景：DEV-005 已证明预创建深链的首次访谈纵向链路，但登录后首页仍只能提示使用深链；历史 DEV-008 又把项目入口、完整回顾、倾听员导出和服务器删除错误聚合。当前 IndexedDB archive 已在 ACK 后保留，服务端 complete audio object/manifest 是长期权威副本。
+- 决定：当前产品只做一套响应式网页。唯一 authenticated home/app shell 承载新建、项目/访谈列表、继续和已结束访谈回顾；新建必须完成 project→service term→正式有效口头 consent→session/device-check/start，draft 不冒充可开始。A1 先提供共享 shell/read model/routes，A1 PASS/merge 后 A2/A3 可并行。
+- UI：复用 `apps/web/src/styles.css` 的 OKLCH tokens、排版、context-label、primary/secondary/danger、focus-visible、44px 和 reduced-motion；HomeShell/ListRow/StatusBadge 等价语义、空错状态与词汇只有一套。工作区、新建和回顾不得各建导航或视觉体系。
+- 本机副本：当前 origin IndexedDB 不是普通文件、跨设备档案或永久备份。播放只读完整 archive。删除共用 capture Web Lock，锁内 fresh 验证 session/manifest/pending/active/dirty，并在一个 transaction 清理当前/legacy 全部 session payload与恢复事实、原子写最小回执；失败零部分清理。storage estimate 仅为 origin-wide approximate。
+- 隐私边界：本机删除明确保留服务器 audio/transcript/memory，不创建 deletion request，不关闭 CON-023。正式服务器隐私删除与统一 `DeletionScopeReader` 独立归 DEV-008D。倾听员导出取消，其他角色未来需要时另立受控任务。
+- 平台边界：不做 PWA、Service Worker 安装体验、Capacitor/WebView 或 Android App；未来 Android 软件仅在网页 MVP 经真实实践验证后作为独立产品阶段重新设计。
+- 取舍：A1 增加最小 project-session read model，A3 增加 IndexedDB 前向 upgrade、session 索引/回执和跨标签页事务测试；换取普通用户无需深链、UI 只有一个事实来源，并防止本机清理被误解为隐私删除。
+- 审查边界：本 ADR 是 docs-only 候选，不代表 A1/A2/A3/008D 已实现或通过；DEV-007 当前状态不作为本切片前置。
