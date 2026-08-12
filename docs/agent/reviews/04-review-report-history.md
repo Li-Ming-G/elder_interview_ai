@@ -775,7 +775,7 @@ P2：
 
 ## REV-045｜DEV-008A3 已结束访谈回顾与本机副本管理候选
 
-- 审查对象：`codex/dev-008a3-local-review` 相对 `origin/main@4fc46456869ab01d9880d1aa92e7cd838bf920a8` 的实现候选；启动时 main CI `31599184357` completed / success。非 Draft PR、final exact head 与 exact-head CI 由最终审查包绑定。
+- 审查对象：[PR #40](https://github.com/Li-Ming-G/elder_interview_ai/pull/40) / `codex/dev-008a3-local-review` 相对 `origin/main@4fc46456869ab01d9880d1aa92e7cd838bf920a8` 的实现候选；启动时 main CI `31599184357` completed / success。PR 为非 Draft，final exact head 与 exact-head CI 由最终审查包绑定。
 - 当前结论：`PENDING`。DEV-008A3 保持 `REVIEW`；执行 Agent 不得自行给出 PASS/DONE、不得合并。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 `READY`，DEV-008D `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - iteration-coach：实现窗口开工前恰好一次独立只读复核发现 finalization total bytes 高影响公共接缝并以零改动暂停；总控随后通过 SPEC-DEV-008A3-PREFLIGHT/ADR-036/REV-044 正式冻结并接收方案 A。本次从已接收 main 恢复，未重复触发复核。
 - 候选内容：ordinary session mapper 始终显式输出 exact/null `total_size_bytes`；A1 唯一 shell/route/action/read access 内新增原始/修订转录只读与本机完整 archive 播放；fresh session+manifest preflight 逐项核对 session/audio identity、count、bytes、chunk sum、checksum、逐片 metadata 与 Blob SHA-256，不请求不存在的 server audio download API。
