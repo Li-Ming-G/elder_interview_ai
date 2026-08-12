@@ -746,3 +746,12 @@ P2：
 - 本地证据：fresh PostgreSQL 13 migrations deploy/status、integration 79/79、auth 23/23；unit 309/309；普通 Chromium 13/13、auth Chromium 4/4；build/smoke/format/lint/typecheck/diff 通过；1440×900、390×844、320×568 真实 Chromium 无横向溢出且满足 focus/live region/reduced motion/44px。
 - 待审重点：restricted/hidden rows 字段闭合；cursor tamper/cross-project/permission drift；session/finalization `created_by` 与 idempotency replay 降权；ordinary reader 和 evidence DTO 隔离；typed review/save-facts 深链不能绕过服务端 action；A2/A3/删除/导出/ASR/LLM/QuestionEvidence 不越界。
 - 范围：无 Prisma schema/migration，未实现 A2/A3/008D、服务器删除、导出、PWA/App、ASR/LLM 或 QuestionEvidence/题库/AI history。绿色本地或 GitHub CI 不自动构成项目负责人审查 PASS。
+
+### REV-043 final exact-head 审查与接收
+
+- 审查对象：[PR #35](https://github.com/Li-Ming-G/elder_interview_ai/pull/35) final exact head `4bc1c00598801cb0d83f5da466b0c1d6514f3c74`，base `main@d82e14da6796ae8ead9a33a85083abd3c53ed803`；exact-head CI `31592543835` completed / success；正式记录为 [issuecomment-5266360647](https://github.com/Li-Ming-G/elder_interview_ai/pull/35#issuecomment-5266360647)。
+- 正式结论：项目负责人手动独立审查 `PASS`；P0=0、P1=0、P2=0。restricted 固定中性投影、hidden 无行、签名 project-bound cursor、普通 reader 与 evidence-finalization 隔离、`created_by` 非授权、降权幂等裁剪、唯一 Home 与三视口全部接收。
+- 独立复核：项目负责人额外执行 4 个定向 unit/component 文件 24/24、全新 PostgreSQL 13 migrations 后 A1 集成反例 3/3，并目视检查三张 exact-candidate Chromium 截图。首次审查脚本因 PowerShell 连接串插值错误未进入 migration；修正后以新库复跑通过，临时库已删除，不属于候选失败。
+- 合并与集成：PR #35 以 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8` 合入 main；main CI `31593387265` completed / success。
+- 治理：DEV-008A1 `REVIEW→DONE`；DEV-008A2 与 DEV-008A3 `BLOCKED→READY` 并可独立并行；父 DEV-008A `BLOCKED→IN_PROGRESS`，继续等待 A2/A3 各自 PASS/merge 与父任务聚合验收。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- 历史与范围：上方 REV-043 `PENDING` 候选永久保留。本 PASS 只接受 A1 共享首页、列表、路由与权限接缝；不代表 A2 新建访谈、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成；无 Prisma schema/migration 变更。
