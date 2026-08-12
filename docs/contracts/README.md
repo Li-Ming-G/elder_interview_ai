@@ -11,5 +11,5 @@
 - `interview-director-output.schema.json`：`InterviewDirectorOutputV1`，正式；是 Director 实际输出字段、类型、必填性、枚举和交叉约束的唯一技术结构；
 - `export-manifest.schema.json`：导出资料包清单。
 - `streaming-asr-provider-v2.schema.json`：`StreamingAsrAdapter v2` 供应商中立 lifecycle/result/drain/error 正式 Schema；
-- `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 REVIEW profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；
+- `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；
 - `streaming-asr-provider-v2.md`：v1→v2 迁移、腾讯映射、安全、指标、成本与真实 provider 验收的唯一技术契约。

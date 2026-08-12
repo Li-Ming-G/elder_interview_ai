@@ -692,3 +692,12 @@ P2：
 - 合并：PR #28 以 merge commit `d7b318fd654d978b60799cd068cbbef33f9c4989` 合入 main；main CI `31494227785` completed / success。
 - 治理：SPEC-ASR-PROVIDER-001 DONE、ADR-032 Accepted、DEV-ASR-PROVIDER-001 READY；CON-027 继续 OPEN并阻塞真实长者/PII 试点。
 - 历史保留：本节不覆盖 old head `8d9922b`、CI `31476068838`、REQUEST_CHANGES/P1=1；真实腾讯、目标 Android provider、同 PCM 三次 replay、fault lane 与账单仍归 DEV。
+
+## REV-040｜SPEC-ASR-WIRE-PARAM-001 / PR #29 项目负责人最终接收
+
+- 审查前状态：docs-only 修正候选保持 `REVIEW`；执行 Agent 只提交 non-Draft PR 与 exact-head CI，不自宣 PASS/DONE、不合并。该候选把旧供应商事实纠正为 `speaker_diarization=1` 与 `enable_speaker_context=0` 必须实发并进入 canonical query，`speaker_context_id` 必须省略。
+- 审查对象：[PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) final exact head `650f856c918639a7b992294b805873d7052ab44e`；CI `31556525476` completed / success；审查绑定 head 无漂移。
+- 正式结论：项目负责人手动 `PASS`；P0=0、P1=0、P2=0。required/omit/empty 的 machine profile、实际 query 与签名 canonical 覆盖、一次受控诊断边界，以及 ADR-033 对 ADR-032 的窄 partial supersede 全部接收。
+- 合并：总控按 accepted exact head 合并 PR #29，merge commit/main 集成点为 `1e18ea83cd5a1d4953bb92fd251637ed6107c322`，main CI `31560488220` completed / success。SPEC-ASR-WIRE-PARAM-001 DONE，ADR-033 Accepted，DEV-ASR-PROVIDER-001 的一次同虚构 TTS PCM/`reconnect=0` 诊断门禁已满足。
+- 历史保留：ADR-032、SPEC-ASR-PROVIDER-001、REV-039 及其旧 wire-unknown 事实按当时证据永久保留；本 REV-040 不改写旧结论，只记录后续官方一手证据促成的正式修正。
+- 边界：未修改业务代码、Prisma、migration、provider、密钥或部署，未连接腾讯。PASS 不证明 close 1005 根因，也不证明双人 label、三次 replay、桌面/Android、主动断线、账单、数据治理或 DEV provider 验收通过；CON-027 继续 OPEN。

@@ -1,5 +1,5 @@
 {
-  "status": "FORMAL_REVIEW_CANDIDATE",
+  "status": "FORMAL_ACCEPTED",
   "profile_version": "tencent-realtime-asr-v2-2026-08-12",
   "contract": "streaming-asr-provider-v2",
   "provider": "tencent_realtime_asr_v2",
