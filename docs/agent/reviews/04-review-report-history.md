@@ -794,4 +794,4 @@ P2：
 - 中间审查对象：exact head `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` SUCCESS；该 head 已关闭原麦克风释放 P1，但不作为 PASS 候选。
 - Adjacent P1：`apps/web/src/main.tsx` 使用 React `<StrictMode>`，而页面 `mounted` ref 只在初始化为 true；effect 第一次 cleanup 置 false，第二次 setup 未恢复，导致开发模式后续 `save/showMessage/endAction` 状态更新被永久抑制。原 component/E2E 未以 StrictMode 包裹覆盖。
 - 再修复：lifecycle effect 每次 setup 显式 `mounted.current=true`，cleanup 仍置 false 并 dispose/退订。新增 StrictMode setup→cleanup→setup 回归，证明初始化后 project/service workflow 继续推进、busy 复位且授权录音状态/说明消息可见；原离页 dispose、track stop、单一 job 恢复测试保留。
-- 候选证据：定向 unit/component 6/6、全量 unit 320/320、新入口 5/5；中间修复上的普通 Chromium 18/18、smoke 与本次静态/build 证据保持。等待再修复 exact head/CI 与定向复审，状态仍为 REVIEW / REQUEST_CHANGES。
+- 候选证据：定向 unit/component 6/6、全量 unit 320/320、新入口 5/5；中间修复上的普通 Chromium 18/18、smoke 与本次静态/build 证据保持。head `ef85c3b` 的 CI `31607585915` 仅既有原生 audio-buffer 分片时序用例失败（E2E 17/18），本地该文件 repeat 9/9，未修改测试目标；等待新 exact head 全量 CI 与定向复审，状态仍为 REVIEW / REQUEST_CHANGES。

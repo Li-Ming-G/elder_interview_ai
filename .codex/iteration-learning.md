@@ -1262,3 +1262,4 @@
 - Verification evidence: StrictMode 包裹的 component 回归实际推进 project→service term→consent audio，并验证 busy 复位、录音 snapshot 与说明消息继续更新；定向 suite 6/6，原麦克风释放与同一 job 恢复证据保留。
 - Lesson: `isMounted` ref 不是一次性构造状态，而是 effect lifecycle 状态；在 StrictMode 下 setup 与 cleanup 必须对称写入，测试也必须让组件经过开发模式的双调用路径。
 - Verification boundary: `d240afd3` 原 P1 与 `cce98c8f` adjacent P1 均永久保留；当前仍 REVIEW，等待再修复 exact-head CI/复审，不自宣关闭或合并。
+- CI failure history: StrictMode 修复 head `ef85c3b` 的 CI `31607585915` 在既有 native MediaRecorder audio-buffer 用例首次分片读取为 0，普通 E2E 17/18；其余到 smoke 的全部门禁成功。本地该文件双 worker repeat 9/9，新增 P1 用例未失败；不为清绿修改产品或测试目标，以新 exact head 重跑完整门禁。
