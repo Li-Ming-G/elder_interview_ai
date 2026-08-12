@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 正在冻结统一倾听员网页工作区、新建完整授权入口、已结束访谈最小回顾与本机副本管理；A1/A2/A3/008D 均等待 SPEC 项目负责人审查。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 与 DEV-008A1 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS，A2 READY；A3 因 finalization total bytes 公共接缝缺口保持 BLOCKED，等待 SPEC-DEV-008A3-PREFLIGHT exact-head PASS/merge；008D 继续 BLOCKED。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
@@ -158,7 +158,7 @@
 
 ### D-020 — 统一响应式倾听员工作区，本机副本删除与服务器隐私删除分离
 
-- Status: proposed；等待 SPEC-DEV-008A exact-head 项目负责人手动审查。
+- Status: adopted；SPEC-DEV-008A 已获 exact-head PASS/merge，A1 已完成；A3 total bytes 接缝的窄补充仍在 REVIEW。
 - Evidence: 用户明确当前只做响应式网页、登录后不再长期依赖深链、A1→A2/A3 拆分、倾听员不导出、本机删除不等于 server deletion；当前代码的 home 仅提示深链，IndexedDB v4 保留 archive/legacy 数据，服务端 manifest 是长期权威。
 - Reason: 把 home、新建、回顾和删除继续聚在 DEV-008 会让 DEV-007/题库/导出错误阻塞实际可用入口，也会诱使本机清理冒充隐私删除。
 - Tradeoff: A1 需新增受 assignment 约束的 session read model，A3 需 IndexedDB 前向 upgrade、capture 共锁、单事务 legacy/all-report 清理和最小回执；换取唯一网页导航、诚实的数据所有权与可验证刷新语义。
@@ -1216,3 +1216,15 @@
 - Governance transition: DEV-008A1 REVIEW→DONE，DEV-008A2/A3 BLOCKED→READY，父 DEV-008A BLOCKED→IN_PROGRESS。A2/A3 已补齐 `10` §3 要求的正式任务字段，可在复用 A1 唯一 shell/routes/read model 的前提下独立并行；其 runtime 仍未实现。
 - Historical boundary: REV-043 `PENDING` 候选永久保留；本 PASS 只接收 A1 runtime/UI/security seam，不代表 A2 新建入口、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成。DEV-008D 保持 BLOCKED，CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。
 - Lesson: 下游解锁必须同时满足技术前置和治理可执行性。A1 PASS/merge 解除 A2/A3 的技术阻塞后，仍应在转 READY 前补齐正式任务字段和所有权边界；父任务进入进行中不等于任一未实现子任务已完成。
+
+### 2026-08-12 — SPEC-DEV-008A3-PREFLIGHT finalization total bytes 接缝
+
+- User outcome: 在不扩大 A3 产品范围的前提下，让本机副本 fresh delete preflight 能把本地 archive 与服务器权威完整性事实做机械比对，同时保持本机删除不等于服务器删除。
+- Review mode: Learning mode；本契约窗口完成恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。A3 原实现窗口的唯一 Correction 与零改动暂停事实保留，不重复启动实现复核。
+- Review finding: `AudioObject.totalSizeBytes` 已是完整上传对象的权威 bytes 事实，但公共 `SessionFinalizationSnapshot` 缺少接缝。因本轮明确禁止修改 runtime mapper，shared TypeScript 字段须先采用 optional+nullable 兼容形态；A3 mapper 落地后 ordinary canonical GET 必须始终显式返回 key。
+- Options considered: 新增 SessionFinalization Prisma 字段；让 A3 额外调用 audio manifest 接口；把现有 AudioObject bytes 窄投影到 ordinary finalization snapshot。采用第三种，避免重复存储、迁移与额外权限面。
+- Adopted candidate: `total_size_bytes` 只来自同一关联 `AudioObject.totalSizeBytes`；未证明完成为 null，complete lane 为精确非负 safe integer。complete+missing/null/unsafe/不一致按 legacy/corrupt 失败关闭且不得当 0；ProjectSessionListItem 与 EvidenceFinalizationResponse 不扩字段。
+- Implementation evidence: 已同步 `04/05/08/09/10`、packages/contracts、任务板/追踪/冲突、ADR-036、REV-044、任务卡与交接；未修改 service/controller/mapper、Prisma/migration、IndexedDB、页面或 A3 runtime。
+- Verification boundary: 本轮仅冻结契约与测试矩阵，保持 REVIEW；A3 在 exact-head PASS/merge 前 BLOCKED。后续实现必须验证 mapper/API lifecycle 与 safe integer、ordinary auth/assignment/restricted/deleted/created_by，以及 fresh identity/count/bytes/chunk sum/checksum/local metadata 与 legacy/null 失败关闭；CON-023 不变。
+- Lesson: contract-first 兼容性和最终 wire 义务可以分层表达：候选类型允许旧 mapper 暂时缺省，不代表新消费者可以把缺省视为成功。真正安全的删除前置必须把“字段存在”“来源可信”“数值可精确表达”和“本地/服务端一致”同时成立作为一个闭合谓词。
+- Better future prompt: “先确认可复用的权威持久事实，再冻结 nullable lifecycle、响应白名单与 safe-integer 边界；若契约阶段不能改 mapper，明确区分 additive optional 兼容期和 runtime 必须显式发 key 的最终义务，并把 missing/null/mismatch 都写成失败关闭反例。”

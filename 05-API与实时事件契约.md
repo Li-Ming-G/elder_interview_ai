@@ -140,7 +140,7 @@ POST   /projects/:id/restore
 GET /projects/:id/sessions?cursor=<opaque>&limit=20
 ```
 
-响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
+响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。首页不显示或裁决录音字节数，因此 `ProjectSessionListItem.finalization` 的 Pick 不增加 `total_size_bytes`；A3 只能在普通回顾深链通过 canonical `GET /sessions/:id` 取得该字段。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
 
 分页 cursor 是版本化、服务端签名的不透明 token，至少绑定 `project_id + created_at + id`，并绑定排序方向、page size 与当前过滤版本；`created_at/id` 是签发页最后一项的 keyset anchor。缺失签名、解析失败、内容篡改、过期/版本失效、跨项目复用、参数不一致或当前 assignment/项目普通可见性失效均失败关闭：非法 cursor 返回 422 `INVALID_SESSION_CURSOR`，当前资源权限失效返回 403/404；不得静默降级首页或用空列表掩盖。`restricted` 项目不提供 session page，首页只保留 §3.1 的项目级中性受限投影；`deleted`、软删除和 assignment 失效项目完全不可见。
 
@@ -335,6 +335,7 @@ GET  /sessions/:id/evidence-finalization
     "recording_status": "stopped",
     "upload_status": "awaiting_upload",
     "uploaded_chunk_count": 360,
+    "total_size_bytes": null,
     "manifest_checksum": null,
     "transcript_status": "pending",
     "transcript_error_code": null,
@@ -358,6 +359,10 @@ GET  /sessions/:id/evidence-finalization
 顶层 `capture_failure_code` 为 `null|NO_AUDIO_CAPTURED`，只表达无 finalization 的采集阶段终结。它与 `finalization.failure_code` 互斥；不得为了承载 `NO_AUDIO_CAPTURED` 创建空 finalization，也不得把 manifest/ASR/runner 错误提升到顶层。
 
 响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
+
+`finalization.total_size_bytes` 是 additive optional+nullable 公共字段，只来自同一 finalization 关联的 `AudioObject.totalSizeBytes`，不新增或复制 `session_finalization` 数据。契约先允许旧 producer 暂时缺键；DEV-008A3 runtime 合入后，普通 canonical response 的 finalization 对象必须始终显式带键：`awaiting_upload|verifying|unrecoverable` 为 `null`；`complete` 时为关联 complete audio object 的精确非负 JavaScript safe integer。正常 `processing|completed` 与 `failed + complete manifest` 必须非空。缺键、`null`、unsafe integer 或 complete/manifest/对象事实不一致都不得按 `0` 解释；普通只读转录仍可返回，但 A3 必须按 `blocked_server_unverified` 禁止播放和本机删除。
+
+该字段只扩展 `InterviewSessionResponse.finalization` / `SessionFinalizationSnapshot`。`ProjectSessionListItem` 继续使用上一节的最小 Pick；§3.5.3 `EvidenceFinalizationResponse` 的字段白名单也保持不变，不得因 A3 扩大 restricted evidence seam。A3 不得用首页列表或 evidence-finalization 响应替代普通 canonical session GET。
 
 该公共 snapshot 只用于普通 prepare/workbench/review 及仍满足普通资源门禁的 stop/recover：每次读取必须有当前有效 assignment，项目未软删除且状态不是 `restricted|deleted`。`interview_session.created_by` 与 `session_finalization.created_by` 都只用于审计/受限证据归属，绝不能作为 `GET /sessions/:id` 或普通页面读取的 assignment fallback。门禁失败不返回项目 ID、session 状态、capture/finalization、时间或失败分类。
 
@@ -413,7 +418,7 @@ stop 接受前，既有 interview audio object 的 upload/complete/manifest 继�
 - auth session 过期/登出时不得匿名继续。用户重新认证且账号仍 active 后，服务端按原 actor 与冻结 finalization 授予上述受限能力；账号停用或无法重新认证时只保留服务端已保存事实并进入 `interrupted` 或最终 `failed`，不得签发长期浏览器 bearer token；
 - 授权撤回同时停止新采集、新 ASR/AI 任务和普通查询/导出；已经开始的 final drain 只可收束 stop 前已接受 PCM、不得扩大内容范围。撤回不能删除或覆盖 stop 前已产生的原始证据；物理删除仍走 deletion request。
 
-上述例外的查询只能走 `GET /sessions/:id/evidence-finalization`。它要求：stop snapshot 已在限制前持久化；当前账号仍 active 且已重新认证；actor 精确等于冻结 finalization 的原操作者；目标 session/audio object/commitments 仍存在。响应固定为 `EvidenceFinalizationResponse`，只含 `session_id/audio_object_id/session_status/expected_chunk_count/recording_status/upload_status/uploaded_chunk_count/manifest_checksum/failure_code`。不得返回 `project_id`、`created_by`、capture generation/stream、transcript 状态或正文、服务/授权正文、对象键、下载地址、provider payload、首页状态或主动作。没有 finalization、actor 不符、账号停用、资源已删除或 scope 已完成清理均失败关闭且不泄露存在性。
+上述例外的查询只能走 `GET /sessions/:id/evidence-finalization`。它要求：stop snapshot 已在限制前持久化；当前账号仍 active 且已重新认证；actor 精确等于冻结 finalization 的原操作者；目标 session/audio object/commitments 仍存在。响应固定为 `EvidenceFinalizationResponse`，只含 `session_id/audio_object_id/session_status/expected_chunk_count/recording_status/upload_status/uploaded_chunk_count/manifest_checksum/failure_code`。它不增加 `total_size_bytes`，因为该 seam 只收束撤权前冻结 evidence，不服务普通 A3 回顾或本机删除。不得返回 `project_id`、`created_by`、capture generation/stream、transcript 状态或正文、服务/授权正文、对象键、下载地址、provider payload、首页状态或主动作。没有 finalization、actor 不符、账号停用、资源已删除或 scope 已完成清理均失败关闭且不泄露存在性。
 
 受限原操作者调用 `recover(action=reconcile)` 时只能返回同一 `EvidenceFinalizationResponse`；不能借 recover 获得公共 `InterviewSessionResponse`。Home、prepare、workbench、review 和普通 session/project/service-term/consent reader 禁止调用该 seam，前端也不得把它路由成可浏览页面。服务端可以内部使用 `created_by` 判定冻结证据归属，但不得把该字段返回客户端或将其泛化为普通读取权限。
 
@@ -541,7 +546,7 @@ manifest 响应返回对象状态、purpose、project/session、chunk count、to
 “删除此设备上的录音副本”必须先用 `navigator.locks` 申请与捕获控制器相同的 `elder-interview:capture:{session_id}` exclusive lock，`ifAvailable=true`。锁不存在、不可用或被其他 tab 持有时失败关闭；不得新建另一把不会与 capture 竞争的锁。持锁期间执行以下顺序：
 
 1. 使用 `cache=no-store` fresh 读取 `GET /sessions/:id` 与目标 `GET /audio-objects/:id/manifest`；
-2. 精确复核 `session.id/project_id/audio_object_id`，`capture.status=stopped`，session `status=processing|completed`，manifest `status=complete`、checksum 非空、chunk count/total bytes 与 session finalization 一致；`processing` 只表示原始录音已权威完成而 ASR 仍在收束，不放宽 manifest 条件；
+2. 精确复核 `session.id/project_id/finalization.audio_object_id` 与 manifest identity，`capture.status=stopped`，session `status=processing|completed`，manifest `status=complete`、checksum 非空；`finalization.expected_chunk_count = manifest.chunk_count = local archive chunk count`，且 `finalization.total_size_bytes = manifest.total_size_bytes = manifest chunks.size_bytes 求和 = local archive bytes`。finalization 字段缺失/`null`/unsafe、fresh 数据过期或任一 count/bytes/checksum/逐片元数据不一致均为 `blocked_server_unverified`，零写入；`processing` 只表示原始录音已权威完成而 ASR 仍在收束，不放宽 manifest 条件；
 3. 在同一锁内重读 IndexedDB：`pending_delivery_count=0`、正式 capture job 不为 `prepared|server_preparing|recording|active|interrupted`、checkpoint 不为 `starting|recording` 且 `dirty=false`；任何未知或读取失败均拒绝；
 4. 使用 `04` §4.44 的单个 `readwrite` transaction 清理全部目标 payload/恢复事实与 legacy `chunks`，并原子写最小回执；commit 后才显示成功；
 5. 释放锁并重新投影。重复请求命中同一回执且 payload 为空时返回 `already_deleted`。
