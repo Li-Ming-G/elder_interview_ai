@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/contracts/local-audio-archive-v1.schema.json",
+  "title": "LocalAudioArchiveV1",
+  "description": "Formal client-only projection and delete result for the current origin's IndexedDB interview archive. It is not a server deletion request or cross-device archive.",
+  "x-contract-status": "formal",
+  "oneOf": [
+    { "$ref": "#/$defs/projection" },
+    { "$ref": "#/$defs/deleteResult" },
+    { "$ref": "#/$defs/deletionReceipt" }
+  ],
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "kind",
+        "session_id",
+        "state",
+        "archive_bytes",
+        "archive_chunk_count",
+        "pending_delivery_count",
+        "origin_storage",
+        "playback_available",
+        "server_audio_retained"
+      ],
+      "properties": {
+        "contract_version": { "const": "local-audio-archive-v1" },
+        "kind": { "const": "projection" },
+        "session_id": { "type": "string", "format": "uuid" },
+        "state": {
+          "enum": [
+            "available_complete",
+            "available_incomplete",
+            "deleted_on_device",
+            "missing_unknown",
+            "blocked_active_or_dirty",
+            "blocked_pending_delivery",
+            "blocked_server_unverified"
+          ]
+        },
+        "archive_bytes": { "$ref": "#/$defs/nonNegativeInteger" },
+        "archive_chunk_count": { "$ref": "#/$defs/nonNegativeInteger" },
+        "pending_delivery_count": { "$ref": "#/$defs/nonNegativeInteger" },
+        "origin_storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["accuracy", "usage_bytes", "quota_bytes", "available_bytes"],
+          "properties": {
+            "accuracy": { "const": "origin_wide_approximate" },
+            "usage_bytes": {
+              "anyOf": [{ "$ref": "#/$defs/nonNegativeInteger" }, { "type": "null" }]
+            },
+            "quota_bytes": {
+              "anyOf": [{ "$ref": "#/$defs/nonNegativeInteger" }, { "type": "null" }]
+            },
+            "available_bytes": {
+              "anyOf": [{ "$ref": "#/$defs/nonNegativeInteger" }, { "type": "null" }]
+            }
+          }
+        },
+        "playback_available": { "type": "boolean" },
+        "server_audio_retained": { "const": true }
+      }
+    },
+    "deleteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "kind",
+        "session_id",
+        "result",
+        "server_audio_retained",
+        "server_transcript_retained",
+        "server_memory_retained"
+      ],
+      "properties": {
+        "contract_version": { "const": "local-audio-archive-v1" },
+        "kind": { "const": "delete_result" },
+        "session_id": { "type": "string", "format": "uuid" },
+        "result": {
+          "enum": [
+            "deleted",
+            "already_deleted",
+            "blocked_active_or_dirty",
+            "blocked_pending_delivery",
+            "blocked_server_unverified",
+            "lock_unavailable",
+            "transaction_aborted"
+          ]
+        },
+        "deleted_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "server_audio_retained": { "const": true },
+        "server_transcript_retained": { "const": true },
+        "server_memory_retained": { "const": true }
+      }
+    },
+    "deletionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "kind", "session_id", "result", "deleted_at"],
+      "properties": {
+        "contract_version": { "const": "local-audio-archive-v1" },
+        "kind": { "const": "deletion_receipt" },
+        "session_id": { "type": "string", "format": "uuid" },
+        "result": { "const": "deleted" },
+        "deleted_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

@@ -74,6 +74,7 @@
 - 受影响任务：`DEV-008`；不阻塞 `DEV-001A/B`。
 - 临时处理：`DEV-008` 保持 BLOCKED，开工前补正式状态机和测试。
 - 需要谁决策：总控 Agent + DEV-008 数据治理实现/审查角色。
+- 索引纠偏（2026-08-12）：本记录早已标记 `RESOLVED`，但 `02-open-conflicts.md` 仍误列为 OPEN；本轮只修正动态索引，不改写旧发现和临时处理历史。正式服务器备份清理义务转由 DEV-008D 承接；本机浏览器副本删除没有备份状态，也不重新打开或替代本冲突。
 
 ### CON-007｜删除范围摘要密钥缺少版本与轮换策略
 
@@ -85,6 +86,7 @@
 - 受影响任务：`DEV-008`；不阻塞 `DEV-001A/B`。
 - 临时处理：不得在 DEV-008 实现中自行猜测；开工前形成 ADR、配置和迁移/验证规则。
 - 需要谁决策：总控 Agent + 安全/数据治理审查角色。
+- 索引纠偏（2026-08-12）：本记录早已标记 `RESOLVED`，但 `02-open-conflicts.md` 仍误列为 OPEN；本轮只修正动态索引，不改写旧历史。正式服务器删除摘要/轮换义务转由 DEV-008D 承接；本机最小删除回执不是 deletion audit、不使用服务端 pepper，也不重新打开或替代本冲突。
 
 ### CON-008｜未知账号登录失败缺少合法审计 actor 表达
 
@@ -302,6 +304,7 @@
 - 需要谁决策：DEV-008 开工前由总控与数据治理/安全角色先解决 CON-006/007；C2 无需等待该决定，可继续其余已冻结范围。
 - SPEC-DEV-006 REVIEW 进展（2026-08-09）：consumer 目标已冻结统一 `DeletionScopeReader` port、project/session 固定锁序、输入冻结/调用前/写回/展示四次检查、动态撤下与派生关系清理；这不是 runtime 实现。当前 coverage 仍为 `NOT IMPLEMENTED / NOT VERIFIED`，不得增加 no-op guard。关闭条件仍是 DEV-008 producer/read model、C2 回接与真实并发/幂等/不泄密测试全部完成。
 - PR #20 REQUEST_CHANGES 修复进展（2026-08-10）：契约新增 `ai_job|question_display_snapshot|memory_retention_root` 三类保留根、先隐藏后清理、跨 root detach、CASCADE/显式幂等顺序和失败续跑；这些仍是未来 DEV-006/008 的目标，不是现有 deletion producer/read model。CON-023 状态和 `NOT IMPLEMENTED / NOT VERIFIED` 覆盖结论不变。
+- SPEC-DEV-008A 拆分（2026-08-12）：历史 DEV-008 已停止作为聚合实现任务。当前 origin IndexedDB 的“删除此设备上的录音副本”由 DEV-008A3 承接，明确不创建/推进 `deletion_request`，不改变服务端 audio/transcript/memory，也不关闭本冲突。正式 producer/read model、统一 `DeletionScopeReader`、C2/AI/回顾回接、在线/备份清理与最小审计全部转由独立 DEV-008D；关闭条件和 `NOT IMPLEMENTED / NOT VERIFIED` 结论不变。
 
 ### CON-024｜已展示问题快照与正式边界即时撤回规则冲突
 

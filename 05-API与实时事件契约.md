@@ -116,6 +116,16 @@ POST   /projects/:id/restore
 
 `DELETE /projects/:id` 与 `/restore` 只用于普通、可恢复的软删除：前者设置 `deleted_at` 但不执行隐私物理清理，后者只清除该软删除标记。它们不得替代 deletion-request 流程；存在非终态删除申请或项目已因 completed project scope 请求进入 `status=deleted` 时，普通删除/恢复返回 409 `PROJECT_DELETION_LOCKED`，物理删除完成后的项目永远不得 restore。
 
+统一倾听员工作区继续复用 `GET /projects`，并新增受同一逐资源授权约束的会话 read model：
+
+```http
+GET /projects/:id/sessions?cursor=<opaque>&limit=20
+```
+
+响应按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status`。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。未认证 401；无有效 assignment、项目不可见或跨项目 cursor 失败关闭，不通过空列表泄露存在性。`restricted|deleted` 项目不得返回会话正文事实，普通工作区只显示中性受限投影。
+
+该 read model 只解决 A1 的列表和路由，不改变 session 所有权或 start 门禁。首页不得从 project status、列表计数或本地状态推断“可开始”；A2 仍须依次调用正式 project/service-term/consent/session/device-check/start 接口。
+
 ### 3.2 项目分配
 
 ```http
@@ -456,6 +466,28 @@ complete 请求：
 客户端必须在录制停止时冻结 `expected_chunk_count` 并持久化 complete request ID；不得根据 ACK 后仍残留的 Blob 数量推导总分片数。complete 成功响应至少核对 audio object ID、`status=complete`、chunk count 和非空 manifest checksum。
 
 manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。通常只有有效 assignment 可以初始化、上传、完成和查询；session stop 已接受后的唯一例外是 §3.5.3 冻结范围内的 evidence-finalization 补传与最小查询，不得把该例外扩展为普通项目访问。
+
+#### 3.6.1 本机 archive 投影与删除（客户端契约）
+
+本机副本管理不新增服务端 delete API。权威机器结构为 `docs/contracts/local-audio-archive-v1.schema.json`。客户端投影至少区分：
+
+- `available_complete`：本机 archive 与 fresh 服务端 complete manifest 对应且可播放；
+- `available_incomplete`：存在本机字节但缺片、冲突或不可读，不可作为完整录音播放；
+- `deleted_on_device`：同 origin 最小删除回执存在且 payload stores 已为空；
+- `missing_unknown`：无 payload、无回执，可能由用户、浏览器或系统清理，原因不可证明；
+- `blocked_active_or_dirty`、`blocked_pending_delivery`、`blocked_server_unverified`：删除安全门禁未满足。
+
+容量事实分两层：`archive_bytes` 是对当前 session archive payload 的精确求和；`navigator.storage.estimate()` 的 `usage/quota/available` 是整个 origin 的近似值，缺失时为 `null`，不得写成当前 session 字节、可回收字节或设备剩余磁盘。删除后的空间回收时间由浏览器决定，UI 不承诺立即增加等量 available。
+
+“删除此设备上的录音副本”必须先用 `navigator.locks` 申请与捕获控制器相同的 `elder-interview:capture:{session_id}` exclusive lock，`ifAvailable=true`。锁不存在、不可用或被其他 tab 持有时失败关闭；不得新建另一把不会与 capture 竞争的锁。持锁期间执行以下顺序：
+
+1. 使用 `cache=no-store` fresh 读取 `GET /sessions/:id` 与目标 `GET /audio-objects/:id/manifest`；
+2. 精确复核 `session.id/project_id/audio_object_id`，`capture.status=stopped`，session `status=processing|completed`，manifest `status=complete`、checksum 非空、chunk count/total bytes 与 session finalization 一致；`processing` 只表示原始录音已权威完成而 ASR 仍在收束，不放宽 manifest 条件；
+3. 在同一锁内重读 IndexedDB：`pending_delivery_count=0`、正式 capture job 不为 `prepared|server_preparing|recording|active|interrupted`、checkpoint 不为 `starting|recording` 且 `dirty=false`；任何未知或读取失败均拒绝；
+4. 使用 `04` §4.44 的单个 `readwrite` transaction 清理全部目标 payload/恢复事实与 legacy `chunks`，并原子写最小回执；commit 后才显示成功；
+5. 释放锁并重新投影。重复请求命中同一回执且 payload 为空时返回 `already_deleted`。
+
+任一步失败不得调用服务端删除、不得改变 session/manifest/transcript/memory，也不得报告“已删除”。事务 abort 的刷新投影必须回到完整旧集合；commit 后刷新必须为 payload 全空、回执存在。清站后回执也丢失则转为 `missing_unknown`。
 
 ### 3.7 转录
 
@@ -885,6 +917,8 @@ PATCH /sessions/:id/note
 
 ### 3.12 导出
 
+以下路径保留为历史规划占位，当前倾听员网页不得调用，runtime 也不得因本节声称已实现。SPEC-DEV-008A、DEV-008A1/A2/A3 不实现导出；未来其他角色若需要导出，须另开受控 SPEC 重新冻结后才可启用。
+
 ```http
 POST /projects/:id/exports
 GET  /exports/:id
@@ -947,7 +981,7 @@ GET  /exports/:id
 
 已经展示过的 suggestion 不因成为历史快照而绕过本节。命中 `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，普通 suggestion 查询、事件恢复和页面 snapshot 必须立即停止返回正文；可在受限审计中保留曾展示的 ID、版本、时间和结果分类，但不得复制问题正文到技术日志。单独 `sensitive` 或普通事实修正不触发该硬撤下规则，只改变后续生成 eligibility。
 
-`DeletionScopeReader`、冻结范围与上述锁序是正式目标契约，但当前 runtime 尚未实现 deletion request producer/read model。CON-023 在 DEV-008 producer、统一 reader、C2 回接和并发测试全部完成前保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任何返回“无活动删除”的 no-op guard 都不得被计为覆盖。
+`DeletionScopeReader`、冻结范围与上述锁序是正式目标契约，但当前 runtime 尚未实现 deletion request producer/read model。CON-023 在 DEV-008D producer、统一 reader、C2 回接和并发测试全部完成前保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任何返回“无活动删除”的 no-op guard 都不得被计为覆盖。
 
 ## 5. WebSocket
 
@@ -1259,7 +1293,7 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 - 只能查看被分配项目；
 - 可以创建和操作自己的访谈；
 - 可以修正转录和说话人；
-- 可以创建标记和导出；
+- 可以创建标记；当前网页不提供导出；
 - 不得修改全局供应商配置；
 - 不得查看他人未分配项目。
 
@@ -1275,6 +1309,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 - 所有访问必须写入审计。
 
 ## 7. 导出结构
+
+本节仅保留未来受控导出任务的历史结构，不是当前倾听员能力，不得作为 SPEC-DEV-008A 的实现依据。
 
 ```text
 /project-info.json

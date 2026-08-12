@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 等聚合验收。下一条产品化主线调整为先接真实流式 ASR，再接真实 LLM；DISC-ASR-PROVIDER-001 正在独立可见窗口讨论。真实题库、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 正在冻结统一倾听员网页工作区、新建完整授权入口、已结束访谈最小回顾与本机副本管理；A1/A2/A3/008D 均等待 SPEC 项目负责人审查。真实题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；真实 ASR 的语言/方言范围、数据处理地区、speaker label 门槛与供应商；LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -155,6 +155,14 @@
 - Reason: 既有契约能可靠发布和替换问题，却没有规定问题内容从哪里来、陌生关系如何渐进，也无法阻止模型在内容真空中自由生成。把内容治理和旅程先冻结，才让排序、记忆与自动更新有明确优化目标。
 - Tradeoff: 增加 CSV 校验、不可变 release、阶段判断和 provenance；换取内容负责人可直接维护、问题来源可审计、首版可用 fixture 快速打通且不冒充产品内容。
 - Boundary: CSV 只作交换/编辑，数据库才是运行时事实；题库是正常内容源，不是 AI unavailable 静态兜底。固定题数/时间不能单独切阶段；synthetic fixture 仅限 test/internal demo，正式内部试用前必须导入负责人题库。DEV-007A 只交付基础设施与确定性 seam，B 在 A PASS 前不启动。
+
+### D-020 — 统一响应式倾听员工作区，本机副本删除与服务器隐私删除分离
+
+- Status: proposed；等待 SPEC-DEV-008A exact-head 项目负责人手动审查。
+- Evidence: 用户明确当前只做响应式网页、登录后不再长期依赖深链、A1→A2/A3 拆分、倾听员不导出、本机删除不等于 server deletion；当前代码的 home 仅提示深链，IndexedDB v4 保留 archive/legacy 数据，服务端 manifest 是长期权威。
+- Reason: 把 home、新建、回顾和删除继续聚在 DEV-008 会让 DEV-007/题库/导出错误阻塞实际可用入口，也会诱使本机清理冒充隐私删除。
+- Tradeoff: A1 需新增受 assignment 约束的 session read model，A3 需 IndexedDB 前向 upgrade、capture 共锁、单事务 legacy/all-report 清理和最小回执；换取唯一网页导航、诚实的数据所有权与可验证刷新语义。
+- Boundary: 当前不做 PWA/Capacitor/WebView/Android App；A2 不绕过正式口头授权；A3 不新增 server audio download 或 deletion request；DEV-008D 与 CON-023 保持独立真实试点门禁。
 
 ## Assumptions to Validate
 
@@ -1141,3 +1149,15 @@
 - Historical boundary: ADR-032、SPEC-ASR-PROVIDER-001、REV-039 与当时 wire-unknown/PASS 历史不改写；REV-040 只记录后续官方一手证据促成的 partial supersede。CON-027 继续 OPEN。
 - DEV handoff: DEV-ASR-PROVIDER-001 现可用同一虚构 TTS PCM、同一其余变量、单连接、`reconnect=0` 做恰好一次诊断；尚未执行。失败即保留最小安全证据并转腾讯支持，不做无界参数试错。
 - Verification boundary: 本次 PASS/merge 只接受 docs-only 契约，不证明 close 1005 因果，也不替代双人 label、三次 replay、桌面/Android、主动断线、账单、数据治理或完整 provider PASS；未修改业务代码、Prisma、migration、provider、密钥或部署，未连接腾讯。
+
+### 2026-08-12 — SPEC-DEV-008A 统一倾听员工作区与本机副本契约候选
+
+- User outcome: 当前只交付响应式网页，让倾听员登录后能从同一工作区新建、继续和回顾访谈；最小回顾管理当前 origin 的录音副本，但绝不冒充服务器隐私删除。
+- Review mode: Learning mode；恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。
+- Review finding: 现有 project/service-term/consent/session/start 语义足够冻结 A2；home 缺 project-session read model。IndexedDB v4 迁移后 legacy `chunks` 仍可能留 Blob，upload-jobs 还混存多个 generation interruption report；删除若只清 archive/formal job 会留下副本或恢复事实。storage estimate 只能说明 origin-wide 近似容量。
+- Options considered: 继续依赖深链并让 A2/A3 各建 UI；把回顾、导出和 server deletion 保持一个 DEV-008；先建共享 A1，再并行 A2/A3，008D 独立。采用第三种。
+- Adopted candidate: 唯一 authenticated home shell；A2 完整 project→service term→正式口头 consent→session/device-check/start；A3 播放本机完整 archive，并以 capture 共锁、fresh server preflight、单个 IndexedDB transaction 清 current/legacy/all reports、原子最小回执实现本机删除。倾听员不导出，不做 PWA/App/封装。
+- Implementation evidence: 同步 `00/01/03/04/05/06/08/09/10`、ADR-034、任务板/追踪/冲突/任务卡/交接与正式 `local-audio-archive-v1` Schema；没有修改业务代码、Prisma、migration、测试、部署、密钥或真实数据。
+- Verification boundary: SPEC 只到 REVIEW；A1/A2/A3/008D 全部 BLOCKED。没有实现 session list、UI、IndexedDB upgrade、播放、local delete 或 server delete；CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- Lesson: “设备上没有 Blob”与“隐私资料已删除”是不同事实。若既要删除恢复数据又要跨刷新诚实区分用户成功操作，就需要在同一原子事务保留无正文最小回执；浏览器清站连回执也消失时，原因必须回到 unknown，而不是通过猜测补齐审计。
+- Better future prompt: “先用唯一 home shell 建立列表与路由，再让新建和回顾复用它；本机副本删除与 capture 竞争同一锁，单事务覆盖 current/legacy 全部 session 记录并写最小回执，明确服务器资料仍保留。”

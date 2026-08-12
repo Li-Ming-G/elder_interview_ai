@@ -64,8 +64,14 @@
 | DEV-007 | 结构化访谈导演与 AI 下一问（父任务） | 项目负责人（聚合验收） | VERIFY | SPEC-QUESTION-DIRECTOR-001、DEV-007A、DEV-007B 均 PASS/merge | [父任务卡](tasks/DEV-007.md)、[聚合交接](handoffs/DEV-007.md)、ADR-027-031、REV-032/033/034/035/037/038、main merge `3bb80df` / CI `31468031796` PASS | A/B 子任务均已完成；父任务等待项目负责人对 main 集成点的聚合验收，不由子任务 PASS 自动推导为 DONE |
 | DEV-007A | 题库基础设施、旅程阶段与确定性选择 seam | Codex DEV-007A Agent | DONE | SPEC-QUESTION-JOURNEY-001 项目负责人 GitHub PASS | [任务卡](tasks/DEV-007A.md)、[最终交接](handoffs/DEV-007A.md)、[PR #24](https://github.com/Li-Ming-G/elder_interview_ai/pull/24)、[提示词](prompts/DEV-007A.md)、`04` §4.35A-4.35B、`05` §3.9.0、`09` §7.7、REV-035 | 项目负责人对 final head `6b8e69e1`、CI `31395799408` 定向复审 PASS，P0/P1=0；merge `7f9a173`。old head `5cea972` REQUEST_CHANGES/P1=2 永久保留；仅证明 synthetic fixture internal demo，正式题库仍缺失 |
 | DEV-007B | 结构化访谈导演与工作台集成 | Codex DEV-007B v2 Agent | DONE | SPEC-QUESTION-DIRECTOR-001 PASS/merge、DEV-007A PASS、DEV-006 DONE | [任务卡](tasks/DEV-007B.md)、[最终交接](handoffs/DEV-007B.md)、[PR #27](https://github.com/Li-Ming-G/elder_interview_ai/pull/27)、REV-038、[提示词](prompts/DEV-007B.md)、QuestionEvidence/current-memory seam、`09` §7.6-7.7 | 项目负责人对 final head `0f03c270`、CI `31465809589` 手动定向复审 PASS，P0/P1/P2=0；merge `3bb80df`。old head `5429172` REQUEST_CHANGES（P1=4/P2=1）永久保留；旧 PR #25 继续 REQUEST_CHANGES、不得合并 |
-| DEV-008 | 回顾、导出与删除 | 待分配 | BLOCKED | DEV-002、DEV-003、DEV-004、DEV-005、DEV-006、DEV-007、CON-006、CON-007 | `03`、`05`、`08`、`09` | 未拆分任务包含回顾 UI；开工前拆分并解决备份清理状态、删除摘要密钥轮换 |
-| QA-001 | MVP 集成与真实访谈验收 | 独立测试/审查 Agent | BLOCKED | DEV-001 至 DEV-008 | `09` | 等待全部研发任务 |
+| DEV-008 | 回顾、导出与删除（历史聚合任务） | 无 | CANCELLED | 已由 SPEC-DEV-008A 拆分 | `03`、`05`、`08`、`09`、ADR-034 | 未实施；旧依赖与 CON-006/007 历史保留。倾听员导出取消，工作区/回顾与正式服务器删除分别由 008A/008D 承接 |
+| SPEC-DEV-008A | 倾听员网页工作区、最小回顾与本机副本契约 | 独立 SPEC-DEV-008A 执行任务 | REVIEW | DEV-002/003/005 已交付 seam；不依赖 DEV-007 聚合验收 | [任务卡](tasks/SPEC-DEV-008A.md)、ADR-034、`local-audio-archive-v1`、CON-023 | docs-only 候选；等待非 Draft PR exact-head CI SUCCESS 后项目负责人手动审查，不得自行 PASS/DONE/merge |
+| DEV-008A | 倾听员网页工作区与最小回顾（父任务） | 待分配 | BLOCKED | SPEC-DEV-008A 项目负责人 PASS/merge；A1/A2/A3 聚合验收 | [父任务卡](tasks/DEV-008A.md) | 不含倾听员导出或正式服务器隐私删除；不依赖 DEV-007、题库、AI 问题历史或完整回顾 |
+| DEV-008A1 | 共享倾听员首页、列表与统一路由 | 待分配 | BLOCKED | SPEC-DEV-008A 项目负责人 exact-head PASS/merge | [任务卡](tasks/DEV-008A1.md)、`09` §10.3 | A1 必须先 PASS/merge；只拥有共享 shell、read model、routes、状态和视觉语义 |
+| DEV-008A2 | 新建访谈完整纵向入口 | 待分配 | BLOCKED | SPEC-DEV-008A、DEV-008A1 均 PASS/merge | [任务卡](tasks/DEV-008A2.md)、`09` §10.3 | project + service term + 正式口头 consent + session/device-check/start；draft 不冒充可开始 |
+| DEV-008A3 | 已结束访谈回顾与本机副本管理 | 待分配 | BLOCKED | SPEC-DEV-008A、DEV-008A1 均 PASS/merge；DEV-003/005 seam | [任务卡](tasks/DEV-008A3.md)、`09` §10.4、`local-audio-archive-v1` | local delete≠server delete；不含编辑、问题历史、导出或 server audio download |
+| DEV-008D | 正式服务器隐私删除与统一 scope guard | 待分配 | BLOCKED | 独立安全/数据治理计划、CON-023；SPEC-DEV-008A 不解锁 | [任务卡](tasks/DEV-008D.md)、`08` §14、`09` §8.2、CON-023 | 真实试点门禁；producer/read model、C2/AI 回接、物理/备份清理和审计仍 NOT IMPLEMENTED / NOT VERIFIED |
+| QA-001 | MVP 集成与真实访谈验收 | 独立测试/审查 Agent | BLOCKED | DEV-001 至 DEV-007、DEV-008A、DEV-008D 及其他真实试点门禁 | `09` | 等待全部适用研发任务与安全门禁 |
 
 ## 维护要求
 
