@@ -831,3 +831,14 @@ P2：
 - 语义修正：危险确认为非模态 `alertdialog`，不再虚构 `aria-modal=true`；仍默认聚焦安全的“取消”，真实键盘覆盖 Tab/Shift+Tab、Escape/取消回触发点、成功聚焦 live result、44px 与 visible focus。隐私文案逐项说明仅删当前浏览器/设备副本，服务器录音、转录、记忆和审计仍保留，正式隐私删除需走本页未提供的独立申请流程。
 - 失败历史：合并后首次 typecheck 因 Prisma client 未按 A2 schema 重新生成失败，运行正式 generate 后通过；首次 lint 发现已被 A2 新入口替代的 ComingSoonRoute 未使用，删除失效 import 后通过。fresh DB 编排曾因过短超时、PowerShell `${taskDb}` 插值和误用密码三次在有效迁移前失败，明确临时库均删除，随后按 `.env.example` 在新库全绿。首次 auth Chromium 把 API 端口改到 3106，但 Vite 正式代理固定 3101，登录前 5/5 失败；删除临时库后恢复 3101 并在另一新库 5/5 通过。未放宽目标或修改测试判定。
 - 边界：本记录不是 A3 PASS/DONE，也不替代 A3 exact-head 审查；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+
+### REV-046 final exact-head 接收与合并
+
+- accepted exact head：`93be9a27b93e763e56457668c78b5ac2a332bab4`；exact-head CI `31612276827` completed / success。合并前 PR #40 为 OPEN、非 Draft、base `main@5035c119fa5a3eeb7999d305f5c052672dc50d25`、CLEAN/MERGEABLE，head 与审查绑定无漂移。
+- 审查结论：项目负责人已授权总控完成本阶段 exact-head 审查，结论 `PASS`，P0=0、P1=0、P2=0；正式记录为 [issuecomment-5268932084](https://github.com/Li-Ming-G/elder_interview_ai/pull/40#issuecomment-5268932084)。
+- 接收范围：A1 唯一网页 shell 内的已结束访谈只读回顾、ordinary finalization total bytes runtime、完整本机 IndexedDB archive 校验播放、容量投影、capture 共锁、fresh server preflight、单事务本机副本删除与诚实隐私边界；A2 NewInterviewApi/new route/consent lifecycle 在整合 head 中继续完整保留。
+- 验证：fresh PostgreSQL 14 migrations deploy/status、integration 80/80、auth 23/23、unit 341/341、formal Schema 1/1、普通 Chromium 24/24（A2 5/5、A3 6/6）、auth Chromium 5/5，以及 format/lint/typecheck/build 全绿；exact-head CI 又完成完整 verify 链路。
+- 失败历史：reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 的 `REQUEST_CHANGES`、P1=1/P2=1，与 `f491d99` 中间修复 / CI `31606148505` 永久保留，不被 final PASS 覆盖。
+- 合并与集成：PR #40 按仓库 merge-commit 策略非 squash 合入，merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 的 parents 为 prior main `5035c119fa5a3eeb7999d305f5c052672dc50d25` 与 accepted head `93be9a27b93e763e56457668c78b5ac2a332bab4`；main CI `31613083916` completed / success。
+- 治理：DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- 未实现边界：本结论不宣称 server deletion/deletion_request、倾听员导出、PWA/Capacitor/WebView/App、真实 ASR/LLM、DEV-007 聚合验收、正式题库、真实试点或 MVP 发布完成。
