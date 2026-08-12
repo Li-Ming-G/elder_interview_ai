@@ -1208,3 +1208,11 @@
 - Verification boundary: 候选保持 REVIEW，等待非 Draft PR exact-head CI 与项目负责人手动审查；不自宣 PASS/DONE/merge。A2/A3/008D、服务器删除、导出、ASR/LLM/PWA/App、QuestionEvidence/题库/AI history 未实现，CON-023 不变。
 - Lesson: 幂等响应也是权限投影的一部分。即使 request identity 正确，权限在首次响应后下降时也不能原样回放更宽 DTO；必须先重新评估当前 ordinary access，再把回放裁到专属最小证据，且异步收束之后还要再次检查权限与 replay binding。
 - Better future prompt: “把当前 assignment/ordinary visibility、稳定 cursor 和服务端动作矩阵作为同一 read model；所有 typed deep link 重用该投影，降权幂等回放只能缩窄不能恢复正文，并用跨项目 cursor、created_by、permission drift、restricted/deleted 和 DTO 白名单反例验收。”
+
+### 2026-08-12 — DEV-008A1 exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人手动独立审查 PR #35 exact head `4bc1c00598801cb0d83f5da466b0c1d6514f3c74` / CI `31592543835`，正式结论 PASS，P0/P1/P2=0；GitHub 记录为 issuecomment `5266360647`。额外复核含定向 unit/component 24/24、全新 PostgreSQL 13 migrations 后 A1 集成反例 3/3 和三张 exact-candidate Chromium 截图目视检查。
+- Merge evidence: PR #35 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8`；对应 main CI `31593387265` completed / success。
+- Governance transition: DEV-008A1 REVIEW→DONE，DEV-008A2/A3 BLOCKED→READY，父 DEV-008A BLOCKED→IN_PROGRESS。A2/A3 已补齐 `10` §3 要求的正式任务字段，可在复用 A1 唯一 shell/routes/read model 的前提下独立并行；其 runtime 仍未实现。
+- Historical boundary: REV-043 `PENDING` 候选永久保留；本 PASS 只接收 A1 runtime/UI/security seam，不代表 A2 新建入口、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成。DEV-008D 保持 BLOCKED，CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。
+- Lesson: 下游解锁必须同时满足技术前置和治理可执行性。A1 PASS/merge 解除 A2/A3 的技术阻塞后，仍应在转 READY 前补齐正式任务字段和所有权边界；父任务进入进行中不等于任一未实现子任务已完成。
