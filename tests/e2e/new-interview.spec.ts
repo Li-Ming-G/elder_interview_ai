@@ -5,6 +5,13 @@ import { expect, test, type Page } from '@playwright/test';
 const ACTOR_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '20000000-0000-4000-8000-000000000001';
 
+test.use({
+  launchOptions: {
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  },
+  permissions: ['microphone'],
+});
+
 for (const viewport of [
   { height: 900, label: 'desktop', width: 1440 },
   { height: 844, label: 'mobile', width: 390 },
@@ -93,6 +100,40 @@ test('unknown project response survives reload and replays only the original req
   expect(seenRequestIds[1]).toBe(seenRequestIds[0]);
 });
 
+test('SPA return stops consent recording and re-entry resumes the same audio job', async ({
+  page,
+}) => {
+  await observeNativeConsentCapture(page);
+  await routeNewInterview(page, []);
+  await page.goto('/interviews/new');
+  await page.getByLabel('姓名、昵称或项目代号').fill('虚构离页授权长者');
+  await page.getByRole('button', { name: '创建项目并继续' }).click();
+  await page.getByRole('button', { name: '已说明并保存' }).click();
+  await page.getByRole('button', { name: '录制授权' }).click();
+  await expect(page.getByText(/正在录制 ·/)).toBeVisible();
+  await page.waitForTimeout(1_100);
+
+  await page.getByRole('button', { name: '返回工作区' }).click();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
+  await expectConsentMediaReleased(page);
+  const first = await readConsentAudioState(page);
+  expect(first.jobs).toHaveLength(1);
+  expect(first.jobs[0]?.expectedChunkCount).toBeNull();
+  expect(first.archiveCount).toBeGreaterThan(0);
+
+  await page.goto('/interviews/new');
+  await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
+  await expect(page.getByText(/存在可恢复的授权录音记录/)).toBeVisible();
+  await page.getByRole('button', { name: '继续录制授权' }).click();
+  await expect(page.getByText(/正在录制 ·/)).toBeVisible();
+  const resumed = await readConsentAudioState(page);
+  expect(resumed.jobs).toHaveLength(1);
+  expect(resumed.jobs[0]?.jobId).toBe(first.jobs[0]?.jobId);
+
+  await page.getByRole('button', { name: '返回工作区' }).click();
+  await expectConsentMediaReleased(page);
+});
+
 async function routeNewInterview(page: Page, requestIds: string[]): Promise<void> {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -155,4 +196,82 @@ function projectAck(body: Record<string, unknown>): Record<string, unknown> {
 
 function withoutRequestId(body: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'request_id'));
+}
+
+async function observeNativeConsentCapture(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const observed = {
+      recorders: [] as MediaRecorder[],
+      tracks: [] as MediaStreamTrack[],
+    };
+    Object.defineProperty(globalThis, '__consentCaptureObserved', { value: observed });
+    const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async (constraints): Promise<MediaStream> => {
+      const stream = await nativeGetUserMedia(constraints);
+      observed.tracks.push(...stream.getTracks());
+      return stream;
+    };
+    const NativeMediaRecorder = globalThis.MediaRecorder;
+    globalThis.MediaRecorder = class ObservedMediaRecorder extends NativeMediaRecorder {
+      public constructor(stream: MediaStream, options?: MediaRecorderOptions) {
+        super(stream, options);
+        observed.recorders.push(this);
+      }
+    };
+  });
+}
+
+async function expectConsentMediaReleased(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const observed = (
+          globalThis as typeof globalThis & {
+            __consentCaptureObserved: {
+              recorders: MediaRecorder[];
+              tracks: MediaStreamTrack[];
+            };
+          }
+        ).__consentCaptureObserved;
+        return {
+          recordersInactive:
+            observed.recorders.length > 0 &&
+            observed.recorders.every((recorder) => recorder.state === 'inactive'),
+          tracksEnded:
+            observed.tracks.length > 0 &&
+            observed.tracks.every((track) => track.readyState === 'ended'),
+        };
+      }),
+    )
+    .toEqual({ recordersInactive: true, tracksEnded: true });
+}
+
+async function readConsentAudioState(page: Page): Promise<{
+  archiveCount: number;
+  jobs: Array<{ expectedChunkCount: number | null; jobId: string }>;
+}> {
+  return page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const open = indexedDB.open('elder-interview-audio-buffer');
+        open.onerror = (): void => {
+          reject(open.error ?? new Error('audio buffer database open failed'));
+        };
+        open.onsuccess = (): void => {
+          const database = open.result;
+          const transaction = database.transaction(['archive-chunks', 'upload-jobs'], 'readonly');
+          const archives = transaction.objectStore('archive-chunks').getAll();
+          const jobs = transaction.objectStore('upload-jobs').getAll();
+          transaction.onerror = (): void => {
+            reject(transaction.error ?? new Error('audio buffer read failed'));
+          };
+          transaction.oncomplete = (): void => {
+            resolve({
+              archiveCount: (archives.result as unknown[]).length,
+              jobs: jobs.result as Array<{ expectedChunkCount: number | null; jobId: string }>,
+            });
+          };
+        };
+      }),
+  );
 }

@@ -1245,3 +1245,12 @@
 - Lesson: “先持久化再联网”不仅是生成 UUID 的顺序，还要求动作锁在持久化之前接管，否则极窄双击窗口仍可能让本地权威记录与实际首个 POST 分叉。授权音频恢复同理：未冻结 job 可续录，已冻结 job 只能重放保存，不得追加新内容。
 - Better future prompt: “为每个 create 把 pre-network durable identity、payload freeze、unknown-only replay、server binding 和 response ACK 写成同一个状态机；把 UI 双击锁放在持久化之前，并明确 frozen audio job 只能继续保存，不能重新录制。”
 - Verification boundary: 当前只请求 exact-head 手动审查，不自宣 PASS/DONE/merge；不关闭真实授权文本、真实 PII/试点、服务器删除、A3、ASR/LLM/PWA 等后续门禁。
+
+### 2026-08-12 — DEV-008A2 授权录音离页释放 P1 定向修复
+
+- Review evidence: PR #39 old exact head `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` 自动门禁全绿，但独立审查仍发现 P1：SPA 离开 consent_audio 页面不会自动触发整页卸载，旧 cleanup 只清引用，MediaRecorder/MediaStream 可能继续占用麦克风。
+- Correction: 沿用本物质迭代已执行的唯一只读复核，不重复 iteration-coach。为 capture 增加可等待、幂等 dispose；显式返回先释放再导航，unmount 是第二防线，listener 与所有异步消息均受 mounted guard；dispose 后实例不可复用。
+- Data boundary: 离页停止只把 MediaRecorder 的最终 dataavailable 写入既有可靠暂存；不 freeze/upload/complete、不删除分片、不更换 job/request identity。重进继续同一 `expectedChunkCount=null` job。
+- Verification evidence: 定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 通过；真实浏览器直接验证 recorder inactive、所有 track ended、单一 job 与已有 archive 分片保持。静态、lint、typecheck、build、diff 全绿。
+- Lesson: SPA 页面所有权结束不是浏览器采集生命周期结束；涉及麦克风的 controller 必须显式拥有“可等待释放”契约，用户导航与组件卸载都调用同一路径，同时把采集停止与业务 complete 严格分开。
+- Verification boundary: old head 的 REQUEST_CHANGES/P1=1 永久保留；当前仍是定向修复候选，保持 REVIEW，等待新 exact-head CI 与外部复审，不扩 A3/008D/导出/ASR/LLM/PWA。

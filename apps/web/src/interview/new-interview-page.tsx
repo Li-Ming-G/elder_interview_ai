@@ -11,7 +11,7 @@ import type {
 
 import { HomeFrame, StatusBadge } from '../home/home-shell.js';
 import type { AudioCaptureSnapshot } from '../audio/browser-audio-recorder.js';
-import { BrowserConsentCapture } from './browser-consent-capture.js';
+import { BrowserConsentCapture, type ConsentCapture } from './browser-consent-capture.js';
 import type { NewInterviewApi } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import {
@@ -48,14 +48,14 @@ const EMPTY_CAPTURE: AudioCaptureSnapshot = {
 export function NewInterviewPage({
   actorId,
   api,
-  captureFactory = (): BrowserConsentCapture => new BrowserConsentCapture(),
+  captureFactory = (): ConsentCapture => new BrowserConsentCapture(),
   csrfToken,
   navigate,
   workflowStore,
 }: {
   actorId: string;
   api: NewInterviewApi;
-  captureFactory?: () => BrowserConsentCapture;
+  captureFactory?: () => ConsentCapture;
   csrfToken: string;
   navigate: (path: string, replace?: boolean) => void;
   workflowStore?: IndexedDbNewInterviewWorkflowStore;
@@ -69,7 +69,9 @@ export function NewInterviewPage({
   const [message, setMessage] = useState<string | null>(null);
   const [captureSnapshot, setCaptureSnapshot] = useState(EMPTY_CAPTURE);
   const actionLock = useRef(false);
-  const capture = useRef<BrowserConsentCapture | null>(null);
+  const capture = useRef<ConsentCapture | null>(null);
+  const captureUnsubscribe = useRef<(() => void) | null>(null);
+  const mounted = useRef(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,13 +95,18 @@ export function NewInterviewPage({
 
   useEffect(() => {
     return (): void => {
+      mounted.current = false;
+      const controller = capture.current;
       capture.current = null;
+      if (controller !== null) void controller.dispose().catch(() => undefined);
+      captureUnsubscribe.current?.();
+      captureUnsubscribe.current = null;
     };
   }, []);
 
   async function save(workflow: NewInterviewWorkflow): Promise<void> {
     await store.put(workflow);
-    setPage({ kind: 'ready', workflow });
+    if (mounted.current) setPage({ kind: 'ready', workflow });
   }
 
   async function runCreate<Response>(
@@ -116,9 +123,9 @@ export function NewInterviewPage({
     } catch (error) {
       if (isUnknownResponse(error)) {
         await save(markUnknown(workflow, attempt.requestId));
-        setMessage('服务响应未知。为避免重复记录，只能使用原请求编号重试。');
+        showMessage('服务响应未知。为避免重复记录，只能使用原请求编号重试。');
       } else {
-        setMessage(readableError(error));
+        showMessage(readableError(error));
       }
       return null;
     } finally {
@@ -130,13 +137,13 @@ export function NewInterviewPage({
     if (actionLock.current) return false;
     actionLock.current = true;
     setBusy(true);
-    setMessage(null);
+    showMessage(null);
     return true;
   }
 
   function endAction(): void {
     actionLock.current = false;
-    setBusy(false);
+    if (mounted.current) setBusy(false);
   }
 
   async function submitProject(event: SyntheticEvent<HTMLFormElement>): Promise<void> {
@@ -161,7 +168,7 @@ export function NewInterviewPage({
         workflow = { ...workflow, projectAttempt: attempt };
         await save(workflow);
       } catch (error) {
-        setMessage(readablePreparationError(error));
+        showMessage(readablePreparationError(error));
         return;
       } finally {
         endAction();
@@ -207,7 +214,7 @@ export function NewInterviewPage({
         workflow = { ...workflow, serviceTermAttempt: attempt };
         await save(workflow);
       } catch (error) {
-        setMessage(readablePreparationError(error));
+        showMessage(readablePreparationError(error));
         return;
       } finally {
         endAction();
@@ -247,9 +254,10 @@ export function NewInterviewPage({
         await save({ ...workflow, consentAudioJobId: jobId });
       const controller = consentCapture();
       await controller.start(jobId, projectId);
-      setMessage('正在录制授权。请完整朗读固定文本，并请长者明确表达同意。');
+      if (mounted.current && capture.current === controller)
+        showMessage('正在录制授权。请完整朗读固定文本，并请长者明确表达同意。');
     } catch (error) {
-      setMessage(readableAudioError(error));
+      showMessage(readableAudioError(error));
     } finally {
       endAction();
     }
@@ -270,9 +278,9 @@ export function NewInterviewPage({
         consentAudioObjectId: audioObjectId,
         step: 'consent',
       });
-      setMessage('授权录音已完整保存，可以登记正式口头授权。');
+      showMessage('授权录音已完整保存，可以登记正式口头授权。');
     } catch (error) {
-      setMessage(`授权录音尚未完整保存：${readableAudioError(error)}。请使用同一上传记录重试。`);
+      showMessage(`授权录音尚未完整保存：${readableAudioError(error)}。请使用同一上传记录重试。`);
     } finally {
       endAction();
     }
@@ -305,7 +313,7 @@ export function NewInterviewPage({
         workflow = { ...workflow, consentAttempt: attempt };
         await save(workflow);
       } catch (error) {
-        setMessage(readablePreparationError(error));
+        showMessage(readablePreparationError(error));
         return;
       } finally {
         endAction();
@@ -340,7 +348,7 @@ export function NewInterviewPage({
         workflow = { ...workflow, sessionAttempt: attempt };
         await save(workflow);
       } catch (error) {
-        setMessage(readablePreparationError(error));
+        showMessage(readablePreparationError(error));
         return;
       } finally {
         endAction();
@@ -365,12 +373,34 @@ export function NewInterviewPage({
     if (response !== null) navigate(preparationPath(projectId, response.id), true);
   }
 
-  function consentCapture(): BrowserConsentCapture {
+  function consentCapture(): ConsentCapture {
     if (capture.current === null) {
       capture.current = captureFactory();
-      capture.current.subscribe(setCaptureSnapshot);
+      captureUnsubscribe.current = capture.current.subscribe((snapshot): void => {
+        if (mounted.current) setCaptureSnapshot(snapshot);
+      });
     }
     return capture.current;
+  }
+
+  function showMessage(value: string | null): void {
+    if (mounted.current) setMessage(value);
+  }
+
+  async function returnToWorkspace(): Promise<void> {
+    if (!beginAction()) return;
+    try {
+      const controller = capture.current;
+      capture.current = null;
+      if (controller !== null) await controller.dispose();
+      captureUnsubscribe.current?.();
+      captureUnsubscribe.current = null;
+      endAction();
+      navigate('/');
+    } catch {
+      showMessage('麦克风已停止，但本地分片状态需要核对；请留在本页重试或刷新恢复同一录音记录。');
+      endAction();
+    }
   }
 
   if (page.kind === 'loading') {
@@ -427,12 +457,11 @@ export function NewInterviewPage({
         </div>
         <button
           className="button button--secondary"
-          onClick={() => {
-            navigate('/');
-          }}
+          disabled={busy}
+          onClick={() => void returnToWorkspace()}
           type="button"
         >
-          返回工作区
+          {busy ? '正在安全停止…' : '返回工作区'}
         </button>
       </header>
 

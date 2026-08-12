@@ -774,9 +774,17 @@ P2：
 
 ## REV-045｜DEV-008A2 新建访谈完整纵向入口实现候选
 
-- 审查对象：[非 Draft PR #39](https://github.com/Li-Ming-G/elder_interview_ai/pull/39)，branch `codex/dev-008a2-new-interview`，启动 base `51e2337ea86739e209ad696804de7decbcf7a9df`，最终整合 base `4fc46456869ab01d9880d1aa92e7cd838bf920a8`；final exact head 与 exact-head CI 待后续绑定。
+- 审查对象：[非 Draft PR #39](https://github.com/Li-Ming-G/elder_interview_ai/pull/39)，branch `codex/dev-008a2-new-interview`，启动 base `51e2337ea86739e209ad696804de7decbcf7a9df`，最终整合 base `4fc46456869ab01d9880d1aa92e7cd838bf920a8`；old exact head `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` SUCCESS。
 - 当前结论：`PENDING / REVIEW`。本记录只由执行 Agent整理候选证据与请求手动审查，不是 PASS；不得标记 DONE 或合并。
 - iteration-coach：开工前恰好一次独立只读 Learning 复核，结论 `NO-PAUSE`。复核确认 A2 四 create 的 DTO/Prisma/service/IndexedDB 缺口和 `mvp-v1` start version gate 均已有正式契约，未要求新增产品或公共语义。
 - 候选实现：A1 唯一 Home 内完成 project→service term→fresh consent audio→recorded-verbal consent→session→prepare/device-check→start；四 create 首次联网前持久稳定 request ID 与 frozen payload，authoritative replay 绑定 actor/action/target-or-project-create-identity/RFC 8785 payload hash；普通 UI 不含 electronic/written。
 - 候选安全证据：fresh PostgreSQL 14 migrations 后 integration 80/80；版本漂移、撤权、assignment drift start 均失败且零 audio；同 ID 异 actor/action/target/payload 409 且无重复业务/历史/审计。真实 auth Chromium 5/5，新入口 4/4，unit 316/316，三视口截图目视检查。
 - 范围边界：不含 A3 回顾/播放/local delete、008D/server deletion、导出、ASR/LLM/007、PWA/App。CON-012 只通过每次授权新音频对象规避，CON-023 不变；真实授权文本审查和真实长者/PII 试点门禁未关闭。
+
+### REV-045 old exact-head 独立审查与 P1 定向修复候选
+
+- 正式旧结论：old head `d240afd31bc94015e10b01b179550088ed85083d`、CI `31600521245` 虽全绿，独立审查仍为 `REQUEST_CHANGES`，P0=0、P1=1；DEV-008A2 保持 REVIEW，PR 不得合并。
+- P1：授权录音中“返回工作区”仍启用，SPA `pushState` 不触发整页 unload；页面 cleanup 只丢弃引用，capture 无 dispose，导致 MediaRecorder/MediaStream 可能继续持有麦克风并写分片，而 UI 已失去停止入口。
+- 定向候选：`BrowserConsentCapture.dispose()` 可等待且幂等，等待并发 start 后停止 recorder/track，再退订全部 listener并封闭实例；页面显式返回等待 dispose 后导航，unmount 执行同一防线，mounted guard 阻断异步状态写入。
+- 数据边界：dispose 不 freeze、不 upload、不 complete、不删除 archive/delivery/job，也不生成新 job/ID。真实 Chromium 验证 recorder inactive、全部 track ended、已有分片保留、仅一个未冻结 job，重进继续相同 job ID。
+- 候选证据：定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 与 format/lint/typecheck/build/diff 全绿。等待新 exact head/CI 与该 P1 的定向复审；本记录不构成 PASS/DONE/merge。
