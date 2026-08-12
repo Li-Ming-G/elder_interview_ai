@@ -10,7 +10,7 @@
 
 - base：`origin/main@9c00d892e722f9973990698c8a7a52e5810833d7`
 - branch：`codex/spec-asr-wire-param-001`
-- PR：创建后记录到当前任务板与审查索引
+- PR：[non-Draft #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29)
 
 ## 精确契约变更
 
@@ -34,5 +34,5 @@
 
 - 本轮不读取密钥、不连接腾讯、不执行真实音频验证。
 - 本地 `git diff --check` 通过；腾讯 profile 可由 Node `JSON.parse` 解析；`pnpm format:check` 通过。
-- exact-head CI 结果以 non-Draft PR 的 GitHub checks 为准。
+- exact-head CI 结果以 non-Draft [PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) 的 GitHub checks 为准。
 - 待项目负责人：手动 GitHub 审查 non-Draft PR exact head；任务在此之前保持 REVIEW。

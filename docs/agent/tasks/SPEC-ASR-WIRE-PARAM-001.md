@@ -6,7 +6,7 @@
 
 ## 状态
 
-状态只以 `docs/agent/00-task-board.md` 为准。当前为 `REVIEW`；必须等待项目负责人对 non-Draft PR exact head 手动审查，执行 Agent 不得宣布 PASS、DONE、merge。
+状态只以 `docs/agent/00-task-board.md` 为准。当前为 `REVIEW`；[PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) 为 non-Draft，必须等待项目负责人对其 exact head 手动审查，执行 Agent 不得宣布 PASS、DONE、merge。
 
 ## 历史与修正方式
 
