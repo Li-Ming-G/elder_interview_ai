@@ -736,3 +736,13 @@ P2：
 - 合并与集成：PR #33 以 merge commit `18ba7381f7ba747c2fb3beefe28297c6d063a174` 合入 main；main CI `31587442461` completed / success。
 - 治理：SPEC-DEV-008A1-ACCESS DONE、ADR-035 Accepted、CON-028 RESOLVED、DEV-008A1 READY；父 DEV-008A、A2、A3、008D 保持 BLOCKED，CON-023 继续 OPEN。
 - 历史与范围：上方 `PENDING` 候选与唯一 Correction 历史永久保留。本次只接收 docs/shared-contract 安全接缝，不代表 A1 handler/repository/cursor/routes/UI、Prisma/migration 或运行时安全测试已实现。
+
+## REV-043｜DEV-008A1 runtime 实现候选
+
+- 审查对象：[PR #35](https://github.com/Li-Ming-G/elder_interview_ai/pull/35) / `codex/dev-008a1-listener-home` 相对 `origin/main@d82e14da6796ae8ead9a33a85083abd3c53ed803` 的 A1 runtime/UI/test/governance 候选；implementation commit `5e0dd7a1c4ff2a6068ba5c0b7bccfd73b69bf567`，final exact head 与 exact-head CI 由最终审查包绑定。
+- 当前结论：`PENDING`。DEV-008A1 保持 `REVIEW`，父 DEV-008A 与 A2/A3/008D 保持 `BLOCKED`；执行 Agent 不得自行给出 PASS/DONE、不得合并。
+- iteration-coach：严格复用 A1 开工前恰好一次独立只读 Correction；该 Correction 促成 SPEC-DEV-008A1-ACCESS、ADR-035 和 CON-028 的已审安全契约。本恢复实现未启动第二次复核。
+- 候选内容：唯一 authenticated Home、formal project/session read model、签名绑定 cursor、服务端唯一动作矩阵、restricted 中性最小投影、普通深链失败关闭、created_by 非授权、专属 evidence-finalization seam、A2/A3 明确未实现路由壳与共享三视口 UI。
+- 本地证据：fresh PostgreSQL 13 migrations deploy/status、integration 79/79、auth 23/23；unit 309/309；普通 Chromium 13/13、auth Chromium 4/4；build/smoke/format/lint/typecheck/diff 通过；1440×900、390×844、320×568 真实 Chromium 无横向溢出且满足 focus/live region/reduced motion/44px。
+- 待审重点：restricted/hidden rows 字段闭合；cursor tamper/cross-project/permission drift；session/finalization `created_by` 与 idempotency replay 降权；ordinary reader 和 evidence DTO 隔离；typed review/save-facts 深链不能绕过服务端 action；A2/A3/删除/导出/ASR/LLM/QuestionEvidence 不越界。
+- 范围：无 Prisma schema/migration，未实现 A2/A3/008D、服务器删除、导出、PWA/App、ASR/LLM 或 QuestionEvidence/题库/AI history。绿色本地或 GitHub CI 不自动构成项目负责人审查 PASS。

@@ -5,6 +5,7 @@ import type {
   CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
+  ProjectListResponse,
   ProjectResponse,
   ServiceTermResponse,
   StartSessionRequest,
@@ -24,7 +25,14 @@ import { PrismaService } from '../database/prisma.service.js';
 import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { evaluateInterviewStartGate } from './interview-start-policy.js';
-import { mapConsent, mapInterviewSession, mapProject, mapServiceTerm } from './project.mapper.js';
+import {
+  mapConsent,
+  mapInterviewSession,
+  mapProject,
+  mapProjectListOrdinary,
+  mapProjectListRestricted,
+  mapServiceTerm,
+} from './project.mapper.js';
 import { ProjectAccessService, type ProjectAccessSnapshot } from './project-access.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 
@@ -86,7 +94,7 @@ export class ProjectFoundationService {
     return mapProject(project);
   }
 
-  public async listProjects(actor: AuthPrincipal): Promise<ProjectResponse[]> {
+  public async listProjects(actor: AuthPrincipal): Promise<ProjectListResponse> {
     await this.authorization.assertRole(actor, ['interviewer']);
     const projects = await this.prisma.elderProject.findMany({
       orderBy: { updatedAt: 'desc' },
@@ -96,11 +104,17 @@ export class ProjectFoundationService {
         status: { not: 'deleted' },
       },
     });
-    return projects.map(mapProject);
+    return {
+      items: projects.map((project) =>
+        project.status === 'restricted'
+          ? mapProjectListRestricted(project.id)
+          : mapProjectListOrdinary(project),
+      ),
+    };
   }
 
   public async getProject(actor: AuthPrincipal, projectId: string): Promise<ProjectResponse> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     const project = await this.prisma.elderProject.findUniqueOrThrow({ where: { id: projectId } });
     return mapProject(project);
   }
@@ -153,7 +167,7 @@ export class ProjectFoundationService {
     actor: AuthPrincipal,
     projectId: string,
   ): Promise<ServiceTermResponse[]> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     return (
       await this.prisma.serviceTerm.findMany({
         orderBy: [{ effectiveFrom: 'desc' }, { id: 'desc' }],
@@ -221,7 +235,7 @@ export class ProjectFoundationService {
   }
 
   public async listConsents(actor: AuthPrincipal, projectId: string): Promise<ConsentResponse[]> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     return (
       await this.prisma.consentRecord.findMany({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -415,7 +429,7 @@ export class ProjectFoundationService {
   ): Promise<InterviewSessionResponse> {
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null) throw this.notFound();
-    await this.assertInterviewerProject(actor, session.projectId);
+    await this.assertInterviewerProjectRead(actor, session.projectId);
     return mapInterviewSession(session);
   }
 
@@ -638,6 +652,14 @@ export class ProjectFoundationService {
   ): Promise<ProjectAccessSnapshot> {
     await this.authorization.assertRole(actor, ['interviewer']);
     return this.access.assertCanAccess(actor, projectId);
+  }
+
+  private async assertInterviewerProjectRead(
+    actor: AuthPrincipal,
+    projectId: string,
+  ): Promise<ProjectAccessSnapshot> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    return this.access.assertCanReadOrdinary(actor, projectId);
   }
 
   private async assertActiveAssignment(

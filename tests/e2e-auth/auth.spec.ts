@@ -10,12 +10,11 @@ test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecy
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
-  await expect(page.getByText('虚构倾听员 A')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   expect(await page.evaluate(() => document.cookie)).not.toContain('elder_interview_session');
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
 
   await page.evaluate(async () => fetch('/api/v1/auth/csrf'));
 
@@ -54,11 +53,11 @@ test('logout failure preserves the authenticated UI state', async ({ page }) => 
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   await page.route('**/api/v1/auth/logout', async (route) => route.fulfill({ status: 403 }));
   await page.route('**/api/v1/auth/csrf', async (route) => route.fulfill({ status: 500 }));
   await page.getByRole('button', { name: '退出登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('退出失败');
 });
 
@@ -69,7 +68,7 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   const projectId = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const csrf = (await csrfResponse.json()) as { csrf_token: string };
@@ -128,7 +127,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   const { audioStreamId, sessionId } = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };

@@ -19,7 +19,7 @@ describe('App', () => {
     expect(screen.getByText(/登录后继续已分配的访谈准备/)).toBeTruthy();
   });
 
-  it('restores an authenticated session and keeps the root as a deep-link entry', async () => {
+  it('restores an authenticated session into the unified empty home', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -35,12 +35,13 @@ describe('App', () => {
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ csrf_token: 'opaque' }), { status: 200 }),
-      );
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     render(<App />);
-    expect(await screen.findByRole('heading', { name: '已登录' })).toBeTruthy();
-    expect(screen.getByText(/正式访谈深链/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeTruthy();
+    expect(await screen.findByText(/还没有已分配的项目/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('reports restore errors without claiming an authenticated state', async () => {

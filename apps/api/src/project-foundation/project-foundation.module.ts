@@ -12,6 +12,7 @@ import {
 import { ProjectFoundationController } from './project-foundation.controller.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { ProjectSessionListService } from './project-session-list.service.js';
 import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
@@ -42,6 +43,7 @@ export function createProjectFoundationModule(
       ProjectAccessService,
       ProjectFoundationService,
       ProjectRequestActorService,
+      ProjectSessionListService,
       SessionCaptureService,
       SessionFinalizationService,
       SessionSnapshotService,

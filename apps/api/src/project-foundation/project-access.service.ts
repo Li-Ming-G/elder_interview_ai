@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import type { AuthPrincipal, DerivedResourceContext } from '../auth/auth.types.js';
 
@@ -52,6 +52,17 @@ export class ProjectAccessService {
       assignedUserIds: project.assignedUserIds,
       ownerUserId: null,
     });
+    return project;
+  }
+
+  public async assertCanReadOrdinary(
+    actor: AuthPrincipal,
+    projectId: string,
+  ): Promise<ProjectAccessSnapshot> {
+    const project = await this.assertCanAccess(actor, projectId);
+    if (project.status === 'restricted') {
+      throw new ForbiddenException({ code: 'FORBIDDEN', details: {}, message: 'Access denied' });
+    }
     return project;
   }
 }
