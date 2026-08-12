@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立 SPEC-DEV-008A 执行任务
 - 分支：`codex/spec-dev-008a-listener-workspace`
 - 基线：`origin/main@a349f8947eabe2eb5444ed2cf3c20e386c75bdb5`
@@ -67,9 +67,9 @@
 ## 实现拆分与状态
 
 1. `DEV-008A`：父聚合，`BLOCKED`；只汇总 A1/A2/A3，不单独实现；
-2. `DEV-008A1`：`BLOCKED`，等待本 SPEC exact-head PASS/merge；
-3. `DEV-008A2`：`BLOCKED`，等待本 SPEC 与 A1 PASS/merge；
-4. `DEV-008A3`：`BLOCKED`，等待本 SPEC 与 A1 PASS/merge；
+2. `DEV-008A1`：`READY`，本 SPEC exact-head PASS/merge 前置已满足；
+3. `DEV-008A2`：`BLOCKED`，本 SPEC 前置已满足，仍等待 A1 PASS/merge；
+4. `DEV-008A3`：`BLOCKED`，本 SPEC 前置已满足，仍等待 A1 PASS/merge；
 5. `DEV-008D`：`BLOCKED`，正式删除独立安全任务；不由本 SPEC 解锁。
 
 本 SPEC PASS/merge 后只解锁 A1；A1 PASS/merge 后 A2/A3 才可由独立任务并行。
@@ -88,12 +88,14 @@
 - 正式 machine contract：`docs/contracts/local-audio-archive-v1.schema.json`；
 - `pnpm format:check`、`git diff --check`、JSON Schema parse/structure、Markdown 内链/ID/状态/术语/docs-only diff 检查；
 - 仓库完整 CI 对 exact final head SUCCESS；
-- 非 Draft PR，最终停在 `REVIEW`，仅请求项目负责人手动审查。
+- 候选阶段以非 Draft PR 停在 `REVIEW` 并请求项目负责人手动审查；获得授权 exact-head PASS、merge 与 main CI 后才由独立治理 closeout 转 `DONE`。
 
 ## iteration-coach
 
 本任务恰好一次独立只读复核采用 Learning mode，结论 `NO-PAUSE`。已吸收：现有正式授权语义足够冻结 A2；新增 assignment-safe session read model；A1 后 A2/A3 并行；删除共用 capture lock；单事务覆盖 legacy/all reports 并写最小回执；容量与清站投影分层。
 
-## 当前审查候选
+## 最终审查与接收
 
-REV-041 已对 PR #31 old exact head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 给出 `REQUEST_CHANGES`，P0=0、P1=3。旧结论永久保留；当前只形成三项定向修复候选，尚未获得项目负责人定向复审。push、PR 与 CI 成功均不构成 PASS；任务保持 `REVIEW`，A1/A2/A3/008D 保持 `BLOCKED`。
+REV-041 首轮对 PR #31 old exact head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 给出 `REQUEST_CHANGES`，P0=0、P1=3；该历史永久保留。项目负责人随后明确授权总控对 final exact head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` 手动定向复审并给出 `PASS`，P0/P1=0；GitHub 记录见 [issuecomment-5263644971](https://github.com/Li-Ming-G/elder_interview_ai/pull/31#issuecomment-5263644971)。PR #31 以 merge commit `91e5e7ed042f598359827ae63daf464e12e2ef76` 合入 main，main CI `31573985661` SUCCESS。
+
+本 SPEC 因此 `DONE`，ADR-034 `Accepted`，仅 DEV-008A1 转 `READY`。父 DEV-008A、A2、A3、008D 保持 `BLOCKED`；A2/A3 等待 A1 PASS/merge，CON-023 继续 OPEN。
