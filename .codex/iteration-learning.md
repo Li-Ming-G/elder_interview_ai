@@ -1133,3 +1133,11 @@
 - Adopted decision: pending project-owner review；任务 `SPEC-ASR-WIRE-PARAM-001`、ADR-033 与正式契约候选保持 REVIEW。ADR-032、SPEC-ASR-PROVIDER-001、REV-039 和既有 PASS/merge 历史永久保留，CON-027 继续 OPEN。
 - Verification boundary: 本轮 docs-only，不改业务代码、Prisma、migration、provider、密钥或部署，不连接腾讯。单次诊断不证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并走腾讯支持。
 - Better future prompt: “请把供应商实际 query map、canonical query 和签名覆盖作为一个不可分割的契约，并为 required、omit 和 empty 分别提供机械可验证表示；后续一手证据推翻 Accepted ADR 的事实前提时，只新增 partial-supersede 决定，不改写历史正文。”
+
+### 2026-08-12 — SPEC-ASR-WIRE-PARAM-001 exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人对 PR #29 final exact head `650f856c918639a7b992294b805873d7052ab44e` 手动 PASS，P0/P1/P2=0；exact-head CI `31556525476` SUCCESS。执行 Agent 先前保持 REVIEW 的候选历史永久保留。
+- Adopted decision: ADR-033 Accepted，正式腾讯 profile 固定 `speaker_diarization=1`、`enable_speaker_context=0` 必发并签名，`speaker_context_id` 严格省略。总控按 exact head 合并，merge/main 集成点 `1e18ea83cd5a1d4953bb92fd251637ed6107c322`，main CI `31560488220` SUCCESS；SPEC-ASR-WIRE-PARAM-001 DONE。
+- Historical boundary: ADR-032、SPEC-ASR-PROVIDER-001、REV-039 与当时 wire-unknown/PASS 历史不改写；REV-040 只记录后续官方一手证据促成的 partial supersede。CON-027 继续 OPEN。
+- DEV handoff: DEV-ASR-PROVIDER-001 现可用同一虚构 TTS PCM、同一其余变量、单连接、`reconnect=0` 做恰好一次诊断；尚未执行。失败即保留最小安全证据并转腾讯支持，不做无界参数试错。
+- Verification boundary: 本次 PASS/merge 只接受 docs-only 契约，不证明 close 1005 因果，也不替代双人 label、三次 replay、桌面/Android、主动断线、账单、数据治理或完整 provider PASS；未修改业务代码、Prisma、migration、provider、密钥或部署，未连接腾讯。

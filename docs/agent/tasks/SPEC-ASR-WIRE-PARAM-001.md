@@ -6,12 +6,12 @@
 
 ## 状态
 
-状态只以 `docs/agent/00-task-board.md` 为准。当前为 `REVIEW`；[PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) 为 non-Draft，必须等待项目负责人对其 exact head 手动审查，执行 Agent 不得宣布 PASS、DONE、merge。
+状态只以 `docs/agent/00-task-board.md` 为准。[PR #29](https://github.com/Li-Ming-G/elder_interview_ai/pull/29) exact head `650f856c918639a7b992294b805873d7052ab44e`、CI `31556525476` 已获项目负责人手动 PASS（P0/P1/P2=0），并以 merge commit `1e18ea83cd5a1d4953bb92fd251637ed6107c322` 合入 main；main CI `31560488220` SUCCESS，任务已治理收口为 `DONE`。
 
 ## 历史与修正方式
 
 - ADR-032 与 SPEC-ASR-PROVIDER-001 在 2026-08-11 基于当时已核对资料，记录“`speaker_diarization=1` 未证明、禁止发送”；其 Accepted/PASS 历史永久保留。
-- 新增 Proposed ADR-033，只部分取代 ADR-032 的上述供应商事实，不改变其余 adapter v2、namespace、drain、completeness、安全和验收决定。
+- ADR-033 已 Accepted，只部分取代 ADR-032 的上述供应商事实，不改变其余 adapter v2、namespace、drain、completeness、安全和验收决定。
 - 未出现新的产品或数据治理冲突，不新增 CON；CON-027 继续 OPEN。
 
 ## 官方一手证据

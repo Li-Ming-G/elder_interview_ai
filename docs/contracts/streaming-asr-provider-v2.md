@@ -1,6 +1,6 @@
-# Streaming ASR Provider V2 正式契约候选
+# Streaming ASR Provider V2 正式契约
 
-状态：`FORMAL / REVIEW`。本文件与同目录 JSON Schema 是 `StreamingAsrAdapter v2` 的唯一技术真相源；`06` 负责业务规则，腾讯 profile 负责供应商映射。项目负责人 exact-head 审查前不得宣称 PASS。
+状态：`FORMAL / ACCEPTED`。本文件与同目录 JSON Schema 是 `StreamingAsrAdapter v2` 的唯一技术真相源；`06` 负责业务规则，腾讯 profile 负责供应商映射。基础 v2 契约由 SPEC-ASR-PROVIDER-001 接收；腾讯话者分离 wire 修正由 SPEC-ASR-WIRE-PARAM-001 / PR #29 exact head `650f856c918639a7b992294b805873d7052ab44e` 获项目负责人手动 PASS 后接收。
 
 ## 1. v1 → v2 迁移
 

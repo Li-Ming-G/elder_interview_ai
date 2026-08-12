@@ -319,7 +319,7 @@
 
 ## ADR-033｜腾讯 V2 话者分离 wire 参数纳入实际 query 与签名
 
-- 状态：Proposed（SPEC-ASR-WIRE-PARAM-001 保持 REVIEW，等待项目负责人对 non-Draft PR exact head 手动审查）
+- 状态：Accepted（SPEC-ASR-WIRE-PARAM-001 / PR #29 exact head `650f856c918639a7b992294b805873d7052ab44e` 获项目负责人手动 PASS，merge `1e18ea83cd5a1d4953bb92fd251637ed6107c322`）
 - 背景：ADR-032 在当时已核对的 V2 通用参数表未列出 `speaker_diarization` 的前提下，保守记录“wire 参数未证明、禁止发送”。后续腾讯官方会议话者分离指南明确 `speaker_diarization=1`，官方 Go SDK 固定 commit `257f9f56bcd592bff1faea9b4ce0f1ef90cea803` 进一步证明该 key 与 speaker context key 被序列化、排序并纳入签名；原供应商事实前提已过时。
 - 决定：目标 `16k_zh_en_speaker_2.0` 与内部 `diarization_required=true` 不变。腾讯实际 query 必发 `speaker_diarization=1`、`enable_speaker_context=0`，两者都进入 canonical query；`speaker_context_id` 从实际 query 与 canonical query 完全省略，不传空值。先构造除 `signature` 外的实际 query map，按 parameter name 字典序 canonicalize，再 HMAC-SHA1/base64，最后 URL encode signature 并追加。
 - 取代关系：只部分取代 ADR-032 中“`speaker_diarization=1` 未证明、禁止发送”的供应商事实，以及与之直接相关的 context query 表达；ADR-032 的 Accepted 状态与历史正文永久保留。adapter v2、连接级 namespace、新 voice 新 speaker stream 并重新校准、attempt drain、sticky completeness、unknown fail-closed、安全和真实验收决定全部继续有效。
