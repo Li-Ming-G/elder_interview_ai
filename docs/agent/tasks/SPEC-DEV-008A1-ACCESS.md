@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立 docs-only 契约 Agent
 - 分支：`codex/spec-dev-008a1-access-projection`
 - PR：[非 Draft PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33)
@@ -11,7 +11,7 @@
 - 输入：`03/04/05/08/09/10` 相关条款、ADR-034、REV-041、SPEC-DEV-008A 与 DEV-008A1 任务/交接、DEV-008A1 实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`
 - 允许修改：正式规范、`packages/contracts` shared DTO、任务/追踪/冲突/ADR/审查/交接/journal
 - 禁止修改：业务代码、Prisma、migration、页面、测试实现、部署、密钥和真实数据
-- 审查权：项目负责人已授权总控对本目标承担 exact-head 手动审查；执行 Agent 只提交 `REVIEW`，不得自行 PASS/DONE/merge
+- 审查：项目负责人对 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` 正式 PASS（P0/P1/P2=0）；PR #33 merge `18ba7381f7ba747c2fb3beefe28297c6d063a174` / main CI `31587442461` SUCCESS
 
 ## 目标
 
@@ -45,4 +45,9 @@
 - `git diff --check`、format/lint/typecheck、完整仓库 CI 通过；
 - 非 Draft PR exact-head CI SUCCESS 后保持 `REVIEW`，主动回传总控审查包。
 
-只有总控对 exact head 明确 PASS 且 PR 合并后，本任务才可由治理 closeout 转 `DONE`，CON-028 转 `RESOLVED`，ADR-035 转 `Accepted`，DEV-008A1 恢复 `READY`。
+## 最终审查与接收
+
+- 项目负责人正式 PASS 记录：[issuecomment-5265462316](https://github.com/Li-Ming-G/elder_interview_ai/pull/33#issuecomment-5265462316)，严格绑定 exact head `81f0bba3d30139e458e919da969d40386231cc62` 与 CI `31586889712`；P0/P1/P2=0；
+- PR #33 merge commit `18ba7381f7ba747c2fb3beefe28297c6d063a174`；main CI `31587442461` completed / success；
+- 本任务 `DONE`、CON-028 `RESOLVED`、ADR-035 `Accepted`、DEV-008A1 恢复 `READY`；父 DEV-008A、A2、A3、008D 继续 `BLOCKED`，CON-023 继续 OPEN；
+- 本次只接收 docs/shared-contract 安全接缝，不代表 A1 业务实现、Prisma、migration、页面或运行时安全测试已经完成。原 Correction 与 REV-042 `PENDING` 候选历史永久保留。

@@ -2,11 +2,11 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - base：`origin/main@29bdce17c0b9b81c965078fd12600b340b564194`
 - branch：`codex/spec-dev-008a1-access-projection`
-- PR：[非 Draft PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33)；exact head/CI 以最终审查包为准
-- 审查：项目负责人已授权总控承担本目标 exact-head 手动审查；当前无 PASS/DONE/merge 结论
+- PR：[PR #33](https://github.com/Li-Ming-G/elder_interview_ai/pull/33)；final exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` SUCCESS；merge `18ba7381f7ba747c2fb3beefe28297c6d063a174` / main CI `31587442461` SUCCESS
+- 审查：项目负责人正式 PASS，P0/P1/P2=0；记录见 [issuecomment-5265462316](https://github.com/Li-Ming-G/elder_interview_ai/pull/33#issuecomment-5265462316)
 
 ## 已完成
 
@@ -43,6 +43,19 @@
 5. 只有限制前冻结 stop 的原 actor 可消费 `EvidenceFinalizationResponse`，且不能进入普通页面；
 6. 为上述成功/反例补 PostgreSQL/API/auth/component/Chromium 验证，再按 A1 原任务完成全门禁。
 
+## REV-042 最终接收
+
+- exact head/CI、正式 PASS、merge commit 与 main CI 已形成完整证据链；
+- SPEC-DEV-008A1-ACCESS `DONE`、ADR-035 `Accepted`、CON-028 `RESOLVED`、DEV-008A1 `READY`；
+- 父 DEV-008A、A2、A3、008D 保持 `BLOCKED`，CON-023 继续 `OPEN`；
+- 旧 Correction 和 REV-042 `PENDING` 候选历史保留；本接收不冒充 A1 runtime 实现或安全回归通过。
+
+## 治理 closeout 验证
+
+- `git diff --check` 通过；
+- `pnpm format:check`、`pnpm lint`、`pnpm typecheck` 通过；
+- closeout diff 仅包含治理文档、索引、任务/交接、contract README 与 journal；未修改业务代码、shared DTO 内容、Prisma、migration、页面或运行时测试目标。
+
 ## iteration-coach 证据
 
 - DEV-008A1 实现窗口：`019ff4ed-ed98-7e00-a592-6c6036a53a62`；
@@ -52,6 +65,4 @@
 
 ## 下一位必须先读取
 
-总控审查：本任务卡、CON-028、ADR-035、REV-042、`03/04/05/08/09/10` 修改、shared DTO diff 与验证结果。
-
-DEV-008A1 恢复：除原任务要求外，必须先读取本交接及本任务最终审查/merge 证据；不得重新解释 restricted 字段或复用 `ProjectResponse` 返回受限正文。
+DEV-008A1 实现：除原任务要求外，必须先读取本交接及 REV-042 最终审查/merge 证据；不得重新解释 restricted 字段或复用 `ProjectResponse` 返回受限正文，也不得启动第二次 iteration-coach。

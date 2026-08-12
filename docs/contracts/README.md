@@ -4,7 +4,7 @@
 
 文件状态逐项声明，不能再把整个目录一概视为占位。标记为正式的文件可作为机器契约；其余候选/占位文件仍不得用于生产代码生成或运行时校验。
 
-REST 的正式 TypeScript shared DTO 位于 `packages/contracts/src/index.ts`，与本目录的 JSON Schema/OpenAPI 资产共同受 `05` 的契约变更规则约束。`ProjectListProjection`、`ProjectSessionListResponse` 与 `EvidenceFinalizationResponse` 当前是 SPEC-DEV-008A1-ACCESS 的 REVIEW 候选；只有 exact-head 审查 PASS/merge 后才转为 A1 实现依据。
+REST 的正式 TypeScript shared DTO 位于 `packages/contracts/src/index.ts`，与本目录的 JSON Schema/OpenAPI 资产共同受 `05` 的契约变更规则约束。`ProjectListProjection`、`ProjectSessionListResponse` 与 `EvidenceFinalizationResponse` 已由 SPEC-DEV-008A1-ACCESS / REV-042 exact-head PASS 并合并，现为 DEV-008A1 的正式实现依据；接收 shared DTO 不代表对应运行时已实现。
 
 - `openapi.yaml`：REST API 的机器可读定义；
 - `websocket-events.md`：实时事件目录及其 Schema 文件索引；
