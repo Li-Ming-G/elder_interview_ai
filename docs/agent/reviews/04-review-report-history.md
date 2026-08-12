@@ -772,6 +772,24 @@ P2：
 - 治理：SPEC-DEV-008A3-PREFLIGHT `REVIEW→DONE`；ADR-036 `Proposed→Accepted`；CON-029 `OPEN→RESOLVED`；DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
 - 历史与范围：上方 REV-044 `PENDING` 候选永久保留。本 PASS 只接受 docs/shared-contract 接缝；不代表 A3 mapper/controller、IndexedDB、页面、回顾/播放/本机删除或服务器隐私删除已实现。无 Prisma schema/migration 或业务 runtime 改动。
 
+## PR #40 分支中间审查历史｜DEV-008A3（主线唯一编号 REV-046）
+
+- 审查对象：[PR #40](https://github.com/Li-Ming-G/elder_interview_ai/pull/40) / `codex/dev-008a3-local-review` 相对 `origin/main@4fc46456869ab01d9880d1aa92e7cd838bf920a8` 的实现候选；启动时 main CI `31599184357` completed / success。PR 为非 Draft，final exact head 与 exact-head CI 由最终审查包绑定。
+- 当前结论：`PENDING`。DEV-008A3 保持 `REVIEW`；执行 Agent 不得自行给出 PASS/DONE、不得合并。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 `READY`，DEV-008D `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- iteration-coach：实现窗口开工前恰好一次独立只读复核发现 finalization total bytes 高影响公共接缝并以零改动暂停；总控随后通过 SPEC-DEV-008A3-PREFLIGHT/ADR-036/REV-044 正式冻结并接收方案 A。本次从已接收 main 恢复，未重复触发复核。
+- 候选内容：ordinary session mapper 始终显式输出 exact/null `total_size_bytes`；A1 唯一 shell/route/action/read access 内新增原始/修订转录只读与本机完整 archive 播放；fresh session+manifest preflight 逐项核对 session/audio identity、count、bytes、chunk sum、checksum、逐片 metadata 与 Blob SHA-256，不请求不存在的 server audio download API。
+- 删除安全：IndexedDB v4→v5 前向升级新增最小回执与索引；复用 `elder-interview:capture:{sessionId}` Web Lock；一个 readwrite transaction 重新检查 active/dirty、pending delivery 与 archive identity，清 current/legacy/delivery/state/formal job/all reports/checkpoint 并写回执。任一同步或异步事务错误显式 abort，重复删除稳定；清站后回到 unknown。
+- 失败关闭：active/dirty、锁不可用、pending delivery、offline/stale/missing/null/unsafe/mismatch preflight 与 failed delete-unsafe 全部零写入；完整 archive 才播放，缺片/Blob 不可读不部分播放。failed complete 仅可回顾/播放，不能删除。
+- 自动证据：lint、typecheck、format、build 全绿；unit 52 files / 329 tests；formal Schema 定向 1/1；新隔离 PostgreSQL 完整 13 migrations/status 后 integration 14 files / 79 tests、auth 4 files / 23 tests；真实 Chromium 5/5 覆盖三视口、44px/focus/live region/reduced motion/overflow、双 tab、legacy upgrade、刷新、清站与卸载原子性。
+- 失败历史：首次 Playwright 使用默认 4173 端口因已有进程占用而未进入测试，改为独立 4293/4294/4295 后通过；首次 PostgreSQL 诊断只设置 `TEST_DATABASE_URL`，Prisma 未获得 `DATABASE_URL` 并落到空库缺表，临时库删除后同时设置两变量以全新库复跑通过；初次严格 lint 暴露测试回调类型/await 与断言问题，修复后仓库 lint 清零。以上均未通过放宽目标或删除失败路径处理。
+- 范围：没有 Prisma schema/migration、server delete/deletion_request、导出、转录或说话人编辑、题库/AI history、ASR/LLM、A2、007、008D、PWA/App 或第二套 shell/token/navigation；“本机删除”文案与结果始终明确服务器录音、转录和记忆仍保留。
+
+### reviewed head `70b8fe8` 独立审查与中间修复
+
+- 独立结论：`REQUEST_CHANGES`；P1=1、阻塞接收的 P2=1。P1 为删除确认、常驻/成功提示未完整写明服务器审计保留与正式隐私删除需走独立申请；P2 为 `alertdialog` 未把焦点移入，也未在取消/成功后恢复合理焦点。其余 fresh manifest/bytes/Blob、共锁、单事务回滚、receipt 与权限主干未发现新 P0/P1。
+- 当前分支修复：确认层逐项写明只删当前浏览器/设备副本，服务器录音、转录、记忆与审计保留；独立申请流程只作边界说明，不建死链、不实现 deletion request。打开默认聚焦取消，Tab/Shift+Tab 在确认/取消间循环，Escape/取消恢复触发按钮，成功聚焦 `aria-live` 结果。
+- 中间验证：component 5/5、全量 unit 330/330、真实 Chromium 6/6；三视口、双 tab、legacy/刷新/清站/卸载原子性保持，新增键盘进入/循环/Escape/取消/成功焦点反例。首次 Chromium 回归仅旧断言仍匹配未含“审计”的文案而失败，更新期望后全绿；未放宽产品目标。
+- Integration gate：A2/A3 都基于 `4fc4645`，并在共享代码与治理文件冲突、暂占同一 REV-045。当前小节仅记录分支中间修复，不是最终 exact-head 复审包；A2 PASS/merge/closeout 后必须对齐最新 main，保留 A2+A3 路由/API/样式语义，解决治理冲突，并将 A3 改为当时唯一的新 REV-ID 后重跑完整门禁。
 ## REV-045｜DEV-008A2 新建访谈完整纵向入口实现候选
 
 - 审查对象：[非 Draft PR #39](https://github.com/Li-Ming-G/elder_interview_ai/pull/39)，branch `codex/dev-008a2-new-interview`，启动 base `51e2337ea86739e209ad696804de7decbcf7a9df`，最终整合 base `4fc46456869ab01d9880d1aa92e7cd838bf920a8`；old exact head `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` SUCCESS。
@@ -805,8 +823,11 @@ P2：
 - 合并与集成：PR #39 以 merge commit `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 合入 main；main CI `31609156286` completed / success。
 - 治理：DEV-008A2 `REVIEW→DONE`；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A3 保持 `REVIEW` 并等待基于新 main 整合，DEV-008D 与 CON-023 不变。REV-045 唯一归属 A2；A3 分支临时同号不覆盖本记录。
 
-## REV-046｜DEV-008A3 基于新 main 整合等待记录
+## REV-046｜DEV-008A3 基于 final main 的整合候选
 
 - 编号协调：A2 已先以正式 REV-045 PASS/merge，因此 A3 分支临时 `REV-045` 不再是主线有效编号；A3 唯一编号修正为 REV-046。该修正只解决治理 ID 冲突，不改写 A3 分支已有审查意见、实现或测试事实。
-- 当前结论：`REVIEW / INTEGRATION REQUIRED`。A3 须基于 A2 merge `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 后的最新 main 解决共享代码与治理冲突，形成新的 final exact head/CI 包后再接受审查。
+- 整合对象：A2 closeout 后的 final `origin/main@5035c119fa5a3eeb7999d305f5c052672dc50d25` / CI `31610391026` SUCCESS。人工保留 NewInterviewApi + ReviewApi、new + review routes、授权录音生命周期、本机 archive 与两套响应式样式语义，没有整文件选择单侧覆盖。
+- 当前结论：`REVIEW / PENDING EXACT-HEAD CI`。本地完整矩阵已通过：fresh PostgreSQL 14 migrations deploy/status、integration 80/80、auth 23/23；unit 56 files / 341 tests、formal Schema 1/1；普通 Chromium 24/24（A2 新入口 5/5、A3 回顾 6/6）与 fresh auth Chromium 5/5；format/lint/typecheck/build 全绿。
+- 语义修正：危险确认为非模态 `alertdialog`，不再虚构 `aria-modal=true`；仍默认聚焦安全的“取消”，真实键盘覆盖 Tab/Shift+Tab、Escape/取消回触发点、成功聚焦 live result、44px 与 visible focus。隐私文案逐项说明仅删当前浏览器/设备副本，服务器录音、转录、记忆和审计仍保留，正式隐私删除需走本页未提供的独立申请流程。
+- 失败历史：合并后首次 typecheck 因 Prisma client 未按 A2 schema 重新生成失败，运行正式 generate 后通过；首次 lint 发现已被 A2 新入口替代的 ComingSoonRoute 未使用，删除失效 import 后通过。fresh DB 编排曾因过短超时、PowerShell `${taskDb}` 插值和误用密码三次在有效迁移前失败，明确临时库均删除，随后按 `.env.example` 在新库全绿。首次 auth Chromium 把 API 端口改到 3106，但 Vite 正式代理固定 3101，登录前 5/5 失败；删除临时库后恢复 3101 并在另一新库 5/5 通过。未放宽目标或修改测试判定。
 - 边界：本记录不是 A3 PASS/DONE，也不替代 A3 exact-head 审查；父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。

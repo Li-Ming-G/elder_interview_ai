@@ -345,6 +345,174 @@ p {
   margin: 2rem auto 0;
 }
 
+.review-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-header p:last-child {
+  margin-bottom: 0;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.82fr) minmax(0, 1.18fr);
+  align-items: start;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.review-card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+}
+
+.review-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.review-card__heading h2 {
+  margin-bottom: 0.35rem;
+}
+
+.privacy-boundary {
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.review-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 1.25rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.review-facts > div {
+  min-width: 0;
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-facts > div:nth-child(odd) {
+  border-right: 1px solid var(--line);
+}
+
+.review-facts > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.review-facts dt,
+.review-facts dd {
+  overflow-wrap: anywhere;
+}
+
+.review-facts dt {
+  color: var(--muted-ink);
+  font-size: 0.75rem;
+}
+
+.review-facts dd {
+  margin: 0.25rem 0 0;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.review-note,
+.review-live {
+  margin: 1rem 0 0;
+  font-size: 0.88rem;
+}
+
+.review-live {
+  min-height: 1.5rem;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.review-live:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.review-player {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.delete-confirmation {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in oklch, var(--danger) 45%, var(--line));
+  border-radius: 0.75rem;
+  background: var(--danger-soft);
+}
+
+.delete-confirmation p {
+  margin-bottom: 1rem;
+}
+
+.review-transcript-list {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+
+.review-transcript-item {
+  min-width: 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.review-transcript-item header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  color: var(--muted-ink);
+  font-size: 0.8rem;
+}
+
+.review-transcript-item p {
+  margin: 0.25rem 0 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.transcript-label {
+  color: var(--muted-ink);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.transcript-revision {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.625rem;
+  background: var(--accent-soft);
+}
+
 .auth-panel,
 .load-failure {
   width: min(100%, 28rem);
@@ -1354,6 +1522,15 @@ p {
     gap: 1.25rem;
   }
 
+  .review-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .review-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .home-header__actions {
     width: 100%;
     justify-content: stretch;
@@ -1534,6 +1711,39 @@ p {
   .home-header__actions .button {
     width: 100%;
     flex: 0 0 auto;
+  }
+
+  .review-card {
+    padding: 1rem;
+  }
+
+  .review-card__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .review-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-facts > div,
+  .review-facts > div:nth-child(odd),
+  .review-facts > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .review-facts > div:last-child {
+    border-bottom: 0;
+  }
+
+  .review-actions {
+    flex-direction: column;
+  }
+
+  .review-actions .button {
+    width: 100%;
   }
 
   .new-interview-header .button,

@@ -307,6 +307,19 @@ describe('A1 assignment-safe home read model', () => {
     expect((completed?.finalization as Record<string, unknown>).failure_code).toBe(
       'FINALIZATION_INTERNAL_FAILURE',
     );
+    const canonical = await actor
+      .get('/api/v1/sessions/83000000-0000-4000-8000-000000000001')
+      .set('Origin', ORIGIN);
+    expect(canonical.status).toBe(200);
+    expect((canonical.body as Record<string, Record<string, unknown>>).finalization).toHaveProperty(
+      'total_size_bytes',
+      128,
+    );
+    const unassignedActor = await other
+      .get('/api/v1/sessions/83000000-0000-4000-8000-000000000001')
+      .set('Origin', ORIGIN);
+    expect([403, 404]).toContain(unassignedActor.status);
+    expect((unassignedActor.body as Record<string, unknown>).finalization).toBeUndefined();
     expect(JSON.stringify(completed)).not.toContain('PROVIDER_PRIVATE_FAILURE');
     expect(JSON.stringify(completed)).not.toContain('object_key');
     const tampered = `${String(firstBody.next_cursor).slice(0, -1)}x`;

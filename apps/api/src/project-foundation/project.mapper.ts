@@ -88,7 +88,15 @@ export function mapInterviewSession(session: InterviewSession): InterviewSession
 
 export function mapInterviewSessionSnapshot(
   session: InterviewSession,
-  finalization: (SessionFinalization & { audioObject: { manifestChecksum: string | null } }) | null,
+  finalization:
+    | (SessionFinalization & {
+        audioObject: {
+          manifestChecksum: string | null;
+          status: string;
+          totalSizeBytes: bigint | null;
+        };
+      })
+    | null,
   uploadedChunkCount: number,
   capture: SessionCaptureGeneration | null = null,
   captureUploadedChunkCount = 0,
@@ -144,8 +152,28 @@ export function mapInterviewSessionSnapshot(
             transcript_error_code: finalization.transcriptErrorCode as
               'ASR_UNAVAILABLE' | 'ASR_DRAIN_TIMEOUT' | 'ASR_DRAIN_INCOMPLETE' | null,
             transcript_status: finalization.transcriptStatus,
+            total_size_bytes: mapFinalizationTotalSize(finalization),
             upload_status: finalization.audioStatus,
             uploaded_chunk_count: uploadedChunkCount,
           },
   };
+}
+
+function mapFinalizationTotalSize(
+  finalization: SessionFinalization & {
+    audioObject: { manifestChecksum: string | null; status: string; totalSizeBytes: bigint | null };
+  },
+): number | null {
+  const bytes = finalization.audioObject.totalSizeBytes;
+  if (
+    finalization.audioStatus !== 'complete' ||
+    finalization.audioObject.status !== 'complete' ||
+    finalization.audioObject.manifestChecksum === null ||
+    bytes === null ||
+    bytes < 0n ||
+    bytes > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    return null;
+  }
+  return Number(bytes);
 }

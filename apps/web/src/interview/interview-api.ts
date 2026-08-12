@@ -77,6 +77,12 @@ export interface HomeApi {
   ) => Promise<ProjectSessionListResponse>;
 }
 
+export interface ReviewApi {
+  getAudioManifest(audioObjectId: string): Promise<AudioManifestResponse>;
+  getSession(sessionId: string): Promise<InterviewSessionResponse>;
+  listSessionTranscripts(sessionId: string): Promise<TranscriptSegmentResponse[]>;
+}
+
 export interface InterviewCaptureApi {
   abandonEmptyCapture(
     sessionId: string,
@@ -155,6 +161,7 @@ export function createInterviewApi(
   csrfToken: string,
 ): InterviewApi &
   HomeApi &
+  ReviewApi &
   NewInterviewApi &
   InterviewCaptureApi &
   SpeakerCalibrationApi &
@@ -216,6 +223,8 @@ export function createInterviewApi(
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
     getSession: async (sessionId): Promise<InterviewSessionResponse> =>
       read(`/api/v1/sessions/${sessionId}`),
+    getAudioManifest: async (audioObjectId): Promise<AudioManifestResponse> =>
+      read(`/api/v1/audio-objects/${audioObjectId}/manifest`),
     getCurrentSuggestion: async (sessionId): Promise<SuggestionPresentationResponse> =>
       read(`/api/v1/sessions/${sessionId}/suggestions/current`),
     getSuggestionHistory: async (sessionId, input = {}): Promise<SuggestionHistoryPageResponse> => {
@@ -274,6 +283,20 @@ export function createInterviewApi(
       const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
       if (input.cursor !== undefined && input.cursor !== null) query.set('cursor', input.cursor);
       return read(`/api/v1/projects/${projectId}/sessions?${query.toString()}`);
+    },
+    listSessionTranscripts: async (sessionId): Promise<TranscriptSegmentResponse[]> => {
+      const items: TranscriptSegmentResponse[] = [];
+      let cursor: string | null = null;
+      do {
+        const query = new URLSearchParams({ limit: '500' });
+        if (cursor !== null) query.set('cursor', cursor);
+        const page = await read<TranscriptPageResponse>(
+          `/api/v1/sessions/${sessionId}/transcripts?${query.toString()}`,
+        );
+        items.push(...page.items);
+        cursor = page.next_cursor;
+      } while (cursor !== null);
+      return items;
     },
     recoverSession: async (sessionId, recovery): Promise<InterviewSessionResponse> => {
       const response = await write<InterviewSessionResponse | { session_id: string }>(
