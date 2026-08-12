@@ -10,4 +10,6 @@ DEV-008A1 的共享 Home、formal project/session read model、权限降级接�
 
 SPEC-DEV-008A3-PREFLIGHT 的 finalization total bytes 接缝、REV-044 exact-head PASS/merge、CON-029 关闭与 A3 runtime 门禁见 [`SPEC-DEV-008A3-PREFLIGHT.md`](SPEC-DEV-008A3-PREFLIGHT.md)。该接收只解锁 A3，不代表回顾、本机删除或服务器隐私删除已实现。
 
-DEV-008A2 的四 create 权威幂等、正式口头授权入口、离页麦克风释放、StrictMode 修复、REV-045 exact-head PASS/merge 与失败历史见 [`DEV-008A2.md`](DEV-008A2.md)。A2 DONE 不替代 A3 或父 DEV-008A 验收；A3 主线唯一编号为 REV-046，仍等待基于新 main 整合。
+DEV-008A2 的四 create 权威幂等、正式口头授权入口、离页麦克风释放、StrictMode 修复、REV-045 exact-head PASS/merge 与失败历史见 [`DEV-008A2.md`](DEV-008A2.md)。A2 接收当时不替代 A3 或父 DEV-008A 验收；A3 后续以主线唯一编号 REV-046 完成，见下一条最终交接。
+
+DEV-008A3 的只读回顾、本机完整 archive 播放、原子本机副本删除、隐私边界、REV-046 exact-head PASS/merge 与 `70b8fe8`/`f491d99` 历史见 [`DEV-008A3.md`](DEV-008A3.md)。A1/A2/A3 与父 DEV-008A 仅在响应式网页 A 范围 DONE；DEV-008D/CON-023、server deletion、导出、PWA/App、ASR/LLM 与 DEV-007 继续独立。

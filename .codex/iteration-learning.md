@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A、DEV-008A1、SPEC-DEV-008A3-PREFLIGHT 与 DEV-008A2 已 PASS/merge，父 DEV-008A 为 IN_PROGRESS；A3 已基于 A2 closeout 后 final main 完成整合与本地全矩阵，保持 REVIEW 并等待 exact-head CI/项目负责人审查，008D 继续 BLOCKED。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、Android App 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 与 A1/A2/A3 均已 PASS/merge，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 DONE；DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
@@ -1296,3 +1296,11 @@
 - Evidence: fresh 14 migrations/status、integration 80/80、auth 23/23；unit 341/341、Schema 1/1；普通 Chromium 24/24（A2 新入口 5/5、A3 回顾 6/6）与 fresh auth Chromium 5/5；format/lint/typecheck/build 全绿。
 - Failure history: client generate、失效 import、三次 DB 编排参数错误与一次 auth 固定代理端口错误均先失败后按正式配置重跑；所有临时库均删除，没有放宽测试或产品边界。
 - Boundary: `70b8fe8` REQUEST_CHANGES P1=1/P2=1 与 `f491d99` 中间修复/CI 历史永久保留。本候选仍是 REVIEW，不自行 PASS/DONE/merge；server deletion/008D/deletion_request、CON-023、导出、编辑、ASR/LLM、题库/AI history 与 PWA/App 均不变。
+
+### 2026-08-12 — DEV-008A3 exact-head 接收与网页 A 范围收口
+
+- Evidence: PR #40 accepted exact head `93be9a27b93e763e56457668c78b5ac2a332bab4`、CI `31612276827` SUCCESS；项目负责人授权总控 exact-head 审查 PASS，P0/P1/P2=0，正式评论 `issuecomment-5268932084`。PR 以非 squash merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 合入 main，main CI `31613083916` SUCCESS。
+- Decision: DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- Historical integrity: reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 的 REQUEST_CHANGES/P1=1/P2=1 与 `f491d99` 中间修复 / CI `31606148505` 永久保留，不被最终 PASS 覆盖。
+- Verification boundary: 本 closeout 只修改治理文档，不改业务代码、Prisma/migration、ASR、DEV-007 或 DEV-008D；不宣称 server deletion/deletion_request、导出、PWA/App、真实 ASR/LLM、正式题库、真实试点或 MVP 发布完成。
+- Lesson: 父任务聚合 DONE 必须显式限定到已经逐子任务 exact-head 接收的产品范围；相邻真实试点门禁即使在同一 Epic，也不能因网页切片完成而被隐式关闭。
