@@ -5,7 +5,7 @@
 - 当前：`REVIEW`
 - base：`origin/main@51e2337ea86739e209ad696804de7decbcf7a9df`
 - branch：`codex/spec-dev-008a3-finalization-size`
-- 审查：REV-044 `PENDING`；非 Draft PR、final exact head 与 exact-head CI 待最终审查包绑定
+- 审查：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37) 非 Draft；REV-044 `PENDING`，final exact head 与 exact-head CI 待最终审查包绑定
 - 下游：DEV-008A3 在本候选 exact-head PASS/merge 前保持 `BLOCKED`
 
 ## 已冻结内容

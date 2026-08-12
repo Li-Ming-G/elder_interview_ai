@@ -6,7 +6,7 @@
 - 负责人：独立 docs/contract 执行窗口
 - base：`origin/main@51e2337ea86739e209ad696804de7decbcf7a9df`；main CI `31594298585` SUCCESS
 - 分支：`codex/spec-dev-008a3-finalization-size`
-- PR：非 Draft PR；编号与 exact final head/CI 由最终交接绑定
+- PR：[PR #37](https://github.com/Li-Ming-G/elder_interview_ai/pull/37)，非 Draft；exact final head/CI 由最终审查包绑定
 - 前置：SPEC-DEV-008A、SPEC-DEV-008A1-ACCESS、DEV-008A1 均已 exact-head PASS/merge；DEV-008A3 开工前唯一 Correction 已在零改动阶段确认缺口；总控已冻结方案 A
 - 输入：`00/01/02/03/04/05/08/09/10`、SPEC-DEV-008A/A3 task/handoff、formal `local-audio-archive-v1`、ADR-034/035、REV-041/043、A3 暂停窗口 `019ff5db-a0dd-7060-875f-8ee454a84469` 与只读复核 `019ff5e0-47d2-7d92-8148-7eff63ec61a9`
 - 风险：contract optional 被 runtime 永久漏发、unsafe BigInt 静默舍入、terminal null 被当 0、首页/evidence 最小 DTO 被无意扩宽、本机删除在事实不一致时错误放行
