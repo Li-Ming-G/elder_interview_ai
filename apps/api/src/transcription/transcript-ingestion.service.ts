@@ -67,10 +67,12 @@ export class TranscriptIngestionService {
         if (session === null) throw this.notFound();
         if (result.speakerStreamId === undefined) throw this.ingestionNotAllowed();
         const stream = await transaction.speakerStream.findFirst({
-          select: { id: true },
+          select: { id: true, status: true },
           where: { id: result.speakerStreamId, sessionId: result.sessionId },
         });
-        if (stream === null) throw this.ingestionNotAllowed();
+        if (stream === null || (result.source === 'realtime' && stream.status !== 'active')) {
+          throw this.ingestionNotAllowed();
+        }
         const latestConsent = session.project.consents[0];
         if (
           !INGESTIBLE_SESSION_STATUSES.has(session.status) ||

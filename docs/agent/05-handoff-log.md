@@ -21,6 +21,7 @@
 | DEV-005R4 / DEV-005 | [最终交接](handoffs/DEV-005R4.md)、[PR #16](https://github.com/Li-Ming-G/elder_interview_ai/pull/16)、REV-026 | DEV-006/007 后续任务、总控 | R4 与父 DEV-005 DONE；final head `2fab0ea`、CI `31294084873`、merge `7477dca`，CON-020/021/022 RESOLVED。真实供应商、云存储、iPhone 与生产范围后置 |
 
 | SPEC-ASR-PROVIDER-001 | [契约交接](handoffs/SPEC-ASR-PROVIDER-001.md)、[任务卡](tasks/SPEC-ASR-PROVIDER-001.md)、[PR #28](https://github.com/Li-Ming-G/elder_interview_ai/pull/28)、ADR-032、REV-039、CON-027 | DEV-ASR-PROVIDER-001 | DONE；final head `84a2173c`、CI `31484868105`、项目负责人定向复审 PASS、merge `d7b318f`、main CI `31494227785` SUCCESS。old head REQUEST_CHANGES/P1=1 永久保留；CON-027 继续阻塞真实长者/PII，真实 provider 验收移交 DEV |
+| DEV-ASR-PROVIDER-001 | [实现交接](handoffs/DEV-ASR-PROVIDER-001.md)、[腾讯支持工单模板](handoffs/DEV-ASR-PROVIDER-001-tencent-support-ticket.md)、[任务卡](tasks/DEV-ASR-PROVIDER-001.md)、ADR-032/033、CON-027 | 项目负责人 / 后续同一正式实现 Agent | REVIEW；真实provider final/drain、同PCM三次replay双label、桌面normal及受控fault/new namespace重校准/sticky degraded均有完全虚构证据；unit313、PG integration80、auth23及全工程门禁通过。实际账单/Android、final head/CI与负责人审查待完成；不得自宣PASS/DONE/merge |
 
 ## 最近已完成交接
 

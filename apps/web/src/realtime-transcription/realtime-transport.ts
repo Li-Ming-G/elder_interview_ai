@@ -357,8 +357,10 @@ export class RealtimeTranscriptionTransport {
       }
     } else if (message.type === 'asr.status') {
       const payload = message.payload as { code?: string; status: string };
-      if (payload.status === 'unavailable')
-        this.patch({ errorCode: payload.code ?? null, failureKind: 'asr' });
+      if (payload.status === 'unavailable') {
+        this.terminalFailure(payload.code ?? 'ASR_UNAVAILABLE', 'asr', false);
+        return false;
+      }
     } else if (message.type === 'suggestion.presentation.changed') {
       const payload = message.payload as SuggestionPresentationChangedPayload;
       if (

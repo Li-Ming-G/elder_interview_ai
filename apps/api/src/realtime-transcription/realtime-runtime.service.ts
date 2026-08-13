@@ -24,6 +24,9 @@ interface FrameEvidence {
 }
 
 export interface SessionRuntime {
+  asrAttemptId: string | null;
+  asrProviderNamespaceId: string | null;
+  asrProviderRequestId: string | null;
   audioStreamId: string;
   captureGenerationId: string;
   eventStreamId: string;
@@ -189,6 +192,9 @@ export class RealtimeRuntimeService {
     timelineOffsetMs: number,
   ): SessionRuntime {
     const runtime: SessionRuntime = {
+      asrAttemptId: null,
+      asrProviderNamespaceId: null,
+      asrProviderRequestId: null,
       audioStreamId,
       captureGenerationId,
       eventStreamId: randomUUID(),
@@ -218,6 +224,64 @@ export class RealtimeRuntimeService {
 
   public enqueue<T>(runtime: SessionRuntime, work: () => Promise<T>): Promise<T> {
     return runtime.queue.enqueue(work);
+  }
+
+  public bindAsrAttempt(
+    runtime: SessionRuntime,
+    identity: {
+      attemptId: string;
+      providerNamespaceId: string;
+      providerRequestId: string;
+      speakerStreamId: string;
+    },
+  ): void {
+    runtime.asrAttemptId = identity.attemptId;
+    runtime.asrProviderNamespaceId = identity.providerNamespaceId;
+    runtime.asrProviderRequestId = identity.providerRequestId;
+    runtime.speakerStreamId = identity.speakerStreamId;
+    runtime.lastTouchedAt = Date.now();
+  }
+
+  public isAsrAttemptCurrent(
+    runtime: SessionRuntime,
+    identity: {
+      attemptId: string;
+      providerNamespaceId: string;
+      providerRequestId: string;
+      speakerStreamId: string;
+    },
+  ): boolean {
+    return (
+      this.sessions.get(runtime.sessionId) === runtime &&
+      runtime.asrAttemptId === identity.attemptId &&
+      runtime.asrProviderNamespaceId === identity.providerNamespaceId &&
+      runtime.asrProviderRequestId === identity.providerRequestId &&
+      runtime.speakerStreamId === identity.speakerStreamId
+    );
+  }
+
+  public async rotateSpeakerStream(runtime: SessionRuntime): Promise<string> {
+    if (this.prisma === undefined) {
+      const speakerStreamId = randomUUID();
+      runtime.speakerStreamId = speakerStreamId;
+      runtime.publishedCalibrationLabels.clear();
+      return speakerStreamId;
+    }
+    const speakerStream = await this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${runtime.sessionId}, 0))`;
+      await transaction.speakerStream.updateMany({
+        data: { closedAt: new Date(), status: 'closed' },
+        where: { sessionId: runtime.sessionId, status: 'active' },
+      });
+      return transaction.speakerStream.create({
+        data: { captureGenerationId: runtime.captureGenerationId, sessionId: runtime.sessionId },
+        select: { id: true },
+      });
+    });
+    runtime.speakerStreamId = speakerStream.id;
+    runtime.publishedCalibrationLabels.clear();
+    runtime.lastTouchedAt = Date.now();
+    return speakerStream.id;
   }
 
   public subscribe(
@@ -282,7 +346,15 @@ export class RealtimeRuntimeService {
   }
 
   public publishCalibration(runtime: SessionRuntime, snapshot: SpeakerCalibrationSnapshot): void {
-    const event = this.append(runtime, 'speaker.calibration.updated', snapshot);
+    this.publish(runtime, 'speaker.calibration.updated', snapshot);
+  }
+
+  public publish<TType extends InterviewWsServerType, TPayload>(
+    runtime: SessionRuntime,
+    type: TType,
+    payload: TPayload,
+  ): InterviewWsServerEnvelope<TType, TPayload> {
+    const event = this.append(runtime, type, payload);
     try {
       runtime.subscriber?.(event);
     } catch {
@@ -291,6 +363,7 @@ export class RealtimeRuntimeService {
       runtime.subscriber = null;
       runtime.notificationAuthorizer = null;
     }
+    return event;
   }
 
   public enqueueMarker<T>(

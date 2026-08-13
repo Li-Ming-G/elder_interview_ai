@@ -7,6 +7,12 @@ import WebSocket, { type ClientOptions, type RawData } from 'ws';
 import { SessionService } from '../../apps/api/src/auth/session.service.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import {
+  CausalQueue,
+  RealtimeRuntimeService,
+} from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
+import { RealtimeAccessService } from '../../apps/api/src/realtime-transcription/realtime-access.service.js';
+import { SpeakerCalibrationSnapshotService } from '../../apps/api/src/transcription/speaker-calibration-snapshot.service.js';
 
 const ORIGIN = 'http://127.0.0.1:4173';
 
@@ -16,6 +22,7 @@ describe('authenticated realtime transcription WebSocket', () => {
   let url: string;
   let cookie: string;
   let csrf: string;
+  let sessionToken: string;
   let userId: string;
   let projectId: string;
   let sessionId: string;
@@ -74,6 +81,7 @@ describe('authenticated realtime transcription WebSocket', () => {
     sessionId = session.id;
     activeSessionId = session.id;
     const credentials = await app.get(SessionService).create(userId);
+    sessionToken = credentials.sessionToken;
     cookie = `elder_interview_session=${credentials.sessionToken}`;
     csrf = credentials.csrfToken;
     url = `${(await app.getUrl()).replace(/^http/u, 'ws')}/ws/interviews`;
@@ -151,6 +159,10 @@ describe('authenticated realtime transcription WebSocket', () => {
         client.send(JSON.stringify(join(csrf, audioStreamId)));
         const ready = await inbox.next();
         expect((await inbox.next()).type).toBe('speaker.calibration.updated');
+        expect(await inbox.next()).toMatchObject({
+          payload: { status: 'connected' },
+          type: 'asr.status',
+        });
         await prisma.projectAssignment.updateMany({
           data: { revokedAt: new Date() },
           where: { projectId, userId, revokedAt: null },
@@ -201,6 +213,10 @@ describe('authenticated realtime transcription WebSocket', () => {
       client.send(JSON.stringify(join(csrf, audioStreamId)));
       await inbox.next();
       expect((await inbox.next()).type).toBe('speaker.calibration.updated');
+      expect(await inbox.next()).toMatchObject({
+        payload: { status: 'connected' },
+        type: 'asr.status',
+      });
       const failure = vi
         .spyOn(prisma.interviewSession, 'findUnique')
         .mockRejectedValueOnce(new Error('database-name SQL private detail'));
@@ -239,6 +255,10 @@ describe('authenticated realtime transcription WebSocket', () => {
     expect(await inbox.next()).toMatchObject({
       type: 'speaker.calibration.updated',
       server_sequence: 1,
+    });
+    expect(await inbox.next()).toMatchObject({
+      payload: { status: 'connected' },
+      type: 'asr.status',
     });
     const speakerStream = await prisma.speakerStream.findFirstOrThrow({
       where: { sessionId, status: 'active' },
@@ -306,9 +326,9 @@ describe('authenticated realtime transcription WebSocket', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     client = await connect(url, cookie);
     inbox = new Inbox(client);
-    client.send(JSON.stringify(join(csrf, audioStreamId, eventStreamId, 4)));
-    expect(await inbox.next()).toMatchObject({ type: 'asr.final', server_sequence: 5 });
-    expect(await inbox.next()).toMatchObject({ type: 'audio.ack', server_sequence: 6 });
+    client.send(JSON.stringify(join(csrf, audioStreamId, eventStreamId, 5)));
+    expect(await inbox.next()).toMatchObject({ type: 'asr.final', server_sequence: 6 });
+    expect(await inbox.next()).toMatchObject({ type: 'audio.ack', server_sequence: 7 });
     expect(await inbox.next()).toMatchObject({ type: 'session.ready', payload: { resumed: true } });
 
     client.send(JSON.stringify(frame(1, audioStreamId)));
@@ -375,6 +395,10 @@ describe('authenticated realtime transcription WebSocket', () => {
       client.send(JSON.stringify(join(csrf, audioStreamId)));
       await inbox.next();
       expect((await inbox.next()).type).toBe('speaker.calibration.updated');
+      expect(await inbox.next()).toMatchObject({
+        payload: { status: 'connected' },
+        type: 'asr.status',
+      });
 
       client.send(JSON.stringify(frame(0, audioStreamId)));
       expect(await inbox.next()).toMatchObject({
@@ -402,6 +426,89 @@ describe('authenticated realtime transcription WebSocket', () => {
 
       client.close(1000);
       await inbox.closed();
+    });
+  });
+
+  it('exposes persisted PCM acceptance so a rebuilt runtime can fail closed on lost coverage evidence', async () => {
+    await withIsolatedRecordingSession(async () => {
+      const audioStreamId = randomUUID();
+      await setCaptureStream(audioStreamId);
+      const client = await connect(url, cookie);
+      const inbox = new Inbox(client);
+      client.send(JSON.stringify(join(csrf, audioStreamId)));
+      await inbox.next();
+      expect((await inbox.next()).type).toBe('speaker.calibration.updated');
+      expect(await inbox.next()).toMatchObject({
+        payload: { status: 'connected' },
+        type: 'asr.status',
+      });
+
+      client.send(JSON.stringify(frame(0, audioStreamId)));
+      expect((await inbox.next()).type).toBe('asr.interim');
+      expect((await inbox.next()).type).toBe('asr.final');
+      expect((await inbox.next()).type).toBe('audio.ack');
+
+      const actor = await app.get(SessionService).authenticate(sessionToken);
+      await expect(
+        app.get(RealtimeAccessService).assertJoin(actor, activeSessionId, csrf, audioStreamId),
+      ).resolves.toMatchObject({ acceptedPcmEvidenceExists: true });
+      const persistedCapture = await prisma.sessionCaptureGeneration.findFirstOrThrow({
+        orderBy: { generationNo: 'desc' },
+        where: { sessionId: activeSessionId },
+      });
+      expect(persistedCapture.firstPcmAcceptedAt).toBeInstanceOf(Date);
+
+      client.close(1000);
+      await inbox.closed();
+    });
+  });
+
+  it('rotates a provider voice onto a new active speaker stream with no trusted mapping', async () => {
+    await withIsolatedRecordingSession(async () => {
+      const audioStreamId = randomUUID();
+      await setCaptureStream(audioStreamId);
+      const capture = await prisma.sessionCaptureGeneration.findUniqueOrThrow({
+        where: { audioStreamId },
+      });
+      const runtimes = new RealtimeRuntimeService(prisma);
+      const runtime = await runtimes.create(
+        activeSessionId,
+        audioStreamId,
+        capture.id,
+        new CausalQueue(),
+        capture.timelineOffsetMs,
+      );
+      const previousStreamId = runtime.speakerStreamId;
+      await prisma.speakerMapping.create({
+        data: {
+          authority: 'user_confirmed',
+          createdBy: userId,
+          sessionId: activeSessionId,
+          source: 'calibration',
+          speakerProviderId: '0',
+          speakerRole: 'elder',
+          speakerStreamId: previousStreamId,
+        },
+      });
+      const nextStreamId = await runtimes.rotateSpeakerStream(runtime);
+      expect(nextStreamId).not.toBe(previousStreamId);
+      expect(
+        await prisma.speakerStream.findUniqueOrThrow({ where: { id: previousStreamId } }),
+      ).toMatchObject({ status: 'closed' });
+      expect(
+        await prisma.speakerStream.findUniqueOrThrow({ where: { id: nextStreamId } }),
+      ).toMatchObject({
+        status: 'active',
+      });
+      expect(await prisma.speakerMapping.count({ where: { speakerStreamId: nextStreamId } })).toBe(
+        0,
+      );
+      expect(
+        await new SpeakerCalibrationSnapshotService(prisma).get(activeSessionId),
+      ).toMatchObject({
+        speaker_stream: { id: nextStreamId },
+        status: 'not_started',
+      });
     });
   });
 

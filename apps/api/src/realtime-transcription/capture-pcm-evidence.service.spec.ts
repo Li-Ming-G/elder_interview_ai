@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PrismaService } from '../database/prisma.service.js';
 import { CapturePcmEvidenceService } from './capture-pcm-evidence.service.js';
-import { StreamingAsrUnavailableError } from './streaming-asr.js';
+import { StreamingAsrError } from './streaming-asr.js';
 
 describe('CapturePcmEvidenceService', () => {
   it('uses the locked transaction once and keeps later frames on the adapter-only fast path', async () => {
@@ -50,7 +50,7 @@ describe('CapturePcmEvidenceService', () => {
         signal = currentSignal;
         return new Promise<never>(() => undefined);
       }),
-    ).rejects.toBeInstanceOf(StreamingAsrUnavailableError);
+    ).rejects.toMatchObject<Partial<StreamingAsrError>>({ safeCode: 'ASR_TIMEOUT' });
 
     expect(signal?.aborted).toBe(true);
     expect(fixture.updateCalls()).toBe(0);

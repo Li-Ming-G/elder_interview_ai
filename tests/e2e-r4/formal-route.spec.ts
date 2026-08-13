@@ -259,7 +259,9 @@ test('formal preparation route preserves one archive across explicit recovery an
   expect(terminal).toMatchObject({
     audioObjectCount: 1,
     audioStatus: 'complete',
-    finalizationTranscriptStatus: 'drained',
+    // The deterministic realtime fixture deliberately fails sequence 2. V2 keeps
+    // recording alive and therefore must preserve that known gap as sticky degraded.
+    finalizationTranscriptStatus: 'degraded',
     sessionStatus: 'completed',
   });
   expect(terminal.generationCount).toBe(2);
@@ -641,8 +643,14 @@ async function cleanupAcceptanceProject(projectId: string): Promise<void> {
         where: { finalization: sessionWhere },
       });
       await tx.sessionFinalization.deleteMany({ where: sessionWhere });
+      await tx.aiJob.deleteMany({ where: { projectId } });
+      await tx.speakerCalibrationAttemptSegment.deleteMany({
+        where: { attempt: { session: { projectId } } },
+      });
+      await tx.speakerCalibrationAttempt.deleteMany({ where: sessionWhere });
       await tx.transcriptSegment.deleteMany({ where: { session: { projectId } } });
       await tx.speakerMapping.deleteMany({ where: { session: { projectId } } });
+      await tx.speakerStream.deleteMany({ where: { session: { projectId } } });
       await tx.consentRecord.deleteMany({ where: { projectId } });
       await tx.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
       await tx.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });
