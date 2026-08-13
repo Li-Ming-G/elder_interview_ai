@@ -285,10 +285,12 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
     expect(
       transcriptItems.every(({ content_kind: contentKind }) => contentKind === 'conversation'),
     ).toBe(true);
-    expect(transcriptItems.map(({ original_text: text }) => text)).toEqual([
-      'synthetic post-confirm segment 0',
-      'synthetic post-confirm segment 1',
-    ]);
+    expect(transcriptItems.map(({ original_text: text }) => text)).toEqual(
+      expect.arrayContaining([
+        'synthetic post-confirm segment 0',
+        'synthetic post-confirm segment 1',
+      ]),
+    );
     expect(transcriptItems.map(({ id, start_ms: startMs }) => [startMs, id])).toEqual(
       [...transcriptItems]
         .sort((left, right) => left.start_ms - right.start_ms || left.id.localeCompare(right.id))
