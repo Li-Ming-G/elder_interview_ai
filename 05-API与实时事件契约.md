@@ -1299,7 +1299,7 @@ B1/B2 内部原型使用 JSON + base64 PCM，不提前冻结二进制 header：
 - B1 每个 session 只提供进程内短时事件缓存：最近 512 个事件或 5 分钟，先到者淘汰；不承诺跨进程恢复；
 - 有效恢复游标按原 `server_sequence` 顺序 replay，随后发送新的 `session.ready`；
 - stream ID 不匹配、服务重启或游标过期返回 `RESUME_WINDOW_EXPIRED` 和 `reset_required=true`，不得伪装恢复；
-- `asr.interim` 使用稳定 `hypothesis_id` 和递增 `revision`，只替换临时显示且不落库；
+- `asr.interim` 使用稳定 `hypothesis_id` 和递增 `revision`，只替换临时显示且不落库；payload 必须包含服务端权威 `content_kind=conversation|speaker_calibration`，分类使用同 speaker stream 上标准化 `start_ms/end_ms` 与持久 attempt 半开区间的非零重叠，不使用客户端 revision 或 attempt 当前状态猜测；
 - final 必须先经 DEV-004A 成功落库，再发布 `asr.final`；adapter 重复 final 返回同一稳定 `segment_id`，同一 runtime event stream 不发布第二个相同 final；
 - 持久 outbox、跨进程事件恢复和 transcript REST snapshot 另行立项，不阻塞内部原型。
 
@@ -1422,3 +1422,33 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 结构化 drain receipt 仅在当前 voice `final=1`、accepted PCM 均获得 sent/terminal 结果且相关 final 完成 ingestion 后有效。它是 attempt-level evidence，不证明整场 completeness。deadline、cancel、close 或错误会 fence sink；WS close、最后一句或 void resolve 不构成 receipt。
 
 runtime 必须跨新 voice 保留 session/capture 级 `no_known_gap -> known_unbackfilled_gap` 单向聚合。WS close/error、timeout、cancel 或可/不可恢复故障只有在造成 accepted PCM 无终态、capture coverage 中断或 evidence 丢失时形成 gap；新 voice 本身不是 gap，零 PCM 失败或相邻 attempt 连续完整交接仍可最终 `drained`。已形成 gap 后，任何 connect/ready/final/receipt/reconcile 都不得 clear；本 SPEC 不新增公共 clear API。只有未来 `HARDEN-ASR-001` 的权威 backfill 可另行定义重算。稳定安全错误分类和 retryability 以正式 v2 契约为准，对公共 session 只投影既有 `drained|degraded|not_started`。
+
+## 10. DEV-008A4 普通首次访谈契约修订
+
+### 10.1 普通 ready/start/current gate
+
+- `POST /projects/:id/service-terms` 与 `GET /projects/:id/service-terms` 保留原契约和历史语义，但普通倾听员首次访谈不调用、不展示，也不创建占位记录。
+- project `draft → ready` 只要求当前版本 `recording_transcription_ai` consent 有效且未撤回；ServiceTerm 不再是普通 ready 条件。
+- `/sessions/:id/start` 与 capture resume/current gate 不再查询或要求 current ServiceTerm；仍必须在资源锁内重新验证 active actor、有效 assignment、项目未 restricted/deleted、当前版本 consent 有效未撤回，以及 session 已有服务端 `device_check`。
+- draft session 继续允许在 consent 前创建。`device-check` 成功可幂等返回已有 `device_check`，但客户端不得据此把新页面本地麦克风状态初始化为 passed。
+
+### 10.2 校准与普通正文
+
+- begin 只能在 formal start、正式 provider stream ready 且存在同 stream `speaker_stream_id` 后发生。临时麦克风检查流不得调用 begin 或创建 attempt。
+- 普通 `GET /sessions/:id/transcripts` 只返回 `content_kind=conversation`；`speaker_calibration` 证据仍在数据库与校准/审计域保留，不通过普通实时转录或回顾正文返回。
+- WebSocket calibration snapshot/event 保持原契约。`asr.interim` 在 WS 1.1 增加必填 `content_kind`；权威来源与 final 相同，按同 speaker stream 的持久 attempt 时间区间重叠判定，所以 resolve/skip 后迟到且 revision 更高的校准 interim 仍为 `speaker_calibration`。普通工作台只消费 `content_kind=conversation` 的 interim/final；不得按 revision 或 UI 时序猜测，也不得永久关闭后续 conversation interim。
+- 降级继续时，如服务端 snapshot 已存在 attempt，客户端必须通过唯一 `resolveSpeakerCalibration(action=skip)` 边界冻结终点后才进入普通工作台。只有 provider unavailable 且 snapshot 明确不存在 attempt 时可以本地 degraded bypass；后续 provider 恢复不得在已显示的普通工作台后台自动开启隐藏 attempt。
+
+### 10.3 自动收尾与本机 complete ACK
+
+- 客户端冻结的 stop/complete request ID 与 commitments 必须持久稳定。正常结束自动执行 flush → stop/finalize → complete → reconcile → canonical verify；同一状态水位只允许一个 in-flight 动作。
+- complete 响应只有在 audio object identity、`status=complete`、chunk count、逐片 sequence/time/size/checksum/mime、总字节与冻结 handoff 全部精确一致时才是 exact ACK。随后 formal local interview job 才原子写为 `status=complete,lastError=null`。本机写失败时重放相同 complete request ID 并重新核对 ACK；mismatch/unknown 不写 complete。
+- reconcile 使用稳定 request ID；未知响应继续复用，明确 ACK 后才轮换。客户端应用响应前必须比对当前水位，禁止迟到结果回退新状态。`processing` 不冒充 completed；只有 canonical `completed` 进入完成 UI。
+- workbench 刷新后不得以 React 内存中的 `endHandoff` 是否仍在作为自动收尾前提。canonical `stopping|processing` 是恢复触发事实：本机存在可验证冻结作业时重建同一 handoff，重放相同 complete ID 并核对 exact ACK 后再 reconcile；本机交接确实缺失时不得补造 commitments，但仍自动以稳定 reconcile ID 查询服务端收束结果并 canonical verify。
+- 回顾投影的有界重试始终重新读取 fresh session/manifest 并复用 `local-audio-archive-v1` 全部门禁，不新增服务器下载或删除 API，也不改变 CON-023/DEV-008D。
+
+### 10.4 unknown create 自动恢复与 origin 诊断
+
+- `POST /projects`、consent、session 的浏览器 workflow 继续以 actor/action/target-or-create identity/canonical payload 绑定首次持久 request ID。`fetch` 抛错或代理连接中断只能转为 `unknown_response`，不得轮换 ID/payload；online、页面重新 visible 与 workflow reopen 自动重放同一请求，明确 ACK 后推进。
+- create 请求不得使用会主动中止仍可能在服务端提交中的固定客户端 deadline 来制造 status=0。底层连接失败仍按 unknown response 处理；UI 不显示 request ID、payload 或“表单锁定”等实现细节。
+- 本机 archive 只在产生它的精确 origin 可见。客户端无法跨 origin 枚举 IndexedDB；因此 missing 投影只能显示当前 `location.origin` 与返回原 scheme/host/port 的诊断，不得猜测另一 origin 有无副本。

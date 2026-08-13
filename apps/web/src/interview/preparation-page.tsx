@@ -1,27 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { InterviewSessionResponse, ServiceTermResponse } from '@elder-interview/contracts';
+import { useCallback, useEffect, useState } from 'react';
+import type { InterviewSessionResponse } from '@elder-interview/contracts';
 
 import type { InterviewApi, PreparationData } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
-import type { MicrophoneChecker } from './microphone-check.js';
 import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
-import { preparationPath, workbenchPath } from './routes.js';
 import type { InterviewCaptureController } from './interview-capture-controller.js';
-import { IndexedDbNewInterviewWorkflowStore } from './new-interview-workflow-store.js';
+import { workbenchPath } from './routes.js';
 
 interface PreparationPageProps {
-  actorId: string;
+  /** Deprecated compatibility props accepted by pre-A4 callers/tests. */
+  actorId?: string;
   api: InterviewApi;
   captureController: (sessionId: string) => Pick<InterviewCaptureController, 'start'>;
-  checkMicrophone: MicrophoneChecker;
+  checkMicrophone?: unknown;
   initialSessionId: string | null;
   navigate: (path: string, replace?: boolean) => void;
   projectId: string;
-}
-
-interface PreparationSessionRequestStore {
-  acknowledgeDetachedSession(actorId: string, projectId: string): Promise<void>;
-  getOrCreateDetachedSessionRequestId(actorId: string, projectId: string): Promise<string>;
 }
 
 type LoadState =
@@ -29,42 +23,25 @@ type LoadState =
   | { kind: 'error'; message: string }
   | { data: PreparationData; kind: 'ready' };
 
-type DeviceState =
-  | { kind: 'idle' }
-  | { kind: 'checking' }
-  | { kind: 'passed' }
-  | { kind: 'failed'; message: string; permission: 'denied' | 'granted' | 'unknown' };
-
+/** Legacy/recovery route. DEV-008A4's ordinary first-interview flow starts capture directly. */
 export function PreparationPage({
-  actorId,
   api,
   captureController,
-  checkMicrophone,
   initialSessionId,
   navigate,
   projectId,
 }: PreparationPageProps): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
-  const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const actionLock = useRef(false);
-  const workflowStore = useMemo<PreparationSessionRequestStore>(
-    () =>
-      typeof globalThis.indexedDB === 'undefined'
-        ? new InMemoryPreparationSessionRequestStore()
-        : new IndexedDbNewInterviewWorkflowStore(),
-    [],
-  );
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
     try {
       const data = await api.loadPreparation(projectId, initialSessionId);
       setLoadState({ data, kind: 'ready' });
-      if (data.session?.status === 'device_check') setDeviceState({ kind: 'passed' });
     } catch (error) {
-      setLoadState({ kind: 'error', message: readableError(error, '无法加载访谈准备信息') });
+      setLoadState({ kind: 'error', message: readableError(error, '无法加载访谈恢复信息') });
     }
   }, [api, initialSessionId, projectId]);
 
@@ -72,99 +49,20 @@ export function PreparationPage({
     void load();
   }, [load]);
 
-  const readiness = useMemo(
-    () => (loadState.kind === 'ready' ? deriveReadiness(loadState.data) : null),
-    [loadState],
-  );
-
-  async function runDeviceCheck(): Promise<void> {
-    if (actionLock.current || loadState.kind !== 'ready') return;
-    actionLock.current = true;
-    setActionError(null);
-    setDeviceState({ kind: 'checking' });
-    try {
-      const result = await checkMicrophone();
-      if (result.permission === 'denied') {
-        setDeviceState({
-          kind: 'failed',
-          message: '麦克风权限被拒绝。请在浏览器地址栏的权限设置中允许后重试。',
-          permission: 'denied',
-        });
-        return;
-      }
-      if (!result.inputDetected) {
-        setDeviceState({
-          kind: 'failed',
-          message:
-            result.reason === 'too_low'
-              ? '检测到的声音太弱，还不能确认录音输入正常。请靠近麦克风、提高说话音量，再重新检测。'
-              : '没有检测到声音。请确认输入设备、系统音量，并对着麦克风说一句话后重试。',
-          permission: 'granted',
-        });
-        return;
-      }
-
-      let session = loadState.data.session;
-      if (session === null) {
-        const requestId = await workflowStore.getOrCreateDetachedSessionRequestId(
-          actorId,
-          projectId,
-        );
-        session = await api.createSession(projectId, { request_id: requestId });
-        await workflowStore.acknowledgeDetachedSession(actorId, projectId);
-        navigate(preparationPath(projectId, session.id), true);
-      }
-      if (session.status !== 'created' && session.status !== 'device_check') {
-        throw new InterviewApiError(
-          'INVALID_SESSION_STATE',
-          '当前访谈状态不允许执行设备检测，请刷新后核对',
-          409,
-        );
-      }
-      const checked =
-        session.status === 'device_check'
-          ? session
-          : await api.deviceCheck(session.id, {
-              input_detected: true,
-              microphone_permission: 'granted',
-            });
-      setLoadState({ data: { ...loadState.data, session: checked }, kind: 'ready' });
-      setDeviceState({ kind: 'passed' });
-    } catch (error) {
-      setDeviceState({
-        kind: 'failed',
-        message: readableError(error, '设备检测未能完成，请检查设备后重试'),
-        permission: 'unknown',
-      });
-    } finally {
-      actionLock.current = false;
-    }
-  }
-
   async function startInterview(): Promise<void> {
-    if (
-      actionLock.current ||
-      loadState.kind !== 'ready' ||
-      loadState.data.session === null ||
-      deviceState.kind !== 'passed'
-    ) {
-      return;
-    }
-    actionLock.current = true;
+    if (loadState.kind !== 'ready' || loadState.data.session?.status !== 'device_check') return;
     setSubmitting(true);
     setActionError(null);
     try {
       const sessionId = loadState.data.session.id;
       const capture = await captureController(sessionId).start();
       if (capture.phase !== 'active') {
-        throw new InterviewApiError('UNEXPECTED_SESSION_STATE', '服务端未确认访谈已开始', 409);
+        throw new InterviewApiError('UNEXPECTED_SESSION_STATE', '服务端未确认正式录音已开始', 409);
       }
       navigate(workbenchPath(projectId, sessionId));
     } catch (error) {
-      setActionError(readableError(error, '访谈未能开始，请核对当前状态后重试'));
+      setActionError(readableError(error, '正式录音未能开始，请核对当前状态后重试'));
       setSubmitting(false);
-    } finally {
-      actionLock.current = false;
     }
   }
 
@@ -173,8 +71,8 @@ export function PreparationPage({
     return (
       <main className="interview-page interview-page--centered">
         <section className="load-failure" aria-labelledby="load-failure-title">
-          <p className="context-label">访谈准备</p>
-          <h1 id="load-failure-title">暂时无法打开这个项目</h1>
+          <p className="context-label">访谈恢复</p>
+          <h1 id="load-failure-title">暂时无法打开这次访谈</h1>
           <p role="alert">{loadState.message}</p>
           <button className="button button--secondary" onClick={() => void load()} type="button">
             重新加载
@@ -184,156 +82,71 @@ export function PreparationPage({
     );
   }
 
-  const { project, serviceTerms, consents, session } = loadState.data;
-  const elderName = safeProjectName(project.display_name);
-  const currentTerm = currentServiceTerm(serviceTerms);
+  const { project, consents, session } = loadState.data;
   const currentConsent = latestConsent(consents);
-  const canStart =
-    readiness?.projectReady === true &&
-    readiness.serviceReady &&
-    readiness.consentReady &&
+  const consentReady = hasCurrentValidConsent(consents);
+  const canResume =
+    (project.status === 'ready' || project.status === 'active') &&
+    consentReady &&
     session?.status === 'device_check' &&
-    deviceState.kind === 'passed' &&
     !submitting;
 
   return (
-    <main className="interview-page">
-      <header className="prep-header">
-        <div>
-          <p className="context-label">首次访谈 · 准备</p>
-          <h1>和{elderName}开始一段从容的对话</h1>
-          <p className="intro-copy">
-            开始前请确认服务说明与正式授权，并完成一次短暂的麦克风检测。检测不会录音或保存声音。
+    <main className="interview-page interview-page--centered">
+      <section className="readiness-panel" aria-labelledby="recovery-title">
+        <p className="context-label">访谈恢复</p>
+        <h1 id="recovery-title">继续建立正式录音</h1>
+        <p>
+          当前普通新建流程已把麦克风检查放在口头授权之前；本页只用于恢复已完成设备检查与正式授权的旧会话。
+        </p>
+        <StatusItem
+          detail={
+            currentConsent === null
+              ? '没有有效的正式授权记录。'
+              : consentReady
+                ? `正式授权有效 · 文本版本 ${currentConsent.consent_text_version}`
+                : '最新正式授权当前无效。'
+          }
+          label="录音、转录与 AI 分析授权"
+          state={consentReady ? 'ready' : 'blocked'}
+        />
+        <StatusItem
+          detail={
+            session === null
+              ? '没有可恢复的会话，请从工作区重新发起。'
+              : session.status === 'device_check'
+                ? '会话已完成授权前设备检查。'
+                : `当前会话状态为“${sessionStatusText(session)}”，不能从本页开始。`
+          }
+          label="已有会话"
+          state={session?.status === 'device_check' ? 'ready' : 'blocked'}
+        />
+        <button
+          className="button button--primary"
+          disabled={!canResume}
+          onClick={() => void startInterview()}
+          type="button"
+        >
+          {submitting ? '正在建立正式录音…' : '建立正式录音并进入校准'}
+        </button>
+        {actionError === null ? null : (
+          <p className="inline-error" role="alert">
+            {actionError}
           </p>
-        </div>
-        <span className="privacy-note">仅显示当前已分配项目</span>
-      </header>
-
-      <div className="prep-layout">
-        <section className="prep-summary" aria-labelledby="summary-title">
-          <h2 id="summary-title">本次访谈</h2>
-          <dl className="summary-list">
-            <SummaryRow label="长者称呼" value={elderName} />
-            <SummaryRow
-              label="预计时长"
-              value={
-                currentTerm === null
-                  ? '尚未记录'
-                  : `${String(currentTerm.expected_current_minutes)} 分钟`
-              }
-            />
-            <SummaryRow label="访谈方式" value="由倾听员主导，系统协助录音与转录" />
-          </dl>
-          <div className="interview-guidance">
-            <h3>给谈话留一点空间</h3>
-            <p>从熟悉的人、地方或一段日常记忆开始。长者可以随时暂停、拒绝或换一个话题。</p>
-          </div>
-        </section>
-
-        <section className="readiness-panel" aria-labelledby="readiness-title">
-          <div className="section-heading">
-            <div>
-              <p className="context-label">开始条件</p>
-              <h2 id="readiness-title">准备状态</h2>
-            </div>
-            <span className="status-count">
-              {
-                [
-                  readiness?.serviceReady,
-                  readiness?.consentReady,
-                  deviceState.kind === 'passed',
-                ].filter(Boolean).length
-              }
-              /3
-            </span>
-          </div>
-
-          <StatusItem
-            detail={
-              currentTerm === null
-                ? '未找到当前服务说明，请联系项目负责人补充。'
-                : `已说明本次预计 ${String(currentTerm.expected_current_minutes)} 分钟`
-            }
-            label="服务说明"
-            state={readiness?.serviceReady === true ? 'ready' : 'blocked'}
-          />
-          <StatusItem
-            detail={
-              currentConsent === null
-                ? '没有有效的正式授权记录，页面确认不能替代授权。'
-                : currentConsent.status === 'valid' && currentConsent.revoked_at === null
-                  ? `正式授权有效 · 文本版本 ${currentConsent.consent_text_version}`
-                  : '没有有效的正式授权记录；最新记录当前无效，页面确认不能替代授权。'
-            }
-            label="录音、转录与 AI 分析授权"
-            state={readiness?.consentReady === true ? 'ready' : 'blocked'}
-          />
-          <DeviceStatus state={deviceState} />
-
-          <div className="prep-actions">
-            <button
-              className="button button--secondary"
-              disabled={
-                deviceState.kind === 'checking' ||
-                submitting ||
-                (session !== null && !['created', 'device_check'].includes(session.status))
-              }
-              onClick={() => void runDeviceCheck()}
-              type="button"
-            >
-              {deviceState.kind === 'checking' ? '正在听取输入…' : '检测麦克风'}
-            </button>
-            <button
-              className="button button--primary"
-              disabled={!canStart}
-              onClick={() => void startInterview()}
-              type="button"
-            >
-              {submitting ? '正在开始…' : '开始访谈'}
-            </button>
-          </div>
-          {readiness?.projectReady === false ? (
-            <p className="inline-error" role="alert">
-              项目状态当前不允许开始访谈，请联系项目负责人核对。
-            </p>
-          ) : null}
-          {session !== null && !['created', 'device_check'].includes(session.status) ? (
-            <p className="inline-error" role="alert">
-              当前会话状态为“{sessionStatusText(session)}”，不能从准备页开始。
-            </p>
-          ) : null}
-          {actionError === null ? null : (
-            <p className="inline-error" role="alert">
-              {actionError}
-            </p>
-          )}
-        </section>
-      </div>
+        )}
+      </section>
     </main>
   );
 }
 
 function PreparationSkeleton(): React.JSX.Element {
   return (
-    <main className="interview-page" aria-busy="true" aria-label="正在加载访谈准备信息">
+    <main className="interview-page" aria-busy="true" aria-label="正在加载访谈恢复信息">
       <div className="skeleton skeleton--label" />
       <div className="skeleton skeleton--title" />
-      <div className="skeleton skeleton--copy" />
-      <div className="prep-layout prep-layout--skeleton">
-        <div className="skeleton skeleton--panel" />
-        <div className="skeleton skeleton--panel" />
-      </div>
-      <span className="sr-only">正在加载访谈准备信息</span>
+      <div className="skeleton skeleton--panel" />
+      <span className="sr-only">正在加载访谈恢复信息</span>
     </main>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   );
 }
 
@@ -352,49 +165,11 @@ function StatusItem({
         {state === 'ready' ? '✓' : '!'}
       </span>
       <div>
-        <h3>{label}</h3>
+        <h2>{label}</h2>
         <p>{detail}</p>
       </div>
     </div>
   );
-}
-
-function DeviceStatus({ state }: { state: DeviceState }): React.JSX.Element {
-  const content = {
-    checking: ['正在检测麦克风', '请先安静片刻，再清楚说一句话。检测完成后会立即释放设备。'],
-    failed: ['设备检查未通过', state.kind === 'failed' ? state.message : ''],
-    idle: ['麦克风与输入', '尚未检测。检测不会创建录音或上传声音。'],
-    passed: ['麦克风与输入', '权限已允许，并检测到声音输入。'],
-  }[state.kind];
-  const visualState =
-    state.kind === 'passed' ? 'ready' : state.kind === 'failed' ? 'blocked' : 'idle';
-  return (
-    <div className="status-item" aria-live="polite">
-      <span aria-hidden="true" className={`status-mark status-mark--${visualState}`}>
-        {visualState === 'ready' ? '✓' : visualState === 'blocked' ? '!' : '·'}
-      </span>
-      <div>
-        <h3>{content[0]}</h3>
-        <p>{content[1]}</p>
-      </div>
-    </div>
-  );
-}
-
-function deriveReadiness(data: PreparationData): {
-  consentReady: boolean;
-  projectReady: boolean;
-  serviceReady: boolean;
-} {
-  return {
-    consentReady: hasCurrentValidConsent(data.consents),
-    projectReady: data.project.status === 'ready' || data.project.status === 'active',
-    serviceReady: currentServiceTerm(data.serviceTerms) !== null,
-  };
-}
-
-function currentServiceTerm(terms: ServiceTermResponse[]): ServiceTermResponse | null {
-  return terms.find((term) => term.superseded_at === null) ?? null;
 }
 
 function sessionStatusText(session: InterviewSessionResponse): string {
@@ -413,29 +188,5 @@ function sessionStatusText(session: InterviewSessionResponse): string {
 }
 
 function readableError(error: unknown, fallback: string): string {
-  if (error instanceof InterviewApiError) return error.message;
-  if (error instanceof Error) {
-    if (error.message === 'AUDIO_DEVICE_UNAVAILABLE') return '无法访问可用的麦克风设备';
-    if (error.message === 'AUDIO_INPUT_CHECK_UNSUPPORTED') return '当前浏览器不支持输入检测';
-  }
-  return fallback;
-}
-
-function safeProjectName(value: string): string {
-  const normalized = value.trim();
-  return normalized.length === 0 || /^[?？�\s]+$/u.test(normalized) ? '这位长者' : normalized;
-}
-
-class InMemoryPreparationSessionRequestStore implements PreparationSessionRequestStore {
-  private requestId: string | null = null;
-
-  public acknowledgeDetachedSession(): Promise<void> {
-    this.requestId = null;
-    return Promise.resolve();
-  }
-
-  public getOrCreateDetachedSessionRequestId(): Promise<string> {
-    this.requestId ??= globalThis.crypto.randomUUID();
-    return Promise.resolve(this.requestId);
-  }
+  return error instanceof InterviewApiError ? error.message : fallback;
 }

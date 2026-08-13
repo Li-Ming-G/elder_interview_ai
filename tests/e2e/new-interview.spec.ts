@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const ACTOR_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '20000000-0000-4000-8000-000000000001';
+const SESSION_ID = '40000000-0000-4000-8000-000000000001';
 
 test.use({
   launchOptions: {
@@ -28,14 +29,18 @@ for (const viewport of [
 
     await page.getByLabel('姓名、昵称或项目代号').fill('虚构长者新禾');
     await page.getByRole('button', { name: '创建项目并继续' }).click();
-    await expect(page.getByRole('heading', { name: '服务说明' })).toBeVisible();
-    await page.getByRole('button', { name: '已说明并保存' }).click();
+    await expect(page.getByRole('heading', { name: '建立本次访谈会话' })).toBeVisible();
+    await expect(page.getByText(/服务说明|价格|费用/)).toHaveCount(0);
+    await page.getByRole('button', { name: '建立会话并检查麦克风' }).click();
 
     await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
     await expect(page.getByText('对话会被录音。')).toBeVisible();
     await expect(page.getByText('内容不会未经确认直接公开。')).toBeVisible();
     await expect(page.getByText('授权文本版本：mvp-v1')).toBeVisible();
     await expect(page.getByText(/electronic|written/i)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '录制授权' })).toBeDisabled();
+    await page.getByRole('button', { name: '检查当前页麦克风' }).click();
+    await expect(page.getByText(/当前页麦克风检查通过/)).toBeVisible();
     expect(requestIds).toHaveLength(2);
     expect(new Set(requestIds).size).toBe(2);
 
@@ -69,7 +74,7 @@ for (const viewport of [
   });
 }
 
-test('unknown project response survives reload and replays only the original request id', async ({
+test('unknown project response automatically survives reload and replays only the original identity', async ({
   page,
 }) => {
   let projectAttempts = 0;
@@ -83,7 +88,7 @@ test('unknown project response survives reload and replays only the original req
       const body = request.postDataJSON() as Record<string, unknown>;
       seenRequestIds.push(String(body.request_id));
       projectAttempts += 1;
-      if (projectAttempts === 1) return route.abort('connectionreset');
+      if (projectAttempts <= 2) return route.abort('connectionreset');
       return route.fulfill({ json: projectAck(body), status: 201 });
     }
     return route.fulfill({ json: { items: [] } });
@@ -91,13 +96,14 @@ test('unknown project response survives reload and replays only the original req
   await page.goto('/interviews/new');
   await page.getByLabel('姓名、昵称或项目代号').fill('虚构未知响应长者');
   await page.getByRole('button', { name: '创建项目并继续' }).click();
-  await expect(page.getByText(/上次响应未知/)).toBeVisible();
-  await page.reload();
-  await expect(page.getByText(/已恢复这台浏览器上未完成/)).toBeVisible();
-  await page.getByRole('button', { name: '使用原请求重试' }).click();
-  await expect(page.getByRole('heading', { name: '服务说明' })).toBeVisible();
+  await expect(page.getByText(/暂时无法确认创建结果/)).toBeVisible();
   expect(seenRequestIds).toHaveLength(2);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '建立本次访谈会话' })).toBeVisible();
+  expect(seenRequestIds).toHaveLength(3);
   expect(seenRequestIds[1]).toBe(seenRequestIds[0]);
+  expect(seenRequestIds[2]).toBe(seenRequestIds[0]);
+  await expect(page.getByText(/request ID|payload|表单已锁定/)).toHaveCount(0);
 });
 
 test('SPA return stops consent recording and re-entry resumes the same audio job', async ({
@@ -108,7 +114,9 @@ test('SPA return stops consent recording and re-entry resumes the same audio job
   await page.goto('/interviews/new');
   await page.getByLabel('姓名、昵称或项目代号').fill('虚构离页授权长者');
   await page.getByRole('button', { name: '创建项目并继续' }).click();
-  await page.getByRole('button', { name: '已说明并保存' }).click();
+  await page.getByRole('button', { name: '建立会话并检查麦克风' }).click();
+  await page.getByRole('button', { name: '检查当前页麦克风' }).click();
+  await expect(page.getByText(/当前页麦克风检查通过/)).toBeVisible();
   await page.getByRole('button', { name: '录制授权' }).click();
   await expect(page.getByText(/正在录制 ·/)).toBeVisible();
   await page.waitForTimeout(1_100);
@@ -124,6 +132,9 @@ test('SPA return stops consent recording and re-entry resumes the same audio job
   await page.goto('/interviews/new');
   await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
   await expect(page.getByText(/存在可恢复的授权录音记录/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '继续录制授权' })).toBeDisabled();
+  await page.getByRole('button', { name: '检查当前页麦克风' }).click();
+  await expect(page.getByText(/当前页麦克风检查通过/)).toBeVisible();
   await page.getByRole('button', { name: '继续录制授权' }).click();
   await expect(page.getByText(/正在录制 ·/)).toBeVisible();
   const resumed = await readConsentAudioState(page);
@@ -145,26 +156,34 @@ async function routeNewInterview(page: Page, requestIds: string[]): Promise<void
       requestIds.push(String(body.request_id));
       return route.fulfill({ json: projectAck(body), status: 201 });
     }
-    if (path === `/api/v1/projects/${PROJECT_ID}/service-terms` && request.method() === 'POST') {
+    if (path === `/api/v1/projects/${PROJECT_ID}/sessions` && request.method() === 'POST') {
       const body = request.postDataJSON() as Record<string, unknown>;
       requestIds.push(String(body.request_id));
-      const payload = withoutRequestId(body);
       return route.fulfill({
-        json: {
-          ...payload,
-          created_at: '2026-08-12T00:00:00.000Z',
-          effective_from: '2026-08-12T00:00:00.000Z',
-          explained_at: '2026-08-12T00:00:00.000Z',
-          explained_by: ACTOR_ID,
-          id: '30000000-0000-4000-8000-000000000001',
-          project_id: PROJECT_ID,
-          superseded_at: null,
-        },
+        json: sessionAck('created'),
         status: 201,
       });
     }
+    if (path === `/api/v1/sessions/${SESSION_ID}/device-check` && request.method() === 'POST')
+      return route.fulfill({ json: sessionAck('device_check'), status: 201 });
+    if (path.includes('/service-terms')) return route.abort('blockedbyclient');
     return route.fulfill({ json: { items: [] } });
   });
+}
+
+function sessionAck(status: 'created' | 'device_check'): Record<string, unknown> {
+  return {
+    capture: null,
+    created_at: '2026-08-12T00:00:00.000Z',
+    created_by: ACTOR_ID,
+    ended_at: null,
+    id: SESSION_ID,
+    project_id: PROJECT_ID,
+    sequence_no: 1,
+    started_at: null,
+    status,
+    updated_at: '2026-08-12T00:00:00.000Z',
+  };
 }
 
 function actor(): Record<string, unknown> {

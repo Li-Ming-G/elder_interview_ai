@@ -3,10 +3,8 @@ import type {
   ConsentResponse,
   CreateConsentRequest,
   CreateProjectRequest,
-  CreateServiceTermRequest,
   InterviewSessionResponse,
   ProjectResponse,
-  ServiceTermResponse,
 } from '@elder-interview/contracts';
 
 import { HomeFrame, StatusBadge } from '../home/home-shell.js';
@@ -14,13 +12,15 @@ import type { AudioCaptureSnapshot } from '../audio/browser-audio-recorder.js';
 import { BrowserConsentCapture, type ConsentCapture } from './browser-consent-capture.js';
 import type { NewInterviewApi } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
+import type { InterviewCaptureController } from './interview-capture-controller.js';
+import type { MicrophoneChecker, MicrophoneCheckResult } from './microphone-check.js';
 import {
   canonicalWorkflowPayload,
   IndexedDbNewInterviewWorkflowStore,
   type NewInterviewWorkflow,
   type StableCreateAttempt,
 } from './new-interview-workflow-store.js';
-import { preparationPath } from './routes.js';
+import { workbenchPath } from './routes.js';
 
 const CONSENT_TEXT_VERSION = 'mvp-v1';
 const CONSENT_NOTICE = [
@@ -45,17 +45,30 @@ const EMPTY_CAPTURE: AudioCaptureSnapshot = {
   status: 'idle',
 };
 
+type DeviceState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'passed' }
+  | { kind: 'failed'; message: string };
+
 export function NewInterviewPage({
   actorId,
   api,
+  captureController,
   captureFactory = (): ConsentCapture => new BrowserConsentCapture(),
+  checkMicrophone,
   csrfToken,
   navigate,
   workflowStore,
 }: {
   actorId: string;
   api: NewInterviewApi;
+  captureController: (
+    projectId: string,
+    sessionId: string,
+  ) => Pick<InterviewCaptureController, 'start'>;
   captureFactory?: () => ConsentCapture;
+  checkMicrophone: MicrophoneChecker;
   csrfToken: string;
   navigate: (path: string, replace?: boolean) => void;
   workflowStore?: IndexedDbNewInterviewWorkflowStore;
@@ -68,7 +81,10 @@ export function NewInterviewPage({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [captureSnapshot, setCaptureSnapshot] = useState(EMPTY_CAPTURE);
+  const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
+  const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
+  const unknownReplayKey = useRef<string | null>(null);
   const capture = useRef<ConsentCapture | null>(null);
   const captureUnsubscribe = useRef<(() => void) | null>(null);
   const mounted = useRef(true);
@@ -105,6 +121,38 @@ export function NewInterviewPage({
     };
   }, []);
 
+  useEffect(() => {
+    const retryUnknown = (): void => {
+      unknownReplayKey.current = null;
+      setUnknownReplayGeneration((value) => value + 1);
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') retryUnknown();
+    };
+    globalThis.addEventListener('online', retryUnknown);
+    document.addEventListener('visibilitychange', onVisible);
+    return (): void => {
+      globalThis.removeEventListener('online', retryUnknown);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (page.kind !== 'ready') return;
+    const attempt = unknownAttempt(page.workflow);
+    if (attempt === null) return;
+    const key = `${page.workflow.workflowId}:${attempt.requestId}`;
+    if (unknownReplayKey.current === key) return;
+    unknownReplayKey.current = key;
+    showMessage('正在恢复上次创建操作，不会重复创建项目。');
+    const timer = globalThis.setTimeout(() => {
+      void replayUnknown(page.workflow);
+    }, 0);
+    return (): void => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [page, unknownReplayGeneration]);
+
   async function save(workflow: NewInterviewWorkflow): Promise<void> {
     await store.put(workflow);
     if (mounted.current) setPage({ kind: 'ready', workflow });
@@ -124,13 +172,85 @@ export function NewInterviewPage({
     } catch (error) {
       if (isUnknownResponse(error)) {
         await save(markUnknown(workflow, attempt.requestId));
-        showMessage('服务响应未知。为避免重复记录，只能使用原请求编号重试。');
+        showMessage('暂时无法确认创建结果。网络恢复后会自动继续，也可以重新恢复创建操作。');
       } else {
         showMessage(readableError(error));
       }
       return null;
     } finally {
       endAction();
+    }
+  }
+
+  async function replayUnknown(workflow: NewInterviewWorkflow): Promise<void> {
+    const projectAttempt = workflow.projectAttempt;
+    if (workflow.step === 'project' && projectAttempt?.state === 'unknown_response') {
+      await runCreate(
+        projectAttempt,
+        workflow,
+        () => api.createProject(projectAttempt.payload),
+        (response) => {
+          assertProjectAck(projectAttempt.payload, response);
+          return {
+            ...workflow,
+            projectAttempt: acknowledged(projectAttempt, response),
+            step: 'session',
+          };
+        },
+      );
+      return;
+    }
+
+    const projectId = workflow.projectAttempt?.response?.id;
+    const sessionAttempt = workflow.sessionAttempt;
+    if (
+      workflow.step === 'session' &&
+      projectId !== undefined &&
+      sessionAttempt?.state === 'unknown_response'
+    ) {
+      const response = await runCreate(
+        sessionAttempt,
+        workflow,
+        () => api.createSession(projectId, sessionAttempt.payload),
+        (ack) => {
+          assertSessionAck(projectId, ack);
+          return {
+            ...workflow,
+            sessionAttempt: acknowledged(sessionAttempt, ack),
+            step: workflow.consentAudioObjectId === null ? 'consent_audio' : 'consent',
+          };
+        },
+      );
+      if (response !== null) setDeviceState({ kind: 'idle' });
+      return;
+    }
+
+    const consentAttempt = workflow.consentAttempt;
+    if (
+      workflow.step === 'consent' &&
+      projectId !== undefined &&
+      consentAttempt?.state === 'unknown_response'
+    ) {
+      const response = await runCreate(
+        consentAttempt,
+        workflow,
+        () => api.createConsent(projectId, consentAttempt.payload),
+        (ack) => {
+          assertConsentAck(projectId, consentAttempt.payload, ack);
+          return {
+            ...workflow,
+            consentAttempt: acknowledged(consentAttempt, ack),
+            step: 'start',
+          };
+        },
+      );
+      if (response !== null) {
+        await startFormalCapture({
+          ...workflow,
+          consentAttempt: acknowledged(consentAttempt, response),
+          step: 'start',
+        });
+      }
     }
   }
 
@@ -185,62 +305,41 @@ export function NewInterviewPage({
         return {
           ...workflow,
           projectAttempt: acknowledged(frozen, response),
-          step: 'service_term',
+          step: 'session',
         };
       },
     );
   }
 
-  async function submitServiceTerm(event: SyntheticEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (page.kind !== 'ready' || page.workflow.projectAttempt?.response == null) return;
-    const projectId = page.workflow.projectAttempt.response.id;
-    let workflow = page.workflow;
-    let attempt = workflow.serviceTermAttempt;
-    if (attempt === null) {
-      if (!beginAction()) return;
-      try {
-        const form = new FormData(event.currentTarget);
-        const requestId = globalThis.crypto.randomUUID();
-        const request: CreateServiceTermRequest = {
-          currency: 'CNY',
-          estimated_session_count: requiredInteger(form.get('estimated_session_count')),
-          expected_current_minutes: requiredInteger(form.get('expected_current_minutes')),
-          included_minutes: requiredInteger(form.get('included_minutes')),
-          overtime_price_minor: Math.round(requiredNumber(form.get('overtime_price')) * 100),
-          overtime_unit_minutes: requiredInteger(form.get('overtime_unit_minutes')),
-          request_id: requestId,
-        };
-        attempt = prepared(requestId, request);
-        workflow = { ...workflow, serviceTermAttempt: attempt };
-        await save(workflow);
-      } catch (error) {
-        showMessage(readablePreparationError(error));
+  async function runDeviceCheck(): Promise<void> {
+    if (page.kind !== 'ready' || page.workflow.sessionAttempt?.response == null) return;
+    if (!beginAction()) return;
+    setDeviceState({ kind: 'checking' });
+    try {
+      const result = await checkMicrophone();
+      if (!result.inputDetected) {
+        setDeviceState({ kind: 'failed', message: microphoneFailure(result) });
         return;
-      } finally {
-        endAction();
       }
+      const session = await api.deviceCheck(page.workflow.sessionAttempt.response.id, {
+        input_detected: true,
+        microphone_permission: 'granted',
+      });
+      assertDeviceCheckAck(page.workflow.sessionAttempt.response.id, session);
+      setDeviceState({ kind: 'passed' });
+      showMessage('已确认本页麦克风有输入，可以开始录制口头授权。');
+    } catch (error) {
+      setDeviceState({ kind: 'failed', message: readableDeviceError(error) });
+    } finally {
+      endAction();
     }
-    const frozen = attempt;
-    await runCreate(
-      frozen,
-      workflow,
-      () => api.createServiceTerm(projectId, frozen.payload),
-      (response) => {
-        assertServiceTermAck(projectId, frozen.payload, response);
-        return {
-          ...workflow,
-          serviceTermAttempt: acknowledged(frozen, response),
-          step: 'consent_audio',
-        };
-      },
-    );
   }
 
   async function startConsentRecording(): Promise<void> {
     if (
       page.kind !== 'ready' ||
       page.workflow.projectAttempt?.response === null ||
+      deviceState.kind !== 'passed' ||
       actionLock.current
     ) {
       return;
@@ -321,7 +420,7 @@ export function NewInterviewPage({
       }
     }
     const frozen = attempt;
-    await runCreate(
+    const response = await runCreate(
       frozen,
       workflow,
       () => api.createConsent(projectId, frozen.payload),
@@ -330,10 +429,17 @@ export function NewInterviewPage({
         return {
           ...workflow,
           consentAttempt: acknowledged(frozen, response),
-          step: 'session',
+          step: 'start',
         };
       },
     );
+    if (response !== null) {
+      await startFormalCapture({
+        ...workflow,
+        consentAttempt: acknowledged(frozen, response),
+        step: 'start',
+      });
+    }
   }
 
   async function createSession(): Promise<void> {
@@ -365,13 +471,40 @@ export function NewInterviewPage({
         const complete: NewInterviewWorkflow = {
           ...workflow,
           sessionAttempt: acknowledged(frozen, response),
-          status: 'complete',
-          step: 'complete',
+          step: workflow.consentAudioObjectId === null ? 'consent_audio' : 'consent',
         };
         return complete;
       },
     );
-    if (response !== null) navigate(preparationPath(projectId, response.id), true);
+    if (response !== null) setDeviceState({ kind: 'idle' });
+  }
+
+  async function startFormalCapture(workflowOverride?: NewInterviewWorkflow): Promise<void> {
+    const current = workflowOverride ?? (page.kind === 'ready' ? page.workflow : null);
+    if (
+      current?.projectAttempt?.response == null ||
+      current.sessionAttempt?.response == null ||
+      current.consentAttempt?.response == null
+    ) {
+      return;
+    }
+    if (!beginAction()) return;
+    const workflow = current;
+    const projectAck = workflow.projectAttempt?.response;
+    const sessionAck = workflow.sessionAttempt?.response;
+    if (projectAck == null || sessionAck == null) return;
+    const projectId = projectAck.id;
+    const sessionId = sessionAck.id;
+    try {
+      const snapshot = await captureController(projectId, sessionId).start();
+      if (snapshot.phase !== 'active') throw new Error('FORMAL_CAPTURE_NOT_ACTIVE');
+      await save({ ...workflow, status: 'complete', step: 'complete' });
+      navigate(workbenchPath(projectId, sessionId), true);
+    } catch (error) {
+      showMessage(readableStartError(error));
+    } finally {
+      endAction();
+    }
   }
 
   function consentCapture(): ConsentCapture {
@@ -439,12 +572,7 @@ export function NewInterviewPage({
   const workflow = page.workflow;
   const resumed =
     workflow.createdAt !== workflow.updatedAt ||
-    [
-      workflow.projectAttempt,
-      workflow.serviceTermAttempt,
-      workflow.consentAttempt,
-      workflow.sessionAttempt,
-    ]
+    [workflow.projectAttempt, workflow.consentAttempt, workflow.sessionAttempt]
       .filter((value) => value !== null)
       .some((value) => value.state === 'unknown_response');
 
@@ -453,8 +581,8 @@ export function NewInterviewPage({
       <header className="new-interview-header">
         <div>
           <p className="context-label">倾听员工作区 · 新建访谈</p>
-          <h1>建立一次有说明、有授权的访谈</h1>
-          <p>每一步确认后才会进入下一步；创建项目本身不代表已经可以开始。</p>
+          <h1>建立一次有授权、可安全保存的访谈</h1>
+          <p>先确认当前页面的麦克风，再录制口头授权；正式录音建立后进入说话人校准。</p>
         </div>
         <button
           className="button button--secondary"
@@ -470,9 +598,9 @@ export function NewInterviewPage({
         {(
           [
             ['project', '项目信息'],
-            ['service_term', '服务说明'],
-            ['consent_audio', '口头授权'],
-            ['session', '准备访谈'],
+            ['session', '建立会话'],
+            ['consent_audio', '麦克风与授权'],
+            ['start', '正式录音'],
           ] as const
         ).map(([step, label]) => (
           <li aria-current={stepIsCurrent(workflow.step, step) ? 'step' : undefined} key={step}>
@@ -485,7 +613,7 @@ export function NewInterviewPage({
 
       {resumed ? (
         <p className="workflow-resume" role="status">
-          已恢复这台浏览器上未完成的新建记录。响应未知的步骤只会重放原请求编号。
+          已恢复这台浏览器上未完成的新建记录。正在恢复上次创建操作，不会重复创建项目。
         </p>
       ) : null}
 
@@ -493,18 +621,20 @@ export function NewInterviewPage({
         {workflow.step === 'project' ? (
           <ProjectForm attempt={workflow.projectAttempt} busy={busy} onSubmit={submitProject} />
         ) : null}
-        {workflow.step === 'service_term' ? (
-          <ServiceTermForm
-            attempt={workflow.serviceTermAttempt}
+        {workflow.step === 'session' ? (
+          <SessionStep
+            attempt={workflow.sessionAttempt}
             busy={busy}
-            onSubmit={submitServiceTerm}
+            onCreate={() => void createSession()}
           />
         ) : null}
         {workflow.step === 'consent_audio' ? (
           <ConsentRecordingStep
             busy={busy}
             capture={captureSnapshot}
+            deviceState={deviceState}
             hasJob={workflow.consentAudioJobId !== null}
+            onCheck={() => void runDeviceCheck()}
             onFinish={() => void finishConsentRecording()}
             onStart={() => void startConsentRecording()}
           />
@@ -516,14 +646,10 @@ export function NewInterviewPage({
             onConfirm={() => void submitConsent()}
           />
         ) : null}
-        {workflow.step === 'session' ? (
-          <SessionStep
-            attempt={workflow.sessionAttempt}
-            busy={busy}
-            onCreate={() => void createSession()}
-          />
+        {workflow.step === 'start' ? (
+          <StartStep busy={busy} onStart={() => void startFormalCapture()} />
         ) : null}
-        {workflow.step === 'complete' ? <p aria-busy="true">正在打开访谈准备页…</p> : null}
+        {workflow.step === 'complete' ? <p aria-busy="true">正在打开说话人校准…</p> : null}
         {message === null ? null : (
           <p className="workflow-message" role="status">
             {message}
@@ -600,63 +726,7 @@ function ProjectForm({
       </div>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} type="submit">
-        {busy ? '正在确认…' : frozen ? '使用原请求重试' : '创建项目并继续'}
-      </button>
-    </form>
-  );
-}
-
-function ServiceTermForm({
-  attempt,
-  busy,
-  onSubmit,
-}: {
-  attempt: NewInterviewWorkflow['serviceTermAttempt'];
-  busy: boolean;
-  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
-}): React.JSX.Element {
-  const frozen = attempt !== null;
-  return (
-    <form onSubmit={(event) => void onSubmit(event)}>
-      <p className="context-label">第 2 步</p>
-      <h2>服务说明</h2>
-      <p>请当面说明本次预计时长、服务包含时长和超时计费，再确认以下记录。</p>
-      <div className="workflow-form-grid">
-        <NumberField
-          defaultValue={60}
-          disabled={frozen}
-          label="本次预计分钟"
-          name="expected_current_minutes"
-        />
-        <NumberField
-          defaultValue={3}
-          disabled={frozen}
-          label="预计访谈次数"
-          name="estimated_session_count"
-        />
-        <NumberField
-          defaultValue={180}
-          disabled={frozen}
-          label="服务包含分钟"
-          name="included_minutes"
-        />
-        <NumberField
-          defaultValue={30}
-          disabled={frozen}
-          label="超时计费单位（分钟）"
-          name="overtime_unit_minutes"
-        />
-        <NumberField
-          defaultValue={0}
-          disabled={frozen}
-          label="每单位费用（元）"
-          name="overtime_price"
-          step="0.01"
-        />
-      </div>
-      <AttemptNotice attempt={attempt} />
-      <button className="button button--primary" disabled={busy} type="submit">
-        {busy ? '正在保存…' : frozen ? '使用原请求重试' : '已说明并保存'}
+        {busy ? '正在确认…' : frozen ? '重新恢复创建操作' : '创建项目并继续'}
       </button>
     </form>
   );
@@ -665,20 +735,46 @@ function ServiceTermForm({
 function ConsentRecordingStep({
   busy,
   capture,
+  deviceState,
   hasJob,
+  onCheck,
   onFinish,
   onStart,
 }: {
   busy: boolean;
   capture: AudioCaptureSnapshot;
+  deviceState: DeviceState;
   hasJob: boolean;
+  onCheck: () => void;
   onFinish: () => void;
   onStart: () => void;
 }): React.JSX.Element {
   return (
     <div>
-      <p className="context-label">第 3 步 · 正式口头授权</p>
+      <p className="context-label">第 3 步 · 当前页设备与正式口头授权</p>
       <h2>完整朗读，再请长者明确同意</h2>
+      <p>先在本页确认麦克风有输入。刷新或重新打开后必须再次确认，旧检查不会被沿用。</p>
+      <div className="workflow-actions">
+        <button
+          className="button button--secondary"
+          disabled={busy || deviceState.kind === 'checking' || capture.status === 'recording'}
+          onClick={onCheck}
+          type="button"
+        >
+          {deviceState.kind === 'checking'
+            ? '请对着麦克风说话…'
+            : deviceState.kind === 'passed'
+              ? '重新检查当前页麦克风'
+              : '检查当前页麦克风'}
+        </button>
+      </div>
+      <p aria-live="polite" className={deviceState.kind === 'failed' ? 'inline-error' : undefined}>
+        {deviceState.kind === 'passed'
+          ? '当前页麦克风检查通过。现在可以录制口头授权。'
+          : deviceState.kind === 'failed'
+            ? deviceState.message
+            : '尚未确认当前页麦克风输入。'}
+      </p>
       <p>点击录制后，倾听员逐项完整朗读；最后请长者清楚表达是否同意。</p>
       <ul className="consent-notice">
         {CONSENT_NOTICE.map((line) => (
@@ -689,7 +785,7 @@ function ConsentRecordingStep({
       <div className="workflow-actions">
         <button
           className="button button--secondary"
-          disabled={busy || capture.status === 'recording'}
+          disabled={busy || deviceState.kind !== 'passed' || capture.status === 'recording'}
           onClick={onStart}
           type="button"
         >
@@ -735,7 +831,7 @@ function ConsentConfirmationStep({
       <p>确认录音中已完整朗读固定文本，并且长者明确表达了同意。</p>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} onClick={onConfirm} type="button">
-        {busy ? '正在登记…' : attempt === null ? '确认并登记正式授权' : '使用原请求重试'}
+        {busy ? '正在登记…' : attempt === null ? '确认并登记正式授权' : '重新恢复登记操作'}
       </button>
     </div>
   );
@@ -752,12 +848,25 @@ function SessionStep({
 }): React.JSX.Element {
   return (
     <div>
-      <p className="context-label">第 4 步</p>
-      <h2>建立访谈会话</h2>
-      <p>会话建立后仍需在准备页明确检测麦克风，再单独点击“开始访谈”。</p>
+      <p className="context-label">第 2 步</p>
+      <h2>建立本次访谈会话</h2>
+      <p>先建立会话，才能把接下来的当前页麦克风检查和授权绑定到同一次访谈。</p>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} onClick={onCreate} type="button">
-        {busy ? '正在建立…' : attempt === null ? '进入设备检查' : '使用原请求重试'}
+        {busy ? '正在建立…' : attempt === null ? '建立会话并检查麦克风' : '重新恢复建立会话'}
+      </button>
+    </div>
+  );
+}
+
+function StartStep({ busy, onStart }: { busy: boolean; onStart: () => void }): React.JSX.Element {
+  return (
+    <div>
+      <p className="context-label">第 4 步 · 授权已登记</p>
+      <h2>建立正式录音并进入说话人校准</h2>
+      <p>正式录音与实时转录通道建立后，系统会先显示独立的说话人校准页。</p>
+      <button className="button button--primary" disabled={busy} onClick={onStart} type="button">
+        {busy ? '正在建立正式录音…' : '重试建立正式录音'}
       </button>
     </div>
   );
@@ -772,39 +881,9 @@ function AttemptNotice({
   return (
     <p className={attempt.state === 'unknown_response' ? 'inline-error' : 'workflow-frozen'}>
       {attempt.state === 'unknown_response'
-        ? '上次响应未知：表单已锁定，重试只会发送原 request ID 与原 payload。'
-        : '请求已在首次联网前保存；提交期间不会生成第二个 request ID。'}
+        ? '正在恢复上次创建操作，不会重复创建项目。若网络仍不可用，可稍后重新恢复。'
+        : '创建操作已可靠保存，正在确认服务端结果。'}
     </p>
-  );
-}
-
-function NumberField({
-  defaultValue,
-  disabled,
-  label,
-  name,
-  step = '1',
-}: {
-  defaultValue: number;
-  disabled: boolean;
-  label: string;
-  name: string;
-  step?: string;
-}): React.JSX.Element {
-  return (
-    <label>
-      {label}
-      <input
-        defaultValue={defaultValue}
-        disabled={disabled}
-        inputMode="decimal"
-        min="0"
-        name={name}
-        required
-        step={step}
-        type="number"
-      />
-    </label>
   );
 }
 
@@ -836,6 +915,16 @@ function markUnknown(workflow: NewInterviewWorkflow, requestId: string): NewInte
   return workflow;
 }
 
+function unknownAttempt(
+  workflow: NewInterviewWorkflow,
+): StableCreateAttempt<unknown, unknown> | null {
+  return (
+    [workflow.projectAttempt, workflow.sessionAttempt, workflow.consentAttempt].find(
+      (attempt) => attempt?.state === 'unknown_response',
+    ) ?? null
+  );
+}
+
 function assertProjectAck(request: CreateProjectRequest, response: ProjectResponse): void {
   const payload = withoutRequestId(request);
   const comparable = {
@@ -847,27 +936,6 @@ function assertProjectAck(request: CreateProjectRequest, response: ProjectRespon
   };
   if (canonicalWorkflowPayload(payload) !== canonicalWorkflowPayload(comparable))
     throw new Error('PROJECT_ACK_MISMATCH');
-}
-
-function assertServiceTermAck(
-  projectId: string,
-  request: CreateServiceTermRequest,
-  response: ServiceTermResponse,
-): void {
-  const payload = withoutRequestId(request);
-  const returned = {
-    currency: response.currency,
-    estimated_session_count: response.estimated_session_count,
-    expected_current_minutes: response.expected_current_minutes,
-    included_minutes: response.included_minutes,
-    overtime_price_minor: response.overtime_price_minor,
-    overtime_unit_minutes: response.overtime_unit_minutes,
-  };
-  if (
-    response.project_id !== projectId ||
-    canonicalWorkflowPayload(payload) !== canonicalWorkflowPayload(returned)
-  )
-    throw new Error('SERVICE_TERM_ACK_MISMATCH');
 }
 
 function assertConsentAck(
@@ -905,6 +973,11 @@ function assertSessionAck(projectId: string, response: InterviewSessionResponse)
     throw new Error('SESSION_ACK_MISMATCH');
 }
 
+function assertDeviceCheckAck(sessionId: string, response: InterviewSessionResponse): void {
+  if (response.id !== sessionId || response.status !== 'device_check')
+    throw new Error('DEVICE_CHECK_ACK_MISMATCH');
+}
+
 function isUnknownResponse(error: unknown): boolean {
   return error instanceof InterviewApiError && error.status === 0;
 }
@@ -929,6 +1002,25 @@ function readableAudioError(error: unknown): string {
   if (error.message === 'CONSENT_AUDIO_ALREADY_FROZEN')
     return '授权录音已进入可靠保存阶段，请直接使用同一记录继续保存，不要重新录制';
   return '录音或上传未能完成';
+}
+
+function microphoneFailure(result: MicrophoneCheckResult): string {
+  if (result.permission === 'denied') return '麦克风权限未开启，请允许本页使用麦克风后重试。';
+  if (!result.inputDetected && result.reason === 'too_low')
+    return '检测到的声音太小，请靠近麦克风并重新检查。';
+  return '没有检测到声音，请检查麦克风选择和静音开关后重试。';
+}
+
+function readableDeviceError(error: unknown): string {
+  if (error instanceof InterviewApiError) return error.message;
+  return '当前页麦克风检查未完成，请检查设备后重试。';
+}
+
+function readableStartError(error: unknown): string {
+  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof Error && error.message === 'BROWSER_CAPTURE_LOCKED')
+    return '同一访谈已在另一个页面录音，请回到原页面继续。';
+  return '正式录音尚未建立。授权记录不会丢失，请确认麦克风权限后重试。';
 }
 
 function readablePreparationError(error: unknown): string {
@@ -963,7 +1055,7 @@ function requiredNumber(value: FormDataEntryValue | null): number {
   return number;
 }
 
-const STEP_ORDER = ['project', 'service_term', 'consent_audio', 'consent', 'session', 'complete'];
+const STEP_ORDER = ['project', 'session', 'consent_audio', 'consent', 'start', 'complete'];
 
 function stepIsCurrent(current: string, displayed: string): boolean {
   return current === displayed || (displayed === 'consent_audio' && current === 'consent');

@@ -74,6 +74,7 @@ describe('RealtimeTranscriptionTransport', () => {
     socket.message(server('session.ready', 0, { resumed: false }));
     socket.message(
       server('asr.interim', 1, {
+        content_kind: 'conversation',
         end_ms: 100,
         hypothesis_id: 'hypothesis-1',
         revision: 1,
@@ -83,6 +84,7 @@ describe('RealtimeTranscriptionTransport', () => {
     );
     socket.message(
       server('asr.interim', 2, {
+        content_kind: 'conversation',
         end_ms: 100,
         hypothesis_id: 'hypothesis-1',
         revision: 0,

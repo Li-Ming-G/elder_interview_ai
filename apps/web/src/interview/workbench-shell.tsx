@@ -19,13 +19,16 @@ import type {
 } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
-import type { RealtimeTranscriptFinal } from '../realtime-transcription/realtime-transport.js';
+import type {
+  RealtimeState,
+  RealtimeTranscriptFinal,
+} from '../realtime-transcription/realtime-transport.js';
 import type {
   CaptureStopHandoff,
   InterviewCaptureController,
   InterviewCaptureControllerSnapshot,
 } from './interview-capture-controller.js';
-import { preparationPath } from './routes.js';
+import { preparationPath, reviewPath } from './routes.js';
 import { SuggestionPanel } from './suggestion-panel.js';
 
 interface WorkbenchShellProps {
@@ -36,6 +39,7 @@ interface WorkbenchShellProps {
     Partial<SuggestionApi>;
   captureController: Pick<
     InterviewCaptureController,
+    | 'completeFrozenAudio'
     | 'flushDelivery'
     | 'observeServerSession'
     | 'recover'
@@ -87,11 +91,19 @@ export function WorkbenchShell({
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [calibrationBusy, setCalibrationBusy] = useState(false);
   const [calibrationError, setCalibrationError] = useState<string | null>(null);
+  const [calibrationGateDismissed, setCalibrationGateDismissed] = useState(false);
   const actionLock = useRef(false);
   const endTrigger = useRef<HTMLElement | null>(null);
   const reconcileRequestId = useRef<string | null>(null);
   const abandonRequestId = useRef<string | null>(null);
   const calibrationBegin = useRef<{ requestId: string; streamId: string } | null>(null);
+  const calibrationResolve = useRef<{
+    attemptId: string;
+    payloadKey: string;
+    requestId: string;
+  } | null>(null);
+  const autoCloseoutWatermark = useRef<string | null>(null);
+  const completedHandoffKey = useRef<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
@@ -154,6 +166,12 @@ export function WorkbenchShell({
     }
   }, [snapshot.phase, snapshot.serverSession?.capture?.interruption_reason]);
 
+  useEffect(() => {
+    if (['confirmed', 'failed', 'skipped'].includes(snapshot.realtime.calibration?.status ?? '')) {
+      setCalibrationGateDismissed(true);
+    }
+  }, [snapshot.realtime.calibration?.status]);
+
   const beginCalibration = useCallback(
     async (force = false): Promise<void> => {
       const calibration = snapshot.realtime.calibration;
@@ -190,6 +208,7 @@ export function WorkbenchShell({
   useEffect(() => {
     if (
       snapshot.phase === 'active' &&
+      !calibrationGateDismissed &&
       snapshot.realtime.connection === 'connected' &&
       snapshot.realtime.calibration?.status === 'not_started'
     ) {
@@ -197,6 +216,7 @@ export function WorkbenchShell({
     }
   }, [
     beginCalibration,
+    calibrationGateDismissed,
     snapshot.phase,
     snapshot.realtime.connection,
     snapshot.realtime.calibration,
@@ -215,17 +235,33 @@ export function WorkbenchShell({
     ) {
       return;
     }
+    const resolutionMappings = mappings.map(({ speaker_provider_id, speaker_role }) => ({
+      speaker_provider_id,
+      speaker_role,
+    }));
+    const payloadKey = JSON.stringify({ action, mappings: resolutionMappings });
+    if (
+      calibrationResolve.current?.attemptId !== attempt.id ||
+      calibrationResolve.current.payloadKey !== payloadKey
+    ) {
+      calibrationResolve.current = {
+        attemptId: attempt.id,
+        payloadKey,
+        requestId: crypto.randomUUID(),
+      };
+    }
     setCalibrationBusy(true);
     setCalibrationError(null);
     try {
-      await api.resolveSpeakerCalibration(attempt.id, {
+      const resolved = await api.resolveSpeakerCalibration(attempt.id, {
         action,
-        mappings: mappings.map(({ speaker_provider_id, speaker_role }) => ({
-          speaker_provider_id,
-          speaker_role,
-        })),
-        request_id: crypto.randomUUID(),
+        mappings: resolutionMappings,
+        request_id: calibrationResolve.current.requestId,
       });
+      if (['confirmed', 'failed', 'skipped'].includes(resolved.status)) {
+        calibrationResolve.current = null;
+        setCalibrationGateDismissed(true);
+      }
     } catch (error) {
       setCalibrationError(readableActionError(error, '说话人确认未完成，原始录音仍在继续。'));
     } finally {
@@ -325,11 +361,9 @@ export function WorkbenchShell({
   }
 
   async function finishFrozenAudio(handoff: CaptureStopHandoff): Promise<void> {
-    await captureController.flushDelivery();
-    await api.completeInterviewAudio(handoff.audioObjectId, {
-      expected_chunk_count: handoff.expectedChunkCount,
-      request_id: handoff.completeRequestId,
-    });
+    await captureController.completeFrozenAudio(handoff);
+    completedHandoffKey.current = frozenHandoffKey(handoff);
+    await reconcileInternal();
     await captureController.verifyServerSession();
   }
 
@@ -360,23 +394,81 @@ export function WorkbenchShell({
     if (actionLock.current) return;
     actionLock.current = true;
     setActionError(null);
+    setFinalizingLocal(true);
     try {
-      reconcileRequestId.current ??= globalThis.crypto.randomUUID();
-      const request: RecoverSessionRequest = {
-        action: 'reconcile',
-        request_id: reconcileRequestId.current,
-      };
-      const session = await api.recoverSession(sessionId, request);
-      captureController.observeServerSession(session);
-      if (reconcileRequestId.current === request.request_id) {
-        reconcileRequestId.current = null;
+      const status = captureController.snapshot.serverSession?.status;
+      const endHandoff = captureController.snapshot.endHandoff;
+      if (
+        (status === 'stopping' || status === 'processing') &&
+        endHandoff !== null &&
+        completedHandoffKey.current !== frozenHandoffKey(endHandoff)
+      ) {
+        const handoff = await captureController.stopAndFreeze();
+        await finishFrozenAudio(handoff);
+      } else {
+        await reconcileInternal();
+        await captureController.verifyServerSession();
       }
     } catch (error) {
-      setActionError(readableActionError(error, '管理服务暂时无法继续收束，请稍后重新核对'));
+      setActionError(readableActionError(error, '保存状态尚未核对完成，请稍后重新核对'));
     } finally {
+      setFinalizingLocal(false);
       actionLock.current = false;
     }
   }
+
+  async function reconcileInternal(): Promise<void> {
+    reconcileRequestId.current ??=
+      readReconcileRequestId(sessionId) ?? globalThis.crypto.randomUUID();
+    persistReconcileRequestId(sessionId, reconcileRequestId.current);
+    const request: RecoverSessionRequest = {
+      action: 'reconcile',
+      request_id: reconcileRequestId.current,
+    };
+    const session = await api.recoverSession(sessionId, request);
+    captureController.observeServerSession(session);
+    if (reconcileRequestId.current === request.request_id) {
+      reconcileRequestId.current = null;
+      clearReconcileRequestId(sessionId, request.request_id);
+    }
+  }
+
+  useEffect(() => {
+    if (
+      loadState.kind !== 'ready' ||
+      actionError !== null ||
+      finalizingLocal ||
+      actionLock.current
+    ) {
+      return;
+    }
+    const status = snapshot.serverSession?.status;
+    const handoff = snapshot.endHandoff;
+    if (status !== 'stopping' && status !== 'processing') return;
+    const watermark = [
+      status,
+      handoff?.audioObjectId ?? 'no-local-handoff',
+      handoff?.completeRequestId ?? 'no-complete-request',
+      handoff?.expectedChunkCount ?? 'unknown-chunk-count',
+      snapshot.archive.pendingDeliveryCount,
+      snapshot.serverSession?.updated_at ?? 'unknown',
+    ].join(':');
+    if (autoCloseoutWatermark.current === watermark) return;
+    autoCloseoutWatermark.current = watermark;
+    const timer = globalThis.setTimeout(() => {
+      void reconcile();
+    }, 0);
+    return (): void => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [
+    actionError,
+    finalizingLocal,
+    loadState.kind,
+    snapshot.archive.pendingDeliveryCount,
+    snapshot.endHandoff,
+    snapshot.serverSession?.status,
+  ]);
 
   if (loadState.kind === 'loading') return <WorkbenchLoading />;
   if (loadState.kind === 'error')
@@ -420,11 +512,51 @@ export function WorkbenchShell({
     snapshot.archive.archiveChunkCount === 0 &&
     snapshot.serverSession.capture?.status === 'interrupted';
 
+  const calibrationConfirmed = snapshot.realtime.calibration?.status === 'confirmed';
+  if (state === 'completed') {
+    return (
+      <CompletedInterviewPage
+        navigate={navigate}
+        projectName={projectName}
+        reviewHref={reviewPath(projectId, sessionId)}
+        snapshot={snapshot}
+      />
+    );
+  }
+  if (state === 'recording' && !calibrationConfirmed && !calibrationGateDismissed) {
+    return (
+      <CalibrationGate
+        busy={calibrationBusy}
+        connection={snapshot.realtime.connection}
+        error={calibrationError}
+        failureKind={snapshot.realtime.failureKind}
+        onBegin={() => void beginCalibration(true)}
+        onContinueDegraded={() => {
+          if (
+            snapshot.realtime.calibration?.status === 'collecting' &&
+            snapshot.realtime.calibration.attempt !== null
+          ) {
+            void resolveCalibration('skip');
+          } else if (
+            snapshot.realtime.calibration?.attempt == null &&
+            isCalibrationProviderUnavailable(
+              snapshot.realtime.connection,
+              snapshot.realtime.failureKind,
+            )
+          ) {
+            setCalibrationGateDismissed(true);
+          }
+        }}
+        onResolve={(action, mappings) => void resolveCalibration(action, mappings)}
+        projectName={projectName}
+        snapshot={snapshot.realtime.calibration}
+      />
+    );
+  }
+
   return (
     <WorkbenchView
       actionError={actionError}
-      calibrationBusy={calibrationBusy}
-      calibrationError={calibrationError}
       canAbandon={canAbandon}
       canFinalizeExisting={canFinalizeExisting}
       canResume={canResume}
@@ -437,7 +569,6 @@ export function WorkbenchShell({
       }}
       onConfirmEnd={() => void confirmEnd()}
       onContinueFrozen={() => void continueFrozenEnd()}
-      onBeginCalibration={() => void beginCalibration(true)}
       onEnd={(mode, trigger) => {
         endTrigger.current = trigger;
         setEndMode(mode);
@@ -446,9 +577,9 @@ export function WorkbenchShell({
       onReconcile={() => void reconcile()}
       onReturnToLogin={onReturnToLogin}
       onResume={() => void resumeInterview()}
-      onResolveCalibration={(action, mappings) => void resolveCalibration(action, mappings)}
       projectId={projectId}
       projectName={projectName}
+      reviewHref={reviewPath(projectId, sessionId)}
       saveExpanded={saveExpanded}
       setSaveExpanded={setSaveExpanded}
       setStatusExpanded={setStatusExpanded}
@@ -465,8 +596,6 @@ export function WorkbenchShell({
 interface WorkbenchViewProps {
   actionError: string | null;
   authenticationRequired: boolean;
-  calibrationBusy: boolean;
-  calibrationError: string | null;
   canAbandon: boolean;
   canFinalizeExisting: boolean;
   canResume: boolean;
@@ -476,18 +605,14 @@ interface WorkbenchViewProps {
   onCloseEnd: () => void;
   onConfirmEnd: () => void;
   onContinueFrozen: () => void;
-  onBeginCalibration: () => void;
   onEnd: (mode: EndMode, trigger: HTMLButtonElement) => void;
   onRecheck: () => void;
   onReconcile: () => void;
   onReturnToLogin: () => void;
   onResume: () => void;
-  onResolveCalibration: (
-    action: 'confirm' | 'fail' | 'skip',
-    mappings?: SpeakerCalibrationMapping[],
-  ) => void;
   projectId: string;
   projectName: string;
+  reviewHref: string;
   saveExpanded: boolean;
   setSaveExpanded: (value: boolean) => void;
   setStatusExpanded: (value: boolean) => void;
@@ -499,12 +624,69 @@ interface WorkbenchViewProps {
   suggestionApi: Partial<SuggestionApi>;
 }
 
+function CompletedInterviewPage({
+  navigate,
+  projectName,
+  reviewHref,
+  snapshot,
+}: {
+  navigate: (path: string, replace?: boolean) => void;
+  projectName: string;
+  reviewHref: string;
+  snapshot: InterviewCaptureControllerSnapshot;
+}): React.JSX.Element {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const content = stateContent('completed', snapshot);
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+  return (
+    <main
+      aria-labelledby="completion-title"
+      className="completion-page"
+      data-session-id={snapshot.serverSession?.id}
+    >
+      <section className="completion-card">
+        <p className="context-label">{projectName}</p>
+        <p className="completion-status">保存完成 · {content.label}</p>
+        <h1 id="completion-title" ref={heading} tabIndex={-1}>
+          {content.title}
+        </h1>
+        <p className="completion-copy" aria-live="polite">
+          {content.detail}
+        </p>
+        <p className="completion-note">
+          本次访谈已停止采集，已保存内容不会因离开本页而丢失。回顾页只展示普通访谈内容，不展示说话人校准片段。
+        </p>
+        <div className="completion-actions">
+          <button
+            className="button"
+            onClick={() => {
+              navigate(reviewHref);
+            }}
+            type="button"
+          >
+            查看回顾
+          </button>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              navigate('/');
+            }}
+            type="button"
+          >
+            返回工作区
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
   const {
     actionError,
     authenticationRequired,
-    calibrationBusy,
-    calibrationError,
     canAbandon,
     canFinalizeExisting,
     canResume,
@@ -514,15 +696,14 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     onCloseEnd,
     onConfirmEnd,
     onContinueFrozen,
-    onBeginCalibration,
     onEnd,
     onRecheck,
     onReconcile,
     onReturnToLogin,
     onResume,
-    onResolveCalibration,
     projectId,
     projectName,
+    reviewHref,
     saveExpanded,
     setSaveExpanded,
     setStatusExpanded,
@@ -586,6 +767,11 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     snapshot.deliveryError !== null;
   const endingState = state !== 'recording' && state !== 'interrupted';
   const showStatusPanel = state === 'interrupted' || endingState;
+  const conversationFinals = snapshot.realtime.finals.filter(
+    (segment) => segment.contentKind !== 'speaker_calibration',
+  );
+  const visibleInterim =
+    snapshot.realtime.interim?.contentKind === 'conversation' ? snapshot.realtime.interim : null;
 
   return (
     <main className={`workbench workbench--${state}`} data-session-id={session.id}>
@@ -620,6 +806,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             canFinalizeExisting={canFinalizeExisting}
             canResume={canResume}
             expanded={statusExpanded}
+            hasActionError={actionError !== null}
             authenticationRequired={authenticationRequired}
             onAbandon={(trigger) => {
               onEnd('empty', trigger);
@@ -630,6 +817,9 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             }}
             onLeave={() => {
               navigate('/');
+            }}
+            onReview={() => {
+              navigate(reviewHref);
             }}
             onMinimize={() => {
               setStatusExpanded(false);
@@ -650,16 +840,6 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             snapshot={snapshot}
             state={state}
             validConsent={validConsent}
-          />
-        ) : null}
-
-        {state === 'recording' ? (
-          <SpeakerCalibrationPanel
-            busy={calibrationBusy}
-            error={calibrationError}
-            onBegin={onBeginCalibration}
-            onResolve={onResolveCalibration}
-            snapshot={snapshot.realtime.calibration}
           />
         ) : null}
 
@@ -706,7 +886,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             ref={viewportRef}
             tabIndex={0}
           >
-            {snapshot.realtime.finals.length === 0 && snapshot.realtime.interim === null ? (
+            {conversationFinals.length === 0 && visibleInterim === null ? (
               <div className="transcript-empty">
                 <strong>{endingState ? '当前页面没有已加载的转录' : '正在倾听'}</strong>
                 <p>
@@ -717,7 +897,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
               </div>
             ) : null}
             <ol className="transcript-list" data-testid="workbench-finals">
-              {snapshot.realtime.finals.map((segment) => (
+              {conversationFinals.map((segment) => (
                 <TranscriptLine
                   key={segment.segmentId}
                   segment={segment}
@@ -726,16 +906,16 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
                 />
               ))}
             </ol>
-            {snapshot.realtime.interim === null || endingState ? null : (
+            {visibleInterim === null || endingState ? null : (
               <div
                 className="transcript-line transcript-line--interim"
                 data-testid="workbench-interim"
               >
                 <div className="transcript-meta">
                   <span className="speaker-label">识别中</span>
-                  <time>{formatOffset(snapshot.realtime.interim.startMs)}</time>
+                  <time>{formatOffset(visibleInterim.startMs)}</time>
                 </div>
-                <p>{snapshot.realtime.interim.text}</p>
+                <p>{visibleInterim.text}</p>
               </div>
             )}
           </div>
@@ -764,6 +944,79 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
           restoreFocus={endTrigger.current}
         />
       )}
+    </main>
+  );
+}
+
+function CalibrationGate({
+  busy,
+  connection,
+  error,
+  failureKind,
+  onBegin,
+  onContinueDegraded,
+  onResolve,
+  projectName,
+  snapshot,
+}: {
+  busy: boolean;
+  connection: RealtimeState['connection'];
+  error: string | null;
+  failureKind: RealtimeState['failureKind'];
+  onBegin: () => void;
+  onContinueDegraded: () => void;
+  onResolve: (action: 'confirm' | 'fail' | 'skip', mappings?: SpeakerCalibrationMapping[]) => void;
+  projectName: string;
+  snapshot: SpeakerCalibrationSnapshot | null | undefined;
+}): React.JSX.Element {
+  const degraded = connection === 'unavailable' || failureKind !== null;
+  const providerUnavailable = isCalibrationProviderUnavailable(connection, failureKind);
+  return (
+    <main className="workbench calibration-gate" aria-labelledby="calibration-gate-title">
+      <header className="workbench-bar">
+        <div className="workbench-identity">
+          <strong>{projectName}</strong>
+          <span>正式录音已开始</span>
+        </div>
+        <p className="workbench-safety" role="status">
+          原始录音正在本浏览器持续归档
+        </p>
+      </header>
+      <section className="calibration-gate__stage">
+        <p className="context-label">正式访谈前 · 独立校准</p>
+        <h1 id="calibration-gate-title">先确认两位说话人</h1>
+        <p>
+          校准已绑定本次正式实时流。这里听到的校准内容只保留为原始证据，不会出现在普通访谈转录、回顾正文或
+          AI 普通上下文中。
+        </p>
+        <SpeakerCalibrationPanel
+          busy={busy}
+          error={error}
+          onBegin={onBegin}
+          onResolve={onResolve}
+          snapshot={snapshot}
+        />
+        {degraded ? (
+          <div className="transcript-notice" role="alert">
+            <strong>实时识别当前不可用</strong>
+            <p>
+              {providerUnavailable
+                ? '这不影响原始录音继续保存。可以明确跳过校准，进入普通访谈工作台。'
+                : '这不影响原始录音继续保存，但当前错误不能通过本地降级越过校准，请保持本页并重新核对。'}
+            </p>
+            {providerUnavailable ? (
+              <button
+                className="button button--secondary"
+                disabled={busy}
+                onClick={onContinueDegraded}
+                type="button"
+              >
+                ASR 降级，继续访谈
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 }
@@ -914,12 +1167,14 @@ function SessionStatePanel({
   canFinalizeExisting,
   canResume,
   expanded,
+  hasActionError,
   onAbandon,
   onContinueFrozen,
   onFinalize,
   onLeave,
   onMinimize,
   onPrepareAgain,
+  onReview,
   onRecheck,
   onReconcile,
   onReturnToLogin,
@@ -935,12 +1190,14 @@ function SessionStatePanel({
   canFinalizeExisting: boolean;
   canResume: boolean;
   expanded: boolean;
+  hasActionError: boolean;
   onAbandon: (trigger: HTMLButtonElement) => void;
   onContinueFrozen: () => void;
   onFinalize: (trigger: HTMLButtonElement) => void;
   onLeave: () => void;
   onMinimize: () => void;
   onPrepareAgain: () => void;
+  onReview: () => void;
   onRecheck: () => void;
   onReconcile: () => void;
   onReturnToLogin: () => void;
@@ -1043,24 +1300,22 @@ function SessionStatePanel({
             结束无音频会话
           </button>
         ) : null}
-        {state === 'ending_frozen' ? (
+        {state === 'ending_frozen' && hasActionError ? (
           <button className="button button--primary" onClick={onContinueFrozen} type="button">
-            继续安全保存
+            重试完成安全保存
           </button>
         ) : null}
-        {state === 'stopping' && snapshot.endHandoff !== null ? (
-          <button className="button button--primary" onClick={onContinueFrozen} type="button">
-            继续安全保存
+        {(state === 'stopping' || state === 'processing') && hasActionError ? (
+          <button className="button button--primary" onClick={onReconcile} type="button">
+            重新核对保存状态
           </button>
         ) : null}
-        {state === 'stopping' || state === 'processing' ? (
-          <button className="button button--secondary" onClick={onReconcile} type="button">
-            继续处理收尾
+        {(hasActionError && !['ending_frozen', 'stopping', 'processing'].includes(state)) ||
+        ['interrupted', 'failed', 'blocked'].includes(state) ? (
+          <button className="button button--secondary" onClick={onRecheck} type="button">
+            重新核对当前状态
           </button>
         ) : null}
-        <button className="button button--secondary" onClick={onRecheck} type="button">
-          重新核对
-        </button>
         {state === 'interrupted' && authenticationRequired ? (
           <button className="button button--secondary" onClick={onReturnToLogin} type="button">
             返回登录
@@ -1071,12 +1326,17 @@ function SessionStatePanel({
             离开工作台
           </button>
         ) : null}
+        {state === 'completed' ? (
+          <button className="button button--primary" onClick={onReview} type="button">
+            查看回顾
+          </button>
+        ) : null}
         {state === 'processing' ||
         state === 'completed' ||
         state === 'failed' ||
         state === 'blocked' ? (
           <button className="button button--secondary" onClick={onLeave} type="button">
-            {leaveWorkbenchLabel(state)}
+            {state === 'completed' ? '返回工作区' : leaveWorkbenchLabel(state)}
           </button>
         ) : null}
         {state === 'no_audio' ? (
@@ -1646,6 +1906,50 @@ function completedDetail(session: InterviewSessionResponse | null): string {
     return '原始录音已安全保存；实时转录未能完整收束，可在后续流程补处理。';
   if (status === 'not_started') return '原始录音已安全保存；本次没有启动结束转录处理。';
   return '管理服务已确认本次访谈完成。';
+}
+
+function isCalibrationProviderUnavailable(
+  connection: RealtimeState['connection'],
+  failureKind: RealtimeState['failureKind'],
+): boolean {
+  return failureKind === 'asr' || (connection === 'unavailable' && failureKind === null);
+}
+
+function reconcileStorageKey(sessionId: string): string {
+  return `elder-interview:closeout-reconcile:${sessionId}`;
+}
+
+function frozenHandoffKey(
+  handoff: Pick<CaptureStopHandoff, 'audioObjectId' | 'completeRequestId'>,
+): string {
+  return `${handoff.audioObjectId}:${handoff.completeRequestId}`;
+}
+
+function readReconcileRequestId(sessionId: string): string | null {
+  try {
+    const value = globalThis.sessionStorage.getItem(reconcileStorageKey(sessionId));
+    return value !== null && /^[0-9a-f-]{36}$/u.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistReconcileRequestId(sessionId: string, requestId: string): void {
+  try {
+    globalThis.sessionStorage.setItem(reconcileStorageKey(sessionId), requestId);
+  } catch {
+    // The mounted ref still keeps the request stable when sessionStorage is unavailable.
+  }
+}
+
+function clearReconcileRequestId(sessionId: string, requestId: string): void {
+  try {
+    const key = reconcileStorageKey(sessionId);
+    if (globalThis.sessionStorage.getItem(key) === requestId)
+      globalThis.sessionStorage.removeItem(key);
+  } catch {
+    // A successful canonical ACK is sufficient even if local cleanup is unavailable.
+  }
 }
 
 function uploadText(

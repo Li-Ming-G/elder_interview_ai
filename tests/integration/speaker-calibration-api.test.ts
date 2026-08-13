@@ -253,8 +253,10 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
       403,
     );
     const transcriptItems: Array<{
+      content_kind: string;
       effective_speaker_role: string;
       id: string;
+      original_text: string;
       original_speaker_role: string;
       original_speaker_role_authority: string;
       start_ms: number;
@@ -273,19 +275,26 @@ describe('speaker calibration HTTP authorization and idempotency', () => {
       transcriptItems.push(...body.items);
       cursor = body.next_cursor;
     } while (cursor !== null);
-    expect(transcriptItems).toHaveLength(4);
+    expect(await prisma.transcriptSegment.count({ where: { sessionId: session.id } })).toBe(4);
+    expect(
+      await prisma.transcriptSegment.count({
+        where: { contentKind: 'speaker_calibration', sessionId: session.id },
+      }),
+    ).toBe(2);
+    expect(transcriptItems).toHaveLength(2);
+    expect(
+      transcriptItems.every(({ content_kind: contentKind }) => contentKind === 'conversation'),
+    ).toBe(true);
+    expect(transcriptItems.map(({ original_text: text }) => text)).toEqual(
+      expect.arrayContaining([
+        'synthetic post-confirm segment 0',
+        'synthetic post-confirm segment 1',
+      ]),
+    );
     expect(transcriptItems.map(({ id, start_ms: startMs }) => [startMs, id])).toEqual(
       [...transcriptItems]
         .sort((left, right) => left.start_ms - right.start_ms || left.id.localeCompare(right.id))
         .map(({ id, start_ms: startMs }) => [startMs, id]),
-    );
-    expect(transcriptItems).toContainEqual(
-      expect.objectContaining({
-        effective_speaker_role: 'elder',
-        original_speaker_role: 'elder',
-        original_speaker_role_authority: 'unconfirmed',
-        trusted_effective_speaker_role: 'unknown',
-      }),
     );
     expect(transcriptItems).toContainEqual(
       expect.objectContaining({

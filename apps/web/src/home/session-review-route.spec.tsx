@@ -150,6 +150,57 @@ describe('SessionReviewRoute', () => {
     );
     expect(screen.getByText(/可回顾和播放，但不能删除本机副本/u)).toBeTruthy();
   });
+
+  it('reprojects a first blocked local job and excludes calibration evidence from review text', async () => {
+    const { api, archive, projection } = fixture();
+    const blocked: LocalAudioArchiveProjection = {
+      ...projection,
+      playback_available: false,
+      state: 'blocked_active_or_dirty',
+      state_basis: { ...projection.state_basis, active_or_dirty: true },
+    };
+    vi.mocked(archive.project).mockReset();
+    vi.mocked(archive.project).mockResolvedValueOnce(blocked).mockResolvedValue(projection);
+    api.listSessionTranscripts = vi.fn<ReviewApi['listSessionTranscripts']>(() =>
+      Promise.resolve([
+        {
+          content_kind: 'speaker_calibration',
+          corrected_speaker_role: null,
+          corrected_text: null,
+          effective_speaker_role: 'interviewer',
+          end_ms: 500,
+          id: 'calibration',
+          original_speaker_role: 'interviewer',
+          original_speaker_role_authority: 'user_confirmed',
+          original_text: '我是访谈员',
+          speaker_provider_id: 'speaker-1',
+          speaker_role_revision: 1,
+          speaker_stream_id: 'stream',
+          start_ms: 0,
+          trusted_effective_speaker_role: 'interviewer',
+        },
+      ]),
+    );
+    render(
+      <SessionReviewRoute
+        api={api}
+        archiveService={archive}
+        navigate={vi.fn()}
+        projectId={PROJECT_ID}
+        sessionId={SESSION_ID}
+      />,
+    );
+
+    expect(await screen.findByText('仍有采集恢复事实')).toBeTruthy();
+    expect(screen.getByText(/页面会继续自动核对/)).toBeTruthy();
+    expect(screen.getByText(/本机副本只属于当前网址/)).toBeTruthy();
+    expect(screen.queryByText('我是访谈员')).toBeNull();
+    fireEvent(globalThis.window, new Event('online'));
+    await waitFor(() => {
+      expect(screen.getByText('完整可播放')).toBeTruthy();
+      expect(asButton(screen.getByRole('button', { name: '载入完整录音' })).disabled).toBe(false);
+    });
+  });
 });
 
 function asButton(element: HTMLElement): HTMLButtonElement {

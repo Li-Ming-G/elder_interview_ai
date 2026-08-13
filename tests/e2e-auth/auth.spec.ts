@@ -99,23 +99,24 @@ test('authenticated browser start fails closed after consent version, withdrawal
         request_id: crypto.randomUUID(),
       });
       const projectId = String(project.id);
-      await write(`/projects/${projectId}/service-terms`, {
-        currency: 'CNY',
-        estimated_session_count: 1,
-        expected_current_minutes: 10,
-        included_minutes: 60,
-        overtime_price_minor: 0,
-        overtime_unit_minutes: 30,
-        request_id: crypto.randomUUID(),
-      });
-      const consent = await write(`/projects/${projectId}/consents`, {
+      let consent = await write(`/projects/${projectId}/consents`, {
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: consentTextVersion,
+        consent_text_version: 'mvp-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: new Date().toISOString(),
         request_id: crypto.randomUUID(),
       });
+      if (consentTextVersion !== 'mvp-v1') {
+        consent = await write(`/projects/${projectId}/consents`, {
+          consent_audio_object_id: null,
+          consent_method: 'electronic',
+          consent_text_version: consentTextVersion,
+          consent_type: 'recording_transcription_ai',
+          consented_at: new Date().toISOString(),
+          request_id: crypto.randomUUID(),
+        });
+      }
       const session = await write(`/projects/${projectId}/sessions`, {
         request_id: crypto.randomUUID(),
       });

@@ -35,8 +35,8 @@ export class TranscriptIngestionService {
       });
     }
     if (result.kind === 'interim') {
-      await this.assertInterimAllowed(result.sessionId);
-      return { kind: 'interim', persisted: false };
+      const contentKind = await this.classifyInterim(result);
+      return { contentKind, kind: 'interim', persisted: false };
     }
 
     const serializedPayload = serializedProviderPayload(result.providerPayload);
@@ -180,7 +180,10 @@ export class TranscriptIngestionService {
     return existing;
   }
 
-  private async assertInterimAllowed(sessionId: string): Promise<void> {
+  private async classifyInterim(
+    result: NormalizedAsrResult,
+  ): Promise<'conversation' | 'speaker_calibration'> {
+    if (result.speakerStreamId === undefined) throw this.ingestionNotAllowed();
     const session = await this.prisma.interviewSession.findUnique({
       select: {
         project: {
@@ -197,7 +200,7 @@ export class TranscriptIngestionService {
         },
         status: true,
       },
-      where: { id: sessionId },
+      where: { id: result.sessionId },
     });
     if (session === null) throw this.notFound();
     const latestConsent = session.project.consents[0];
@@ -210,6 +213,20 @@ export class TranscriptIngestionService {
     ) {
       throw this.ingestionNotAllowed();
     }
+    const stream = await this.prisma.speakerStream.findFirst({
+      select: { id: true },
+      where: { id: result.speakerStreamId, sessionId: result.sessionId },
+    });
+    if (stream === null) throw this.ingestionNotAllowed();
+    const attempt = await this.prisma.speakerCalibrationAttempt.findFirst({
+      select: { id: true },
+      where: {
+        speakerStreamId: result.speakerStreamId,
+        startMs: { lt: result.endMs },
+        OR: [{ endMs: null }, { endMs: { gt: result.startMs } }],
+      },
+    });
+    return attempt === null ? 'conversation' : 'speaker_calibration';
   }
 
   private ingestionNotAllowed(): ConflictException {

@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectResponse } from '@elder-interview/contracts';
+import type { InterviewSessionResponse, ProjectResponse } from '@elder-interview/contracts';
 
 import { InterviewApiError, type NewInterviewApi } from './interview-api.js';
 import type { AudioCaptureSnapshot } from '../audio/browser-audio-recorder.js';
@@ -45,10 +45,12 @@ describe('NewInterviewPage', () => {
     expect(request?.request_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(screen.getByLabelText<HTMLInputElement>('姓名、昵称或项目代号').disabled).toBe(true);
     resolveProject?.(projectResponse('虚构长者小满'));
-    await screen.findByRole('heading', { name: '服务说明' });
+    await screen.findByRole('heading', { name: '建立本次访谈会话' });
+    expect(screen.queryByText(/服务说明|价格|费用/)).toBeNull();
+    expect(api.createServiceTerm).not.toHaveBeenCalled();
   });
 
-  it('marks a network response unknown and replays the frozen request identity', async () => {
+  it('automatically replays an unknown create with the frozen request identity', async () => {
     const api = fakeApi();
     api.createProject
       .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', '网络不可用', 0))
@@ -59,11 +61,11 @@ describe('NewInterviewPage', () => {
       target: { value: '虚构恢复长者' },
     });
     fireEvent.click(screen.getByRole('button', { name: '创建项目并继续' }));
-    await screen.findByText(/上次响应未知/);
+    await screen.findByRole('heading', { name: '建立本次访谈会话' });
     const firstRequest = api.createProject.mock.calls[0]?.[0];
-    fireEvent.click(screen.getByRole('button', { name: '使用原请求重试' }));
-    await screen.findByRole('heading', { name: '服务说明' });
+    expect(api.createProject).toHaveBeenCalledTimes(2);
     expect(api.createProject.mock.calls[1]?.[0]).toEqual(firstRequest);
+    expect(screen.queryByText(/request ID|payload|表单已锁定/)).toBeNull();
   });
 
   it('waits for active consent capture disposal before SPA navigation', async () => {
@@ -121,6 +123,25 @@ describe('NewInterviewPage', () => {
       false,
     );
   });
+
+  it('requires a fresh current-page microphone check after refresh before consent recording', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const first = renderPage(readyApi(), { workflowStore });
+    await reachConsentRecording();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '录制授权' }).disabled).toBe(
+      false,
+    );
+    first.unmount();
+
+    renderPage(readyApi(), { workflowStore });
+    await screen.findByRole('heading', { name: '完整朗读，再请长者明确同意' });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '录制授权' }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '检查当前页麦克风' }));
+    await screen.findByText('当前页麦克风检查通过。现在可以录制口头授权。');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '录制授权' }).disabled).toBe(
+      false,
+    );
+  });
 });
 
 function renderPage(
@@ -142,6 +163,12 @@ function renderPage(
       {...captureProps}
       actorId={ACTOR_ID}
       api={api}
+      captureController={() => ({
+        start: vi.fn(() => Promise.resolve({ phase: 'active' } as never)),
+      })}
+      checkMicrophone={() =>
+        Promise.resolve({ inputDetected: true as const, permission: 'granted' as const })
+      }
       csrfToken="csrf-test"
       navigate={options.navigate ?? vi.fn()}
       workflowStore={
@@ -158,9 +185,11 @@ async function reachConsentRecording(): Promise<void> {
     target: { value: '虚构授权长者' },
   });
   fireEvent.click(screen.getByRole('button', { name: '创建项目并继续' }));
-  await screen.findByRole('heading', { name: '服务说明' });
-  fireEvent.click(screen.getByRole('button', { name: '已说明并保存' }));
+  await screen.findByRole('heading', { name: '建立本次访谈会话' });
+  fireEvent.click(screen.getByRole('button', { name: '建立会话并检查麦克风' }));
   await screen.findByRole('heading', { name: '完整朗读，再请长者明确同意' });
+  fireEvent.click(screen.getByRole('button', { name: '检查当前页麦克风' }));
+  await screen.findByText('当前页麦克风检查通过。现在可以录制口头授权。');
 }
 
 function projectResponse(displayName: string): ProjectResponse {
@@ -188,28 +217,32 @@ function fakeApi(): MockApi {
     createProject: vi.fn<NewInterviewApi['createProject']>(),
     createServiceTerm: vi.fn<NewInterviewApi['createServiceTerm']>(),
     createSession: vi.fn<NewInterviewApi['createSession']>(),
+    deviceCheck: vi.fn<NewInterviewApi['deviceCheck']>(),
+    startSession: vi.fn<NewInterviewApi['startSession']>(),
   };
 }
 
 function readyApi(): MockApi {
   const api = fakeApi();
   api.createProject.mockResolvedValue(projectResponse('虚构授权长者'));
-  api.createServiceTerm.mockResolvedValue({
-    created_at: '2026-08-12T00:00:00.000Z',
-    currency: 'CNY',
-    effective_from: '2026-08-12T00:00:00.000Z',
-    estimated_session_count: 3,
-    expected_current_minutes: 60,
-    explained_at: '2026-08-12T00:00:00.000Z',
-    explained_by: ACTOR_ID,
-    id: '30000000-0000-4000-8000-000000000001',
-    included_minutes: 180,
-    overtime_price_minor: 0,
-    overtime_unit_minutes: 30,
-    project_id: PROJECT_ID,
-    superseded_at: null,
-  });
+  api.createSession.mockResolvedValue(sessionResponse('created'));
+  api.deviceCheck.mockResolvedValue(sessionResponse('device_check'));
   return api;
+}
+
+function sessionResponse(status: InterviewSessionResponse['status']): InterviewSessionResponse {
+  return {
+    capture: null,
+    created_at: '2026-08-12T00:00:00.000Z',
+    created_by: ACTOR_ID,
+    ended_at: null,
+    id: '40000000-0000-4000-8000-000000000001',
+    project_id: PROJECT_ID,
+    sequence_no: 1,
+    started_at: null,
+    status,
+    updated_at: '2026-08-12T00:00:00.000Z',
+  };
 }
 
 class FakeConsentCapture implements ConsentCapture {

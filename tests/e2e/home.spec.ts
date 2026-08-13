@@ -59,7 +59,8 @@ for (const viewport of [
     await expect(page.getByRole('button', { name: '新建访谈' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: '最低项目信息' })).toBeVisible();
-    await expect(page.getByText(/创建项目本身不代表已经可以开始/)).toBeVisible();
+    await expect(page.getByText('称呼是唯一必填项。其余信息不清楚时可以留空。')).toBeVisible();
+    await expect(page.getByText(/服务说明|价格|费用|预计时长/)).toHaveCount(0);
     await page.getByRole('button', { name: '返回工作区' }).click();
     await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   });
