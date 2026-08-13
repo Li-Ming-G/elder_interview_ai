@@ -8,6 +8,7 @@ import {
   audioChunkKey,
   assertAudioUploadJobRecord,
   assertCaptureInterruptionReportRecord,
+  CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE,
   type AudioArchiveSnapshot,
   type AudioChunkDelivery,
   type AudioChunkStore,
@@ -24,7 +25,7 @@ import {
 } from './types.js';
 
 const DATABASE_NAME = 'elder-interview-audio-buffer';
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 const LEGACY_CHUNK_STORE = 'chunks';
 const ARCHIVE_STORE = 'archive-chunks';
 const DELIVERY_STORE = 'delivery-queue';
@@ -33,6 +34,10 @@ const SESSION_STATE_STORE = 'session-state';
 const UPLOAD_JOB_STORE = 'upload-jobs';
 const CAPTURE_CHECKPOINT_STORE = 'capture-checkpoints';
 const CANARY_STORE = 'canary';
+const LOCAL_DELETION_RECEIPT_STORE = 'local-deletion-receipts';
+const BUFFER_SESSION_INDEX = 'by-buffer-session';
+const SERVER_SESSION_INDEX = 'by-server-session';
+const REPORT_SESSION_INDEX = 'by-report-session';
 
 interface AudioSessionBufferState {
   archiveByteLength?: number;
@@ -46,6 +51,26 @@ interface StoredAudioDelivery extends AudioChunkDelivery {
   key: string;
   sequenceNo: number;
   sessionId: string;
+}
+
+export interface LocalDeletionReceipt {
+  contract_version: 'local-audio-archive-v1';
+  deleted_at: string;
+  kind: 'deletion_receipt';
+  result: 'deleted';
+  session_id: string;
+}
+
+export interface LocalArchiveInspection {
+  activeOrDirty: boolean;
+  archive: ImmutableAudioChunk[];
+  pendingDeliveryCount: number;
+  receipt: LocalDeletionReceipt | null;
+}
+
+export interface LocalArchiveDeletionCommit {
+  receipt: LocalDeletionReceipt;
+  result: 'already_deleted' | 'deleted';
 }
 
 export class IndexedDbAudioChunkStore
@@ -391,6 +416,89 @@ export class IndexedDbAudioChunkStore
     await this.simplePut(UPLOAD_JOB_STORE, job);
   }
 
+  public async inspectLocalArchive(sessionId: string): Promise<LocalArchiveInspection> {
+    const database = await this.database();
+    const storeNames = localArchiveStoreNames(database);
+    const transaction = database.transaction(storeNames, 'readonly');
+    const result = await readLocalArchiveInspection(transaction, sessionId);
+    await transactionComplete(transaction);
+    return result;
+  }
+
+  public async deleteLocalArchive(
+    sessionId: string,
+    expectedArchive: readonly ImmutableAudioChunk[],
+    deletedAt: string,
+  ): Promise<LocalArchiveDeletionCommit> {
+    let transaction: IDBTransaction | null = null;
+    let completion: Promise<void> | null = null;
+    try {
+      const database = await this.database();
+      const storeNames = localArchiveStoreNames(database);
+      transaction = database.transaction(storeNames, 'readwrite');
+      completion = transactionComplete(transaction);
+      const current = await readLocalArchiveInspection(transaction, sessionId);
+      if (current.activeOrDirty) throw new Error('LOCAL_ARCHIVE_ACTIVE_OR_DIRTY');
+      if (current.pendingDeliveryCount > 0) throw new Error('LOCAL_ARCHIVE_PENDING_DELIVERY');
+      if (!sameArchiveIdentity(current.archive, expectedArchive)) {
+        throw new Error('LOCAL_ARCHIVE_CHANGED_DURING_PREFLIGHT');
+      }
+      if (current.receipt !== null && current.archive.length === 0) {
+        await completion;
+        return { receipt: current.receipt, result: 'already_deleted' };
+      }
+      if (current.archive.length === 0) throw new Error('LOCAL_ARCHIVE_NOT_FOUND');
+
+      await deleteBySessionIndex(transaction.objectStore(ARCHIVE_STORE), SESSION_INDEX, sessionId);
+      await deleteBySessionIndex(transaction.objectStore(DELIVERY_STORE), SESSION_INDEX, sessionId);
+      await request(transaction.objectStore(SESSION_STATE_STORE).delete(sessionId));
+      await deleteMatching(transaction.objectStore(UPLOAD_JOB_STORE), (value, key) => {
+        if (key === `interview-capture:${sessionId}`) return true;
+        return (
+          isRecord(value) &&
+          value.recordType === CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE &&
+          value.sessionId === sessionId
+        );
+      });
+      await deleteMatching(
+        transaction.objectStore(CAPTURE_CHECKPOINT_STORE),
+        (value, key) =>
+          key === `interview-capture:${sessionId}` ||
+          (isRecord(value) && value.sessionId === sessionId),
+      );
+      if (transaction.objectStoreNames.contains(LEGACY_CHUNK_STORE)) {
+        await deleteMatching(
+          transaction.objectStore(LEGACY_CHUNK_STORE),
+          (value) =>
+            isRecord(value) && isRecord(value.chunk) && value.chunk.sessionId === sessionId,
+        );
+      }
+      const receipt: LocalDeletionReceipt = {
+        contract_version: 'local-audio-archive-v1',
+        deleted_at: deletedAt,
+        kind: 'deletion_receipt',
+        result: 'deleted',
+        session_id: sessionId,
+      };
+      await request(transaction.objectStore(LOCAL_DELETION_RECEIPT_STORE).put(receipt));
+      await completion;
+      return { receipt, result: 'deleted' };
+    } catch (error) {
+      try {
+        transaction?.abort();
+      } catch {
+        // A request-level failure may already have aborted or completed the transaction.
+      }
+      try {
+        await completion;
+      } catch {
+        // The public error below deliberately hides IndexedDB implementation details.
+      }
+      if (error instanceof AudioBufferWriteError) throw error;
+      throw new AudioBufferWriteError(error);
+    }
+  }
+
   public async runCanary(): Promise<void> {
     try {
       const database = await this.database();
@@ -435,6 +543,14 @@ export class IndexedDbAudioChunkStore
         if (!database.objectStoreNames.contains(CANARY_STORE)) {
           database.createObjectStore(CANARY_STORE, { keyPath: 'key' });
         }
+        if (!database.objectStoreNames.contains(LOCAL_DELETION_RECEIPT_STORE)) {
+          database.createObjectStore(LOCAL_DELETION_RECEIPT_STORE, { keyPath: 'session_id' });
+        }
+        const jobs = transaction.objectStore(UPLOAD_JOB_STORE);
+        ensureIndex(jobs, BUFFER_SESSION_INDEX, 'bufferSessionId');
+        ensureIndex(jobs, SERVER_SESSION_INDEX, 'serverSessionId');
+        ensureIndex(jobs, REPORT_SESSION_INDEX, 'sessionId');
+        ensureIndex(transaction.objectStore(CAPTURE_CHECKPOINT_STORE), SESSION_INDEX, 'sessionId');
         if (database.objectStoreNames.contains(LEGACY_CHUNK_STORE) && event.oldVersion < 4) {
           migrateLegacyChunks(transaction);
         }
@@ -446,6 +562,10 @@ export class IndexedDbAudioChunkStore
         reject(new AudioBufferWriteError(new Error('IndexedDB upgrade blocked')));
       };
       open.onsuccess = (): void => {
+        open.result.onversionchange = (): void => {
+          open.result.close();
+          this.databasePromise = null;
+        };
         resolve(open.result);
       };
     });
@@ -572,6 +692,151 @@ function migrateLegacyChunks(transaction: IDBTransaction): void {
   };
 }
 
+function ensureIndex(store: IDBObjectStore, name: string, keyPath: string): void {
+  if (!store.indexNames.contains(name)) store.createIndex(name, keyPath, { unique: false });
+}
+
+function localArchiveStoreNames(database: IDBDatabase): string[] {
+  return [
+    ARCHIVE_STORE,
+    DELIVERY_STORE,
+    SESSION_STATE_STORE,
+    UPLOAD_JOB_STORE,
+    CAPTURE_CHECKPOINT_STORE,
+    LOCAL_DELETION_RECEIPT_STORE,
+    ...(database.objectStoreNames.contains(LEGACY_CHUNK_STORE) ? [LEGACY_CHUNK_STORE] : []),
+  ];
+}
+
+async function readLocalArchiveInspection(
+  transaction: IDBTransaction,
+  sessionId: string,
+): Promise<LocalArchiveInspection> {
+  const [archive, deliveries, jobs, checkpoints, receiptValue] = await Promise.all([
+    request(
+      transaction.objectStore(ARCHIVE_STORE).index(SESSION_INDEX).getAll(sessionId) as IDBRequest<
+        ImmutableAudioChunk[]
+      >,
+    ),
+    request(
+      transaction.objectStore(DELIVERY_STORE).index(SESSION_INDEX).getAll(sessionId) as IDBRequest<
+        StoredAudioDelivery[]
+      >,
+    ),
+    request(transaction.objectStore(UPLOAD_JOB_STORE).getAll() as IDBRequest<unknown[]>),
+    request(transaction.objectStore(CAPTURE_CHECKPOINT_STORE).getAll() as IDBRequest<unknown[]>),
+    request(
+      transaction.objectStore(LOCAL_DELETION_RECEIPT_STORE).get(sessionId) as IDBRequest<unknown>,
+    ),
+  ]);
+  const receipt = receiptValue === undefined ? null : parseDeletionReceipt(receiptValue, sessionId);
+  return {
+    activeOrDirty:
+      jobs.some((value) => unsafeJobBlocksDeletion(value, sessionId)) ||
+      checkpoints.some((value) => unsafeCheckpointBlocksDeletion(value, sessionId)),
+    archive: archive.sort((left, right) => left.sequenceNo - right.sequenceNo),
+    pendingDeliveryCount: deliveries.length,
+    receipt,
+  };
+}
+
+function unsafeJobBlocksDeletion(value: unknown, sessionId: string): boolean {
+  if (!isRecord(value)) return false;
+  if (
+    value.recordType === CAPTURE_INTERRUPTION_REPORT_RECORD_TYPE &&
+    value.sessionId === sessionId
+  ) {
+    return value.status !== 'acknowledged';
+  }
+  if (value.jobId !== `interview-capture:${sessionId}`) return false;
+  try {
+    assertAudioUploadJobRecord(value, `interview-capture:${sessionId}`);
+  } catch {
+    return true;
+  }
+  const capture = value.interviewCapture;
+  return (
+    value.status !== 'complete' ||
+    capture === undefined ||
+    capture.status !== 'stopped' ||
+    capture.pendingResume !== null
+  );
+}
+
+function unsafeCheckpointBlocksDeletion(value: unknown, sessionId: string): boolean {
+  if (!isRecord(value)) return false;
+  const targetsSession =
+    value.localJobId === `interview-capture:${sessionId}` || value.sessionId === sessionId;
+  if (!targetsSession) return false;
+  return value.status !== 'stopped' || value.dirty !== false;
+}
+
+function parseDeletionReceipt(value: unknown, sessionId: string): LocalDeletionReceipt {
+  if (
+    !isRecord(value) ||
+    value.contract_version !== 'local-audio-archive-v1' ||
+    value.kind !== 'deletion_receipt' ||
+    value.result !== 'deleted' ||
+    value.session_id !== sessionId ||
+    typeof value.deleted_at !== 'string' ||
+    !Number.isFinite(Date.parse(value.deleted_at))
+  ) {
+    throw new Error('LOCAL_DELETION_RECEIPT_INVALID');
+  }
+  return value as unknown as LocalDeletionReceipt;
+}
+
+function sameArchiveIdentity(
+  left: readonly ImmutableAudioChunk[],
+  right: readonly ImmutableAudioChunk[],
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((chunk, index) => {
+    const expected = right[index];
+    return (
+      expected !== undefined &&
+      chunk.key === expected.key &&
+      chunk.sessionId === expected.sessionId &&
+      chunk.sequenceNo === expected.sequenceNo &&
+      chunk.byteLength === expected.byteLength &&
+      chunk.checksumSha256 === expected.checksumSha256 &&
+      chunk.mimeType === expected.mimeType &&
+      chunk.startedAtMs === expected.startedAtMs &&
+      chunk.endedAtMs === expected.endedAtMs
+    );
+  });
+}
+
+async function deleteBySessionIndex(
+  store: IDBObjectStore,
+  indexName: string,
+  sessionId: string,
+): Promise<void> {
+  const keys = await request(store.index(indexName).getAllKeys(sessionId));
+  await Promise.all(keys.map(async (key) => request(store.delete(key))));
+}
+
+function deleteMatching(
+  store: IDBObjectStore,
+  predicate: (value: unknown, key: IDBValidKey) => boolean,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cursorRequest = store.openCursor();
+    cursorRequest.onerror = (): void => {
+      reject(cursorRequest.error ?? new Error('IndexedDB cursor failed'));
+    };
+    cursorRequest.onsuccess = (): void => {
+      const cursor = cursorRequest.result;
+      if (cursor === null) {
+        resolve();
+        return;
+      }
+      if (predicate(cursor.value, cursor.primaryKey)) cursor.delete();
+      cursor.continue();
+    };
+  });
+}
+
 function toStoredDelivery(record: BufferedAudioChunk): StoredAudioDelivery {
   return {
     ...record.delivery,
@@ -616,4 +881,8 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
 
 function isQuotaError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'QuotaExceededError';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

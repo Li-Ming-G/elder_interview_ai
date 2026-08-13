@@ -157,6 +157,7 @@ describe('session finalization PostgreSQL orchestration', () => {
         upload_status: 'awaiting_upload',
       },
     });
+    expect(stopped.finalization).toHaveProperty('total_size_bytes', null);
     expect((await service.stop(actor, session.id, request)).ended_at).toBe(stopped.ended_at);
     const concurrent = await Promise.all([
       service.stop(actor, session.id, { ...request, request_id: randomUUID() }),
@@ -202,7 +203,11 @@ describe('session finalization PostgreSQL orchestration', () => {
     });
     expect(completed).toMatchObject({
       status: 'completed',
-      finalization: { transcript_status: 'not_started', upload_status: 'complete' },
+      finalization: {
+        total_size_bytes: 10,
+        transcript_status: 'not_started',
+        upload_status: 'complete',
+      },
     });
     expect(await service.stop(actor, session.id, requestB)).toEqual(firstB);
   });

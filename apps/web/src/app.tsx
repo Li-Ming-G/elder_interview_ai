@@ -6,8 +6,12 @@ import { checkMicrophoneInput } from './interview/microphone-check.js';
 import { PreparationPage } from './interview/preparation-page.js';
 import { parseInterviewRoute } from './interview/routes.js';
 import { WorkbenchShell } from './interview/workbench-shell.js';
+import { NewInterviewPage } from './interview/new-interview-page.js';
 import { createBrowserInterviewCaptureController } from './interview/browser-interview-capture-controller.js';
 import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
+import { ErrorState, HomeFrame, HomeShell } from './home/home-shell.js';
+import { SessionPlaceholderRoute } from './home/route-placeholder.js';
+import { SessionReviewRoute } from './home/session-review-route.js';
 
 export function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
@@ -194,6 +198,7 @@ export function App(): React.JSX.Element {
   if (route?.kind === 'preparation') {
     return (
       <PreparationPage
+        actorId={user.id}
         api={interviewApi}
         captureController={(sessionId) => captureController(route.projectId, sessionId)}
         checkMicrophone={checkMicrophoneInput}
@@ -216,23 +221,68 @@ export function App(): React.JSX.Element {
     );
   }
 
+  if (route?.kind === 'new_interview') {
+    return (
+      <NewInterviewPage
+        actorId={user.id}
+        api={interviewApi}
+        csrfToken={csrfToken}
+        navigate={navigate}
+      />
+    );
+  }
+
+  if (route?.kind === 'review') {
+    return (
+      <SessionReviewRoute
+        api={interviewApi}
+        navigate={navigate}
+        projectId={route.projectId}
+        sessionId={route.sessionId}
+      />
+    );
+  }
+
+  if (route?.kind === 'save_facts') {
+    return (
+      <SessionPlaceholderRoute
+        api={interviewApi}
+        kind={route.kind}
+        navigate={navigate}
+        projectId={route.projectId}
+        sessionId={route.sessionId}
+      />
+    );
+  }
+
+  if (pathname === '/') {
+    return (
+      <HomeShell
+        api={interviewApi}
+        errorMessage={error}
+        navigate={navigate}
+        onAuthLost={returnToLogin}
+        onLogout={logout}
+        user={user}
+      />
+    );
+  }
+
   return (
-    <main className="auth-page">
-      <section className="auth-panel">
-        <p className="context-label">拾光 · 倾听员工作区</p>
-        <h1>已登录</h1>
-        <p>{user.display_name}</p>
-        <p>请使用已分配项目的正式访谈深链进入准备页。</p>
-        <button className="button button--secondary" onClick={() => void logout()} type="button">
-          退出登录
+    <HomeFrame>
+      <section className="route-shell">
+        <ErrorState message="这个页面不存在或已不可访问" />
+        <button
+          className="button button--secondary"
+          onClick={() => {
+            navigate('/');
+          }}
+          type="button"
+        >
+          返回工作区
         </button>
-        {error === null ? null : (
-          <p className="inline-error" role="alert">
-            {error}
-          </p>
-        )}
       </section>
-    </main>
+    </HomeFrame>
   );
 }
 

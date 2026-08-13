@@ -10,12 +10,11 @@ test('real Web and API use HttpOnly Cookie, Origin and CSRF for the login lifecy
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
-  await expect(page.getByText('虚构倾听员 A')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   expect(await page.evaluate(() => document.cookie)).not.toContain('elder_interview_session');
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
 
   await page.evaluate(async () => fetch('/api/v1/auth/csrf'));
 
@@ -54,12 +53,163 @@ test('logout failure preserves the authenticated UI state', async ({ page }) => 
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   await page.route('**/api/v1/auth/logout', async (route) => route.fulfill({ status: 403 }));
   await page.route('**/api/v1/auth/csrf', async (route) => route.fulfill({ status: 500 }));
   await page.getByRole('button', { name: '退出登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('退出失败');
+});
+
+test('authenticated browser start fails closed after consent version, withdrawal, or assignment drift', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('input[name="email"]').fill('listener-a@example.test');
+  await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
+  await page.locator('form button[type="submit"]').click();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
+
+  const scenarios = await page.evaluate(async () => {
+    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
+    const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
+    async function write(
+      path: string,
+      body?: Record<string, unknown>,
+    ): Promise<Record<string, unknown>> {
+      const response = await fetch(`/api/v1${path}`, {
+        body: JSON.stringify(body ?? {}),
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        method: 'POST',
+      });
+      const responseBody = (await response.json()) as Record<string, unknown>;
+      if (!response.ok) {
+        throw new Error(
+          `${path} failed: ${String(response.status)} ${JSON.stringify(responseBody)}`,
+        );
+      }
+      return responseBody;
+    }
+    async function prepare(
+      label: string,
+      consentTextVersion: string,
+    ): Promise<{ consentId: string; projectId: string; sessionId: string }> {
+      const project = await write('/projects', {
+        display_name: `虚构浏览器门禁反例-${label}-${crypto.randomUUID()}`,
+        request_id: crypto.randomUUID(),
+      });
+      const projectId = String(project.id);
+      await write(`/projects/${projectId}/service-terms`, {
+        currency: 'CNY',
+        estimated_session_count: 1,
+        expected_current_minutes: 10,
+        included_minutes: 60,
+        overtime_price_minor: 0,
+        overtime_unit_minutes: 30,
+        request_id: crypto.randomUUID(),
+      });
+      const consent = await write(`/projects/${projectId}/consents`, {
+        consent_audio_object_id: null,
+        consent_method: 'electronic',
+        consent_text_version: consentTextVersion,
+        consent_type: 'recording_transcription_ai',
+        consented_at: new Date().toISOString(),
+        request_id: crypto.randomUUID(),
+      });
+      const session = await write(`/projects/${projectId}/sessions`, {
+        request_id: crypto.randomUUID(),
+      });
+      const sessionId = String(session.id);
+      await write(`/sessions/${sessionId}/device-check`, {
+        input_detected: true,
+        microphone_permission: 'granted',
+      });
+      return { consentId: String(consent.id), projectId, sessionId };
+    }
+    async function start(sessionId: string): Promise<{ body: { code?: string }; status: number }> {
+      const response = await fetch(`/api/v1/sessions/${sessionId}/start`, {
+        body: JSON.stringify({
+          audio_stream_id: crypto.randomUUID(),
+          mime_type: 'audio/webm;codecs=opus',
+          request_id: crypto.randomUUID(),
+        }),
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        method: 'POST',
+      });
+      return {
+        body: (await response.json()) as { code?: string },
+        status: response.status,
+      };
+    }
+
+    // Electronic consent is an API-only test fixture here; the ordinary product UI exposes only recorded verbal.
+    const version = await prepare('version', 'mvp-v2');
+    const versionStart = await start(version.sessionId);
+    const withdrawn = await prepare('withdrawn', 'mvp-v1');
+    await write(`/consents/${withdrawn.consentId}/revoke`, { request_id: crypto.randomUUID() });
+    const withdrawnStart = await start(withdrawn.sessionId);
+    const assignment = await prepare('assignment', 'mvp-v1');
+    return { assignment, version, versionStart, withdrawn, withdrawnStart };
+  });
+
+  expect(scenarios.versionStart).toEqual({
+    body: expect.objectContaining({ code: 'CONSENT_REQUIRED' }),
+    status: 409,
+  });
+  expect(scenarios.withdrawnStart).toEqual({
+    body: expect.objectContaining({ code: 'PROJECT_NOT_STARTABLE' }),
+    status: 409,
+  });
+
+  const databaseUrl = process.env.TEST_DATABASE_URL;
+  if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
+  const prisma = createTestPrismaClient(databaseUrl);
+  try {
+    await prisma.projectAssignment.updateMany({
+      data: { revokedAt: new Date() },
+      where: { projectId: scenarios.assignment.projectId, revokedAt: null },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  const assignmentStart = await page.evaluate(async (sessionId) => {
+    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
+    const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
+    const response = await fetch(`/api/v1/sessions/${sessionId}/start`, {
+      body: JSON.stringify({
+        audio_stream_id: crypto.randomUUID(),
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: crypto.randomUUID(),
+      }),
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      method: 'POST',
+    });
+    return { body: (await response.json()) as { code?: string }, status: response.status };
+  }, scenarios.assignment.sessionId);
+  expect(assignmentStart).toEqual({
+    body: expect.objectContaining({ code: 'FORBIDDEN' }),
+    status: 403,
+  });
+
+  const verificationPrisma = createTestPrismaClient(databaseUrl);
+  try {
+    expect(
+      await verificationPrisma.audioObject.count({
+        where: {
+          sessionId: {
+            in: [
+              scenarios.version.sessionId,
+              scenarios.withdrawn.sessionId,
+              scenarios.assignment.sessionId,
+            ],
+          },
+        },
+      }),
+    ).toBe(0);
+  } finally {
+    await verificationPrisma.$disconnect();
+  }
 });
 
 test('synthetic Chromium audio survives IndexedDB then uploads and completes through the real API', async ({
@@ -69,12 +219,15 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   await page.getByLabel('邮箱').fill('listener-a@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   const projectId = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const csrf = (await csrfResponse.json()) as { csrf_token: string };
     const response = await fetch('/api/v1/projects', {
-      body: JSON.stringify({ display_name: '虚构 Chromium 可靠上传项目' }),
+      body: JSON.stringify({
+        display_name: '虚构 Chromium 可靠上传项目',
+        request_id: crypto.randomUUID(),
+      }),
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.csrf_token },
       method: 'POST',
     });
@@ -128,13 +281,18 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
   await page.locator('form button[type="submit"]').click();
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   const { audioStreamId, sessionId } = await page.evaluate(async () => {
     const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
     const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
     async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
+      const createRequest =
+        path === '/projects' || /^\/projects\/[^/]+\/(service-terms|consents|sessions)$/.test(path);
+      const requestBody = createRequest
+        ? { ...((body ?? {}) as Record<string, unknown>), request_id: crypto.randomUUID() }
+        : body;
       const response = await fetch(`/api/v1${path}`, {
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(requestBody === undefined ? {} : { body: JSON.stringify(requestBody) }),
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         method: 'POST',
       });
@@ -154,7 +312,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
     await write(`/projects/${projectId}/consents`, {
       consent_audio_object_id: null,
       consent_method: 'electronic',
-      consent_text_version: 'test-v1',
+      consent_text_version: 'mvp-v1',
       consent_type: 'recording_transcription_ai',
       consented_at: new Date().toISOString(),
     });

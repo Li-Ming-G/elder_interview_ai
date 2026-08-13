@@ -41,7 +41,7 @@ export interface LogoutResponse {
 
 export type ProjectStatus = 'draft' | 'ready' | 'active' | 'completed' | 'restricted' | 'deleted';
 
-export interface CreateProjectRequest {
+export interface ProjectDetails {
   display_name: string;
   birth_year: number | null;
   approximate_age: number | null;
@@ -49,7 +49,9 @@ export interface CreateProjectRequest {
   current_city: string | null;
 }
 
-export interface ProjectResponse extends CreateProjectRequest {
+export interface CreateProjectRequest extends ProjectDetails, IdempotentRequest {}
+
+export interface ProjectResponse extends ProjectDetails {
   id: string;
   status: ProjectStatus;
   created_by: string | null;
@@ -57,7 +59,26 @@ export interface ProjectResponse extends CreateProjectRequest {
   updated_at: string;
 }
 
-export interface CreateServiceTermRequest {
+export interface ProjectListOrdinaryProjection extends Omit<ProjectResponse, 'status'> {
+  projection: 'ordinary';
+  status: Exclude<ProjectStatus, 'restricted' | 'deleted'>;
+}
+
+export interface ProjectListRestrictedProjection {
+  project_id: string;
+  projection: 'restricted';
+  status: 'restricted';
+  display_label: '受限项目';
+  status_label: '当前不可访问';
+}
+
+export type ProjectListProjection = ProjectListOrdinaryProjection | ProjectListRestrictedProjection;
+
+export interface ProjectListResponse {
+  items: ProjectListProjection[];
+}
+
+export interface ServiceTermDetails {
   included_minutes: number;
   estimated_session_count: number;
   expected_current_minutes: number;
@@ -66,7 +87,9 @@ export interface CreateServiceTermRequest {
   currency: string;
 }
 
-export interface ServiceTermResponse extends CreateServiceTermRequest {
+export interface CreateServiceTermRequest extends ServiceTermDetails, IdempotentRequest {}
+
+export interface ServiceTermResponse extends ServiceTermDetails {
   id: string;
   project_id: string;
   explained_at: string;
@@ -80,7 +103,7 @@ export type ConsentType = 'recording_transcription_ai';
 export type ConsentMethod = 'recorded_verbal' | 'electronic' | 'written';
 export type ConsentStatus = 'pending' | 'valid' | 'revoked' | 'expired';
 
-export interface CreateConsentRequest {
+export interface ConsentDetails {
   consent_type: ConsentType;
   consent_text_version: string;
   consent_method: ConsentMethod;
@@ -88,7 +111,9 @@ export interface CreateConsentRequest {
   consent_audio_object_id: string | null;
 }
 
-export interface ConsentResponse extends CreateConsentRequest {
+export interface CreateConsentRequest extends ConsentDetails, IdempotentRequest {}
+
+export interface ConsentResponse extends ConsentDetails {
   id: string;
   project_id: string;
   status: ConsentStatus;
@@ -161,6 +186,12 @@ export interface SessionFinalizationSnapshot {
   recording_status: 'recording' | 'stopped' | 'interrupted';
   upload_status: FinalizationUploadStatus;
   uploaded_chunk_count: number;
+  /**
+   * Additive contract-first field. A3's ordinary canonical session mapper must
+   * emit this key explicitly: null until the linked audio object is proven
+   * complete, otherwise the exact safe-integer AudioObject.totalSizeBytes.
+   */
+  total_size_bytes?: number | null;
   manifest_checksum: string | null;
   transcript_status: FinalizationTranscriptStatus;
   transcript_error_code: 'ASR_UNAVAILABLE' | 'ASR_DRAIN_TIMEOUT' | 'ASR_DRAIN_INCOMPLETE' | null;
@@ -171,6 +202,71 @@ export interface SessionFinalizationSnapshot {
     | null;
   processing_started_at: string | null;
   completed_at: string | null;
+}
+
+export type SessionHomeState =
+  | 'preparation_required'
+  | 'interview_active'
+  | 'interview_interrupted'
+  | 'saving_audio'
+  | 'transcript_processing'
+  | 'review_ready'
+  | 'no_audio_captured'
+  | 'saved_with_warning'
+  | 'save_failed';
+
+export type SessionPrimaryAction =
+  | 'continue_preparation'
+  | 'return_to_interview'
+  | 'resolve_interruption'
+  | 'view_save_progress'
+  | 'view_review'
+  | 'view_save_facts';
+
+export type SessionReviewAccess = 'unavailable' | 'read_only';
+
+export interface ProjectSessionListItem {
+  id: string;
+  project_id: string;
+  sequence_no: number;
+  status: InterviewSessionStatus;
+  capture_failure_code: 'NO_AUDIO_CAPTURED' | null;
+  capture: Pick<SessionCaptureSnapshot, 'status'> | null;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  finalization: Pick<
+    SessionFinalizationSnapshot,
+    | 'recording_status'
+    | 'upload_status'
+    | 'transcript_status'
+    | 'failure_code'
+    | 'manifest_checksum'
+  > | null;
+  home_state: SessionHomeState;
+  primary_action: SessionPrimaryAction;
+  review_access: SessionReviewAccess;
+}
+
+export interface ProjectSessionListResponse {
+  items: ProjectSessionListItem[];
+  next_cursor: string | null;
+}
+
+export interface EvidenceFinalizationResponse {
+  session_id: string;
+  audio_object_id: string;
+  session_status: Extract<
+    InterviewSessionStatus,
+    'stopping' | 'processing' | 'completed' | 'failed'
+  >;
+  expected_chunk_count: number;
+  recording_status: SessionFinalizationSnapshot['recording_status'];
+  upload_status: SessionFinalizationSnapshot['upload_status'];
+  uploaded_chunk_count: number;
+  manifest_checksum: string | null;
+  failure_code: SessionFinalizationSnapshot['failure_code'];
 }
 
 export interface SessionChunkCommitment {

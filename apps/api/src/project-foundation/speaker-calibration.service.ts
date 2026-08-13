@@ -355,7 +355,12 @@ export class SpeakerCalibrationService {
   }
 
   private assertReplay(
-    record: { action: string; actorId: string; targetId: string; responsePayload: unknown } | null,
+    record: {
+      action: string;
+      actorId: string;
+      targetId: string | null;
+      responsePayload: unknown;
+    } | null,
     actor: AuthPrincipal,
     targetId: string,
     action: string,

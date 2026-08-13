@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type {
+  EvidenceFinalizationResponse,
   InterviewSessionResponse,
   RecoverSessionRequest,
   SessionChunkCommitment,
@@ -53,7 +54,7 @@ export class SessionFinalizationService {
     actor: AuthPrincipal,
     sessionId: string,
     input: FinalizationRecoveryRequest,
-  ): Promise<InterviewSessionResponse> {
+  ): Promise<InterviewSessionResponse | EvidenceFinalizationResponse> {
     if (input.action === 'finalize_interrupted') return this.freeze(actor, sessionId, input, true);
     await this.authorization.assertRole(actor, ['interviewer']);
     const result = await this.prisma.$transaction(async (tx) => {
@@ -65,6 +66,13 @@ export class SessionFinalizationService {
         where: { requestId: input.request_id },
       });
       const action = `interview_session.recover:${input.action}`;
+      const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
+      if (session === null) throw this.notFound();
+      const finalization = await tx.sessionFinalization.findUnique({ where: { sessionId } });
+      if (['recording', 'reconnecting'].includes(session.status))
+        throw this.conflict('SESSION_RECOVERY_NOT_REQUIRED');
+      if (finalization === null) throw this.conflict('SESSION_NOT_RECOVERABLE');
+      const ordinaryAccess = await this.hasOrdinaryAccess(tx, actor.id, session.projectId);
       if (replay !== null) {
         if (
           replay.action !== action ||
@@ -73,16 +81,16 @@ export class SessionFinalizationService {
           replay.targetType !== 'interview_session'
         )
           throw this.conflict('IDEMPOTENCY_KEY_REUSED');
-        return { snapshot: replay.responsePayload as unknown as InterviewSessionResponse };
+        if (ordinaryAccess)
+          return { snapshot: replay.responsePayload as unknown as InterviewSessionResponse };
+        this.assertFinalizationActor(actor, finalization.createdBy);
+        return { snapshot: await this.evidenceSnapshot(tx, actor, sessionId) };
       }
-      const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
-      if (session === null) throw this.notFound();
-      const finalization = await tx.sessionFinalization.findUnique({ where: { sessionId } });
-      if (['recording', 'reconnecting'].includes(session.status))
-        throw this.conflict('SESSION_RECOVERY_NOT_REQUIRED');
-      if (finalization === null) throw this.conflict('SESSION_NOT_RECOVERABLE');
       this.assertFinalizationActor(actor, finalization.createdBy);
-      return { action, finalizationId: finalization.id };
+      return {
+        action,
+        finalizationId: finalization.id,
+      };
     });
     if (!('finalizationId' in result)) return result.snapshot;
     await this.advance(result.finalizationId);
@@ -91,8 +99,28 @@ export class SessionFinalizationService {
       const replay = await tx.idempotencyRecord.findUnique({
         where: { requestId: input.request_id },
       });
-      if (replay !== null) return replay.responsePayload as unknown as InterviewSessionResponse;
-      const snapshot = await this.snapshot(tx, sessionId);
+      const session = await tx.interviewSession.findUnique({
+        select: { projectId: true },
+        where: { id: sessionId },
+      });
+      if (session === null) throw this.notFound();
+      const ordinaryAccess = await this.hasOrdinaryAccess(tx, actor.id, session.projectId);
+      if (replay !== null) {
+        if (
+          replay.action !== `interview_session.recover:${input.action}` ||
+          replay.actorId !== actor.id ||
+          replay.targetId !== sessionId ||
+          replay.targetType !== 'interview_session'
+        ) {
+          throw this.conflict('IDEMPOTENCY_KEY_REUSED');
+        }
+        return ordinaryAccess
+          ? (replay.responsePayload as unknown as InterviewSessionResponse)
+          : this.evidenceSnapshot(tx, actor, sessionId);
+      }
+      const snapshot = ordinaryAccess
+        ? await this.snapshot(tx, sessionId)
+        : await this.evidenceSnapshot(tx, actor, sessionId);
       await this.writeRecoveryIdempotency(
         tx,
         input.request_id,
@@ -107,14 +135,24 @@ export class SessionFinalizationService {
 
   public async get(actor: AuthPrincipal, sessionId: string): Promise<InterviewSessionResponse> {
     await this.authorization.assertRole(actor, ['interviewer']);
-    const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
-    if (session === null) throw this.notFound();
-    const assignment = await this.prisma.projectAssignment.findFirst({
-      where: { projectId: session.projectId, revokedAt: null, userId: actor.id },
+    const session = await this.prisma.interviewSession.findUnique({
+      include: { project: true },
+      where: { id: sessionId },
     });
-    const finalization = await this.prisma.sessionFinalization.findUnique({ where: { sessionId } });
-    if (assignment === null && finalization?.createdBy !== actor.id) throw this.forbidden();
+    if (session === null) throw this.notFound();
+    if (session.project.deletedAt !== null || session.project.status === 'deleted')
+      throw this.notFound();
+    if (!(await this.hasOrdinaryAccess(this.prisma, actor.id, session.projectId)))
+      throw this.forbidden();
     return this.snapshot(this.prisma, sessionId);
+  }
+
+  public async getEvidenceFinalization(
+    actor: AuthPrincipal,
+    sessionId: string,
+  ): Promise<EvidenceFinalizationResponse> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    return this.evidenceSnapshot(this.prisma, actor, sessionId);
   }
 
   private async freeze(
@@ -412,6 +450,85 @@ export class SessionFinalizationService {
     return this.snapshots.read(sessionId, db);
   }
 
+  private async hasOrdinaryAccess(
+    db: Prisma.TransactionClient | PrismaService,
+    actorId: string,
+    projectId: string,
+  ): Promise<boolean> {
+    const [project, assignment] = await Promise.all([
+      db.elderProject.findUnique({
+        select: { deletedAt: true, status: true },
+        where: { id: projectId },
+      }),
+      db.projectAssignment.findFirst({
+        select: { id: true },
+        where: { projectId, revokedAt: null, userId: actorId },
+      }),
+    ]);
+    return (
+      project !== null &&
+      project.deletedAt === null &&
+      !['restricted', 'deleted'].includes(project.status) &&
+      assignment !== null
+    );
+  }
+
+  private async evidenceSnapshot(
+    db: Prisma.TransactionClient | PrismaService,
+    actor: AuthPrincipal,
+    sessionId: string,
+  ): Promise<EvidenceFinalizationResponse> {
+    const finalization = await db.sessionFinalization.findUnique({
+      include: { audioObject: { select: { manifestChecksum: true } }, session: true },
+      where: { sessionId },
+    });
+    if (
+      finalization === null ||
+      finalization.createdBy !== actor.id ||
+      !['stopping', 'processing', 'completed', 'failed'].includes(finalization.session.status)
+    ) {
+      throw this.notFound();
+    }
+    const [uploadedChunkCount, capture] = await Promise.all([
+      db.audioChunk.count({
+        where: { audioObjectId: finalization.audioObjectId, uploadStatus: 'uploaded' },
+      }),
+      db.sessionCaptureGeneration.findFirst({
+        orderBy: { generationNo: 'desc' },
+        select: { status: true },
+        where: { sessionId },
+      }),
+    ]);
+    const response: EvidenceFinalizationResponse = {
+      audio_object_id: finalization.audioObjectId,
+      expected_chunk_count: finalization.expectedChunkCount,
+      failure_code: evidenceFailureCode(finalization.failureCode),
+      manifest_checksum:
+        finalization.audioStatus === 'complete' ? finalization.audioObject.manifestChecksum : null,
+      recording_status:
+        capture?.status === 'interrupted'
+          ? 'interrupted'
+          : capture?.status === 'active'
+            ? 'recording'
+            : 'stopped',
+      session_id: sessionId,
+      session_status: finalization.session.status as EvidenceFinalizationResponse['session_status'],
+      upload_status: finalization.audioStatus,
+      uploaded_chunk_count: uploadedChunkCount,
+    };
+    await db.auditLog.create({
+      data: {
+        action: 'evidence_finalization.read',
+        actorId: actor.id,
+        actorType: 'user',
+        entityId: sessionId,
+        entityType: 'interview_session',
+        metadata: {},
+      },
+    });
+    return response;
+  }
+
   private validateCommitments(input: StopSessionRequest): void {
     if (
       !Number.isSafeInteger(input.expected_chunk_count) ||
@@ -557,7 +674,7 @@ export class SessionFinalizationService {
     action: string,
     actorId: string,
     sessionId: string,
-    snapshot: InterviewSessionResponse,
+    snapshot: InterviewSessionResponse | EvidenceFinalizationResponse,
   ): Promise<void> {
     await tx.idempotencyRecord.create({
       data: {
@@ -584,6 +701,13 @@ export class SessionFinalizationService {
   }
 }
 
+function evidenceFailureCode(value: string | null): EvidenceFinalizationResponse['failure_code'] {
+  if (value === null) return null;
+  if (value === 'AUDIO_COMMITMENT_CONFLICT' || value === 'AUDIO_MANIFEST_UNRECOVERABLE') {
+    return value;
+  }
+  return 'FINALIZATION_INTERNAL_FAILURE';
+}
 function commitmentChecksum(chunks: SessionChunkCommitment[]): string {
   return createHash('sha256')
     .update(

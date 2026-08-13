@@ -74,6 +74,7 @@
 - 受影响任务：`DEV-008`；不阻塞 `DEV-001A/B`。
 - 临时处理：`DEV-008` 保持 BLOCKED，开工前补正式状态机和测试。
 - 需要谁决策：总控 Agent + DEV-008 数据治理实现/审查角色。
+- 索引纠偏（2026-08-12）：本记录早已标记 `RESOLVED`，但 `02-open-conflicts.md` 仍误列为 OPEN；本轮只修正动态索引，不改写旧发现和临时处理历史。正式服务器备份清理义务转由 DEV-008D 承接；本机浏览器副本删除没有备份状态，也不重新打开或替代本冲突。
 
 ### CON-007｜删除范围摘要密钥缺少版本与轮换策略
 
@@ -85,6 +86,7 @@
 - 受影响任务：`DEV-008`；不阻塞 `DEV-001A/B`。
 - 临时处理：不得在 DEV-008 实现中自行猜测；开工前形成 ADR、配置和迁移/验证规则。
 - 需要谁决策：总控 Agent + 安全/数据治理审查角色。
+- 索引纠偏（2026-08-12）：本记录早已标记 `RESOLVED`，但 `02-open-conflicts.md` 仍误列为 OPEN；本轮只修正动态索引，不改写旧历史。正式服务器删除摘要/轮换义务转由 DEV-008D 承接；本机最小删除回执不是 deletion audit、不使用服务端 pepper，也不重新打开或替代本冲突。
 
 ### CON-008｜未知账号登录失败缺少合法审计 actor 表达
 
@@ -302,6 +304,7 @@
 - 需要谁决策：DEV-008 开工前由总控与数据治理/安全角色先解决 CON-006/007；C2 无需等待该决定，可继续其余已冻结范围。
 - SPEC-DEV-006 REVIEW 进展（2026-08-09）：consumer 目标已冻结统一 `DeletionScopeReader` port、project/session 固定锁序、输入冻结/调用前/写回/展示四次检查、动态撤下与派生关系清理；这不是 runtime 实现。当前 coverage 仍为 `NOT IMPLEMENTED / NOT VERIFIED`，不得增加 no-op guard。关闭条件仍是 DEV-008 producer/read model、C2 回接与真实并发/幂等/不泄密测试全部完成。
 - PR #20 REQUEST_CHANGES 修复进展（2026-08-10）：契约新增 `ai_job|question_display_snapshot|memory_retention_root` 三类保留根、先隐藏后清理、跨 root detach、CASCADE/显式幂等顺序和失败续跑；这些仍是未来 DEV-006/008 的目标，不是现有 deletion producer/read model。CON-023 状态和 `NOT IMPLEMENTED / NOT VERIFIED` 覆盖结论不变。
+- SPEC-DEV-008A 拆分（2026-08-12）：历史 DEV-008 已停止作为聚合实现任务。当前 origin IndexedDB 的“删除此设备上的录音副本”由 DEV-008A3 承接，明确不创建/推进 `deletion_request`，不改变服务端 audio/transcript/memory，也不关闭本冲突。正式 producer/read model、统一 `DeletionScopeReader`、C2/AI/回顾回接、在线/备份清理与最小审计全部转由独立 DEV-008D；关闭条件和 `NOT IMPLEMENTED / NOT VERIFIED` 结论不变。
 
 ### CON-024｜已展示问题快照与正式边界即时撤回规则冲突
 
@@ -368,6 +371,36 @@
 - 最终决定：未定。
 - 需要同步修改的文件：关闭时更新 `08`、`09`、腾讯 provider profile、任务板/追踪和本索引。
 - 关闭条件：取得并审查适用于目标账号/产品/region 的 retention、diagnostic logging、处理地区与 DPA/处理者义务一手证据，形成可测试配置和删除/保留责任；项目负责人明确允许真实长者试点。
+
+### CON-028｜restricted 首页投影缺少最小机器 DTO，普通 finalization/prepare reader 存在权限旁路
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-12
+- 发现者：DEV-008A1 唯一 iteration-coach 独立只读 Correction（实现窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`）
+- 涉及文件与章节：`03` §3.1/§17.2、`04` §4.2-4.6、`05` §3.1/§3.3-3.5.4、`08` §4.5/§5、`09` §10.3、`10` §5.1、ADR-034、shared contracts、DEV-008A1
+- 冲突内容：正式文本要求 restricted+有效 assignment 在首页显示中性受限投影，但唯一 shared `ProjectResponse` 必含长者称呼、出生/年龄、籍贯、城市与 `created_by`。置空违反 DTO，复用会泄露正文，直接隐藏又改变首页语义。复核同时确认普通 `GET /sessions/:id` 可能以 session/finalization `created_by` 绕过当前 assignment，restricted prepare 深链也可能返回 project/service-term/consent 正文。
+- 受影响任务：发现时 DEV-008A1 保持零改动 `BLOCKED`；A2/A3 和父 A 的既有阻塞不变。关闭后仅 DEV-008A1 恢复 `READY`。
+- 总控正式决定：只有 restricted 且当前有效 assignment 仍存在时，首页返回独立最小中性投影；deleted、软删除、assignment 失效完全不可见。session cursor 绑定 `project_id + created_at + id` 并签名失败关闭。普通 Home/prepare/workbench/review readers 不得用 `created_by` 或 evidence-finalization 例外绕权；限制前已冻结 stop 的原 actor 只走专属最小 seam。
+- 候选写回：SPEC-DEV-008A1-ACCESS 同步正式规范、`ProjectListProjection`/`ProjectSessionListResponse`/`EvidenceFinalizationResponse`、ADR-035、测试与协作门禁；不改业务代码、Prisma、migration、页面或测试实现。
+- iteration-coach：原 DEV-008A1 已完成恰好一次 Correction；本 docs-only 修正和后续恢复不得启动第二次复核。
+- 关闭证据：项目负责人对 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712` 正式 PASS（P0/P1/P2=0）；GitHub 记录 [issuecomment-5265462316](https://github.com/Li-Ming-G/elder_interview_ai/pull/33#issuecomment-5265462316)。PR merge `18ba7381f7ba747c2fb3beefe28297c6d063a174`，main CI `31587442461` SUCCESS；ADR-035 Accepted，SPEC-DEV-008A1-ACCESS DONE，DEV-008A1 恢复 READY。
+- 历史边界：本次关闭只接收 docs/shared-contract 安全接缝；原 Correction、`DECIDED`/`PENDING` 候选历史永久保留，不代表 A1 handler/repository/cursor/UI 或安全回归已实现。
+
+### CON-029｜A3 fresh delete preflight 缺少 finalization total bytes 公共字段
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-12
+- 发现者：DEV-008A3 开工前唯一 iteration-coach Correction；实现窗口 `019ff5db-a0dd-7060-875f-8ee454a84469`，只读复核 `019ff5e0-47d2-7d92-8148-7eff63ec61a9`
+- 涉及文件与章节：`04` §4.24-4.25/§4.44、`05` §3.1/§3.5.1/§3.5.3/§3.6.1、`08` §5/§14.1、`09` §10.4、`10` §4/§7、shared contracts、DEV-008A3、ADR-034/035
+- 冲突内容：正式 `05` 要求 A3 将 manifest 的 chunk count/total bytes 与 session finalization 对照，但公共 `SessionFinalizationSnapshot` 只有 expected/uploaded count 与 manifest checksum，没有 `total_size_bytes`。静默跳过会削弱删除安全门；A3 自行补字段又会未经审查改变公共 API。
+- 发现时处理：DEV-008A3 在零改动、未建分支/PR的阶段暂停并回传；没有修改业务 mapper、Prisma、IndexedDB、页面或删除语义。
+- 总控正式决定：采用方案 A。公共 snapshot 增加 additive optional+nullable `total_size_bytes`，只从既有 `AudioObject.totalSizeBytes` 投影；不新增 Prisma 字段/migration。A3 runtime 后 ordinary canonical GET 必须显式带键；缺键/null/unsafe/mismatch 对播放和本机删除失败关闭。
+- 白名单决定：A1 `ProjectSessionListItem` 不扩字段；restricted `EvidenceFinalizationResponse` 不扩字段。A3 只能使用当前 assignment + ordinary visibility 下的 canonical session GET，不能用列表、created_by、本机 archive 或 evidence seam 绕权。
+- 需要同步修改：SPEC-DEV-008A3-PREFLIGHT、`04/05/08/09/10`、packages/contracts、ADR-036、任务板/追踪/审查/交接/journal。
+- 受影响任务：本 SPEC 候选阶段保持 `REVIEW`；DEV-008A3 在本 SPEC exact-head PASS/merge 前保持 `BLOCKED`。A2、DEV-008D 与 CON-023 状态不变。
+- 关闭条件：项目负责人授权总控对非 Draft PR final exact head/CI 手动审查 PASS，PR merge 且 main CI 成功；关闭只解锁 A3 runtime，不代表 A3 或服务器隐私删除完成。
+- 关闭证据（2026-08-12）：项目负责人对 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095` 手动独立审查 PASS（P0/P1/P2=0）；正式记录为 [issuecomment-5266978939](https://github.com/Li-Ming-G/elder_interview_ai/pull/37#issuecomment-5266978939)。PR 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main，main CI `31598183784` SUCCESS。关闭条件全部满足，DEV-008A3 恢复 `READY`。
+- 历史与边界：原 Correction、方案 A、REV-044 `PENDING` 候选历史永久保留。本关闭只证明 contract-first 接缝已接收；A3 mapper/controller、IndexedDB、页面与 runtime 测试仍未实现。DEV-008A2 保持 `READY`，父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 
 ## 登记模板
 

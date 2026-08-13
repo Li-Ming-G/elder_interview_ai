@@ -5,6 +5,7 @@ import type {
   CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
+  ProjectListResponse,
   ProjectResponse,
   ServiceTermResponse,
   StartSessionRequest,
@@ -24,14 +25,24 @@ import { PrismaService } from '../database/prisma.service.js';
 import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { evaluateInterviewStartGate } from './interview-start-policy.js';
-import { mapConsent, mapInterviewSession, mapProject, mapServiceTerm } from './project.mapper.js';
+import { createPayloadHash } from './create-idempotency.js';
+import {
+  mapConsent,
+  mapInterviewSession,
+  mapProject,
+  mapProjectListOrdinary,
+  mapProjectListRestricted,
+  mapServiceTerm,
+} from './project.mapper.js';
 import { ProjectAccessService, type ProjectAccessSnapshot } from './project-access.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 
 interface IdempotencyBinding {
   action: string;
   actorId: string;
-  targetId: string;
+  createIdentity: string | null;
+  requestPayloadHash: string | null;
+  targetId: string | null;
   targetType: string;
 }
 
@@ -40,6 +51,8 @@ interface InterruptedCaptureTarget {
   generationNo: number;
   sessionId: string;
 }
+
+const CURRENT_CONSENT_TEXT_VERSION = 'mvp-v1';
 
 @Injectable()
 export class ProjectFoundationService {
@@ -57,7 +70,25 @@ export class ProjectFoundationService {
     input: CreateProjectRequest,
   ): Promise<ProjectResponse> {
     await this.authorization.assertRole(actor, ['interviewer']);
-    const project = await this.prisma.$transaction(async (transaction) => {
+    const { request_id: requestId, ...payload } = input;
+    const binding: IdempotencyBinding = {
+      action: 'project.create',
+      actorId: actor.id,
+      createIdentity: `project:create:${actor.id}:${requestId}`,
+      requestPayloadHash: createPayloadHash(payload),
+      targetId: null,
+      targetType: 'elder_project',
+    };
+    const replay = await this.findReplay<ProjectResponse>(requestId, binding);
+    if (replay !== null) return replay;
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${requestId}`);
+      const repeated = await this.findReplayInTransaction<ProjectResponse>(
+        transaction,
+        requestId,
+        binding,
+      );
+      if (repeated !== null) return repeated;
       const created = await transaction.elderProject.create({
         data: {
           approximateAge: input.approximate_age,
@@ -79,14 +110,16 @@ export class ProjectFoundationService {
           entityId: created.id,
           entityType: 'elder_project',
           metadata: {},
+          requestId,
         },
       });
-      return created;
+      const response = mapProject(created);
+      await this.writeIdempotency(transaction, requestId, binding, response);
+      return response;
     });
-    return mapProject(project);
   }
 
-  public async listProjects(actor: AuthPrincipal): Promise<ProjectResponse[]> {
+  public async listProjects(actor: AuthPrincipal): Promise<ProjectListResponse> {
     await this.authorization.assertRole(actor, ['interviewer']);
     const projects = await this.prisma.elderProject.findMany({
       orderBy: { updatedAt: 'desc' },
@@ -96,11 +129,17 @@ export class ProjectFoundationService {
         status: { not: 'deleted' },
       },
     });
-    return projects.map(mapProject);
+    return {
+      items: projects.map((project) =>
+        project.status === 'restricted'
+          ? mapProjectListRestricted(project.id)
+          : mapProjectListOrdinary(project),
+      ),
+    };
   }
 
   public async getProject(actor: AuthPrincipal, projectId: string): Promise<ProjectResponse> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     const project = await this.prisma.elderProject.findUniqueOrThrow({ where: { id: projectId } });
     return mapProject(project);
   }
@@ -111,7 +150,23 @@ export class ProjectFoundationService {
     input: CreateServiceTermRequest,
   ): Promise<ServiceTermResponse> {
     await this.assertInterviewerProject(actor, projectId);
-    const term = await this.prisma.$transaction(async (transaction) => {
+    const { request_id: requestId, ...payload } = input;
+    const binding = this.projectCreateBinding(
+      'service_term.create',
+      actor.id,
+      projectId,
+      createPayloadHash(payload),
+    );
+    const replay = await this.findReplay<ServiceTermResponse>(requestId, binding);
+    if (replay !== null) return replay;
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${requestId}`);
+      const repeated = await this.findReplayInTransaction<ServiceTermResponse>(
+        transaction,
+        requestId,
+        binding,
+      );
+      if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${projectId}`);
       await this.assertActiveAssignment(transaction, projectId, actor.id);
       const now = new Date();
@@ -142,18 +197,20 @@ export class ProjectFoundationService {
           entityId: created.id,
           entityType: 'service_term',
           metadata: { project_id: projectId },
+          requestId,
         },
       });
-      return created;
+      const response = mapServiceTerm(created);
+      await this.writeIdempotency(transaction, requestId, binding, response);
+      return response;
     });
-    return mapServiceTerm(term);
   }
 
   public async listServiceTerms(
     actor: AuthPrincipal,
     projectId: string,
   ): Promise<ServiceTermResponse[]> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     return (
       await this.prisma.serviceTerm.findMany({
         orderBy: [{ effectiveFrom: 'desc' }, { id: 'desc' }],
@@ -168,7 +225,23 @@ export class ProjectFoundationService {
     input: CreateConsentRequest,
   ): Promise<ConsentResponse> {
     await this.assertInterviewerProject(actor, projectId);
-    const consent = await this.prisma.$transaction(async (transaction) => {
+    const { request_id: requestId, ...payload } = input;
+    const binding = this.projectCreateBinding(
+      'consent.create',
+      actor.id,
+      projectId,
+      createPayloadHash(payload),
+    );
+    const replay = await this.findReplay<ConsentResponse>(requestId, binding);
+    if (replay !== null) return replay;
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${requestId}`);
+      const repeated = await this.findReplayInTransaction<ConsentResponse>(
+        transaction,
+        requestId,
+        binding,
+      );
+      if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${projectId}`);
       await this.assertActiveAssignment(transaction, projectId, actor.id);
       if (input.consent_method === 'recorded_verbal') {
@@ -213,15 +286,17 @@ export class ProjectFoundationService {
           entityId: created.id,
           entityType: 'consent_record',
           metadata: { consent_type: input.consent_type, project_id: projectId },
+          requestId,
         },
       });
-      return created;
+      const response = mapConsent(created);
+      await this.writeIdempotency(transaction, requestId, binding, response);
+      return response;
     });
-    return mapConsent(consent);
   }
 
   public async listConsents(actor: AuthPrincipal, projectId: string): Promise<ConsentResponse[]> {
-    await this.assertInterviewerProject(actor, projectId);
+    await this.assertInterviewerProjectRead(actor, projectId);
     return (
       await this.prisma.consentRecord.findMany({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -238,6 +313,8 @@ export class ProjectFoundationService {
     const binding: IdempotencyBinding = {
       action: 'consent.revoke',
       actorId: actor.id,
+      createIdentity: null,
+      requestPayloadHash: null,
       targetId: consentId,
       targetType: 'consent_record',
     };
@@ -372,10 +449,26 @@ export class ProjectFoundationService {
   public async createSession(
     actor: AuthPrincipal,
     projectId: string,
+    requestId: string,
   ): Promise<InterviewSessionResponse> {
     const snapshot = await this.assertInterviewerProject(actor, projectId);
     if (!['draft', 'ready', 'active'].includes(snapshot.status)) throw this.projectNotStartable();
-    const session = await this.prisma.$transaction(async (transaction) => {
+    const binding = this.projectCreateBinding(
+      'session.create',
+      actor.id,
+      projectId,
+      createPayloadHash({}),
+    );
+    const replay = await this.findReplay<InterviewSessionResponse>(requestId, binding);
+    if (replay !== null) return replay;
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${requestId}`);
+      const repeated = await this.findReplayInTransaction<InterviewSessionResponse>(
+        transaction,
+        requestId,
+        binding,
+      );
+      if (repeated !== null) return repeated;
       await this.lock(transaction, `project:${projectId}`);
       await this.assertActiveAssignment(transaction, projectId, actor.id);
       const project = await transaction.elderProject.findUnique({ where: { id: projectId } });
@@ -402,11 +495,13 @@ export class ProjectFoundationService {
           entityId: created.id,
           entityType: 'interview_session',
           metadata: { project_id: projectId },
+          requestId,
         },
       });
-      return created;
+      const response = mapInterviewSession(created);
+      await this.writeIdempotency(transaction, requestId, binding, response);
+      return response;
     });
-    return mapInterviewSession(session);
   }
 
   public async getSession(
@@ -415,7 +510,7 @@ export class ProjectFoundationService {
   ): Promise<InterviewSessionResponse> {
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null) throw this.notFound();
-    await this.assertInterviewerProject(actor, session.projectId);
+    await this.assertInterviewerProjectRead(actor, session.projectId);
     return mapInterviewSession(session);
   }
 
@@ -457,6 +552,8 @@ export class ProjectFoundationService {
     const binding: IdempotencyBinding = {
       action: 'interview_session.start',
       actorId: actor.id,
+      createIdentity: null,
+      requestPayloadHash: null,
       targetId: sessionId,
       targetType: 'interview_session',
     };
@@ -495,7 +592,10 @@ export class ProjectFoundationService {
         where: { consentType: 'recording_transcription_ai', projectId: project.id },
       });
       const gate = evaluateInterviewStartGate({
-        allRequiredConsentsValid: consent?.status === 'valid' && consent.revokedAt === null,
+        allRequiredConsentsValid:
+          consent?.status === 'valid' &&
+          consent.revokedAt === null &&
+          consent.consentTextVersion === CURRENT_CONSENT_TEXT_VERSION,
         projectStatus: project.status,
         serviceExplanationConfirmed: serviceTerm !== null,
         sessionStatus: session.status,
@@ -640,6 +740,14 @@ export class ProjectFoundationService {
     return this.access.assertCanAccess(actor, projectId);
   }
 
+  private async assertInterviewerProjectRead(
+    actor: AuthPrincipal,
+    projectId: string,
+  ): Promise<ProjectAccessSnapshot> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    return this.access.assertCanReadOrdinary(actor, projectId);
+  }
+
   private async assertActiveAssignment(
     transaction: Prisma.TransactionClient,
     projectId: string,
@@ -672,7 +780,9 @@ export class ProjectFoundationService {
       record.action !== binding.action ||
       record.actorId !== binding.actorId ||
       record.targetType !== binding.targetType ||
-      record.targetId !== binding.targetId
+      record.targetId !== binding.targetId ||
+      record.createIdentity !== binding.createIdentity ||
+      record.requestPayloadHash !== binding.requestPayloadHash
     ) {
       throw new ConflictException({
         code: 'IDEMPOTENCY_KEY_REUSED',
@@ -687,18 +797,36 @@ export class ProjectFoundationService {
     transaction: Prisma.TransactionClient,
     requestId: string,
     binding: IdempotencyBinding,
-    response: ConsentResponse | InterviewSessionResponse,
+    response: ConsentResponse | InterviewSessionResponse | ProjectResponse | ServiceTermResponse,
   ): Promise<void> {
     await transaction.idempotencyRecord.create({
       data: {
         action: binding.action,
         actorId: binding.actorId,
+        createIdentity: binding.createIdentity,
         requestId,
+        requestPayloadHash: binding.requestPayloadHash,
         responsePayload: response as unknown as Prisma.InputJsonValue,
         targetId: binding.targetId,
         targetType: binding.targetType,
       },
     });
+  }
+
+  private projectCreateBinding(
+    action: 'consent.create' | 'service_term.create' | 'session.create',
+    actorId: string,
+    projectId: string,
+    requestPayloadHash: string,
+  ): IdempotencyBinding {
+    return {
+      action,
+      actorId,
+      createIdentity: null,
+      requestPayloadHash,
+      targetId: projectId,
+      targetType: 'elder_project',
+    };
   }
 
   private async lock(transaction: Prisma.TransactionClient, value: string): Promise<void> {

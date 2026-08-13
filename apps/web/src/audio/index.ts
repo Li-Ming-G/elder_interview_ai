@@ -3,6 +3,7 @@ export * from './audio-chunk-queue.js';
 export * from './browser-audio-recorder.js';
 export * from './errors.js';
 export * from './indexeddb-audio-chunk-store.js';
+export * from './local-audio-archive.js';
 export * from './audio-upload-job.js';
 export * from './browser-capture-core.js';
 export * from './browser-storage-guard.js';

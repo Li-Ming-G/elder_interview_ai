@@ -34,6 +34,7 @@ export function validateCreateProject(body: Record<string, unknown>): CreateProj
     current_city: nullableText(body.current_city, 200),
     display_name: requiredText(body.display_name, 120),
     native_place: nullableText(body.native_place, 200),
+    request_id: validateUuid(body.request_id),
   };
 }
 
@@ -47,6 +48,7 @@ export function validateServiceTerm(body: Record<string, unknown>): CreateServic
     included_minutes: nonnegativeInteger(body.included_minutes),
     overtime_price_minor: nonnegativeInteger(body.overtime_price_minor),
     overtime_unit_minutes: nonnegativeInteger(body.overtime_unit_minutes),
+    request_id: validateUuid(body.request_id),
   };
 }
 
@@ -74,6 +76,7 @@ export function validateConsent(body: Record<string, unknown>): CreateConsentReq
     consent_text_version: requiredText(body.consent_text_version, 80),
     consent_type: 'recording_transcription_ai',
     consented_at: new Date(consentedAt).toISOString(),
+    request_id: validateUuid(body.request_id),
   };
 }
 
@@ -148,6 +151,26 @@ export function validateTranscriptPageQuery(query: Record<string, unknown>): {
     throw validationError();
   }
   return { cursor: typeof cursor === 'string' ? cursor : null, limit: Number(limit ?? 100) };
+}
+
+export function validateSessionPageQuery(query: Record<string, unknown>): {
+  cursor: string | null;
+  limit: number;
+} {
+  const cursor = query.cursor;
+  const limit = query.limit;
+  if (
+    (cursor !== undefined &&
+      (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 1024)) ||
+    (limit !== undefined &&
+      (typeof limit !== 'string' ||
+        !/^\d+$/.test(limit) ||
+        Number(limit) < 1 ||
+        Number(limit) > 100))
+  ) {
+    throw validationError();
+  }
+  return { cursor: typeof cursor === 'string' ? cursor : null, limit: Number(limit ?? 20) };
 }
 
 export function validateCorrectTranscriptSpeakerRole(

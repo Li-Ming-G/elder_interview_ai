@@ -4,6 +4,8 @@
 
 文件状态逐项声明，不能再把整个目录一概视为占位。标记为正式的文件可作为机器契约；其余候选/占位文件仍不得用于生产代码生成或运行时校验。
 
+REST 的正式 TypeScript shared DTO 位于 `packages/contracts/src/index.ts`，与本目录的 JSON Schema/OpenAPI 资产共同受 `05` 的契约变更规则约束。`ProjectListProjection`、`ProjectSessionListResponse` 与 `EvidenceFinalizationResponse` 已由 SPEC-DEV-008A1-ACCESS / REV-042 exact-head PASS 并合并，现为 DEV-008A1 的正式实现依据；接收 shared DTO 不代表对应运行时已实现。
+
 - `openapi.yaml`：REST API 的机器可读定义；
 - `websocket-events.md`：实时事件目录及其 Schema 文件索引；
 - `interview-recorder-output.schema.json`：访谈记录员结构化输出；
@@ -11,5 +13,7 @@
 - `interview-director-output.schema.json`：`InterviewDirectorOutputV1`，正式；是 Director 实际输出字段、类型、必填性、枚举和交叉约束的唯一技术结构；
 - `export-manifest.schema.json`：导出资料包清单。
 - `streaming-asr-provider-v2.schema.json`：`StreamingAsrAdapter v2` 供应商中立 lifecycle/result/drain/error 正式 Schema；
-- `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 REVIEW profile，含 verified/inference/unknown；
+- `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；
 - `streaming-asr-provider-v2.md`：v1→v2 迁移、腾讯映射、安全、指标、成本与真实 provider 验收的唯一技术契约。
+- `local-audio-archive-v1.schema.json`：`LocalAudioArchiveV1`，正式；定义当前 origin IndexedDB 访谈 archive 的本机投影、删除结果和最小回执。它不是服务端 deletion request、隐私删除审计或跨设备档案。
+- `fixtures/local-audio-archive-v1.fixtures.json`：上述 Schema 的正反例集合；`expected_valid=false` 条目用于机械证明矛盾 state/count/playback/pending/deleted_at 组合会被拒绝。

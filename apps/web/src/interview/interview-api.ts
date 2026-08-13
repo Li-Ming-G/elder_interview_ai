@@ -5,9 +5,15 @@ import type {
   ApiErrorEnvelope,
   ConfirmCaptureActiveRequest,
   ConsentResponse,
+  CreateConsentRequest,
+  CreateProjectRequest,
+  CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
+  IdempotentRequest,
   ProjectResponse,
+  ProjectListResponse,
+  ProjectSessionListResponse,
   RecoverSessionRequest,
   ReportCaptureInterruptedRequest,
   ServiceTermResponse,
@@ -48,9 +54,33 @@ export interface PreparationData {
 }
 
 export interface InterviewApi {
-  createSession(projectId: string): Promise<InterviewSessionResponse>;
+  createSession(projectId: string, request: IdempotentRequest): Promise<InterviewSessionResponse>;
   deviceCheck(sessionId: string, request: DeviceCheckRequest): Promise<InterviewSessionResponse>;
   loadPreparation(projectId: string, sessionId: string | null): Promise<PreparationData>;
+}
+
+export interface NewInterviewApi {
+  createConsent(projectId: string, request: CreateConsentRequest): Promise<ConsentResponse>;
+  createProject(request: CreateProjectRequest): Promise<ProjectResponse>;
+  createServiceTerm(
+    projectId: string,
+    request: CreateServiceTermRequest,
+  ): Promise<ServiceTermResponse>;
+  createSession(projectId: string, request: IdempotentRequest): Promise<InterviewSessionResponse>;
+}
+
+export interface HomeApi {
+  listProjects: () => Promise<ProjectListResponse>;
+  listProjectSessions: (
+    projectId: string,
+    input?: { cursor?: string | null; limit?: number },
+  ) => Promise<ProjectSessionListResponse>;
+}
+
+export interface ReviewApi {
+  getAudioManifest(audioObjectId: string): Promise<AudioManifestResponse>;
+  getSession(sessionId: string): Promise<InterviewSessionResponse>;
+  listSessionTranscripts(sessionId: string): Promise<TranscriptSegmentResponse[]>;
 }
 
 export interface InterviewCaptureApi {
@@ -130,6 +160,9 @@ export interface SuggestionApi {
 export function createInterviewApi(
   csrfToken: string,
 ): InterviewApi &
+  HomeApi &
+  ReviewApi &
+  NewInterviewApi &
   InterviewCaptureApi &
   SpeakerCalibrationApi &
   SpeakerCorrectionApi &
@@ -147,6 +180,16 @@ export function createInterviewApi(
         'X-CSRF-Token': csrfToken,
       },
       method: 'POST',
+    });
+  }
+
+  async function createWrite<T>(path: string, body: unknown): Promise<T> {
+    return request<T>(path, {
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      method: 'POST',
+      signal: AbortSignal.timeout(15_000),
     });
   }
 
@@ -168,12 +211,20 @@ export function createInterviewApi(
       write(`/api/v1/audio-objects/${audioObjectId}/complete`, complete),
     confirmCaptureActive: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
-    createSession: async (projectId): Promise<InterviewSessionResponse> =>
-      write(`/api/v1/projects/${projectId}/sessions`),
+    createConsent: async (projectId, input): Promise<ConsentResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/consents`, input),
+    createProject: async (input): Promise<ProjectResponse> =>
+      createWrite('/api/v1/projects', input),
+    createServiceTerm: async (projectId, input): Promise<ServiceTermResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/service-terms`, input),
+    createSession: async (projectId, input): Promise<InterviewSessionResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/sessions`, input),
     deviceCheck: async (sessionId, deviceCheck): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/device-check`, deviceCheck),
     getSession: async (sessionId): Promise<InterviewSessionResponse> =>
       read(`/api/v1/sessions/${sessionId}`),
+    getAudioManifest: async (audioObjectId): Promise<AudioManifestResponse> =>
+      read(`/api/v1/audio-objects/${audioObjectId}/manifest`),
     getCurrentSuggestion: async (sessionId): Promise<SuggestionPresentationResponse> =>
       read(`/api/v1/sessions/${sessionId}/suggestions/current`),
     getSuggestionHistory: async (sessionId, input = {}): Promise<SuggestionHistoryPageResponse> => {
@@ -227,8 +278,36 @@ export function createInterviewApi(
       }
       return { consents, project, serviceTerms, session };
     },
-    recoverSession: async (sessionId, request): Promise<InterviewSessionResponse> =>
-      write(`/api/v1/sessions/${sessionId}/recover`, request),
+    listProjects: async (): Promise<ProjectListResponse> => read('/api/v1/projects'),
+    listProjectSessions: async (projectId, input = {}): Promise<ProjectSessionListResponse> => {
+      const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
+      if (input.cursor !== undefined && input.cursor !== null) query.set('cursor', input.cursor);
+      return read(`/api/v1/projects/${projectId}/sessions?${query.toString()}`);
+    },
+    listSessionTranscripts: async (sessionId): Promise<TranscriptSegmentResponse[]> => {
+      const items: TranscriptSegmentResponse[] = [];
+      let cursor: string | null = null;
+      do {
+        const query = new URLSearchParams({ limit: '500' });
+        if (cursor !== null) query.set('cursor', cursor);
+        const page = await read<TranscriptPageResponse>(
+          `/api/v1/sessions/${sessionId}/transcripts?${query.toString()}`,
+        );
+        items.push(...page.items);
+        cursor = page.next_cursor;
+      } while (cursor !== null);
+      return items;
+    },
+    recoverSession: async (sessionId, recovery): Promise<InterviewSessionResponse> => {
+      const response = await write<InterviewSessionResponse | { session_id: string }>(
+        `/api/v1/sessions/${sessionId}/recover`,
+        recovery,
+      );
+      if (!('project_id' in response)) {
+        throw new InterviewApiError('FORBIDDEN', '当前访谈已不可在普通页面访问', 403);
+      }
+      return response;
+    },
     reportCaptureInterrupted: async (sessionId, request): Promise<InterviewSessionResponse> =>
       write(`/api/v1/sessions/${sessionId}/capture/interrupted`, request),
     requestNextSuggestion: async (sessionId, input): Promise<SuggestionRequestAcceptedResponse> =>

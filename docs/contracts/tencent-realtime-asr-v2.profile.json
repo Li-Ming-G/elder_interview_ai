@@ -1,13 +1,42 @@
 {
-  "status": "FORMAL_REVIEW_CANDIDATE",
-  "profile_version": "tencent-realtime-asr-v2-2026-08-11",
+  "status": "FORMAL_ACCEPTED",
+  "profile_version": "tencent-realtime-asr-v2-2026-08-12",
   "contract": "streaming-asr-provider-v2",
   "provider": "tencent_realtime_asr_v2",
   "endpoint_allowlist": ["wss://asr.cloud.tencent.com/asr/v2/{appid}"],
   "engine_model_type": "16k_zh_en_speaker_2.0",
   "diarization_required": true,
-  "speaker_diarization_wire_parameter": null,
-  "speaker_context": { "enable_speaker_context": 0, "speaker_context_id": null },
+  "speaker_diarization_wire_parameter": 1,
+  "speaker_context": {
+    "enable_speaker_context": 0,
+    "speaker_context_id_presence": "omit"
+  },
+  "wire_query_parameters": {
+    "speaker_diarization": {
+      "value": 1,
+      "presence": "required",
+      "include_in_canonical_query": true
+    },
+    "enable_speaker_context": {
+      "value": 0,
+      "presence": "required",
+      "include_in_canonical_query": true
+    },
+    "speaker_context_id": {
+      "presence": "omit",
+      "include_in_canonical_query": false
+    }
+  },
+  "canonical_query": {
+    "required_parameters": {
+      "speaker_diarization": 1,
+      "enable_speaker_context": 0
+    },
+    "omitted_parameters": ["speaker_context_id"],
+    "ordering": "lexicographic_by_parameter_name",
+    "signature_coverage": "host_path_and_all_actual_query_parameters_except_signature",
+    "signature_algorithm": "hmac_sha1_then_base64_then_url_encode"
+  },
   "audio": {
     "encoding": "pcm_s16le",
     "sample_rate_hz": 16000,
@@ -28,7 +57,9 @@
   },
   "optional_training_optimization_testing_authorization": false,
   "sources": [
+    "https://cloud.tencent.com/document/product/1093/130881",
     "https://cloud.tencent.com/document/product/1093/131127",
+    "https://github.com/TencentCloud/tencentcloud-speech-sdk-go/commit/257f9f56bcd592bff1faea9b4ce0f1ef90cea803",
     "https://cloud.tencent.com/document/product/1093/35682",
     "https://cloud.tencent.com/document/product/1093/35686",
     "https://cloud.tencent.com/document/product/301/94121",
@@ -44,6 +75,8 @@
       "speaker_id -1 means not separated",
       "final=1 is explicit all-recognition completion",
       "16k_zh_en_speaker_2.0 advertises speaker separation enabled by default",
+      "Tencent's speaker-separation guide sets speaker_diarization=1",
+      "Tencent's pinned Go SDK serializes speaker_diarization and enable_speaker_context into the sorted signed query",
       "optional optimization authorization may remain disabled"
     ],
     "inference": [
@@ -52,7 +85,6 @@
       "Tencent mainland processing is the approved first-version deployment boundary"
     ],
     "unknown": [
-      "speaker_diarization=1 as a V2 wire query parameter",
       "stable two-person labels for the controlled mono fictional interview until three real-provider replays pass",
       "the actual billed SKU for the speaker engine until bill reconciliation",
       "diagnostic log, text/audio retention and DPA sufficiency for a real-elder pilot"

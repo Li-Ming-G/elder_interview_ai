@@ -330,8 +330,13 @@ async function loginAndCreateFormalProject(
   await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
   const projectId = await page.evaluate(async (csrfToken) => {
     async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
+      const createRequest =
+        path === '/projects' || /^\/projects\/[^/]+\/(service-terms|consents|sessions)$/.test(path);
+      const requestBody = createRequest
+        ? { ...((body ?? {}) as Record<string, unknown>), request_id: crypto.randomUUID() }
+        : body;
       const response = await fetch(`/api/v1${path}`, {
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(requestBody === undefined ? {} : { body: JSON.stringify(requestBody) }),
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
@@ -357,7 +362,7 @@ async function loginAndCreateFormalProject(
     await write(`/projects/${id}/consents`, {
       consent_audio_object_id: null,
       consent_method: 'electronic',
-      consent_text_version: 'dev005r4-fictional-v1',
+      consent_text_version: 'mvp-v1',
       consent_type: 'recording_transcription_ai',
       consented_at: new Date().toISOString(),
     });

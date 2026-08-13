@@ -40,6 +40,7 @@ GET  /auth/csrf
 
 ```json
 {
+  "request_id": "uuid",
   "display_name": "虚构长者称呼",
   "birth_year": null,
   "approximate_age": null,
@@ -104,6 +105,7 @@ POST   /projects/:id/restore
 
 ```json
 {
+  "request_id": "uuid",
   "display_name": "虚构长者称呼",
   "birth_year": null,
   "approximate_age": null,
@@ -112,9 +114,51 @@ POST   /projects/:id/restore
 }
 ```
 
-`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。列表和详情不返回未分配项目；不存在、软删除、隐私删除或未分配均不得泄露项目正文。
+`display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。
+
+`GET /projects` 返回 `ProjectListResponse.items: ProjectListProjection[]`。普通分支为 `projection=ordinary`，只包含 `draft|ready|active|completed`、`deleted_at=null` 且 actor 仍有有效 assignment 的项目。`restricted` 且 actor 仍有有效 assignment 时不得复用 `ProjectResponse`，必须只返回以下固定最小分支：
+
+```json
+{
+  "project_id": "opaque-uuid",
+  "projection": "restricted",
+  "status": "restricted",
+  "display_label": "受限项目",
+  "status_label": "当前不可访问"
+}
+```
+
+该分支不得增加 `project_id` 以外的第二项目标识，不得返回 `display_name`、出生年份/年龄、籍贯、城市、`created_by`、`status_before_restriction`、授权/服务条款、最近操作人、会话计数/时长/状态、正文、对象键、provider payload、`primary_action` 或可点击深链。客户端只渲染固定中性文案且不渲染主按钮。`status=deleted`、`deleted_at!=null`、assignment 撤销/不存在、隐私删除 tombstone 或不存在的项目完全不返回，不以空字段或受限占位暴露存在性。
+
+`GET /projects/:id` 是普通项目详情，不返回上述中性 list projection。它与普通 prepare/workbench/review 所用的 service term、consent、session 详情读取均要求当前有效 assignment、项目 `deleted_at=null` 且状态不是 `restricted|deleted`；任一门禁失败返回统一 403/404，不返回正文。深链、旧 cursor、`created_by`、本机 archive 或曾经访问过都不构成读取授权。
 
 `DELETE /projects/:id` 与 `/restore` 只用于普通、可恢复的软删除：前者设置 `deleted_at` 但不执行隐私物理清理，后者只清除该软删除标记。它们不得替代 deletion-request 流程；存在非终态删除申请或项目已因 completed project scope 请求进入 `status=deleted` 时，普通删除/恢复返回 409 `PROJECT_DELETION_LOCKED`，物理删除完成后的项目永远不得 restore。
+
+统一倾听员工作区继续复用 `GET /projects`，并新增受同一逐资源授权约束的会话 read model：
+
+```http
+GET /projects/:id/sessions?cursor=<opaque>&limit=20
+```
+
+响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。首页不显示或裁决录音字节数，因此 `ProjectSessionListItem.finalization` 的 Pick 不增加 `total_size_bytes`；A3 只能在普通回顾深链通过 canonical `GET /sessions/:id` 取得该字段。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
+
+分页 cursor 是版本化、服务端签名的不透明 token，至少绑定 `project_id + created_at + id`，并绑定排序方向、page size 与当前过滤版本；`created_at/id` 是签发页最后一项的 keyset anchor。缺失签名、解析失败、内容篡改、过期/版本失效、跨项目复用、参数不一致或当前 assignment/项目普通可见性失效均失败关闭：非法 cursor 返回 422 `INVALID_SESSION_CURSOR`，当前资源权限失效返回 403/404；不得静默降级首页或用空列表掩盖。`restricted` 项目不提供 session page，首页只保留 §3.1 的项目级中性受限投影；`deleted`、软删除和 assignment 失效项目完全不可见。
+
+| 权威 session/finalization 事实 | `home_state` | `primary_action`（唯一中文动作） | `review_access` |
+|---|---|---|---|
+| `created|device_check` | `preparation_required` | `continue_preparation`（继续准备） | `unavailable` |
+| `recording|reconnecting` | `interview_active` | `return_to_interview`（返回访谈） | `unavailable` |
+| `interrupted` | `interview_interrupted` | `resolve_interruption`（处理访谈中断） | `unavailable` |
+| `stopping` | `saving_audio` | `view_save_progress`（查看保存进度） | `unavailable` |
+| `processing`，且 finalization upload complete/manifest checksum 非空 | `transcript_processing` | `view_review`（查看回顾） | `read_only` |
+| `completed` | `review_ready` | `view_review`（查看回顾） | `read_only` |
+| `failed` + `capture_failure_code=NO_AUDIO_CAPTURED` + `finalization=null` | `no_audio_captured` | `view_save_facts`（查看保存事实） | `unavailable` |
+| `failed` + finalization upload complete/manifest checksum 非空 | `saved_with_warning` | `view_review`（查看回顾） | `read_only` |
+| 其他 `failed` 或任何无法证明的组合 | `save_failed` | `view_save_facts`（查看保存事实） | `unavailable` |
+
+`processing` 不能投影“继续访谈”；它已拒绝新 PCM，回顾页显示“录音已安全保存 · 转录处理中”，只读展示当时已有转录和本机事实。`failed+read_only` 允许查看已有转录及经 fresh complete manifest 验证的本机录音，但本机删除仍只允许 session `processing|completed`，因此 failed 回顾必须灰置删除并说明需人工处理。`NO_AUDIO_CAPTURED` 没有录音/转录可回顾，不播放、不删除。`stopping` 仍可能补传 commitment，只能返回保存进度，同页离开边界继续遵循 `03` §12。
+
+该 read model 只解决 A1 的列表和路由，不改变 session 所有权或 start 门禁。首页不得从 project status、列表计数或本地状态推断“可开始”；A2 仍须依次调用正式 project/service-term/consent/session/device-check/start 接口。
 
 ### 3.2 项目分配
 
@@ -137,6 +181,7 @@ GET  /projects/:id/service-terms
 
 ```json
 {
+  "request_id": "uuid",
   "included_minutes": 60,
   "estimated_session_count": 2,
   "expected_current_minutes": 30,
@@ -146,7 +191,7 @@ GET  /projects/:id/service-terms
 }
 ```
 
-分钟、次数和金额使用非负整数；`currency` 为三位大写 ISO 4217 代码。服务端写入 `explained_at`、`explained_by`、`effective_from`；新记录生效时把上一条当前记录写 `superseded_at`，不覆盖历史。只有被分配倾听员可提交和读取；内部虚构数据允许价格为 0。
+分钟、次数和金额使用非负整数；`currency` 为三位大写 ISO 4217 代码。服务端写入 `explained_at`、`explained_by`、`effective_from`；新记录生效时把上一条当前记录写 `superseded_at`，不覆盖历史。只有被分配倾听员可提交和读取；普通读取还要求项目未软删除且状态不是 `restricted|deleted`。内部虚构数据允许价格为 0。
 
 ### 3.4 授权
 
@@ -168,6 +213,7 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 
 ```json
 {
+  "request_id": "uuid",
   "consent_type": "recording_transcription_ai",
   "consent_text_version": "mvp-v1",
   "consent_method": "electronic",
@@ -177,6 +223,8 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 ```
 
 创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
+
+`GET /projects/:id/consents` 属于普通 prepare/detail 读取，要求当前有效 assignment、项目未软删除且状态不是 `restricted|deleted`；失败不得返回授权文本版本、方式、时间、操作者、音频对象 ID 或任何历史记录。中性首页占位不能调用或嵌入本接口结果。
 
 撤回请求至少包含新的 `request_id`：
 
@@ -227,9 +275,14 @@ POST /sessions/:id/capture/interrupted
 POST /sessions/:id/capture/abandon-empty
 POST /sessions/:id/stop
 POST /sessions/:id/recover
+GET  /sessions/:id/evidence-finalization
 ```
 
-`POST /projects/:id/sessions` 只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+`POST /projects/:id/sessions` 请求固定为 `{ "request_id": "uuid" }`，只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+
+`POST /projects`、`POST /projects/:id/service-terms`、`POST /projects/:id/consents`、`POST /projects/:id/sessions` 都必须在首次网络请求前由 A2 将稳定 `request_id` 持久化到当前 origin 的新建访谈 workflow 记录。响应未知、刷新或重开后复用原 ID重放；只有收到首次结果或权威 replay 并将返回资源 ID/版本推进到 workflow 下一步后，才清除该步骤 ID。GET 只用于展示/核对，不能凭相似字段猜测某次未知 POST 是否成功。
+
+四个 create API 使用 `04` §4.23 同一 authoritative idempotency seam：project create 绑定 `action=project.create`、actor、`create_identity=project:create:{actor_id}:{request_id}` 与规范化 payload；其余依次绑定 `service_term.create|consent.create|session.create`、actor、目标 project 与规范化 payload。首次业务记录、assignment/历史/审计和响应快照与 idempotency record 同事务提交；一致重放返回首次结果。相同 ID 的 actor/action/target-or-create-identity/payload 任一不同均 409 `IDEMPOTENCY_KEY_REUSED`。consent record creation 的 request ID 独立于 consent audio init/chunk/complete 的各自 request ID。
 
 `POST /sessions/:id/device-check` 请求至少包含：
 
@@ -251,7 +304,7 @@ POST /sessions/:id/recover
 
 #### 3.5.1 公共会话结束 snapshot
 
-`GET /sessions/:id`、stop 和 recover 返回同一 `InterviewSessionResponse` snapshot。结束前 `finalization=null`；结束收束存在后至少返回：
+普通资源门禁仍有效时，`GET /sessions/:id`、stop 和 recover 返回同一 `InterviewSessionResponse` snapshot。结束前 `finalization=null`；结束收束存在后至少返回：
 
 ```json
 {
@@ -282,6 +335,7 @@ POST /sessions/:id/recover
     "recording_status": "stopped",
     "upload_status": "awaiting_upload",
     "uploaded_chunk_count": 360,
+    "total_size_bytes": null,
     "manifest_checksum": null,
     "transcript_status": "pending",
     "transcript_error_code": null,
@@ -305,6 +359,12 @@ POST /sessions/:id/recover
 顶层 `capture_failure_code` 为 `null|NO_AUDIO_CAPTURED`，只表达无 finalization 的采集阶段终结。它与 `finalization.failure_code` 互斥；不得为了承载 `NO_AUDIO_CAPTURED` 创建空 finalization，也不得把 manifest/ASR/runner 错误提升到顶层。
 
 响应不返回 chunk commitment、对象键、下载地址、转录正文、provider payload、SQL、堆栈或内部重试详情。`manifest_checksum` 只在 upload complete 时返回。前端可以展示每条链路事实，不得把非空 `transcript_error_code` 映射为录音失败。
+
+`finalization.total_size_bytes` 是 additive optional+nullable 公共字段，只来自同一 finalization 关联的 `AudioObject.totalSizeBytes`，不新增或复制 `session_finalization` 数据。契约先允许旧 producer 暂时缺键；DEV-008A3 runtime 合入后，普通 canonical response 的 finalization 对象必须始终显式带键：`awaiting_upload|verifying|unrecoverable` 为 `null`；`complete` 时为关联 complete audio object 的精确非负 JavaScript safe integer。正常 `processing|completed` 与 `failed + complete manifest` 必须非空。缺键、`null`、unsafe integer 或 complete/manifest/对象事实不一致都不得按 `0` 解释；普通只读转录仍可返回，但 A3 必须按 `blocked_server_unverified` 禁止播放和本机删除。
+
+该字段只扩展 `InterviewSessionResponse.finalization` / `SessionFinalizationSnapshot`。`ProjectSessionListItem` 继续使用上一节的最小 Pick；§3.5.3 `EvidenceFinalizationResponse` 的字段白名单也保持不变，不得因 A3 扩大 restricted evidence seam。A3 不得用首页列表或 evidence-finalization 响应替代普通 canonical session GET。
+
+该公共 snapshot 只用于普通 prepare/workbench/review 及仍满足普通资源门禁的 stop/recover：每次读取必须有当前有效 assignment，项目未软删除且状态不是 `restricted|deleted`。`interview_session.created_by` 与 `session_finalization.created_by` 都只用于审计/受限证据归属，绝不能作为 `GET /sessions/:id` 或普通页面读取的 assignment fallback。门禁失败不返回项目 ID、session 状态、capture/finalization、时间或失败分类。
 
 #### 3.5.2 stop
 
@@ -357,6 +417,10 @@ stop 接受前，既有 interview audio object 的 upload/complete/manifest 继�
 - 该例外不允许读取录音/转录正文，不允许下载、修改已上传分片、增加 sequence、扩大 count、继续 PCM、继续 AI 或执行其他项目操作；每次使用写入最小审计；
 - auth session 过期/登出时不得匿名继续。用户重新认证且账号仍 active 后，服务端按原 actor 与冻结 finalization 授予上述受限能力；账号停用或无法重新认证时只保留服务端已保存事实并进入 `interrupted` 或最终 `failed`，不得签发长期浏览器 bearer token；
 - 授权撤回同时停止新采集、新 ASR/AI 任务和普通查询/导出；已经开始的 final drain 只可收束 stop 前已接受 PCM、不得扩大内容范围。撤回不能删除或覆盖 stop 前已产生的原始证据；物理删除仍走 deletion request。
+
+上述例外的查询只能走 `GET /sessions/:id/evidence-finalization`。它要求：stop snapshot 已在限制前持久化；当前账号仍 active 且已重新认证；actor 精确等于冻结 finalization 的原操作者；目标 session/audio object/commitments 仍存在。响应固定为 `EvidenceFinalizationResponse`，只含 `session_id/audio_object_id/session_status/expected_chunk_count/recording_status/upload_status/uploaded_chunk_count/manifest_checksum/failure_code`。它不增加 `total_size_bytes`，因为该 seam 只收束撤权前冻结 evidence，不服务普通 A3 回顾或本机删除。不得返回 `project_id`、`created_by`、capture generation/stream、transcript 状态或正文、服务/授权正文、对象键、下载地址、provider payload、首页状态或主动作。没有 finalization、actor 不符、账号停用、资源已删除或 scope 已完成清理均失败关闭且不泄露存在性。
+
+受限原操作者调用 `recover(action=reconcile)` 时只能返回同一 `EvidenceFinalizationResponse`；不能借 recover 获得公共 `InterviewSessionResponse`。Home、prepare、workbench、review 和普通 session/project/service-term/consent reader 禁止调用该 seam，前端也不得把它路由成可浏览页面。服务端可以内部使用 `created_by` 判定冻结证据归属，但不得把该字段返回客户端或将其泛化为普通读取权限。
 
 #### 3.5.4 recover
 
@@ -456,6 +520,38 @@ complete 请求：
 客户端必须在录制停止时冻结 `expected_chunk_count` 并持久化 complete request ID；不得根据 ACK 后仍残留的 Blob 数量推导总分片数。complete 成功响应至少核对 audio object ID、`status=complete`、chunk count 和非空 manifest checksum。
 
 manifest 响应返回对象状态、purpose、project/session、chunk count、total bytes、manifest checksum、completed time，以及按 sequence 排序的 `sequence_no/start_ms/end_ms/size_bytes/checksum/mime_type/uploaded_at`；不返回内部对象键或长期下载地址。通常只有有效 assignment 可以初始化、上传、完成和查询；session stop 已接受后的唯一例外是 §3.5.3 冻结范围内的 evidence-finalization 补传与最小查询，不得把该例外扩展为普通项目访问。
+
+#### 3.6.1 本机 archive 投影与删除（客户端契约）
+
+本机副本管理不新增服务端 delete API。权威机器结构为 `docs/contracts/local-audio-archive-v1.schema.json`。客户端投影至少区分：
+
+- `available_complete`：本机 archive 与 fresh 服务端 complete manifest 对应且可播放；
+- `available_incomplete`：存在本机字节但缺片、冲突或不可读，不可作为完整录音播放；
+- `deleted_on_device`：同 origin 最小删除回执存在且 payload stores 已为空；
+- `missing_unknown`：无 payload、无回执，可能由用户、浏览器或系统清理，原因不可证明；
+- `blocked_active_or_dirty`、`blocked_pending_delivery`、`blocked_server_unverified`：删除安全门禁未满足。
+
+投影必须同时返回 `state_basis.active_or_dirty|server_manifest_verified|deletion_receipt_present|local_archive_complete` 四个布尔事实，并对同一次 fresh 读取按以下优先级选出唯一 state，命中后不再下落：
+
+1. 任一 capture/job/checkpoint active、interrupted recovery 或 dirty → `blocked_active_or_dirty`；即使同时 pending 或服务器不可达也保持该状态；
+2. 无 active/dirty 且 `pending_delivery_count>=1` → `blocked_pending_delivery`；
+3. 无上述阻塞、本机有 archive payload，但 fresh session/manifest 不可取得或不能证明匹配 → `blocked_server_unverified`；
+4. 无 payload 且匹配的最小回执存在 → `deleted_on_device`；无 payload 且无回执 → `missing_unknown`；
+5. payload 存在、fresh server manifest 已验证后，本机连续且可读 → `available_complete`，否则 → `available_incomplete`。
+
+`playback_available=true` 只允许 `available_complete`，且必须 `archive_bytes>=1`、`archive_chunk_count>=1`、pending=0。`deleted_on_device|missing_unknown` 的 bytes/chunks/pending 全为 0；`available_incomplete|blocked_*` 均不得宣称可播放；`blocked_pending_delivery` 的 pending 至少为 1。Schema 以条件分支机械拒绝矛盾组合，A3 不得先构造宽松对象再由 UI 猜测修正。
+
+容量事实分两层：`archive_bytes` 是对当前 session archive payload 的精确求和；`navigator.storage.estimate()` 的 `usage/quota/available` 是整个 origin 的近似值，缺失时为 `null`，不得写成当前 session 字节、可回收字节或设备剩余磁盘。删除后的空间回收时间由浏览器决定，UI 不承诺立即增加等量 available。
+
+“删除此设备上的录音副本”必须先用 `navigator.locks` 申请与捕获控制器相同的 `elder-interview:capture:{session_id}` exclusive lock，`ifAvailable=true`。锁不存在、不可用或被其他 tab 持有时失败关闭；不得新建另一把不会与 capture 竞争的锁。持锁期间执行以下顺序：
+
+1. 使用 `cache=no-store` fresh 读取 `GET /sessions/:id` 与目标 `GET /audio-objects/:id/manifest`；
+2. 精确复核 `session.id/project_id/finalization.audio_object_id` 与 manifest identity，`capture.status=stopped`，session `status=processing|completed`，manifest `status=complete`、checksum 非空；`finalization.expected_chunk_count = manifest.chunk_count = local archive chunk count`，且 `finalization.total_size_bytes = manifest.total_size_bytes = manifest chunks.size_bytes 求和 = local archive bytes`。finalization 字段缺失/`null`/unsafe、fresh 数据过期或任一 count/bytes/checksum/逐片元数据不一致均为 `blocked_server_unverified`，零写入；`processing` 只表示原始录音已权威完成而 ASR 仍在收束，不放宽 manifest 条件；
+3. 在同一锁内重读 IndexedDB：`pending_delivery_count=0`、正式 capture job 不为 `prepared|server_preparing|recording|active|interrupted`、checkpoint 不为 `starting|recording` 且 `dirty=false`；任何未知或读取失败均拒绝；
+4. 使用 `04` §4.44 的单个 `readwrite` transaction 清理全部目标 payload/恢复事实与 legacy `chunks`，并原子写最小回执；commit 后才显示成功；
+5. 释放锁并重新投影。重复请求命中同一回执且 payload 为空时返回 `already_deleted`。
+
+任一步失败不得调用服务端删除、不得改变 session/manifest/transcript/memory，也不得报告“已删除”。事务 abort 的刷新投影必须回到完整旧集合；commit 后刷新必须为 payload 全空、回执存在。清站后回执也丢失则转为 `missing_unknown`。
 
 ### 3.7 转录
 
@@ -885,6 +981,8 @@ PATCH /sessions/:id/note
 
 ### 3.12 导出
 
+以下路径保留为历史规划占位，当前倾听员网页不得调用，runtime 也不得因本节声称已实现。SPEC-DEV-008A、DEV-008A1/A2/A3 不实现导出；未来其他角色若需要导出，须另开受控 SPEC 重新冻结后才可启用。
+
 ```http
 POST /projects/:id/exports
 GET  /exports/:id
@@ -915,6 +1013,7 @@ GET  /exports/:id
 
 以下写操作必须接受 `request_id`：
 
+- 创建 project、service term、consent record 与 interview session；
 - 开始访谈；
 - 结束访谈（待 `SPEC-SESSION-END-001` 冻结具体动作绑定和响应快照）；
 - 上传音频分片；
@@ -933,7 +1032,7 @@ GET  /exports/:id
 
 认证写操作中，登出必须防重复执行；重复登出返回相同的已退出结果，不重新创建会话或错误审计事件。
 
-`request_id` 在需要幂等的业务写操作间全局唯一。首次成功请求必须把 action、操作者、目标资源和最小响应快照持久化；相同 `request_id` 且绑定信息一致时返回首次响应快照，不得产生重复状态变化、业务记录或审计。相同 `request_id` 被不同 action、操作者或目标资源复用时返回 409 `IDEMPOTENCY_KEY_REUSED`，不得返回其他资源结果。
+`request_id` 在需要幂等的业务写操作间全局唯一。首次成功请求必须把 action、操作者、现有目标或明确的 create identity、规范化 payload hash 和最小响应快照持久化；相同 `request_id` 且绑定信息一致时返回首次响应快照，不得产生重复状态变化、业务记录或审计。相同 `request_id` 被不同 action、操作者、目标/create identity 或 payload 复用时返回 409 `IDEMPOTENCY_KEY_REUSED`，不得返回其他资源结果。project 尚无目标 ID 时按 §3.1 固定绑定 `project:create:{actor_id}:{request_id}`，不得由实现另选 display name、时间窗口或“最近项目”作为身份。
 
 幂等键锁只负责相同请求重放；开始访谈、撤回授权等状态变化还必须按 session、consent 或 project 业务资源串行化，或使用带前置状态的原子更新。不同 `request_id` 并发命中同一资源时只能有一个请求完成该次合法状态变化。
 
@@ -947,7 +1046,7 @@ GET  /exports/:id
 
 已经展示过的 suggestion 不因成为历史快照而绕过本节。命中 `restricted`、`do_not_ask`、活动 deletion scope、授权或访问权限失效时，普通 suggestion 查询、事件恢复和页面 snapshot 必须立即停止返回正文；可在受限审计中保留曾展示的 ID、版本、时间和结果分类，但不得复制问题正文到技术日志。单独 `sensitive` 或普通事实修正不触发该硬撤下规则，只改变后续生成 eligibility。
 
-`DeletionScopeReader`、冻结范围与上述锁序是正式目标契约，但当前 runtime 尚未实现 deletion request producer/read model。CON-023 在 DEV-008 producer、统一 reader、C2 回接和并发测试全部完成前保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任何返回“无活动删除”的 no-op guard 都不得被计为覆盖。
+`DeletionScopeReader`、冻结范围与上述锁序是正式目标契约，但当前 runtime 尚未实现 deletion request producer/read model。CON-023 在 DEV-008D producer、统一 reader、C2 回接和并发测试全部完成前保持 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`；任何返回“无活动删除”的 no-op guard 都不得被计为覆盖。
 
 ## 5. WebSocket
 
@@ -1259,7 +1358,7 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 - 只能查看被分配项目；
 - 可以创建和操作自己的访谈；
 - 可以修正转录和说话人；
-- 可以创建标记和导出；
+- 可以创建标记；当前网页不提供导出；
 - 不得修改全局供应商配置；
 - 不得查看他人未分配项目。
 
@@ -1275,6 +1374,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 - 所有访问必须写入审计。
 
 ## 7. 导出结构
+
+本节仅保留未来受控导出任务的历史结构，不是当前倾听员能力，不得作为 SPEC-DEV-008A 的实现依据。
 
 ```text
 /project-info.json
@@ -1313,6 +1414,8 @@ upgrade 前错误使用 HTTP；upgrade 后先发不含敏感正文的 `error`，
 ## 9. StreamingAsrAdapter v2 内部 port
 
 正式 machine contract 为 `docs/contracts/streaming-asr-provider-v2.schema.json`。它是内部 port，不新增公共 REST/WS 字段或公共状态；客户端既有 `session.ready` 不得表示 provider ready。
+
+腾讯实际连接 query 只以 `docs/contracts/tencent-realtime-asr-v2.profile.json` 为供应商事实源：`speaker_diarization=1`、`enable_speaker_context=0` 必须同时出现在实际 URL 与签名 canonical query；`speaker_context_id` 必须从实际 query map 和 canonical query 中完全省略，不能传空字符串。先对除 `signature` 外的实际 query key 按字典序构造 canonical query，再计算签名并 URL encode 后追加 `signature`。
 
 旧 `accept(frame)->results[]` 与 `drainAndClose()->void` 生产 seam 被 v2 原子替代：connect/ready 独立；PCM accept 只表示 adapter 接管/入队；结果通过绑定 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 的异步 sink 回传；不匹配或 fenced 的 late/replay/duplicate/out-of-order 结果不得写库。每个新 `voice_id` 必须新建 speaker stream 并发布既有完整 `speaker.calibration.updated` snapshot，不新增半套事件。
 

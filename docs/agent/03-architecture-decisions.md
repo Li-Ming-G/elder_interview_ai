@@ -316,3 +316,48 @@
 - 供应商：首版唯一候选腾讯实时 ASR V2，标准普通话，目标 `16k_zh_en_speaker_2.0`。内部 `diarization_required=true`，但当前官方未证明 `speaker_diarization=1` wire 参数，禁止发送未证实参数；双人稳定 label 只能由真实三次 replay 验收。
 - 代价：需要 DEV 同时改 adapter/gateway/runtime/finalization/config/metrics/test，重连后用户需重新校准，且进程重建丢失 coverage evidence 时会保守 `degraded`；换取不由后续成功掩盖缺口、可追溯、fail-closed、录音优先的真实 provider 生命周期。
 - 边界：本 ADR 不授权 Prisma migration、第二 provider/diarizer、gap/backfill、真实 LLM、真实长者数据或部署；若实现必须改变数据库权威事实、公共状态或校准体验，先另做契约审查。
+
+## ADR-033｜腾讯 V2 话者分离 wire 参数纳入实际 query 与签名
+
+- 状态：Accepted（SPEC-ASR-WIRE-PARAM-001 / PR #29 exact head `650f856c918639a7b992294b805873d7052ab44e` 获项目负责人手动 PASS，merge `1e18ea83cd5a1d4953bb92fd251637ed6107c322`）
+- 背景：ADR-032 在当时已核对的 V2 通用参数表未列出 `speaker_diarization` 的前提下，保守记录“wire 参数未证明、禁止发送”。后续腾讯官方会议话者分离指南明确 `speaker_diarization=1`，官方 Go SDK 固定 commit `257f9f56bcd592bff1faea9b4ce0f1ef90cea803` 进一步证明该 key 与 speaker context key 被序列化、排序并纳入签名；原供应商事实前提已过时。
+- 决定：目标 `16k_zh_en_speaker_2.0` 与内部 `diarization_required=true` 不变。腾讯实际 query 必发 `speaker_diarization=1`、`enable_speaker_context=0`，两者都进入 canonical query；`speaker_context_id` 从实际 query 与 canonical query 完全省略，不传空值。先构造除 `signature` 外的实际 query map，按 parameter name 字典序 canonicalize，再 HMAC-SHA1/base64，最后 URL encode signature 并追加。
+- 取代关系：只部分取代 ADR-032 中“`speaker_diarization=1` 未证明、禁止发送”的供应商事实，以及与之直接相关的 context query 表达；ADR-032 的 Accepted 状态与历史正文永久保留。adapter v2、连接级 namespace、新 voice 新 speaker stream 并重新校准、attempt drain、sticky completeness、unknown fail-closed、安全和真实验收决定全部继续有效。
+- 诊断边界：本 ADR 获项目负责人 exact-head PASS 后，DEV 可用同一虚构 TTS PCM、同一账号/endpoint/engine/其余 query、单连接、`reconnect=0` 做一次受控诊断连接。该结果不能证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并转腾讯支持。
+- 代价与风险：`speaker_context_id` 的省略与空值会形成不同 canonical query；实现与 fixture 必须机械区分。新增必发参数可能改变供应商响应，但不改变产品状态、数据库、权限或授权边界。
+
+## ADR-034｜统一响应式倾听员工作区，并分离本机副本删除与服务器隐私删除
+
+- 状态：`Accepted`；REV-041 final head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324` 经项目负责人授权总控手动复审 PASS（P0/P1=0），PR #31 merge `91e5e7ed042f598359827ae63daf464e12e2ef76` / main CI `31573985661` SUCCESS。
+- 背景：DEV-005 已证明预创建深链的首次访谈纵向链路，但登录后首页仍只能提示使用深链；历史 DEV-008 又把项目入口、完整回顾、倾听员导出和服务器删除错误聚合。当前 IndexedDB archive 已在 ACK 后保留，服务端 complete audio object/manifest 是长期权威副本。
+- 决定：当前产品只做一套响应式网页。唯一 authenticated home/app shell 承载新建、项目/访谈列表、继续和已结束访谈回顾；新建必须完成 project→service term→正式有效口头 consent→session/device-check/start，draft 不冒充可开始。A1 先提供共享 shell/read model/routes，A1 PASS/merge 后 A2/A3 可并行。
+- UI：复用 `apps/web/src/styles.css` 的 OKLCH tokens、排版、context-label、primary/secondary/danger、focus-visible、44px 和 reduced-motion；HomeShell/ListRow/StatusBadge 等价语义、空错状态与词汇只有一套。工作区、新建和回顾不得各建导航或视觉体系。
+- 本机副本：当前 origin IndexedDB 不是普通文件、跨设备档案或永久备份。播放只读完整 archive。删除共用 capture Web Lock，锁内 fresh 验证 session/manifest/pending/active/dirty，并在一个 transaction 清理当前/legacy 全部 session payload与恢复事实、原子写最小回执；失败零部分清理。storage estimate 仅为 origin-wide approximate。
+- 隐私边界：本机删除明确保留服务器 audio/transcript/memory，不创建 deletion request，不关闭 CON-023。正式服务器隐私删除与统一 `DeletionScopeReader` 独立归 DEV-008D。倾听员导出取消，其他角色未来需要时另立受控任务。
+- 平台边界：不做 PWA、Service Worker 安装体验、Capacitor/WebView 或 Android App；未来 Android 软件仅在网页 MVP 经真实实践验证后作为独立产品阶段重新设计。
+- 取舍：A1 增加最小 project-session read model，A3 增加 IndexedDB 前向 upgrade、session 索引/回执和跨标签页事务测试；换取普通用户无需深链、UI 只有一个事实来源，并防止本机清理被误解为隐私删除。
+- 审查边界：本 ADR 只接收 docs/machine-contract 决定，不代表 A1/A2/A3/008D 已实现或通过；DEV-007 当前状态不作为本切片前置。
+- 接收边界：本 ADR 的契约已接收，但只解锁 DEV-008A1；A2/A3 继续等待 A1 PASS/merge，DEV-008D 与 CON-023 不因本决定解锁或关闭。
+
+## ADR-035｜restricted 首页使用独立最小投影，并隔离 evidence-finalization 例外
+
+- 状态：`Accepted`；REV-042 绑定 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712`，项目负责人正式 PASS（P0/P1/P2=0）；merge `18ba7381f7ba747c2fb3beefe28297c6d063a174` / main CI `31587442461` SUCCESS。
+- 背景：ADR-034/`05` 已要求仍有 assignment 的 restricted 项目在首页显示中性受限投影，但 shared `ProjectResponse` 必含长者称呼、出生年龄、籍贯、城市和 `created_by`，没有可安全实现的受限分支。DEV-008A1 的唯一独立只读 Correction 在编码前阻断，并同时发现普通 session 详情可能把 finalization/session `created_by` 当 assignment fallback、restricted prepare 深链仍可读取项目/服务/授权正文。
+- 决定：`GET /projects` 使用判别联合 `ProjectListProjection`。ordinary 分支只服务普通可见项目；restricted 分支固定只含 opaque `project_id`、`projection=restricted`、`status=restricted`、`display_label=受限项目`、`status_label=当前不可访问`，无 session 行、统计、正文或主动作。deleted、软删除与 assignment 失效完全无行。
+- Cursor：session page cursor 是签名 opaque token，绑定 `project_id + created_at + id`、方向、page size 与过滤版本；跨项目、篡改、过期、参数或权限漂移失败关闭，不降级首页。
+- 权限分层：普通 Home 之外的 project/service-term/consent/session 详情与 prepare/workbench/review 始终要求当前有效 assignment 和 ordinary project visibility，`created_by` 不产生读取权。限制前已经冻结 stop snapshot 的原操作者只可通过 `EvidenceFinalizationResponse` 收束 commitment 范围内证据；该响应无 project/transcript/页面事实，不能成为普通读取旁路。
+- 数据边界：本决定只增加 read model/shared DTO，不新增表、migration、项目状态、授权语义、deletion scope 或产品页面。业务实现和测试仍归 DEV-008A1。
+- 复核边界：复用 DEV-008A1 已完成的唯一 Correction，不启动第二次 iteration-coach；本 ADR 接收后 A1 恢复 `READY`，但 handler/repository/cursor/UI 与安全反例仍须由 A1 实现并验收。
+- 接收边界：只接收 docs/shared-contract 安全接缝；不代表 DEV-008A1 已实现或通过。父 DEV-008A、A2、A3、008D 继续 `BLOCKED`，CON-023 不受影响。
+
+## ADR-036｜finalization 总字节复用 AudioObject 权威事实并按未证明失败关闭
+
+- 状态：`Accepted`；REV-044 绑定 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095`，项目负责人手动独立审查 PASS（P0/P1/P2=0）；merge `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` / main CI `31598183784` SUCCESS。
+- 背景：`05` §3.6.1 已要求 A3 fresh delete preflight 将 manifest 的 chunk count/total bytes 与 session finalization 对照，但公共 `SessionFinalizationSnapshot` 没有 total bytes。DEV-008A3 开工前唯一 iteration-coach Correction 在零改动阶段阻断；现有 `AudioObject.totalSizeBytes` 与 `AudioManifestResponse.total_size_bytes` 已提供数据库和 manifest 权威事实。
+- 决定：公共 `SessionFinalizationSnapshot` additive 增加 optional+nullable `total_size_bytes`。值只从同一 finalization 关联的 `AudioObject.totalSizeBytes` 投影，不新增 Prisma 字段/migration，不复制到 `session_finalization`，不从客户端、本机 archive、commitment 或已上传数量反推。optional 只用于 contract-first 兼容旧 typed producer；A3 runtime 后 ordinary canonical GET 必须显式带键。
+- lifecycle：`awaiting_upload|verifying|unrecoverable` 与任何未证明/legacy/unsafe 事实返回 null；正常 `complete` 返回精确非负 safe integer。正常 `processing|completed` 与 `failed + complete manifest` 必须非空。complete+缺键/null/unsafe/mismatch 不使整个只读 session 不可见，但必须关闭 A3 播放和本机删除，绝不能按 0 处理。
+- 白名单：只扩 `InterviewSessionResponse.finalization` / `SessionFinalizationSnapshot`。A1 `ProjectSessionListItem` 不需要容量且不扩 Pick；restricted `EvidenceFinalizationResponse` 也不扩。A3 只可在当前 assignment + ordinary visibility 下读取 canonical session GET，`created_by` 与本机 archive 不授予权限。
+- 一致性：A3 必须 fresh 证明 session/finalization/manifest identity、expected/manifest/local count、finalization/manifest/chunk-sum/local bytes、checksum 与逐片元数据全部一致；任一 missing/null/stale/mismatch 都为 `blocked_server_unverified`，零回执、零部分删除、零服务端写入。
+- 取舍：分阶段 optional 让 docs/contract PR 不越界修改业务 mapper且 CI 可通过，但若没有 A3 exact-key 白名单测试会有永久漏发风险；因此 runtime 显式 key 与 legacy/null 反例是解锁后的硬门禁。
+- 边界：不改变 local deletion≠server deletion、权限、删除范围、CON-023、DEV-008D、首页动作矩阵或 evidence-finalization 例外；不实现 A3、IndexedDB、页面、服务端下载或服务器删除。
+- 接收边界：只接受 contract-first total bytes 接缝并解锁 DEV-008A3 runtime；ordinary mapper 显式 key、safe integer、权限白名单与 fresh/legacy 失败关闭仍须由 A3 实现和验收。父 DEV-008A、DEV-008A2、DEV-008D 与 CON-023 状态不因本 ADR 改变。

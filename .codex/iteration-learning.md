@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 等聚合验收。下一条产品化主线调整为先接真实流式 ASR，再接真实 LLM；DISC-ASR-PROVIDER-001 正在独立可见窗口讨论。真实题库、补转录、云存储、iPhone Safari 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 与 A1/A2/A3 均已 PASS/merge，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 DONE；DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；真实 ASR 的语言/方言范围、数据处理地区、speaker label 门槛与供应商；LLM/对象存储最终供应商；CON-006/007/008/012/013/023。补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -155,6 +155,14 @@
 - Reason: 既有契约能可靠发布和替换问题，却没有规定问题内容从哪里来、陌生关系如何渐进，也无法阻止模型在内容真空中自由生成。把内容治理和旅程先冻结，才让排序、记忆与自动更新有明确优化目标。
 - Tradeoff: 增加 CSV 校验、不可变 release、阶段判断和 provenance；换取内容负责人可直接维护、问题来源可审计、首版可用 fixture 快速打通且不冒充产品内容。
 - Boundary: CSV 只作交换/编辑，数据库才是运行时事实；题库是正常内容源，不是 AI unavailable 静态兜底。固定题数/时间不能单独切阶段；synthetic fixture 仅限 test/internal demo，正式内部试用前必须导入负责人题库。DEV-007A 只交付基础设施与确定性 seam，B 在 A PASS 前不启动。
+
+### D-020 — 统一响应式倾听员工作区，本机副本删除与服务器隐私删除分离
+
+- Status: adopted；SPEC-DEV-008A 已获 exact-head PASS/merge，A1 已完成；A3 total bytes 接缝的窄补充仍在 REVIEW。
+- Evidence: 用户明确当前只做响应式网页、登录后不再长期依赖深链、A1→A2/A3 拆分、倾听员不导出、本机删除不等于 server deletion；当前代码的 home 仅提示深链，IndexedDB v4 保留 archive/legacy 数据，服务端 manifest 是长期权威。
+- Reason: 把 home、新建、回顾和删除继续聚在 DEV-008 会让 DEV-007/题库/导出错误阻塞实际可用入口，也会诱使本机清理冒充隐私删除。
+- Tradeoff: A1 需新增受 assignment 约束的 session read model，A3 需 IndexedDB 前向 upgrade、capture 共锁、单事务 legacy/all-report 清理和最小回执；换取唯一网页导航、诚实的数据所有权与可验证刷新语义。
+- Boundary: 当前不做 PWA/Capacitor/WebView/Android App；A2 不绕过正式口头授权；A3 不新增 server audio download 或 deletion request；DEV-008D 与 CON-023 保持独立真实试点门禁。
 
 ## Assumptions to Validate
 
@@ -1217,3 +1225,175 @@
 - Verification: format/lint/typecheck/build；unit46/313；PG integration13/80、auth4/23；smoke、Chromium10、auth Chromium4、R4 formal route通过。R4 deterministic sequence-2是已知gap，故按正式sticky contract预期degraded；不是为通过测试而放宽实现。
 - Cost/privacy: 已知成功约2019秒，估算约CNY0.561；实际SKU/日结账单仍unknown。所有live输入为虚构/合成，未记录secret、签名URL/query、provider正文、音频或转录正文；CON-027不变。
 - Boundary: 仍需目标Android物理验收、实际账单、最新main合并、non-Draft PR/exact-head CI和负责人手动审查。任务仅REVIEW，不自宣PASS/DONE、不merge；gap/backfill、真实LLM、真实长者与生产部署仍不在本任务。
+### 2026-08-12 — 腾讯 V2 话者分离 wire 事实修正候选
+
+- User outcome: 修正腾讯实时 ASR V2 话者分离 wire 参数的过时正式事实，让 DEV-ASR-PROVIDER-001 在新契约 exact-head 获项目负责人 PASS 后，用同一虚构 TTS PCM、`reconnect=0` 做一次隔离诊断，而不把 close 1005 根因写成已证明。
+- Review mode: Correction mode；按 iteration-coach 恰好一次独立只读复核。复核确认不能静默改写 ADR-032 或只改 Markdown；应新增 Proposed ADR-033 部分取代窄供应商事实，并同步 machine profile 的 required/omit/canonical 规则。
+- New evidence: 腾讯官方会议话者分离指南明确 `speaker_diarization=1`；官方 Go SDK 固定 commit `257f9f56bcd592bff1faea9b4ce0f1ef90cea803` 中通用 recognizer 默认 0、专用 speaker recognizer 默认 1，且 query key 排序后签名；V2 文档确认目标 engine 支持/默认话者分离与实际 query 签名范围。
+- Candidate decision: 实际 query 必发并签名 `speaker_diarization=1`、`enable_speaker_context=0`；`speaker_context_id` 必须省略而非传空值。目标 engine、新 voice→新 speaker stream→重新人工确认、unknown fail-closed、sticky completeness、安全/授权与原始录音优先全部不变。
+- Adopted decision: pending project-owner review；任务 `SPEC-ASR-WIRE-PARAM-001`、ADR-033 与正式契约候选保持 REVIEW。ADR-032、SPEC-ASR-PROVIDER-001、REV-039 和既有 PASS/merge 历史永久保留，CON-027 继续 OPEN。
+- Verification boundary: 本轮 docs-only，不改业务代码、Prisma、migration、provider、密钥或部署，不连接腾讯。单次诊断不证明 close 1005 因果，也不替代双人 label、三次 replay、Android、主动断线、账单或完整 provider PASS；仍失败时停止参数试错并走腾讯支持。
+- Better future prompt: “请把供应商实际 query map、canonical query 和签名覆盖作为一个不可分割的契约，并为 required、omit 和 empty 分别提供机械可验证表示；后续一手证据推翻 Accepted ADR 的事实前提时，只新增 partial-supersede 决定，不改写历史正文。”
+
+### 2026-08-12 — SPEC-ASR-WIRE-PARAM-001 exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人对 PR #29 final exact head `650f856c918639a7b992294b805873d7052ab44e` 手动 PASS，P0/P1/P2=0；exact-head CI `31556525476` SUCCESS。执行 Agent 先前保持 REVIEW 的候选历史永久保留。
+- Adopted decision: ADR-033 Accepted，正式腾讯 profile 固定 `speaker_diarization=1`、`enable_speaker_context=0` 必发并签名，`speaker_context_id` 严格省略。总控按 exact head 合并，merge/main 集成点 `1e18ea83cd5a1d4953bb92fd251637ed6107c322`，main CI `31560488220` SUCCESS；SPEC-ASR-WIRE-PARAM-001 DONE。
+- Historical boundary: ADR-032、SPEC-ASR-PROVIDER-001、REV-039 与当时 wire-unknown/PASS 历史不改写；REV-040 只记录后续官方一手证据促成的 partial supersede。CON-027 继续 OPEN。
+- DEV handoff: DEV-ASR-PROVIDER-001 现可用同一虚构 TTS PCM、同一其余变量、单连接、`reconnect=0` 做恰好一次诊断；尚未执行。失败即保留最小安全证据并转腾讯支持，不做无界参数试错。
+- Verification boundary: 本次 PASS/merge 只接受 docs-only 契约，不证明 close 1005 因果，也不替代双人 label、三次 replay、桌面/Android、主动断线、账单、数据治理或完整 provider PASS；未修改业务代码、Prisma、migration、provider、密钥或部署，未连接腾讯。
+
+### 2026-08-12 — SPEC-DEV-008A 统一倾听员工作区与本机副本契约候选
+
+- User outcome: 当前只交付响应式网页，让倾听员登录后能从同一工作区新建、继续和回顾访谈；最小回顾管理当前 origin 的录音副本，但绝不冒充服务器隐私删除。
+- Review mode: Learning mode；恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。
+- Review finding: 现有 project/service-term/consent/session/start 语义足够冻结 A2；home 缺 project-session read model。IndexedDB v4 迁移后 legacy `chunks` 仍可能留 Blob，upload-jobs 还混存多个 generation interruption report；删除若只清 archive/formal job 会留下副本或恢复事实。storage estimate 只能说明 origin-wide 近似容量。
+- Options considered: 继续依赖深链并让 A2/A3 各建 UI；把回顾、导出和 server deletion 保持一个 DEV-008；先建共享 A1，再并行 A2/A3，008D 独立。采用第三种。
+- Adopted candidate: 唯一 authenticated home shell；A2 完整 project→service term→正式口头 consent→session/device-check/start；A3 播放本机完整 archive，并以 capture 共锁、fresh server preflight、单个 IndexedDB transaction 清 current/legacy/all reports、原子最小回执实现本机删除。倾听员不导出，不做 PWA/App/封装。
+- Implementation evidence: 同步 `00/01/03/04/05/06/08/09/10`、ADR-034、任务板/追踪/冲突/任务卡/交接与正式 `local-audio-archive-v1` Schema；没有修改业务代码、Prisma、migration、测试、部署、密钥或真实数据。
+- Verification boundary: SPEC 只到 REVIEW；A1/A2/A3/008D 全部 BLOCKED。没有实现 session list、UI、IndexedDB upgrade、播放、local delete 或 server delete；CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- Lesson: “设备上没有 Blob”与“隐私资料已删除”是不同事实。若既要删除恢复数据又要跨刷新诚实区分用户成功操作，就需要在同一原子事务保留无正文最小回执；浏览器清站连回执也消失时，原因必须回到 unknown，而不是通过猜测补齐审计。
+- Better future prompt: “先用唯一 home shell 建立列表与路由，再让新建和回顾复用它；本机副本删除与 capture 竞争同一锁，单事务覆盖 current/legacy 全部 session 记录并写最小回执，明确服务器资料仍保留。”
+
+### 2026-08-12 — SPEC-DEV-008A REV-041 定向契约修复
+
+- old exact head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 的绿色门禁未覆盖三类契约可执行性：响应未知的 create identity、session lifecycle 到首页动作，以及机器 Schema 的跨字段一致性；项目负责人结论为 REQUEST_CHANGES/P1=3，历史永久保留。
+- 修正：A2 四个 create 统一为“首次请求前持久 request ID + actor/action/target-or-create-identity/payload hash + authoritative replay”；project create 的无 target 身份固定为 `project:create:{actor_id}:{request_id}`。
+- 修正：首页不再用“未完成/已完成”二分，而以服务端 session/finalization 事实输出唯一 action；processing、failed complete manifest、NO_AUDIO_CAPTURED 分别有明确只读回顾/播放/删除边界。
+- 修正：本机 projection 先冻结唯一优先级，再由 Schema 条件约束 state/count/pending/playback/deleted_at，并以正反 fixture 防止语义回退。
+- 教训：文档验收中的“响应丢失可恢复”“状态一致”“formal Schema”必须同时给出权威 identity、完整状态矩阵和机械不可表达矛盾的约束，不能只靠叙述性目标或 GET 重读。
+
+### 2026-08-12 — SPEC-DEV-008A exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人明确授权总控手动定向复审 PR #31 final exact head `0308aa9ef37be457aa41f23ea6113666ff2c1f97` / CI `31573583324`，正式结论 PASS，P0/P1=0；GitHub 记录为 issuecomment `5263644971`。
+- Adopted decision: A2 四 create authoritative replay、session 首页动作矩阵、local archive projection/Schema 正反例正式接收，ADR-034 Accepted。PR #31 merge `91e5e7ed042f598359827ae63daf464e12e2ef76`，main CI `31573985661` SUCCESS，SPEC-DEV-008A DONE。
+- Historical boundary: old head `19604291e751f1403272183d314d367c0de593b0` / CI `31571463898` 的 REQUEST_CHANGES/P1=3 永久保留；后续 PASS 关闭问题但不改写首轮事实。
+- DEV handoff: 只解锁 DEV-008A1 为 READY；父 DEV-008A、A2、A3、008D 继续 BLOCKED，A2/A3 等 A1 PASS/merge，CON-023 继续 OPEN。未实现 A1、业务代码、Prisma、migration、session list、UI、IndexedDB upgrade、播放或任何删除 runtime。
+- Lesson: 契约 SPEC 的接收只解除被它直接阻塞的第一段实现，不应把父任务或可并行后续切片一并提升；把 exact-head PASS、merge commit 和 main CI 串成不可分割证据链，才能安全做治理状态迁移。
+
+### 2026-08-12 — DEV-008A1 restricted 读取契约开工前修正
+
+- User outcome: 在不泄露 restricted 项目正文的前提下保留一个可理解的首页中性占位，并让 DEV-008A1 获得可机械实现、可安全测试的项目列表/分页/详情读取边界。
+- Review mode: Correction mode；沿用 DEV-008A1 实现窗口已完成的唯一独立只读复核，不启动第二次 iteration-coach。复核窗口 `019ff4ed-ed98-7e00-a592-6c6036a53a62`、子 Agent `019ff55e-3879-77e3-b539-b924d3fc330d` 在零改动阶段发现 shared `ProjectResponse` 与中性 restricted 投影冲突，并确认 session `created_by` 与 restricted prepare 深链旁路。
+- Review finding: 复用 `ProjectResponse` 会泄露长者称呼、出生年龄、地域与创建来源；置空违反非空 DTO；直接排除又改变已冻结首页语义。普通 finalization 证据收束例外若继续复用公共 `InterviewSessionResponse`，还会把最小证据保存权限扩大成普通页面读取权。
+- Options considered: 复用并清空 ProjectResponse；完全隐藏 restricted；独立最小 restricted 分支并保持 deleted/软删除/assignment 失效不可见。总控正式采用第三种。
+- Adopted decision: 新增判别联合 `ProjectListProjection`、正式 session page DTO 与 `EvidenceFinalizationResponse`；restricted 分支只含 opaque project ID、固定 discriminator/status 和中性标签，无会话/统计/主动作。session cursor 签名绑定 project+created_at+id；普通 readers 要求 assignment+ordinary visibility；限制前冻结 stop 的原 actor 只走专属最小 seam。
+- Implementation evidence: 同步 `03/04/05/08/09/10`、shared contracts、任务板/任务卡/追踪、CON-028、ADR-035、REV-042 与交接；无业务代码、Prisma、migration、页面或测试实现。
+- Verification boundary: 候选保持 REVIEW；exact-head CI 与总控手动审查前不转 Accepted/Resolved/DONE，不恢复 A1。A1 恢复后仍须实现并测试 handler/repository/cursor/UI 与深链反例。
+- Lesson: “允许把冻结证据保存完整”不是“允许继续浏览项目”。减权后的例外必须使用字段闭合的专属 DTO；否则审计字段或恢复接口很容易演变成横向权限旁路。
+- Better future prompt: “为 restricted 首页定义独立判别 DTO，仅保留 opaque ID 和固定中性标签；ordinary detail 继续要求当前 assignment。若要保全撤权前已冻结证据，另设不含项目/正文/页面动作的最小 finalization seam，并以 cursor 篡改和 created_by 绕权反例验收。”
+
+### 2026-08-12 — SPEC-DEV-008A1-ACCESS exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人正式审查 PR #33 exact head `81f0bba3d30139e458e919da969d40386231cc62` / CI `31586889712`，结论 PASS，P0/P1/P2=0；GitHub 记录为 issuecomment `5265462316`。
+- Merge evidence: PR #33 merge commit `18ba7381f7ba747c2fb3beefe28297c6d063a174`；对应 main CI `31587442461` completed / success。
+- Governance transition: SPEC-DEV-008A1-ACCESS REVIEW→DONE，ADR-035 Proposed→Accepted，CON-028 DECIDED→RESOLVED，DEV-008A1 BLOCKED→READY。父 DEV-008A、A2、A3、008D 保持 BLOCKED，CON-023 继续 OPEN。
+- Historical boundary: DEV-008A1 唯一 Correction 与 REV-042 `PENDING` 候选历史永久保留；本次只接收 docs/shared-contract 安全接缝，不代表 A1 业务实现、Prisma/migration、页面或运行时安全回归已完成。
+- Lesson: 权限收口应把“普通读取权”和“撤权前冻结证据的最小收束权”建模为字段闭合的不同 DTO；治理解锁也只能恢复直接受阻的实现切片，不能连带提升父任务或下游。
+
+### 2026-08-12 — DEV-008A1 Home 与降权读取实现候选
+
+- User outcome: 让倾听员登录后从唯一工作区看见当前有效 assignment 的项目和访谈，并由服务端唯一动作恢复 prepare/workbench/只读回顾壳；restricted 可理解但不泄漏，撤权前冻结证据只能在专属最小 seam 收束。
+- Review mode: 复用开工前唯一 Correction，不重复启动 iteration-coach。Correction 对实现的实质影响是拒绝复用 `ProjectResponse/InterviewSessionResponse` 承载降权读：restricted 使用闭合最小投影，ordinary reader 与 `EvidenceFinalizationResponse` 分离，created_by 不成为普通授权。
+- Options considered: 前端基于 completed 猜动作；普通详情接口返回后再裁字段；服务端在 formal session page 生成唯一矩阵并让 typed deep link 重新验证同一投影。采用第三种，因为授权和状态组合只能由拥有完整事实的服务端稳定解释。
+- Adopted decision: project list 对 restricted 只返回固定中性标签；session page 使用 project-bound 签名 keyset cursor；Home 只消费 `home_state/primary_action/review_access`；prepare/workbench/review/save-facts 所有深链继续要求当前 ordinary access，只有原 finalization actor 可消费无项目正文/无页面动作的 evidence seam。
+- Implementation evidence: A1 API、共享 Home/route shells、权限和幂等回放裁剪反例、三视口 Chromium 已形成候选；fresh PostgreSQL integration 79/79、auth 23/23，unit 309/309，普通 Chromium 13/13、auth Chromium 4/4，静态/build/smoke 全绿。
+- Verification boundary: 候选保持 REVIEW，等待非 Draft PR exact-head CI 与项目负责人手动审查；不自宣 PASS/DONE/merge。A2/A3/008D、服务器删除、导出、ASR/LLM/PWA/App、QuestionEvidence/题库/AI history 未实现，CON-023 不变。
+- Lesson: 幂等响应也是权限投影的一部分。即使 request identity 正确，权限在首次响应后下降时也不能原样回放更宽 DTO；必须先重新评估当前 ordinary access，再把回放裁到专属最小证据，且异步收束之后还要再次检查权限与 replay binding。
+- Better future prompt: “把当前 assignment/ordinary visibility、稳定 cursor 和服务端动作矩阵作为同一 read model；所有 typed deep link 重用该投影，降权幂等回放只能缩窄不能恢复正文，并用跨项目 cursor、created_by、permission drift、restricted/deleted 和 DTO 白名单反例验收。”
+
+### 2026-08-12 — DEV-008A1 exact-head PASS 与治理收口
+
+- Review evidence: 项目负责人手动独立审查 PR #35 exact head `4bc1c00598801cb0d83f5da466b0c1d6514f3c74` / CI `31592543835`，正式结论 PASS，P0/P1/P2=0；GitHub 记录为 issuecomment `5266360647`。额外复核含定向 unit/component 24/24、全新 PostgreSQL 13 migrations 后 A1 集成反例 3/3 和三张 exact-candidate Chromium 截图目视检查。
+- Merge evidence: PR #35 merge commit `29e3f993a65afd08cd301563d94e40cfc66076a8`；对应 main CI `31593387265` completed / success。
+- Governance transition: DEV-008A1 REVIEW→DONE，DEV-008A2/A3 BLOCKED→READY，父 DEV-008A BLOCKED→IN_PROGRESS。A2/A3 已补齐 `10` §3 要求的正式任务字段，可在复用 A1 唯一 shell/routes/read model 的前提下独立并行；其 runtime 仍未实现。
+- Historical boundary: REV-043 `PENDING` 候选永久保留；本 PASS 只接收 A1 runtime/UI/security seam，不代表 A2 新建入口、A3 回顾/本机副本、服务器删除、ASR、LLM、DEV-007 或产品整体完成。DEV-008D 保持 BLOCKED，CON-023 继续 OPEN / NOT IMPLEMENTED / NOT VERIFIED。
+- Lesson: 下游解锁必须同时满足技术前置和治理可执行性。A1 PASS/merge 解除 A2/A3 的技术阻塞后，仍应在转 READY 前补齐正式任务字段和所有权边界；父任务进入进行中不等于任一未实现子任务已完成。
+### 2026-08-12 — SPEC-DEV-008A3-PREFLIGHT finalization total bytes 接缝
+
+- User outcome: 在不扩大 A3 产品范围的前提下，让本机副本 fresh delete preflight 能把本地 archive 与服务器权威完整性事实做机械比对，同时保持本机删除不等于服务器删除。
+- Review mode: Learning mode；本契约窗口完成恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。A3 原实现窗口的唯一 Correction 与零改动暂停事实保留，不重复启动实现复核。
+- Review finding: `AudioObject.totalSizeBytes` 已是完整上传对象的权威 bytes 事实，但公共 `SessionFinalizationSnapshot` 缺少接缝。因本轮明确禁止修改 runtime mapper，shared TypeScript 字段须先采用 optional+nullable 兼容形态；A3 mapper 落地后 ordinary canonical GET 必须始终显式返回 key。
+- Options considered: 新增 SessionFinalization Prisma 字段；让 A3 额外调用 audio manifest 接口；把现有 AudioObject bytes 窄投影到 ordinary finalization snapshot。采用第三种，避免重复存储、迁移与额外权限面。
+- Adopted candidate: `total_size_bytes` 只来自同一关联 `AudioObject.totalSizeBytes`；未证明完成为 null，complete lane 为精确非负 safe integer。complete+missing/null/unsafe/不一致按 legacy/corrupt 失败关闭且不得当 0；ProjectSessionListItem 与 EvidenceFinalizationResponse 不扩字段。
+- Implementation evidence: 已同步 `04/05/08/09/10`、packages/contracts、任务板/追踪/冲突、ADR-036、REV-044、任务卡与交接；未修改 service/controller/mapper、Prisma/migration、IndexedDB、页面或 A3 runtime。
+- Verification boundary: 本轮仅冻结契约与测试矩阵，保持 REVIEW；A3 在 exact-head PASS/merge 前 BLOCKED。后续实现必须验证 mapper/API lifecycle 与 safe integer、ordinary auth/assignment/restricted/deleted/created_by，以及 fresh identity/count/bytes/chunk sum/checksum/local metadata 与 legacy/null 失败关闭；CON-023 不变。
+- Lesson: contract-first 兼容性和最终 wire 义务可以分层表达：候选类型允许旧 mapper 暂时缺省，不代表新消费者可以把缺省视为成功。真正安全的删除前置必须把“字段存在”“来源可信”“数值可精确表达”和“本地/服务端一致”同时成立作为一个闭合谓词。
+- Better future prompt: “先确认可复用的权威持久事实，再冻结 nullable lifecycle、响应白名单与 safe-integer 边界；若契约阶段不能改 mapper，明确区分 additive optional 兼容期和 runtime 必须显式发 key 的最终义务，并把 missing/null/mismatch 都写成失败关闭反例。”
+
+### 2026-08-12 — SPEC-DEV-008A3-PREFLIGHT 最终接收与 A3 恢复 READY
+
+- Evidence: 项目负责人对 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742`、CI `31597563095` 手动独立审查 PASS，P0/P1/P2=0；正式评论 `issuecomment-5266978939`。PR merge `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8`，对应 main CI `31598183784` SUCCESS。
+- Decision: SPEC-DEV-008A3-PREFLIGHT `DONE`、ADR-036 `Accepted`、CON-029 `RESOLVED`，DEV-008A3 `BLOCKED→READY`。父 DEV-008A 保持 `IN_PROGRESS`，DEV-008A2 保持 `READY`；DEV-008D 与 CON-023 不变。
+- Verification boundary: 本次只登记已经完成的 docs/shared-contract 审查、合并与 main 集成门禁；没有修改业务 mapper/controller、Prisma/migration、IndexedDB、UI 或测试，也没有实现 A3。A3 仍须以 runtime exact-key、safe integer、ordinary 权限、fresh/legacy/null/mismatch 测试证明接缝实际输出和失败关闭。
+- Lesson: 契约收口的 DONE 只解除实现前置，不可被写成下游 runtime 已完成；治理 closeout 必须同时保留候选历史、绑定 exact head/CI/merge/main CI，并明确未改变的父任务、并行任务和安全冲突。
+
+### 2026-08-12 — DEV-008A3 回顾与本机副本实现候选
+
+- User outcome: 倾听员在唯一工作区只读回顾已结束访谈的原始/修订转录，且仅在本机完整 archive 与最新服务器权威事实全部一致时播放或删除本机副本；任何页面文案都不能把本机清理冒充服务器隐私删除。
+- Review mode: 复用本实现窗口开工前恰好一次 Correction，不重复启动 iteration-coach。该 Correction 让实现零改动暂停，直到 SPEC-DEV-008A3-PREFLIGHT/ADR-036/REV-044 正式补齐并接收 `total_size_bytes` 接缝后才从新 main 恢复。
+- Options considered: 只对 manifest 与本机做比对；从服务器下载录音替代本机缺片；把 canonical session、manifest 与本机逐片事实收束为闭合 preflight。采用第三种，既不新增 API，也避免在缺片/陈旧事实下播放或删除。
+- Adopted candidate: ordinary mapper 显式 exact/null key；fresh session+manifest 逐项验证 identity/count/bytes/chunk sum/checksum/metadata/Blob SHA-256；完整 archive 才创建 Object URL。IDB v5 复用 capture 共锁，并在一个事务内重检、清 current/legacy/delivery/state/jobs/reports/checkpoint、写最小回执；失败显式 abort。
+- Implementation evidence: A1 唯一 shell 中完成只读回顾、容量近似、完整播放与本机删除；unit 329/329，fresh PostgreSQL integration 79/79、auth 23/23，真实 Chromium 5/5，lint/typecheck/format/build 全绿。三视口截图已目视检查。
+- Verification boundary: 当前只到 REVIEW/REV-045 PENDING；非 Draft PR exact-head CI 与项目负责人手动审查尚待形成。无 server delete/deletion_request、导出、编辑、题库/AI history、ASR/LLM、A2/008D/PWA/App；CON-023 不变。
+- Lesson: 原子事务的 catch 不能只等待 completion；某些同步请求异常发生在 transaction 自动 abort 之前，若不显式 `abort()`，更早的 delete 可能提交。删除安全必须用故意破坏最后写入的测试证明“前面全部恢复”，而不只是检查最终抛错。
+- Better future prompt: “先以 fresh canonical session 和 manifest 闭合验证完整 archive，再持有 capture 同名 Web Lock 进入一个 readwrite transaction；事务内重检 identity/active/pending，任何同步或异步错误显式 abort，并用最后一步回执写失败证明此前所有删除回滚。”
+
+### 2026-08-12 — DEV-008A3 删除确认文案与焦点定向修复
+
+- Review evidence: PR #40 reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 收到 P1=1、阻塞接收 P2=1：删除确认未完整说明审计保留/独立申请方向，alertdialog 未管理进入与关闭焦点。其余 archive/preflight/transaction 主干未发现新 P0/P1。
+- Adopted fix: 常驻、确认、成功/已删除提示补齐服务器录音、转录、记忆和审计仍保留；确认层仅说明正式隐私删除需走独立申请且本页不提供，不添加链接或 deletion runtime。默认聚焦取消，Tab/Shift+Tab 留在两动作内，Escape/取消回触发按钮，成功聚焦 live 结果。
+- Evidence: component 5/5、unit 330/330、真实 Chromium 6/6、lint/typecheck/format/build 通过。首次浏览器回归仅旧文案断言未同步而失败，更新期望后全部通过；受限运行环境曾让 Chromium 在启动阶段失败，权限恢复后隔离端口真实重跑通过。
+- Integration boundary: 此为 A2 合入前的中间修复，不形成最终 exact-head 包。A2 closeout 后必须对齐最新 main、合并双方 route/API/styles，解决治理冲突并给 A3 重新分配唯一 review ID，再重跑完整门禁；任务继续 REVIEW、不合并。
+- Lesson: 对危险确认而言，完整边界文案和焦点生命周期是同一个安全交互：默认安全动作、键盘不逃逸、取消回原触发点、成功落到结果状态，必须用真实键盘序列验证，不能只断言 dialog 存在。
+### 2026-08-12 — DEV-008A2 新建访谈完整纵向入口候选
+
+- User outcome: 倾听员从 A1 唯一工作区真正完成 project→service term→正式口头授权→session→prepare/device-check→start，而不是创建 draft 后冒充成功。
+- Review mode: Learning mode；开工前恰好一次独立只读 iteration-coach 复核，结论 `NO-PAUSE`。
+- Review finding: 四 create 缺 request ID 接线、服务端 authoritative replay、Prisma create identity/hash 和浏览器持久 workflow；start 缺 `mvp-v1` version gate。这些均是 REV-041/ADR-034 已接收契约的实现缺口，不需要新公共设计。CON-012 通过一次授权一个新音频对象规避，不裁决跨版本复用。
+- Adopted decision: request ID/payload/step 在首次 fetch 前写入 actor-bound IndexedDB；服务端 request lock 后校验 actor/action/target-or-create-identity/hash，再做 project/session resource lock并同事务提交业务、历史/assignment、audit、response snapshot。普通 UI 只走 fresh complete `recorded_verbal/mvp-v1`，start 对版本/撤权/assignment drift 失败关闭。
+- Implementation evidence: fresh PostgreSQL 14 migrations、integration 80/80、unit 316/316、真实 auth Chromium 5/5、新入口 Chromium 4/4，三视口与 accessibility/overflow 证据全绿；REV-045 候选保持 REVIEW。实现期间 main 的 A3 前置契约占用 REV-044，本候选按全局序号顺延，不改变产品实现。
+- Lesson: “先持久化再联网”不仅是生成 UUID 的顺序，还要求动作锁在持久化之前接管，否则极窄双击窗口仍可能让本地权威记录与实际首个 POST 分叉。授权音频恢复同理：未冻结 job 可续录，已冻结 job 只能重放保存，不得追加新内容。
+- Better future prompt: “为每个 create 把 pre-network durable identity、payload freeze、unknown-only replay、server binding 和 response ACK 写成同一个状态机；把 UI 双击锁放在持久化之前，并明确 frozen audio job 只能继续保存，不能重新录制。”
+- Verification boundary: 当前只请求 exact-head 手动审查，不自宣 PASS/DONE/merge；不关闭真实授权文本、真实 PII/试点、服务器删除、A3、ASR/LLM/PWA 等后续门禁。
+
+### 2026-08-12 — DEV-008A2 授权录音离页释放 P1 定向修复
+
+- Review evidence: PR #39 old exact head `d240afd31bc94015e10b01b179550088ed85083d` / CI `31600521245` 自动门禁全绿，但独立审查仍发现 P1：SPA 离开 consent_audio 页面不会自动触发整页卸载，旧 cleanup 只清引用，MediaRecorder/MediaStream 可能继续占用麦克风。
+- Correction: 沿用本物质迭代已执行的唯一只读复核，不重复 iteration-coach。为 capture 增加可等待、幂等 dispose；显式返回先释放再导航，unmount 是第二防线，listener 与所有异步消息均受 mounted guard；dispose 后实例不可复用。
+- Data boundary: 离页停止只把 MediaRecorder 的最终 dataavailable 写入既有可靠暂存；不 freeze/upload/complete、不删除分片、不更换 job/request identity。重进继续同一 `expectedChunkCount=null` job。
+- Verification evidence: 定向 unit/component 5/5、全量 unit 319/319、新入口 Chromium 5/5、普通 Chromium 全套 18/18、smoke 通过；真实浏览器直接验证 recorder inactive、所有 track ended、单一 job 与已有 archive 分片保持。静态、lint、typecheck、build、diff 全绿。
+- Lesson: SPA 页面所有权结束不是浏览器采集生命周期结束；涉及麦克风的 controller 必须显式拥有“可等待释放”契约，用户导航与组件卸载都调用同一路径，同时把采集停止与业务 complete 严格分开。
+- Verification boundary: old head 的 REQUEST_CHANGES/P1=1 永久保留；当前仍是定向修复候选，保持 REVIEW，等待新 exact-head CI 与外部复审，不扩 A3/008D/导出/ASR/LLM/PWA。
+
+### 2026-08-12 — DEV-008A2 StrictMode adjacent P1 再修复
+
+- Review evidence: 中间 head `cce98c8f1be3e92cd6c776d49c5cc747252b7579` / CI `31606714871` SUCCESS 已释放离页麦克风，但定向复审指出 React `<StrictMode>` 会 setup→cleanup→setup；`mounted` 仅初始化为 true 且 cleanup 置 false，第二次 setup 后所有 guarded state update 会被永久抑制。
+- Correction: lifecycle effect 每次 setup 显式恢复 `mounted.current=true`；cleanup 仍负责 false、dispose 与 unsubscribe。没有改变录音 job、业务 complete、API/DTO/Prisma 或导航语义。
+- Verification evidence: StrictMode 包裹的 component 回归实际推进 project→service term→consent audio，并验证 busy 复位、录音 snapshot 与说明消息继续更新；定向 suite 6/6，原麦克风释放与同一 job 恢复证据保留。
+- Lesson: `isMounted` ref 不是一次性构造状态，而是 effect lifecycle 状态；在 StrictMode 下 setup 与 cleanup 必须对称写入，测试也必须让组件经过开发模式的双调用路径。
+- Verification boundary: `d240afd3` 原 P1 与 `cce98c8f` adjacent P1 均永久保留；当前仍 REVIEW，等待再修复 exact-head CI/复审，不自宣关闭或合并。
+- CI failure history: StrictMode 修复 head `ef85c3b` 的 CI `31607585915` 在既有 native MediaRecorder audio-buffer 用例首次分片读取为 0，普通 E2E 17/18；其余到 smoke 的全部门禁成功。本地该文件双 worker repeat 9/9，新增 P1 用例未失败；不为清绿修改产品或测试目标，以新 exact head 重跑完整门禁。
+
+### 2026-08-12 — DEV-008A2 exact-head 接收与治理收口
+
+- Evidence: PR #39 accepted exact head `1ad334de678b242fa0eb3e399af9138053ac251f`、CI `31608031668` SUCCESS；获授权总控手动审查 PASS，P0/P1/P2=0，正式评论 `issuecomment-5268364704`。PR 以 merge commit `7c32760fd9a128ece2e7ecffd35d2941a6ccfece` 合入 main，main CI `31609156286` SUCCESS。
+- Decision: DEV-008A2 `REVIEW→DONE`；父 DEV-008A 保持 `IN_PROGRESS`。REV-045 唯一归属 A2；A3 分支临时同号修正为主线 REV-046，A3 保持 `REVIEW` 并等待基于新 main 整合。DEV-008D 与 CON-023 不变。
+- Verification boundary: `d240afd3` REQUEST_CHANGES/麦克风释放 P1、`cce98c8f` StrictMode adjacent P1、`ef85c3b` / CI `31607585915` audio-buffer flake 永久保留；最终 PASS 不覆盖失败历史。本 closeout 不改业务代码、Prisma/migration、A3 实现、ASR、DEV-007 或 DEV-008D，也不替 A3 或父任务给出 PASS/DONE。
+- Lesson: 并行分支的临时审查编号必须按实际先合入顺序在主线唯一化；修正编号只改变治理引用，不得改写另一路分支的审查意见或实现事实。
+
+### 2026-08-12 — DEV-008A3 final main 整合候选
+
+- Integration: 以 `origin/main@5035c119fa5a3eeb7999d305f5c052672dc50d25` 为最终 base，逐块合并并同时保留 A2 NewInterviewApi/new route/consent lifecycle 与 A3 ReviewApi/review route/local archive/styles；A2 继续 REV-045 DONE，A3 唯一 REV-046 REVIEW。
+- Accessibility/privacy: 非 inert 背景不宣称 modal，因此删除 `aria-modal=true`；保留 alertdialog、安全默认焦点、键盘循环、关闭/成功焦点生命周期。确认文案完整列出服务器录音、转录、记忆与审计保留，并只指向本页未实现的独立隐私删除申请流程边界。
+- Evidence: fresh 14 migrations/status、integration 80/80、auth 23/23；unit 341/341、Schema 1/1；普通 Chromium 24/24（A2 新入口 5/5、A3 回顾 6/6）与 fresh auth Chromium 5/5；format/lint/typecheck/build 全绿。
+- Failure history: client generate、失效 import、三次 DB 编排参数错误与一次 auth 固定代理端口错误均先失败后按正式配置重跑；所有临时库均删除，没有放宽测试或产品边界。
+- Boundary: `70b8fe8` REQUEST_CHANGES P1=1/P2=1 与 `f491d99` 中间修复/CI 历史永久保留。本候选仍是 REVIEW，不自行 PASS/DONE/merge；server deletion/008D/deletion_request、CON-023、导出、编辑、ASR/LLM、题库/AI history 与 PWA/App 均不变。
+
+### 2026-08-12 — DEV-008A3 exact-head 接收与网页 A 范围收口
+
+- Evidence: PR #40 accepted exact head `93be9a27b93e763e56457668c78b5ac2a332bab4`、CI `31612276827` SUCCESS；项目负责人授权总控 exact-head 审查 PASS，P0/P1/P2=0，正式评论 `issuecomment-5268932084`。PR 以非 squash merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 合入 main，main CI `31613083916` SUCCESS。
+- Decision: DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
+- Historical integrity: reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 的 REQUEST_CHANGES/P1=1/P2=1 与 `f491d99` 中间修复 / CI `31606148505` 永久保留，不被最终 PASS 覆盖。
+- Verification boundary: 本 closeout 只修改治理文档，不改业务代码、Prisma/migration、ASR、DEV-007 或 DEV-008D；不宣称 server deletion/deletion_request、导出、PWA/App、真实 ASR/LLM、正式题库、真实试点或 MVP 发布完成。
+- Lesson: 父任务聚合 DONE 必须显式限定到已经逐子任务 exact-head 接收的产品范围；相邻真实试点门禁即使在同一 Epic，也不能因网页切片完成而被隐式关闭。

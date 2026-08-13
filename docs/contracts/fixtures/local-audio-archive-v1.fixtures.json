@@ -1,0 +1,263 @@
+{
+  "schema": "../local-audio-archive-v1.schema.json",
+  "cases": [
+    {
+      "name": "available complete is playable with no pending delivery",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "available_complete",
+        "state_basis": {
+          "active_or_dirty": false,
+          "server_manifest_verified": true,
+          "deletion_receipt_present": false,
+          "local_archive_complete": true
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 0,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": 100,
+          "quota_bytes": 1000,
+          "available_bytes": 900
+        },
+        "playback_available": true,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "active dirty wins over simultaneous pending delivery",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "blocked_active_or_dirty",
+        "state_basis": {
+          "active_or_dirty": true,
+          "server_manifest_verified": false,
+          "deletion_receipt_present": false,
+          "local_archive_complete": false
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 1,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": false,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "pending delivery cannot outrank active dirty",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "blocked_pending_delivery",
+        "state_basis": {
+          "active_or_dirty": true,
+          "server_manifest_verified": false,
+          "deletion_receipt_present": false,
+          "local_archive_complete": false
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 1,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": false,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "deleted result requires a timestamp",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "delete_result",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "result": "deleted",
+        "deleted_at": "2026-08-12T00:00:00.000Z",
+        "server_audio_retained": true,
+        "server_transcript_retained": true,
+        "server_memory_retained": true
+      }
+    },
+    {
+      "name": "already deleted replays the original timestamp",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "delete_result",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "result": "already_deleted",
+        "deleted_at": "2026-08-12T00:00:00.000Z",
+        "server_audio_retained": true,
+        "server_transcript_retained": true,
+        "server_memory_retained": true
+      }
+    },
+    {
+      "name": "blocked delete has a null timestamp",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "delete_result",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "result": "blocked_pending_delivery",
+        "deleted_at": null,
+        "server_audio_retained": true,
+        "server_transcript_retained": true,
+        "server_memory_retained": true
+      }
+    },
+    {
+      "name": "available complete cannot disable playback",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "available_complete",
+        "state_basis": {
+          "active_or_dirty": false,
+          "server_manifest_verified": true,
+          "deletion_receipt_present": false,
+          "local_archive_complete": true
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 0,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": false,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "available complete cannot have pending delivery",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "available_complete",
+        "state_basis": {
+          "active_or_dirty": false,
+          "server_manifest_verified": true,
+          "deletion_receipt_present": false,
+          "local_archive_complete": true
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 1,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": true,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "deleted on device cannot retain payload or playback",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "deleted_on_device",
+        "state_basis": {
+          "active_or_dirty": false,
+          "server_manifest_verified": true,
+          "deletion_receipt_present": true,
+          "local_archive_complete": false
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 0,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": true,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "blocked pending delivery requires at least one pending item",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "projection",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "state": "blocked_pending_delivery",
+        "state_basis": {
+          "active_or_dirty": false,
+          "server_manifest_verified": false,
+          "deletion_receipt_present": false,
+          "local_archive_complete": false
+        },
+        "archive_bytes": 42,
+        "archive_chunk_count": 1,
+        "pending_delivery_count": 0,
+        "origin_storage": {
+          "accuracy": "origin_wide_approximate",
+          "usage_bytes": null,
+          "quota_bytes": null,
+          "available_bytes": null
+        },
+        "playback_available": false,
+        "server_audio_retained": true
+      }
+    },
+    {
+      "name": "deleted result cannot omit deleted at",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "delete_result",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "result": "deleted",
+        "server_audio_retained": true,
+        "server_transcript_retained": true,
+        "server_memory_retained": true
+      }
+    },
+    {
+      "name": "blocked delete cannot claim a deletion timestamp",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "local-audio-archive-v1",
+        "kind": "delete_result",
+        "session_id": "00000000-0000-4000-8000-000000000008",
+        "result": "transaction_aborted",
+        "deleted_at": "2026-08-12T00:00:00.000Z",
+        "server_audio_retained": true,
+        "server_transcript_retained": true,
+        "server_memory_retained": true
+      }
+    }
+  ]
+}

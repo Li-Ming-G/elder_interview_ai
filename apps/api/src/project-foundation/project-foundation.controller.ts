@@ -1,6 +1,9 @@
 import type {
   ConsentResponse,
+  EvidenceFinalizationResponse,
   InterviewSessionResponse,
+  ProjectListResponse,
+  ProjectSessionListResponse,
   ProjectResponse,
   ServiceTermResponse,
   SpeakerCalibrationSnapshot,
@@ -15,6 +18,7 @@ import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import { TranscriptQueryService } from '../transcription/transcript-query.service.js';
 import { ProjectFoundationService } from './project-foundation.service.js';
 import { ProjectRequestActorService } from './project-request-actor.service.js';
+import { ProjectSessionListService } from './project-session-list.service.js';
 import { SessionCaptureService } from './session-capture.service.js';
 import { SessionFinalizationService } from './session-finalization.service.js';
 import { SpeakerCalibrationService } from './speaker-calibration.service.js';
@@ -34,6 +38,7 @@ import {
   validateBeginSpeakerCalibration,
   validateResolveSpeakerCalibration,
   validateTranscriptPageQuery,
+  validateSessionPageQuery,
   validateUuid,
   validateCorrectTranscriptSpeakerRole,
   validatePreviewSpeakerRemap,
@@ -44,6 +49,7 @@ import {
 export class ProjectFoundationController {
   public constructor(
     private readonly projects: ProjectFoundationService,
+    private readonly sessionList: ProjectSessionListService,
     private readonly actors: ProjectRequestActorService,
     private readonly finalization: SessionFinalizationService,
     private readonly captures: SessionCaptureService,
@@ -64,8 +70,21 @@ export class ProjectFoundationController {
   }
 
   @Get('projects')
-  public async listProjects(@Req() request: AuthenticatedRequest): Promise<ProjectResponse[]> {
+  public async listProjects(@Req() request: AuthenticatedRequest): Promise<ProjectListResponse> {
     return this.projects.listProjects(await this.actors.from(request));
+  }
+
+  @Get('projects/:id/sessions')
+  public async listSessions(
+    @Param('id') id: string,
+    @Query() query: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<ProjectSessionListResponse> {
+    return this.sessionList.list(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateSessionPageQuery(query),
+    );
   }
 
   @Get('projects/:id')
@@ -134,9 +153,14 @@ export class ProjectFoundationController {
   @Post('projects/:id/sessions')
   public async createSession(
     @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
     @Req() request: AuthenticatedRequest,
   ): Promise<InterviewSessionResponse> {
-    return this.projects.createSession(await this.actors.from(request), validateUuid(id));
+    return this.projects.createSession(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateIdempotentRequest(body).request_id,
+    );
   }
 
   @Get('sessions/:id')
@@ -145,6 +169,17 @@ export class ProjectFoundationController {
     @Req() request: AuthenticatedRequest,
   ): Promise<InterviewSessionResponse> {
     return this.finalization.get(await this.actors.from(request), validateUuid(id));
+  }
+
+  @Get('sessions/:id/evidence-finalization')
+  public async getEvidenceFinalization(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<EvidenceFinalizationResponse> {
+    return this.finalization.getEvidenceFinalization(
+      await this.actors.from(request),
+      validateUuid(id),
+    );
   }
 
   @Post('sessions/:id/device-check')
@@ -318,7 +353,7 @@ export class ProjectFoundationController {
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
     @Req() request: AuthenticatedRequest,
-  ): Promise<InterviewSessionResponse> {
+  ): Promise<InterviewSessionResponse | EvidenceFinalizationResponse> {
     const actor = await this.actors.from(request);
     const sessionId = validateUuid(id);
     const input = validateRecoverSession(body);

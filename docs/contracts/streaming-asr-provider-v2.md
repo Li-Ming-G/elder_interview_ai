@@ -1,6 +1,6 @@
-# Streaming ASR Provider V2 正式契约候选
+# Streaming ASR Provider V2 正式契约
 
-状态：`FORMAL / REVIEW`。本文件与同目录 JSON Schema 是 `StreamingAsrAdapter v2` 的唯一技术真相源；`06` 负责业务规则，腾讯 profile 负责供应商映射。项目负责人 exact-head 审查前不得宣称 PASS。
+状态：`FORMAL / ACCEPTED`。本文件与同目录 JSON Schema 是 `StreamingAsrAdapter v2` 的唯一技术真相源；`06` 负责业务规则，腾讯 profile 负责供应商映射。基础 v2 契约由 SPEC-ASR-PROVIDER-001 接收；腾讯话者分离 wire 修正由 SPEC-ASR-WIRE-PARAM-001 / PR #29 exact head `650f856c918639a7b992294b805873d7052ab44e` 获项目负责人手动 PASS 后接收。
 
 ## 1. v1 → v2 迁移
 
@@ -14,7 +14,7 @@ v2 port 语义为：`connect` 在数据库锁和首个 250ms PCM accept 之外�
 
 这里的权威顺序是 **attempt 级**：`connect -> ready -> streaming -> stopping -> draining -> drained`。鉴权前未启动为 `not_started`；流中可恢复错误进入新 attempt，旧 attempt 先 `degraded` 并 fence；不可恢复协议/配置错误为 `failed`。attempt 状态和 receipt 只描述一个 voice，不直接等于 session/capture 转录完整性；公共 finalization 仍只投影既有 `drained|degraded|not_started`，录音继续。
 
-每次腾讯连接生成全新 `attempt_id`、`voice_id=provider_namespace_id` 和 `provider_request_id`。每个新 voice ID 必须关闭旧 `speaker_stream_id`、创建新 `speaker_stream_id`、清除可信校准并要求用户重新确认；即使同一 capture generation 也不继承 label 或角色。`enable_speaker_context=0` 且不发送 `speaker_context_id`。
+每次腾讯连接生成全新 `attempt_id`、`voice_id=provider_namespace_id` 和 `provider_request_id`。每个新 voice ID 必须关闭旧 `speaker_stream_id`、创建新 `speaker_stream_id`、清除可信校准并要求用户重新确认；即使同一 capture generation 也不继承 label 或角色。目标引擎保持 `16k_zh_en_speaker_2.0`；实际 query 必须包含 `speaker_diarization=1` 与 `enable_speaker_context=0`，并且必须省略整个 `speaker_context_id` key，不得发送 `speaker_context_id=` 空值。
 
 有限重连只用于实时后续 PCM：初次连接后最多 2 次，退避 250ms/1000ms。首版不补故障区间；新 attempt 必须继承同一 session runtime 的 completeness 聚合，不得初始化为 clean。旧 voice 的 late/replay/duplicate/out-of-order 结果因四元组 `{attempt_id, provider_namespace_id, provider_request_id, speaker_stream_id}` 不匹配而丢弃并计数。若需要改变次数、用户校准体验或数据库权威事实，必须另做契约变更。
 
@@ -52,7 +52,7 @@ stop 时只允许以下整体投影：整场从未建立可用 ASR、也没有�
 
 ## 5. 安全配置、日志与成本
 
-可信配置来自服务端 `APP_ENV` 与受控部署配置：provider、mainland region、allowlisted endpoint、engine、`diarization_required=true`、音频格式、pacing、timeout、reconnect、并发、日预算。SecretId/SecretKey/AppId 仅由后端 secret manager/environment 注入，不进前端、仓库、URL 日志、fixture 或错误详情；签名在后端按腾讯 V2 HMAC-SHA1 规则生成，timestamp/expired/nonce/voice_id 每连接产生。
+可信配置来自服务端 `APP_ENV` 与受控部署配置：provider、mainland region、allowlisted endpoint、engine、`diarization_required=true`、音频格式、pacing、timeout、reconnect、并发、日预算。腾讯 profile 把内部 diarization policy 映射为必发 wire 参数 `speaker_diarization=1`；`enable_speaker_context=0` 同样必发，`speaker_context_id` 必须省略。SecretId/SecretKey/AppId 仅由后端 secret manager/environment 注入，不进前端、仓库、URL 日志、fixture 或错误详情；签名在后端按腾讯 V2 HMAC-SHA1 规则生成，timestamp/expired/nonce/voice_id 每连接产生。
 
 授权生效前不得 connect/upload；撤权、assignment 失效或访问失效后停止新发送并关闭连接，仅允许既有 finalization 收束 stop 前 accepted PCM。可选训练/优化/测试授权固定 false。日志只记录 hash/ID、字节/时长、状态、延迟、错误分类和计费核对，不复制完整音频、完整转录、签名或密钥。
 
@@ -65,7 +65,8 @@ stop 时只允许以下整体投影：整场从未建立可用 ASR、也没有�
 | `ASR_REGION` | `cn_mainland`；首版唯一批准数据处理 region |
 | `TENCENT_ASR_ENDPOINT` | `wss://asr.cloud.tencent.com/asr/v2/{appid}` allowlist |
 | `TENCENT_ASR_ENGINE_MODEL_TYPE` | `16k_zh_en_speaker_2.0` |
-| `ASR_DIARIZATION_REQUIRED` | `true`，内部 policy；不生成未证实 wire 参数 |
+| `ASR_DIARIZATION_REQUIRED` | `true`；腾讯 profile 必须映射为 query `speaker_diarization=1` |
+| 腾讯 speaker context | query 必须发送 `enable_speaker_context=0`；整个 `speaker_context_id` key 必须省略，不得发送空值 |
 | `ASR_PROVIDER_PACKET_MS` / `ASR_PACING` | `200` / `one_to_one_realtime` |
 | `ASR_CONNECT_TIMEOUT_MS` / `ASR_READY_TIMEOUT_MS` / `ASR_DRAIN_TIMEOUT_MS` | `5000` / `5000` / `10000` |
 | `ASR_RECONNECT_MAX_ATTEMPTS` | 初次连接之外 `2` |
@@ -74,17 +75,19 @@ stop 时只允许以下整体投影：整场从未建立可用 ASR、也没有�
 | `TENCENT_ASR_APP_ID` / `TENCENT_ASR_SECRET_ID` / `TENCENT_ASR_SECRET_KEY` | backend secret injection；无默认值、无日志、无前端暴露 |
 | `ASR_OPTIONAL_OPTIMIZATION_AUTHORIZED` | 固定 `false` |
 
-腾讯签名输入包含除 `signature` 外的排序 query、host/path，使用 SecretKey HMAC-SHA1 后 base64 与 URL encode；`timestamp` 为服务端秒级当前时间，`expired>timestamp` 且有效期固定 5 分钟，`nonce` 和 `voice_id` 每连接新建。签名 URL 只在内存中使用并整体 redaction，不能进入 access log/metric/error。
+腾讯签名流程固定为：先构造实际请求 query map，其中包含 `speaker_diarization=1`、`enable_speaker_context=0`，不包含 `speaker_context_id` 或 `signature`；再按参数名词典序生成 canonical query，与 host/path 一起构成签名原文；使用 SecretKey HMAC-SHA1 后 base64、URL encode signature 并追加到请求 URL。参数不得只签不发或只发不签。`timestamp` 为服务端秒级当前时间，`expired>timestamp` 且有效期固定 5 分钟，`nonce` 和 `voice_id` 每连接新建。签名 URL 只在内存中使用并整体 redaction，不能进入 access log/metric/error。
 
 指标：connect/reconnect；PCM accepted/sent bytes/duration；interim/final；first interim/final latency；final persistence latency；drain latency/outcome；unknown speaker ratio；label switch/merge；provider error；provider request ID；billed duration。每个验收日将 provider request ID、billed duration、并发/额度变化与腾讯账单逐项核对；实际 speaker 引擎计费 SKU 在真实账单核对前为 unknown。
 
 ## 6. 腾讯事实分级与未决门禁
 
-Verified：V2 handshake 后上传、每连接唯一 voice_id、16k mono 16-bit PCM、sentence_type interim/final、`speaker_id=-1` 未分离、`final=1` 全部完成，以及 `16k_zh_en_speaker_2.0` 官方说明默认话者分离，均来自[腾讯实时 ASR V2](https://cloud.tencent.com/document/product/1093/131127)和[能力说明](https://cloud.tencent.com/document/product/1093/35682)。[计费说明](https://cloud.tencent.com/document/product/1093/35686)证明存在实时 2.0 计费，但不能证明本项目实际 speaker SKU。
+Verified：V2 handshake 后上传、每连接唯一 voice_id、16k mono 16-bit PCM、sentence_type interim/final、`speaker_id=-1` 未分离、`final=1` 全部完成，以及 `16k_zh_en_speaker_2.0` 官方说明默认话者分离，均来自[腾讯实时 ASR V2](https://cloud.tencent.com/document/product/1093/131127)和[能力说明](https://cloud.tencent.com/document/product/1093/35682)。[腾讯会议话者分离指南](https://cloud.tencent.com/document/product/1093/130881)明确使用 `speaker_diarization=1`；[官方 Go SDK 固定 commit](https://github.com/TencentCloud/tencentcloud-speech-sdk-go/commit/257f9f56bcd592bff1faea9b4ce0f1ef90cea803)显示通用 `RealtimeRecognizerV2` 默认值为 0、专用 `SpeakerRecognizer` 默认值为 1，并把该参数与 `enable_speaker_context` 一起写入排序 query 后签名。因此本项目腾讯 profile 固定必发 `speaker_diarization=1`，不是依赖引擎默认行为。[计费说明](https://cloud.tencent.com/document/product/1093/35686)证明存在实时 2.0 计费，但不能证明本项目实际 speaker SKU。
 
 Inference：100ms 帧聚合为官方建议 200ms/6400 bytes及 backend pacing 是本项目可逆技术选择；中国大陆处理边界来自项目已批准授权范围，不等于腾讯数据保留证明。
 
-Unknown/corrected：官方 V2 当前未列 `speaker_diarization` query 参数，旧候选 `speaker_diarization=1` wire 假设已纠正为 unknown；只冻结内部 `diarization_required=true`。双人 label 稳定性必须真实三次 replay 验证，营销能力不等于 PASS。腾讯[服务条款](https://cloud.tencent.com/document/product/301/94121)、[优化授权](https://cloud.tencent.com/document/product/1093/115535)和[FAQ](https://cloud.tencent.com/document/product/1093/35802)仍不足以关闭真实长者试点所需的诊断日志、音频/文本保留、DPA/处理者义务门禁。
+Evidence correction：SPEC-ASR-PROVIDER-001/ADR-032 当时因官方 V2 参数表未列出该字段，把 `speaker_diarization=1` 归为 unknown 并禁止发送；后续官方指南和固定 SDK commit 已提供 wire key、值、query 与签名行为的一手依据。ADR-033 只在项目负责人接收后部分取代这一条供应商事实；ADR-032 的 v2 seam、namespace、人工确认、drain/completeness 和全部安全边界不变。
+
+Unknown：双人 label 稳定性必须真实三次 replay 验证，营销能力或一次受控连接均不等于 PASS；实际 speaker SKU 仍待账单核对。腾讯[服务条款](https://cloud.tencent.com/document/product/301/94121)、[优化授权](https://cloud.tencent.com/document/product/1093/115535)和[FAQ](https://cloud.tencent.com/document/product/1093/35802)仍不足以关闭真实长者试点所需的诊断日志、音频/文本保留、DPA/处理者义务门禁。
 
 ## 7. 真实 provider 验收
 
