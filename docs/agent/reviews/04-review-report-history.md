@@ -849,4 +849,4 @@ P2：
 - 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`；接续分支 `codex/dev-008a4-first-interview-flow-continuation`，原分支/worktree 保持未修改。
 - 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
 - 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
-- 审查材料：实现、本地 unit 339/339、Chromium 27/27 与三视口截图已完成；PR、exact head 与 PostgreSQL CI 结果待建立后补齐。
+- 审查材料：[PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已作为 non-Draft 建立；实现候选提交 `e003c519835f7cadaa4b7edc89b65760a00bc783`，本地 unit 339/339、Chromium 27/27 与三视口截图已完成；治理补记后的 final exact head 与 PostgreSQL CI 等待 PR 实时结果。

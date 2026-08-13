@@ -1323,3 +1323,4 @@
 - Safety evidence: Chromium 以 `transcript_status=degraded` 验证 raw archive complete 可实际载入 `<audio>` 且本机删除可用；dirty、pending delivery、checksum mismatch 三类均禁用播放/删除。A3 fresh verifier 与 local-delete≠server-delete 边界未放宽。
 - Verification: format/lint/typecheck/build 通过；unit 339/339；Chromium 27/27。unit 首轮高负载触发既有 AI retry 绝对时限用例 1 次偶发失败，单测与完整重跑均通过，未修改目标。Docker Desktop 可启动但 Linux engine pipe 未就绪，fresh PostgreSQL/migration/integration/auth/smoke/auth Chromium 交 exact-head CI 验证。
 - Governance: 本轮未再次运行 iteration-coach；复用唯一 `Correction / NO-PAUSE`。任务、ADR-037 与 REV-047 继续 `REVIEW / PENDING`，执行 Agent 不给出 PASS/DONE、不 merge。
+- Delivery evidence: non-Draft [PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已建立；实现候选提交为 `e003c519835f7cadaa4b7edc89b65760a00bc783`。治理补记推送后只接受 PR final exact head 的完整 CI，仍由项目负责人决定审查结论。
