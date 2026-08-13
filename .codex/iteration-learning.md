@@ -1325,3 +1325,4 @@
 - Governance: 本轮未再次运行 iteration-coach；复用唯一 `Correction / NO-PAUSE`。任务、ADR-037 与 REV-047 继续 `REVIEW / PENDING`，执行 Agent 不给出 PASS/DONE、不 merge。
 - Delivery evidence: non-Draft [PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已建立；实现候选提交为 `e003c519835f7cadaa4b7edc89b65760a00bc783`。治理补记推送后只接受 PR final exact head 的完整 CI，仍由项目负责人决定审查结论。
 - CI correction: first exact-head run `31654793944` 在 integration 暴露旧 speaker-calibration API 测试仍将控制片段计入 ordinary transcript。没有回退 runtime 隔离；测试改为同时证明 ordinary API 只返回 conversation、数据库仍保存 calibration 审计证据，然后触发新 exact-head 全门禁。
+- CI correction 2: run `31655022427` 已越过上述修复并通过 integration/auth/build/smoke/普通 Chromium，最后 auth Chromium 揭示旧 fixture 仍造 0 元 ServiceTerm 且使用旧 ready 错误预期。删除伪条款、增加数据库 0 条款断言，并按 `draft` project-first gate 期待 `PROJECT_NOT_STARTABLE`；继续触发新 exact-head 全门禁。
