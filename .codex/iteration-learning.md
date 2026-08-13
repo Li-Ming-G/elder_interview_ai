@@ -1222,7 +1222,7 @@
 - User outcome: 在完全虚构普通话、腾讯单provider与既有正式wire语义内，把修复后的真实转录推进到三次replay、桌面normal和受控fault；原始录音不能被ASR故障损害，new voice必须重校准，旧gap不能被后续成功清除。
 - Verified evidence: 26.4秒probe final/drain且双known labels；同一473.9秒PCM三次均46 finals、双label、unknown0、无gap、hash一致；桌面normal archive/manifest/audio完整且transcript drained；fault中WS1006但archive继续，恢复new capture/voice/stream并重新确认双label，最终audio完整而transcript按早期coverage loss sticky degraded。
 - Implementation corrections: 腾讯V2顶层`sentences.sentence_list`进入正式mapping；persisted `firstPcmAcceptedAt`在runtime丢失时保守形成evidence_lost；provider-ready promise立即挂containment catch避免Node24 orphan rejection退出，status callback failure不越过provider边界；长manifest JSON limit与finalization transaction budget有界调整。
-- Verification: format/lint/typecheck/build；unit46/313；PG integration13/80、auth4/23；smoke、Chromium10、auth Chromium4、R4 formal route通过。R4 deterministic sequence-2是已知gap，故按正式sticky contract预期degraded；不是为通过测试而放宽实现。
+- Verification: merge main `2f29cc7e` 后format/lint/typecheck/build；unit57/364；PG integration14/84、auth4/23；smoke、Chromium24、auth Chromium5、默认300秒R4 formal route通过。main新首页/IndexedDB v5造成旧R4 helper定位器与version绑定失败，最小适配后通过；R4 deterministic sequence-2是已知gap，故按正式sticky contract预期degraded，不是为通过测试而放宽实现。
 - Cost/privacy: 已知成功约2019秒，估算约CNY0.561；实际SKU/日结账单仍unknown。所有live输入为虚构/合成，未记录secret、签名URL/query、provider正文、音频或转录正文；CON-027不变。
 - Boundary: 仍需目标Android物理验收、实际账单、最新main合并、non-Draft PR/exact-head CI和负责人手动审查。任务仅REVIEW，不自宣PASS/DONE、不merge；gap/backfill、真实LLM、真实长者与生产部署仍不在本任务。
 ### 2026-08-12 — 腾讯 V2 话者分离 wire 事实修正候选
