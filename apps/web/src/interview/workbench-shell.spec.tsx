@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type {
   AudioManifestResponse,
   InterviewSessionResponse,
+  ResolveSpeakerCalibrationRequest,
   SessionCaptureSnapshot,
   SessionFinalizationSnapshot,
   SpeakerCalibrationSnapshot,
@@ -43,6 +44,38 @@ describe('WorkbenchShell', () => {
     expect(harness.controller.resume).not.toHaveBeenCalled();
     expect(harness.api.createSession).not.toHaveBeenCalled();
     expect(screen.getByText('正在采集 · 本浏览器已保存 2 段')).toBeTruthy();
+  });
+
+  it('keeps calibration evidence out of the ordinary transcript projection', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('confirmed'),
+        finals: [
+          {
+            contentKind: 'speaker_calibration',
+            endMs: 500,
+            segmentId: 'calibration-segment',
+            speakerRole: 'interviewer',
+            startMs: 0,
+            text: '我是访谈员',
+          },
+          {
+            contentKind: 'conversation',
+            endMs: 1_500,
+            segmentId: 'conversation-segment',
+            speakerRole: 'elder',
+            startMs: 500,
+            text: '我们从河边的老房子说起。',
+          },
+        ],
+      },
+    });
+    renderWorkbench(harness);
+
+    expect(await screen.findByText('我们从河边的老房子说起。')).toBeTruthy();
+    expect(screen.queryByText('我是访谈员')).toBeNull();
+    expect(screen.queryByText('校准片段')).toBeNull();
   });
 
   it('switches the same mounted page from recording to interrupted and keeps transcript read-only', async () => {
@@ -101,7 +134,7 @@ describe('WorkbenchShell', () => {
     expect(await screen.findByText(/登录、授权或项目权限当前无法确认/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续同一次访谈' })).toBeNull();
     expect(screen.queryByRole('button', { name: '安全结束已有音频' })).toBeNull();
-    expect(screen.getByRole('button', { name: '重新核对' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '重新核对当前状态' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '离开工作台' })).toBeTruthy();
   });
 
@@ -244,8 +277,8 @@ describe('WorkbenchShell', () => {
       expect(harness.controller.stopAndFreeze).toHaveBeenCalledTimes(1);
     });
     expect(harness.api.stopSession).toHaveBeenCalledTimes(1);
-    expect(harness.controller.flushDelivery).toHaveBeenCalledTimes(1);
-    expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
+    expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
+    expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
     expect(harness.api.stopSession).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({
@@ -273,9 +306,18 @@ describe('WorkbenchShell', () => {
         true,
       );
     }
-    if (status === 'processing' || status === 'completed') {
+    if (status === 'processing') {
       fireEvent.click(screen.getByRole('button', { name: '收起状态' }));
       expect(await screen.findByRole('button', { name: '查看详情' })).toBeTruthy();
+    }
+    if (status === 'completed') {
+      const completedHeading = screen.getByRole('heading', { name: '录音和转录已完成' });
+      expect(completedHeading).toBe(document.activeElement);
+      expect(screen.getByRole('button', { name: '查看回顾' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '返回工作区' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: '当前对话' })).toBeNull();
+      expect(screen.queryByTestId('transcript-viewport')).toBeNull();
+      expect(screen.queryByRole('button', { name: '收起状态' })).toBeNull();
     }
   });
 
@@ -289,33 +331,21 @@ describe('WorkbenchShell', () => {
 
     expect(await screen.findByText(/没有找到已冻结的结束交接/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续安全保存' })).toBeNull();
-    expect(screen.getByRole('button', { name: '继续处理收尾' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /继续处理收尾|继续安全保存/ })).toBeNull();
   });
 
-  it('rotates reconcile IDs after authoritative success but preserves them after unknown failure', async () => {
+  it('automatically closes out and preserves the reconcile id for an explicit failure retry', async () => {
     const harness = createHarness(endingSession('stopping'), {
       endHandoff: END_HANDOFF,
       phase: 'stopped',
     });
-    harness.api.recoverSession
-      .mockResolvedValueOnce(endingSession('stopping'))
-      .mockResolvedValueOnce(endingSession('processing'));
+    harness.api.recoverSession.mockResolvedValueOnce(endingSession('processing'));
     renderWorkbench(harness);
-
-    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
     await waitFor(() => {
       expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
     });
-    const firstId = harness.api.recoverSession.mock.calls[0]?.[1].request_id;
-
-    fireEvent.click(screen.getByRole('button', { name: '继续安全保存' }));
-    await waitFor(() => {
-      expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
-    });
-    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
     await screen.findByText('正在完成转录处理');
-    const secondId = harness.api.recoverSession.mock.calls[1]?.[1].request_id;
-    expect(secondId).not.toBe(firstId);
 
     const retryHarness = createHarness(endingSession('stopping'), {
       endHandoff: END_HANDOFF,
@@ -326,20 +356,18 @@ describe('WorkbenchShell', () => {
       .mockResolvedValueOnce(endingSession('stopping'));
     cleanup();
     renderWorkbench(retryHarness);
-    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
     await screen.findByText(/暂时无法连接服务/);
-    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    const firstId = retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id;
+    fireEvent.click(screen.getByRole('button', { name: '重试完成安全保存' }));
     await waitFor(() => {
       expect(retryHarness.api.recoverSession).toHaveBeenCalledTimes(2);
     });
-    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(
-      retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id,
-    );
+    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(firstId);
   });
 
   it.each([
     ['processing', '安全离开'],
-    ['completed', '完成并离开'],
+    ['completed', '返回工作区'],
     ['failed', '保留现状并离开'],
   ] as const)('uses truthful leave copy for %s', async (status, label) => {
     const harness = createHarness(endingSession(status), {
@@ -620,11 +648,8 @@ describe('WorkbenchShell', () => {
         }),
       );
     });
-    expect(await screen.findByText('正在录音 · 已跳过说话人确认')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '重试确认' }));
-    await waitFor(() => {
-      expect(beginSpeakerCalibration).toHaveBeenCalledTimes(1);
-    });
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+    expect(screen.queryByText('正在录音 · 已跳过说话人确认')).toBeNull();
 
     act(() => {
       harness.emit(
@@ -633,7 +658,149 @@ describe('WorkbenchShell', () => {
         }),
       );
     });
-    expect(await screen.findByText('正在录音 · 说话人已确认')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+  });
+
+  it('resolves an existing collecting attempt through the server before degraded continuation', async () => {
+    const resolveSpeakerCalibration = vi.fn(() => Promise.resolve(calibrationSnapshot('skipped')));
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('collecting'),
+        connection: 'unavailable',
+        errorCode: 'ASR_UNAVAILABLE',
+        failureKind: 'asr',
+      },
+    });
+    Object.assign(harness.api, { resolveSpeakerCalibration });
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    await waitFor(() => {
+      expect(resolveSpeakerCalibration).toHaveBeenCalledWith(
+        '55555555-5555-4555-8555-555555555555',
+        expect.objectContaining({ action: 'skip', mappings: [] }),
+      );
+    });
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+  });
+
+  it('reuses the calibration skip request id after an unknown degraded response', async () => {
+    const resolveSpeakerCalibration = vi
+      .fn<
+        (
+          attemptId: string,
+          input: ResolveSpeakerCalibrationRequest,
+        ) => Promise<SpeakerCalibrationSnapshot>
+      >()
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', 'response unknown', 0))
+      .mockResolvedValueOnce(calibrationSnapshot('skipped'));
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('collecting'),
+        connection: 'unavailable',
+        failureKind: 'asr',
+      },
+    });
+    Object.assign(harness.api, { resolveSpeakerCalibration });
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    await screen.findByText(/response unknown/);
+    const firstRequestId = resolveSpeakerCalibration.mock.calls[0]?.[1].request_id;
+    fireEvent.click(screen.getByRole('button', { name: 'ASR 降级，继续访谈' }));
+    await waitFor(() => {
+      expect(resolveSpeakerCalibration).toHaveBeenCalledTimes(2);
+    });
+    expect(resolveSpeakerCalibration.mock.calls[1]?.[1].request_id).toBe(firstRequestId);
+  });
+
+  it('fences calibration interim after degraded bypass and shows later conversation interim', async () => {
+    const noAttempt = {
+      ...calibrationSnapshot('skipped'),
+      attempt: null,
+      speaker_role_revision: 0,
+      status: 'not_started' as const,
+    };
+    const beginSpeakerCalibration = vi.fn(() => Promise.resolve(calibrationSnapshot('collecting')));
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: noAttempt,
+        connection: 'unavailable',
+        errorCode: 'ASR_UNAVAILABLE',
+        failureKind: 'asr',
+      },
+    });
+    Object.assign(harness.api, { beginSpeakerCalibration });
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: {
+            ...EMPTY_REALTIME,
+            calibration: noAttempt,
+            interim: {
+              contentKind: 'speaker_calibration',
+              endMs: 1_800,
+              hypothesisId: 'late-calibration',
+              revision: 9,
+              startMs: 1_000,
+              text: '迟到的校准临时文本',
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.queryByText('迟到的校准临时文本')).toBeNull();
+    expect(beginSpeakerCalibration).not.toHaveBeenCalled();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: {
+            ...EMPTY_REALTIME,
+            calibration: noAttempt,
+            interim: {
+              contentKind: 'conversation',
+              endMs: 2_800,
+              hypothesisId: 'conversation',
+              revision: 10,
+              startMs: 2_000,
+              text: '边界之后的普通临时文本',
+            },
+          },
+        }),
+      );
+    });
+    expect(await screen.findByText('边界之后的普通临时文本')).toBeTruthy();
+    expect(beginSpeakerCalibration).not.toHaveBeenCalled();
+  });
+
+  it('does not offer local calibration degradation for an authority failure', async () => {
+    const noAttempt: SpeakerCalibrationSnapshot = {
+      ...calibrationSnapshot('collecting'),
+      attempt: null,
+      status: 'not_started',
+    };
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: noAttempt,
+        connection: 'unavailable',
+        failureKind: 'auth',
+      },
+    });
+    renderWorkbench(harness);
+
+    expect(await screen.findByText('实时识别当前不可用')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'ASR 降级，继续访谈' })).toBeNull();
+    expect(screen.getByRole('heading', { name: '先确认两位说话人' })).toBeTruthy();
   });
 });
 
@@ -641,6 +808,7 @@ type CompleteApi = InterviewApi & InterviewCaptureApi & SpeakerCorrectionApi;
 type MockApi = { [Key in keyof CompleteApi]: ReturnType<typeof vi.fn<CompleteApi[Key]>> };
 type ControllerPort = Pick<
   InterviewCaptureController,
+  | 'completeFrozenAudio'
   | 'flushDelivery'
   | 'observeServerSession'
   | 'recover'
@@ -662,11 +830,18 @@ function createHarness(
   let current = snapshot(serverSession, overrides);
   const listeners = new Set<(next: InterviewCaptureControllerSnapshot) => void>();
   const emit = (next: InterviewCaptureControllerSnapshot): void => {
-    current = next;
-    for (const listener of listeners) listener(next);
+    current =
+      next.phase === 'active' && next.realtime.calibration === undefined
+        ? {
+            ...next,
+            realtime: { ...next.realtime, calibration: calibrationSnapshot('confirmed') },
+          }
+        : next;
+    for (const listener of listeners) listener(current);
   };
   const api = createApi(serverSession);
   const controller: ControllerPort = {
+    completeFrozenAudio: vi.fn(() => Promise.resolve(current)),
     flushDelivery: vi.fn(() => Promise.resolve(current.archive.pendingDeliveryCount)),
     observeServerSession: vi.fn(
       (next: InterviewSessionResponse): InterviewCaptureControllerSnapshot => {
@@ -838,7 +1013,10 @@ function snapshot(
     localJobId: `interview-capture:${SESSION_ID}`,
     phase: serverSession.status === 'interrupted' ? 'interrupted' : 'active',
     projectId: PROJECT_ID,
-    realtime: EMPTY_REALTIME,
+    realtime:
+      serverSession.status === 'recording'
+        ? { ...EMPTY_REALTIME, calibration: calibrationSnapshot('confirmed') }
+        : EMPTY_REALTIME,
     serverCapture: serverSession.capture ?? null,
     serverSession,
     serverVerificationError: null,

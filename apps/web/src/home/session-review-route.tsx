@@ -62,6 +62,8 @@ export function SessionReviewRoute({
 
   useEffect(() => {
     let current = true;
+    let retryTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+    let retryCount = 0;
     async function load(): Promise<void> {
       try {
         const authorized = await findAuthorizedReview(api, projectId, sessionId);
@@ -77,16 +79,36 @@ export function SessionReviewRoute({
         }
         setListItem(authorized);
         setSession(freshSession);
-        setTranscripts(transcriptItems);
+        setTranscripts(
+          transcriptItems.filter((segment) => segment.content_kind !== 'speaker_calibration'),
+        );
         setProjection(localProjection);
+        if (shouldReproject(localProjection.state) && retryCount < 4) {
+          retryCount += 1;
+          retryTimer = globalThis.setTimeout(() => void load(), 1_250);
+        }
       } catch (loadError) {
         if (!current) return;
         setError(reviewErrorMessage(loadError));
       }
     }
+    const retryWhenCurrent = (): void => {
+      if (!current) return;
+      if (retryTimer !== null) globalThis.clearTimeout(retryTimer);
+      retryCount = 0;
+      void load();
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') retryWhenCurrent();
+    };
+    globalThis.addEventListener('online', retryWhenCurrent);
+    document.addEventListener('visibilitychange', onVisible);
     void load();
     return function cleanup(): void {
       current = false;
+      if (retryTimer !== null) globalThis.clearTimeout(retryTimer);
+      globalThis.removeEventListener('online', retryWhenCurrent);
+      document.removeEventListener('visibilitychange', onVisible);
       playbackRef.current?.revoke();
       playbackRef.current = null;
     };
@@ -340,6 +362,14 @@ export function SessionReviewRoute({
       )}
     </HomeFrame>
   );
+}
+
+function shouldReproject(state: LocalAudioArchiveProjection['state']): boolean {
+  return [
+    'blocked_active_or_dirty',
+    'blocked_pending_delivery',
+    'blocked_server_unverified',
+  ].includes(state);
 }
 
 async function findAuthorizedReview(

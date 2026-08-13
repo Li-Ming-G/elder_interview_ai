@@ -842,3 +842,13 @@ P2：
 - 合并与集成：PR #40 按仓库 merge-commit 策略非 squash 合入，merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 的 parents 为 prior main `5035c119fa5a3eeb7999d305f5c052672dc50d25` 与 accepted head `93be9a27b93e763e56457668c78b5ac2a332bab4`；main CI `31613083916` completed / success。
 - 治理：DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 未实现边界：本结论不宣称 server deletion/deletion_request、倾听员导出、PWA/Capacitor/WebView/App、真实 ASR/LLM、DEV-007 聚合验收、正式题库、真实试点或 MVP 发布完成。
+
+## REV-047｜DEV-008A4 首次访谈主链路整合候选
+
+- 状态：`PENDING / REVIEW`；项目负责人尚未审查，执行 Agent 不得给出 PASS/DONE。
+- 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`；分支 `codex/dev-008a4-first-interview-flow`。
+- 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
+- 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
+- 审查材料：PR、exact head、CI、截图与门禁结果待实现完成后补齐。
+- 实现候选：ordinary ServiceTerm dormant/current-page mic/formal-stream calibration/自动收尾/exact complete ACK/回顾重投影与独立 completed DOM 已实现；WS interim 由服务端权威 `content_kind` 隔离迟到校准文本，collecting degraded 通过稳定幂等 server skip 收束。
+- 本地证据：format/lint/typecheck/build/diff-check 通过，full unit `56 files / 339 tests` 通过。Chromium 24 项均在 launch 阶段 `spawn EPERM`，未进入断言；Docker API permission denied 且无 DB URL，fresh migration/integration/auth/smoke/auth Chromium 本地未运行。必须由 exact-head GitHub CI 完整覆盖，不得把当前记录升级为 PASS。

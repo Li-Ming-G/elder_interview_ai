@@ -37,6 +37,7 @@ export interface RealtimeTranscriptFinal {
 }
 
 export interface RealtimeTranscriptInterim {
+  contentKind: 'conversation' | 'speaker_calibration';
   endMs: number;
   hypothesisId: string;
   revision: number;
@@ -303,6 +304,7 @@ export class RealtimeTranscriptionTransport {
       this.acceptAudioAck(highest);
     } else if (message.type === 'asr.interim') {
       const payload = message.payload as {
+        content_kind: RealtimeTranscriptInterim['contentKind'];
         end_ms: number;
         hypothesis_id: string;
         revision: number;
@@ -317,6 +319,7 @@ export class RealtimeTranscriptionTransport {
       ) {
         this.patch({
           interim: {
+            contentKind: payload.content_kind,
             endMs: payload.end_ms,
             hypothesisId: payload.hypothesis_id,
             revision: payload.revision,

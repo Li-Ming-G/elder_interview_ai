@@ -15,7 +15,7 @@ const ACTOR_INDEX = 'by-actor';
 const SESSION_ATTEMPT_STORE = 'session-attempts';
 
 export type WorkflowStep =
-  'project' | 'service_term' | 'consent_audio' | 'consent' | 'session' | 'complete';
+  'project' | 'service_term' | 'session' | 'consent_audio' | 'consent' | 'start' | 'complete';
 
 export type AttemptState = 'prepared' | 'unknown_response' | 'acknowledged';
 
@@ -83,11 +83,21 @@ export class IndexedDbNewInterviewWorkflowStore {
       >,
     );
     await completion;
-    return (
+    const active =
       values
         .filter((value) => value.actorId === actorId && value.status === 'active')
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null
-    );
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
+    // DEV-008A4 keeps the legacy field/step readable but never creates a price row.
+    // An interrupted pre-A4 browser workflow resumes at early session creation.
+    if (
+      active !== null &&
+      active.projectAttempt?.response !== null &&
+      active.sessionAttempt?.response == null &&
+      active.step !== 'project'
+    ) {
+      return { ...active, step: 'session' };
+    }
+    return active;
   }
 
   public async getOrCreateDetachedSessionRequestId(

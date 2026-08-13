@@ -1,5 +1,6 @@
 import type {
   AudioChunkResponse,
+  AudioManifestResponse,
   CaptureInterruptionReason,
   InterviewSessionResponse,
   SessionCaptureSnapshot,
@@ -268,6 +269,12 @@ export class InterviewCaptureController {
 
   public stopAndFreeze(): Promise<CaptureStopHandoff> {
     return this.serial(() => this.stopAndFreezeInternal());
+  }
+
+  public completeFrozenAudio(
+    handoff: CaptureStopHandoff,
+  ): Promise<InterviewCaptureControllerSnapshot> {
+    return this.serial(() => this.completeFrozenAudioInternal(handoff));
   }
 
   private async startInternal(): Promise<InterviewCaptureControllerSnapshot> {
@@ -863,6 +870,49 @@ export class InterviewCaptureController {
     });
   }
 
+  private async completeFrozenAudioInternal(
+    handoff: CaptureStopHandoff,
+  ): Promise<InterviewCaptureControllerSnapshot> {
+    assertHandoffIdentity(
+      handoff,
+      this.options.projectId,
+      this.options.sessionId,
+      this.state.localJobId,
+    );
+    await this.flushDeliveryInternal();
+    let job = await this.requiredJob();
+    assertFrozenJobMatchesHandoff(job, handoff);
+    if (job.status === 'complete') return this.snapshot;
+    job = await this.options.jobs.updateUploadJob(job.jobId, (current) => {
+      assertFrozenJobMatchesHandoff(current, handoff);
+      return { ...current, lastError: null, status: 'completing' };
+    });
+    try {
+      const manifest = await this.options.api.completeInterviewAudio(handoff.audioObjectId, {
+        expected_chunk_count: handoff.expectedChunkCount,
+        request_id: handoff.completeRequestId,
+      });
+      assertExactCompleteManifest(manifest, handoff, job.mimeType);
+      await this.options.jobs.updateUploadJob(job.jobId, (current) => {
+        assertFrozenJobMatchesHandoff(current, handoff);
+        return { ...current, lastError: null, status: 'complete' };
+      });
+      const archive = await this.options.queue.getArchiveSnapshot(this.options.sessionId);
+      this.patch({ archive, deliveryError: null, lastError: null });
+      return this.snapshot;
+    } catch (error) {
+      await this.options.jobs
+        .updateUploadJob(job.jobId, (current) => ({
+          ...current,
+          lastError: errorCode(error),
+          status: current.status === 'complete' ? 'complete' : 'completing',
+        }))
+        .catch(() => undefined);
+      this.patch({ lastError: errorCode(error) });
+      throw error;
+    }
+  }
+
   private async loadOrCreateFormalJob(): Promise<AudioUploadJob> {
     const existing = await this.options.jobs.getUploadJob(this.state.localJobId);
     if (existing !== null) {
@@ -1143,6 +1193,75 @@ function isExactChunkAck(
     ack.mime_type === chunk.mimeType &&
     (ack as { upload_status: unknown }).upload_status === 'uploaded'
   );
+}
+
+function assertHandoffIdentity(
+  handoff: CaptureStopHandoff,
+  projectId: string,
+  sessionId: string,
+  localJobId: string,
+): void {
+  if (
+    handoff.projectId !== projectId ||
+    handoff.sessionId !== sessionId ||
+    handoff.localJobId !== localJobId
+  ) {
+    throw new Error('CAPTURE_HANDOFF_IDENTITY_MISMATCH');
+  }
+}
+
+function assertFrozenJobMatchesHandoff(job: AudioUploadJob, handoff: CaptureStopHandoff): void {
+  const capture = requiredBoundCapture(job);
+  if (
+    job.jobId !== handoff.localJobId ||
+    job.audioObjectId !== handoff.audioObjectId ||
+    job.completeRequestId !== handoff.completeRequestId ||
+    job.expectedChunkCount !== handoff.expectedChunkCount ||
+    capture.audioObjectId !== handoff.audioObjectId ||
+    capture.audioStreamId !== handoff.audioStreamId ||
+    capture.generationNo !== handoff.generationNo ||
+    capture.stopRequestId !== handoff.stopRequestId ||
+    capture.status !== 'stopped'
+  ) {
+    throw new Error('CAPTURE_FROZEN_JOB_MISMATCH');
+  }
+}
+
+function assertExactCompleteManifest(
+  manifest: AudioManifestResponse,
+  handoff: CaptureStopHandoff,
+  mimeType: string,
+): void {
+  const totalBytes = handoff.chunks.reduce((sum, chunk) => sum + chunk.size_bytes, 0);
+  const exactChunks =
+    manifest.chunks.length === handoff.chunks.length &&
+    manifest.chunks.every((chunk, index) => {
+      const expected = handoff.chunks[index];
+      return (
+        expected !== undefined &&
+        chunk.sequence_no === expected.sequence_no &&
+        chunk.start_ms === expected.start_ms &&
+        chunk.end_ms === expected.end_ms &&
+        chunk.size_bytes === expected.size_bytes &&
+        chunk.checksum === expected.checksum &&
+        chunk.mime_type === expected.mime_type
+      );
+    });
+  if (
+    manifest.id !== handoff.audioObjectId ||
+    manifest.project_id !== handoff.projectId ||
+    manifest.session_id !== handoff.sessionId ||
+    manifest.purpose !== 'interview' ||
+    manifest.status !== 'complete' ||
+    manifest.mime_type !== mimeType ||
+    manifest.chunk_count !== handoff.expectedChunkCount ||
+    manifest.total_size_bytes !== totalBytes ||
+    manifest.manifest_checksum === null ||
+    manifest.completed_at === null ||
+    !exactChunks
+  ) {
+    throw new Error('AUDIO_COMPLETE_ACK_MISMATCH');
+  }
 }
 
 function assertContiguousArchive(chunks: readonly ImmutableAudioChunk[]): void {

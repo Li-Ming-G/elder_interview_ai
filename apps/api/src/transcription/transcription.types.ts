@@ -38,7 +38,11 @@ export interface TranscriptSegmentView {
 }
 
 export type TranscriptIngestionResult =
-  | { kind: 'interim'; persisted: false }
+  | {
+      contentKind: 'conversation' | 'speaker_calibration';
+      kind: 'interim';
+      persisted: false;
+    }
   | { kind: 'final'; persisted: true; segment: TranscriptSegmentView };
 
 export interface AppendSpeakerMappingInput {

@@ -97,7 +97,13 @@ test('real controller facts drive the complete workbench state and responsive sc
     await triggerReadOnlyVerification(page);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     if (state === 'completed') {
-      await expect(page.getByRole('button', { name: '完成并离开' })).toBeVisible();
+      await expect(page.locator('.completion-page')).toBeVisible();
+      await expect(page.getByRole('button', { name: '查看回顾' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '返回工作区' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '当前对话' })).toHaveCount(0);
+      await expect(page.locator('.transcript-stage')).toHaveCount(0);
+      await expect(page.locator('.suggestion-panel')).toHaveCount(0);
+      await expect(page.locator('.workbench')).toHaveCount(0);
     }
     if (state === 'failed') {
       await expect(page.getByRole('button', { name: '保留现状并离开' })).toBeVisible();
@@ -108,7 +114,7 @@ test('real controller facts drive the complete workbench state and responsive sc
   }
 });
 
-test('canonical calibration snapshots render all small-screen panel states without another mic request', async ({
+test('dedicated calibration gate remains accessible on small screens and exits to the workbench', async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -165,44 +171,20 @@ test('canonical calibration snapshots render all small-screen panel states witho
   }
 
   await emitCalibration(page, calibrationSnapshot('confirmed', 1));
-  await expect(page.locator('.workbench--recording')).toBeVisible();
-  await expect(panel).toHaveClass(/speaker-calibration--confirmed/u);
-  await expect(panel.locator('strong')).toBeVisible();
-  await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
-  await expect(panel).toContainText('\u8bf4\u8bdd\u4eba\u5df2\u786e\u8ba4');
-  await expect(panel).toHaveAttribute('aria-live', 'polite');
-
-  for (const status of ['failed', 'skipped'] as const) {
-    await emitCalibration(page, calibrationSnapshot(status, 0));
-    await expect(page.locator('.workbench--recording')).toBeVisible();
-    await expect(panel.locator('strong')).toBeVisible();
-    await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
-    await expect(panel).toHaveAttribute('aria-live', 'polite');
-    const retry = panel.getByRole('button');
-    await expect(retry).toHaveCount(1);
-    const retryBox = await retry.boundingBox();
-    expect(retryBox?.height).toBeGreaterThanOrEqual(44);
-    expect(retryBox?.width).toBeGreaterThanOrEqual(44);
-    const beforeRetry = await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')));
-    await retry.click();
-    await emitCalibration(page, calibrationSnapshot('collecting', 0));
-    await expect(panel.getByRole('button')).toHaveCount(4);
-    expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
-      beforeRetry,
-    );
-    await page.screenshot({
-      animations: 'disabled',
-      path: `test-results/dev-004c1/calibration-${status}-320x568.png`,
-    });
-  }
+  await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
+    micRequests,
+  );
 });
 
 async function captureStateMatrix(page: Page, state: string): Promise<void> {
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
-    await expect(page.locator('.workbench')).toBeVisible();
-    const dimensions = await page.evaluate(() => {
-      const workbench = document.querySelector<HTMLElement>('.workbench');
+    const rootSelector = state === 'completed' ? '.completion-page' : '.workbench';
+    await expect(page.locator(rootSelector)).toBeVisible();
+    const dimensions = await page.evaluate((selector) => {
+      const pageRoot = document.querySelector<HTMLElement>(selector);
       const header = document.querySelector<HTMLElement>('.workbench-bar');
       const content = document.querySelector<HTMLElement>('.workbench-content');
       const suggestion = document.querySelector<HTMLElement>('.suggestion-panel');
@@ -219,7 +201,7 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
         headerHeight: header?.getBoundingClientRect().height ?? 0,
         horizontalOverflow: document.documentElement.scrollWidth - globalThis.innerWidth,
         metadataWidth: metadata?.getBoundingClientRect().width ?? 0,
-        pageHeight: workbench?.getBoundingClientRect().height ?? 0,
+        pageHeight: pageRoot?.getBoundingClientRect().height ?? 0,
         paragraphX: paragraph?.getBoundingClientRect().x ?? 0,
         metadataX: metadata?.getBoundingClientRect().x ?? 0,
         smallestButtonHeight: Math.min(
@@ -232,13 +214,13 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
         transcriptClientHeight: transcript?.clientHeight ?? 0,
         transcriptScrollHeight: transcript?.scrollHeight ?? 0,
       };
-    });
+    }, rootSelector);
 
     expect(dimensions.horizontalOverflow).toBeLessThanOrEqual(0);
     expect(dimensions.pageHeight).toBe(viewport.height);
     expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(viewport.height);
     expect(dimensions.smallestButtonHeight).toBeGreaterThanOrEqual(44);
-    if (viewport.width <= 390) {
+    if (viewport.width <= 390 && dimensions.metadataWidth > 0) {
       expect(dimensions.metadataWidth).toBeGreaterThanOrEqual(52);
       expect(dimensions.metadataWidth).toBeLessThanOrEqual(64);
       expect(dimensions.paragraphX).toBeGreaterThan(dimensions.metadataX);

@@ -73,6 +73,7 @@ export class TranscriptQueryService {
       orderBy: [{ startMs: 'asc' }, { id: 'asc' }],
       take: query.limit + 1,
       where: {
+        contentKind: 'conversation',
         sessionId,
         ...(cursor === null
           ? {}

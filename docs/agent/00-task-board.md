@@ -12,6 +12,7 @@
 
 | 任务编号 | 任务 | 负责人 | 状态 | 前置任务 | 验收依据 | 阻塞原因 |
 |---|---|---|---|---|---|---|
+| DEV-008A4 | 首次访谈主链路整合修复 | 独立执行窗口 `codex/dev-008a4-first-interview-flow` | REVIEW | A1/A2/A3 历史 DONE；用户已确认新产品方向；唯一 iteration-coach 只读复核 `Correction / NO-PAUSE` | [任务卡](tasks/DEV-008A4.md)、[候选交接](handoffs/DEV-008A4.md)、ADR-037、REV-047、`09` §16 | 实现与本地 static/build/unit 339 已完成；本地 Chromium spawn EPERM、Docker/DB 不可用，等待 non-Draft PR exact-head CI 覆盖完整门禁与项目负责人手动审查。执行 Agent 不得 PASS/DONE/merge；DEV-008D/CON-023 不变 |
 | BASE-001 | 首次总控基线审计与 Git 建立 | 总控 Agent | DONE | 无 | 本轮检查记录、Git 提交、交接日志 | 无；低风险基线整理已由总控自检 |
 | DOC-001 | 建立项目文档基线 | 总控 Agent | DONE | 无 | 文档包完整性与一致性检查 | REV-003 PASS；文档和契约一致性门禁通过 |
 | DOC-002 | 分离协作文档当前态与历史归档 | 总控 Agent | DONE | BASE-001 | `docs/agent/README.md`、当前审查/交接索引、归档卷、OPEN 冲突索引 | 文档结构整理、链接检查、Git diff check 通过；不改变产品或技术契约 |
