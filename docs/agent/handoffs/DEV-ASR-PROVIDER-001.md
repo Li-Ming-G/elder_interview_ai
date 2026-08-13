@@ -2,10 +2,10 @@
 
 ## 状态与 Git 身份
 
-- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面正常链路与受控故障闭环已完成；等待目标 Android、实际账单、exact-head CI 与项目负责人手动审查），不是 PASS/DONE。
+- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面正常链路、受控故障闭环与目标 Android 正式链路均已完成；等待实际账单与项目负责人 exact-head 手动审查），不是 PASS/DONE。
 - 分支：`codex/dev-asr-provider-001`。
 - exact base：`9c00d892e722f9973990698c8a7a52e5810833d7`。
-- 当前实现仍在工作树中，尚无 exact final head、non-Draft PR 或 exact-head CI；不得合并。
+- non-Draft PR #45 已创建；exact final head 与 exact-head CI 以 PR 最新 metadata 为准，项目负责人尚未完成绑定该 head 的手动审查；不得合并。
 - 上一轮因 Codex usage limit 发生环境中断；该记录不是实现失败、验收失败或通过结论。本轮从原工作树继续，没有重建或丢弃修改。
 
 ## 已形成的实现候选
@@ -37,13 +37,9 @@
 
 ## 未完成且不能被推断通过
 
-- 同一受控双人标准普通话 PCM provider-level replay 3 次及文本/label 漂移。
-- 桌面 Chromium 约 8 分钟正式无 query lane。
-- 主动断线 fault lane 及 archive/manifest、degraded、新 voice/new stream/re-confirm、安全结束证据。
-- 两个可由固定校准句区分并由用户确认的临时 label；这是产品完整可用硬门槛，当前未验证。
-- 账单 SKU、实际 billed seconds/费用与预算对账。
-- 目标 Android Chrome 本次改动影响的正式链路。
-- non-Draft PR、exact final head、exact-head CI SUCCESS 和项目负责人手动 GitHub 审查。
+- 腾讯控制台账单 SKU、实际 billed seconds/费用与估算对账。
+- 项目负责人绑定 PR #45 exact final head 的手动 GitHub 审查；执行 Agent 不得自宣 PASS/DONE 或 merge。
+- CON-027 继续阻塞真实长者/PII 与真实试点；gap/backfill、第二 provider、真实 LLM 和生产部署均不在本任务范围。
 
 ## 2026-08-12 严格无会话诊断与修复
 
@@ -136,4 +132,6 @@
 - Offline gates：安全 merge main `2f29cc7ef66563aebd2cd3d293606a5de6c20ca6` 后，format/lint/typecheck/build；unit57 files/364；独立PG 14 migrations current、integration14 files/84、auth4 files/23；smoke；Chromium24/24；auth Chromium5/5；R4 formal route默认300秒1/1。main新首页和IndexedDB v5使R4旧标题/v4 helper先失败，最小适配后全流程通过；一次准备按钮偶发禁用未稳定复现，原样复跑通过并保留为环境波动记录。
 - Cost：已知成功证据约2019 seconds、按公开 CNY1/hour 估算约CNY0.561，远低于预警/硬上限。Actual SKU/日结账单仍 unknown，需要控制台证据；估算不能替代账单。
 - Git review：已安全merge main `2f29cc7e` 并创建non-Draft [PR #45](https://github.com/Li-Ming-G/elder_interview_ai/pull/45)；实现head `ac44b4a9` 的CI run `31700867211` SUCCESS。本治理补记后的final metadata head/CI以PR最新head为准。
-- Remaining：项目负责人绑定PR exact head手动GitHub审查；物理目标Android Chrome；actual billing/SKU。CON-027继续阻塞真实长者/PII；不含gap/backfill、第二provider、真实LLM、生产部署。任务保持REVIEW，不得自宣PASS/DONE或merge。
+- Android verified：OnePlus GM1900 / Android12 / Chrome150，384×710正式无query route；真实手机麦克风采集同一受控虚构音频。382秒session、PCM accepted through sequence3835；373/373 archive、pending0、manifest present、audio complete、transcript drained、session completed、finalization约15秒；13 finals、双known labels、unknown0、双current user-confirmed mappings、单speaker stream，UI无转录不可用。检测阶段无MediaRecorder/PCM/provider connect，开始后单一访谈MediaRecorder。已关闭API/Web/ADB映射，不记录设备序列号/正文/凭据。
+- Cost update：已知成功约2403秒，估算约CNY0.668；actual SKU/日结账单继续unknown，不能用估算替代。
+- Remaining：项目负责人绑定PR exact head手动GitHub审查；actual billing/SKU。CON-027继续阻塞真实长者/PII；不含gap/backfill、第二provider、真实LLM、生产部署。任务保持REVIEW，不得自宣PASS/DONE或merge。

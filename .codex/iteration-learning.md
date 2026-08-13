@@ -1225,7 +1225,8 @@
 - Verification: merge main `2f29cc7e` 后format/lint/typecheck/build；unit57/364；PG integration14/84、auth4/23；smoke、Chromium24、auth Chromium5、默认300秒R4 formal route通过。main新首页/IndexedDB v5造成旧R4 helper定位器与version绑定失败，最小适配后通过；R4 deterministic sequence-2是已知gap，故按正式sticky contract预期degraded，不是为通过测试而放宽实现。
 - Cost/privacy: 已知成功约2019秒，估算约CNY0.561；实际SKU/日结账单仍unknown。所有live输入为虚构/合成，未记录secret、签名URL/query、provider正文、音频或转录正文；CON-027不变。
 - Git evidence: 安全merge main `2f29cc7e`，non-Draft PR #45；实现head `ac44b4a9` CI run `31700867211` SUCCESS。治理补记后的final metadata head/CI以PR最新head为准。
-- Boundary: 仍需目标Android物理验收、实际账单和负责人exact-head手动审查。任务仅REVIEW，不自宣PASS/DONE、不merge；gap/backfill、真实LLM、真实长者与生产部署仍不在本任务。
+- Android evidence: OnePlus GM1900/Android12/Chrome150正式MediaStream链路运行382秒；373/373 archive、manifest/audio complete、transcript drained、13 finals、双known labels、unknown0、双user-confirmed mappings。检测阶段无capture/provider connect，开始后单一MediaRecorder；API/Web/ADB映射结束后关闭。纯录音旋转/后台事实沿用同机DEV-005已证明且与本ASR改动无关的证据。
+- Cost/boundary: 已知成功约2403秒、估算CNY0.668；实际SKU/日结账单仍unknown。仍需负责人exact-head手动审查。任务仅REVIEW，不自宣PASS/DONE、不merge；gap/backfill、真实LLM、真实长者与生产部署仍不在本任务。
 ### 2026-08-12 — 腾讯 V2 话者分离 wire 事实修正候选
 
 - User outcome: 修正腾讯实时 ASR V2 话者分离 wire 参数的过时正式事实，让 DEV-ASR-PROVIDER-001 在新契约 exact-head 获项目负责人 PASS 后，用同一虚构 TTS PCM、`reconnect=0` 做一次隔离诊断，而不把 close 1005 根因写成已证明。

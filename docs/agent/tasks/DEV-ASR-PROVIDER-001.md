@@ -1,6 +1,6 @@
 # DEV-ASR-PROVIDER-001｜腾讯实时 ASR V2 adapter v2 实现与真实验收
 
-- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面正式链路与受控故障闭环已完成；等待目标 Android、实际账单核对、exact-head CI 与项目负责人手动审查）
+- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面/目标 Android 正式链路与受控故障闭环已完成；等待实际账单核对、最新 exact-head CI 与项目负责人手动审查）
 - 分支：`codex/dev-asr-provider-001`
 - exact base：`9c00d892e722f9973990698c8a7a52e5810833d7`
 - 审查边界：执行 Agent 只交付 non-Draft PR 与 exact-head 证据，不自宣 PASS/DONE、不合并
@@ -129,4 +129,7 @@ Prisma migration、第二 provider/diarizer、gap/backfill、真实 LLM、真实
 - 合并最新 main 后门禁：format、lint、typecheck、build；unit 57 files/364 tests；新独立 PostgreSQL 库 14 migrations current、integration 14 files/84 tests、auth 4 files/23 tests；smoke；Chromium 24/24；auth Chromium 5/5；R4 formal route 1/1（默认 300 秒）。R4 deterministic fake 的 sequence-2 已知 gap 按正式 sticky completeness 预期 `degraded`，清理顺序补齐 calibration/speaker 关联记录。main 将首页标题和 IndexedDB schema 升至 v5 后，R4 helper 的旧标题/v4硬编码先失败，最小改为正式首页标题和不指定版本的只读打开后完整通过；一次准备按钮偶发禁用未稳定复现，原样复跑通过，保留为环境波动记录。
 - 已知成功用量下界约 2019 seconds、估算约 CNY 0.561，远低于 CNY 15 预警/CNY 20 外部硬上限；腾讯控制台实际 SKU/日结费用仍为 `unknown_requires_console_confirmation`，不得用估算冒充账单事实。
 - Git 交付已进入审查：安全 merge main `2f29cc7e`，non-Draft [PR #45](https://github.com/Li-Ming-G/elder_interview_ai/pull/45) 已创建；实现候选 head `ac44b4a9` 的 CI run `31700867211` SUCCESS。写入本条治理事实后的 final metadata head/CI 以 PR 最新 head 为准，由项目负责人绑定该 exact head 手动审查。
-- 剩余交付：目标 Android Chrome 仍需物理设备单动作配合；实际账单/SKU需控制台证据；项目负责人 GitHub 手动审查。任务只到 `REVIEW`，不得自宣 PASS/DONE 或 merge；CON-027 持续禁止真实长者/PII。
+- 目标 Android 新证据：OnePlus GM1900 / Android 12 / Chrome 150，真实 384×710 viewport、正式无 query route、真实手机麦克风 MediaStream 接收同一受控虚构普通话音频。382 秒 session、PCM accepted through sequence 3835；373/373 archive chunks、pending delivery=0、manifest present、audio complete、transcript drained、session completed，finalization 约15秒。13 final segments、两个 known provider labels、unknown=0、两个 current `user_confirmed` mappings、单一 speaker stream；UI 全程未显示转录不可用。麦克风检测阶段无 MediaRecorder/PCM/provider connect，开始后只有一个访谈 MediaRecorder。纯录音旋转/后台/锁屏生命周期复用此前与本次改动无关的同机 DEV-005 证据，不机械重复。
+- Android 验收使用临时 Google 官方 Platform-Tools、ADB reverse 与浏览器 CDP；不改 PATH、不记录设备序列号。新增 helper 只输出安全计数/布尔状态，不输出 cookie、token、secret、URL query、音频或转录正文。本轮结束后 API/Web 与端口映射全部关闭。
+- 已知成功用量更新为约 2403 seconds、按 CNY1/hour 估算约 CNY0.668；仍远低于预算门槛。腾讯控制台实际 SKU/日结费用继续为 `unknown_requires_console_confirmation`，估算不冒充账单。
+- 剩余交付：实际账单/SKU需控制台证据；项目负责人 GitHub exact-head 手动审查。任务只到 `REVIEW`，不得自宣 PASS/DONE 或 merge；CON-027 持续禁止真实长者/PII。
