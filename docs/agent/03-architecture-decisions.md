@@ -374,3 +374,5 @@
 - 收尾与 A3：controller 持有 complete ACK→local job complete 的唯一写权。exact ACK 后才能落 complete；自动 reconcile/verify 使用稳定幂等 ID、单 in-flight 与状态水位。回顾可有界重新投影，但不放宽 fresh manifest + archive 全门禁。本机删除仍不影响服务器，DEV-008D/CON-023 不变。
 - 迁移与范围：无需 Prisma migration 或新状态枚举。不实现真实 ASR/LLM、题库、server deletion、导出、部署、PWA 或 App。
 - 取代关系：本 ADR 只取代 ADR-034 中普通新建必须 project→service term→consent→prepare/device-check/start 以及同屏校准/手动 happy-path 收尾的部分；ADR-034/035/036 的统一 shell、权限失败关闭、本机删除边界和严格 A3 门禁继续有效，历史正文永久保留。
+- 用户实测补充（2026-08-13）：`stopping/processing` 的自动恢复以 canonical session 为触发事实，不得依赖页面内存中的 `endHandoff`；存在 handoff 时重放 exact complete，缺失时直接以跨刷新稳定的 reconcile identity 追认服务端事实并 verify。unknown create 同样以持久原 request ID/payload 自动 replay，普通文案不暴露实现身份；客户端不得用固定超时主动制造 status=0 未知响应。
+- 同源回顾补充（2026-08-13）：A3 门禁仍以 fresh server manifest 与当前 `location.origin` 的 IndexedDB archive identity/count/bytes/checksum/dirty/pending 为唯一依据。页面可有界、可见重投影，但跨 origin/主机名/端口只给诊断，禁止合并存储或放宽删除门禁。

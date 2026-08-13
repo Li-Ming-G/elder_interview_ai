@@ -74,7 +74,7 @@ for (const viewport of [
   });
 }
 
-test('unknown project response survives reload and replays only the original request id', async ({
+test('unknown project response automatically survives reload and replays only the original identity', async ({
   page,
 }) => {
   let projectAttempts = 0;
@@ -88,7 +88,7 @@ test('unknown project response survives reload and replays only the original req
       const body = request.postDataJSON() as Record<string, unknown>;
       seenRequestIds.push(String(body.request_id));
       projectAttempts += 1;
-      if (projectAttempts === 1) return route.abort('connectionreset');
+      if (projectAttempts <= 2) return route.abort('connectionreset');
       return route.fulfill({ json: projectAck(body), status: 201 });
     }
     return route.fulfill({ json: { items: [] } });
@@ -96,13 +96,14 @@ test('unknown project response survives reload and replays only the original req
   await page.goto('/interviews/new');
   await page.getByLabel('姓名、昵称或项目代号').fill('虚构未知响应长者');
   await page.getByRole('button', { name: '创建项目并继续' }).click();
-  await expect(page.getByText(/上次响应未知/)).toBeVisible();
-  await page.reload();
-  await expect(page.getByText(/已恢复这台浏览器上未完成/)).toBeVisible();
-  await page.getByRole('button', { name: '使用原请求重试' }).click();
-  await expect(page.getByRole('heading', { name: '建立本次访谈会话' })).toBeVisible();
+  await expect(page.getByText(/暂时无法确认创建结果/)).toBeVisible();
   expect(seenRequestIds).toHaveLength(2);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '建立本次访谈会话' })).toBeVisible();
+  expect(seenRequestIds).toHaveLength(3);
   expect(seenRequestIds[1]).toBe(seenRequestIds[0]);
+  expect(seenRequestIds[2]).toBe(seenRequestIds[0]);
+  await expect(page.getByText(/request ID|payload|表单已锁定/)).toHaveCount(0);
 });
 
 test('SPA return stops consent recording and re-entry resumes the same audio job', async ({

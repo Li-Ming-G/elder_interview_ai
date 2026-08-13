@@ -192,7 +192,6 @@ export function createInterviewApi(
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
       method: 'POST',
-      signal: AbortSignal.timeout(15_000),
     });
   }
 

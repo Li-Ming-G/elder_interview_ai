@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 const AUDIO_OBJECT_ID = '66666666-6666-4666-8666-666666666666';
+const CONSENT_AUDIO_OBJECT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const VIEWPORTS = [
   { height: 900, width: 1440 },
   { height: 768, width: 1024 },
@@ -10,6 +11,90 @@ const VIEWPORTS = [
   { height: 844, width: 390 },
   { height: 568, width: 320 },
 ] as const;
+
+for (const viewport of [
+  { height: 900, label: 'desktop', width: 1440 },
+  { height: 844, label: 'mobile', width: 390 },
+  { height: 568, label: 'compact', width: 320 },
+] as const) {
+  test(`same-origin first interview enables complete review and local-only delete at ${String(viewport.width)}x${String(viewport.height)}`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await installWorkbenchHarness(page, false, true);
+
+    await page.goto('/interviews/new');
+    await page.getByLabel('姓名、昵称或项目代号').fill('虚构长者小禾');
+    await page.getByRole('button', { name: '创建项目并继续' }).click();
+    await page.getByRole('button', { name: '建立会话并检查麦克风' }).click();
+    await page.getByRole('button', { name: '检查当前页麦克风' }).click();
+    await expect(page.getByText(/当前页麦克风检查通过/)).toBeVisible();
+    await page.getByRole('button', { name: '录制授权' }).click();
+    await expect(page.getByText(/正在录制/).last()).toBeVisible();
+    await page.getByRole('button', { name: '停止并保存授权录音' }).click();
+    await page.getByRole('button', { name: '确认并登记正式授权' }).click();
+
+    await expect(page.locator('.calibration-gate')).toBeVisible();
+    await emitCalibration(page, calibrationSnapshot('confirmed', 1));
+    await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
+    await page.getByRole('button', { name: '结束访谈' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('button', { name: '确认结束' }).click();
+    await expect(page.locator('.completion-page')).toBeVisible();
+    await expect(page.getByRole('button', { name: '查看回顾' })).toBeVisible();
+    await page.getByRole('button', { name: '查看回顾' }).click();
+
+    await expect(page.getByText('完整可播放')).toBeVisible();
+    const play = page.getByRole('button', { name: '载入完整录音' });
+    const remove = page.getByRole('button', { name: '只删除此浏览器副本' });
+    await expect(play).toBeEnabled();
+    await expect(remove).toBeEnabled();
+    await expect(page.getByText(/本机副本只属于当前网址/)).toContainText('http://127.0.0.1');
+    await play.click();
+    await expect(page.locator('audio.review-player')).toBeVisible();
+
+    await remove.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole('button', { name: '取消' })).toBeFocused();
+    await page.getByRole('button', { name: '取消' }).click();
+    await expect(remove).toBeEnabled();
+    await remove.click();
+    await page.keyboard.press('Escape');
+    await expect(remove).toBeFocused();
+    await remove.click();
+    await page.getByRole('button', { name: '确认删除本机副本' }).click();
+    await expect(page.getByText(/此浏览器中的录音副本已删除/)).toBeVisible();
+    await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
+    await expect(page.getByText(/服务器录音、转录、记忆和审计仍保留/).first()).toBeVisible();
+
+    const dimensions = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')].filter(
+        (button) => button.getClientRects().length > 0,
+      );
+      return {
+        horizontalOverflow: document.documentElement.scrollWidth - innerWidth,
+        minimumButtonHeight: Math.min(
+          ...buttons.map((button) => button.getBoundingClientRect().height),
+        ),
+      };
+    });
+    expect(dimensions.horizontalOverflow).toBeLessThanOrEqual(0);
+    expect(dimensions.minimumButtonHeight).toBeGreaterThanOrEqual(44);
+    expect(
+      await page
+        .getByRole('button', { name: '返回工作区' })
+        .evaluate((button) => getComputedStyle(button).transitionDuration),
+    ).toBe('1e-05s');
+    await page.screenshot({
+      animations: 'disabled',
+      fullPage: true,
+      path: `test-results/dev-008a4/same-origin-complete-${viewport.label}-${String(viewport.width)}x${String(viewport.height)}.png`,
+    });
+  });
+}
 
 test('real controller facts drive the complete workbench state and responsive screenshot matrix', async ({
   page,
@@ -278,6 +363,7 @@ type HarnessState =
 async function installWorkbenchHarness(
   page: Page,
   initiallyStarted = false,
+  autoCompleteOnReconcile = false,
 ): Promise<{
   completeRequests: number;
   conflictNextCorrection: () => void;
@@ -293,6 +379,7 @@ async function installWorkbenchHarness(
     'active';
   let audioStreamId = '99999999-9999-4999-8999-999999999999';
   let nextCorrectionConflicts = false;
+  const uploadedChunks = new Map<string, Array<Record<string, unknown>>>();
   const counts = {
     completeRequests: 0,
     correctionRequests: 0,
@@ -546,15 +633,99 @@ async function installWorkbenchHarness(
     const method = request.method();
     if (path === '/api/v1/auth/me') return route.fulfill({ json: user() });
     if (path === '/api/v1/auth/csrf') return route.fulfill({ json: { csrf_token: 'test-token' } });
+    if (path === '/api/v1/projects' && method === 'POST') {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        json: {
+          ...project(),
+          approximate_age: body.approximate_age,
+          birth_year: body.birth_year,
+          current_city: body.current_city,
+          display_name: body.display_name,
+          native_place: body.native_place,
+          status: 'draft',
+        },
+        status: 201,
+      });
+    }
+    if (path === '/api/v1/projects' && method === 'GET') {
+      return route.fulfill({ json: { items: [] } });
+    }
     if (path === `/api/v1/projects/${PROJECT_ID}`) return route.fulfill({ json: project() });
     if (path === `/api/v1/projects/${PROJECT_ID}/service-terms`) {
       return route.fulfill({ json: serviceTerms() });
     }
+    if (path === `/api/v1/projects/${PROJECT_ID}/consents` && method === 'POST') {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        json: {
+          ...body,
+          created_at: '2026-08-08T08:00:00.000Z',
+          created_by: '33333333-3333-4333-8333-333333333333',
+          id: '55555555-5555-4555-8555-555555555555',
+          project_id: PROJECT_ID,
+          revoked_at: null,
+          status: 'valid',
+        },
+        status: 201,
+      });
+    }
     if (path === `/api/v1/projects/${PROJECT_ID}/consents`)
       return route.fulfill({ json: consents() });
+    if (path === `/api/v1/projects/${PROJECT_ID}/audio-objects` && method === 'POST') {
+      const body = request.postDataJSON() as Record<string, unknown>;
+      return route.fulfill({
+        json: {
+          chunk_count: 0,
+          completed_at: null,
+          created_at: '2026-08-08T08:00:00.000Z',
+          created_by: '33333333-3333-4333-8333-333333333333',
+          id: CONSENT_AUDIO_OBJECT_ID,
+          manifest_checksum: null,
+          mime_type: body.mime_type,
+          project_id: PROJECT_ID,
+          purpose: 'consent',
+          session_id: null,
+          status: 'initiated',
+          total_size_bytes: 0,
+        },
+        status: 201,
+      });
+    }
     if (path === `/api/v1/projects/${PROJECT_ID}/sessions` && method === 'POST') {
       counts.createdSessions += 1;
       return route.fulfill({ json: sessionPayload('created', null, audioStreamId) });
+    }
+    if (path === `/api/v1/projects/${PROJECT_ID}/sessions` && method === 'GET') {
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              capture: { status: captureStatus },
+              capture_failure_code: null,
+              created_at: '2026-08-08T08:00:00.000Z',
+              duration_seconds: state === 'completed' ? 1 : null,
+              ended_at: state === 'completed' ? '2026-08-08T08:30:00.000Z' : null,
+              finalization: {
+                failure_code: null,
+                manifest_checksum: state === 'completed' ? 'manifest' : null,
+                recording_status: captureStatus,
+                transcript_status: state === 'completed' ? 'drained' : 'pending',
+                upload_status: state === 'completed' ? 'complete' : 'pending',
+              },
+              home_state: state === 'completed' ? 'review_ready' : 'in_progress',
+              id: SESSION_ID,
+              primary_action: state === 'completed' ? 'view_review' : 'resume_interview',
+              project_id: PROJECT_ID,
+              review_access: state === 'completed' ? 'read_only' : 'none',
+              sequence_no: 1,
+              started_at: '2026-08-08T08:00:00.000Z',
+              status: state,
+            },
+          ],
+          next_cursor: null,
+        },
+      });
     }
     if (path === `/api/v1/sessions/${SESSION_ID}/device-check`) {
       return route.fulfill({ json: sessionPayload('device_check', null, audioStreamId) });
@@ -629,6 +800,8 @@ async function installWorkbenchHarness(
       } else if (action === 'finalize_interrupted') {
         counts.finalizeRequests += 1;
         setState('stopping');
+      } else if (action === 'reconcile' && autoCompleteOnReconcile) {
+        setState('completed');
       }
       return route.fulfill({ json: currentSession(state, captureStatus, audioStreamId) });
     }
@@ -638,21 +811,42 @@ async function installWorkbenchHarness(
     }
     if (path === `/api/v1/audio-objects/${AUDIO_OBJECT_ID}/complete`) {
       counts.completeRequests += 1;
-      return route.fulfill({ json: manifest() });
+      return route.fulfill({ json: manifest(AUDIO_OBJECT_ID, 'interview', uploadedChunks) });
+    }
+    if (path === `/api/v1/audio-objects/${CONSENT_AUDIO_OBJECT_ID}/complete`) {
+      return route.fulfill({
+        json: manifest(CONSENT_AUDIO_OBJECT_ID, 'consent', uploadedChunks),
+      });
+    }
+    if (path === `/api/v1/audio-objects/${AUDIO_OBJECT_ID}/manifest` && method === 'GET') {
+      return route.fulfill({ json: manifest(AUDIO_OBJECT_ID, 'interview', uploadedChunks) });
     }
     if (method === 'PUT' && path.includes('/audio-objects/')) {
       const headers = request.headers();
       const sequenceNo = Number(path.split('/').at(-1));
+      const audioObjectId = path.split('/')[4] ?? '';
+      const chunk = {
+        checksum: headers['x-chunk-sha256'],
+        end_ms: Number(headers['x-chunk-end-ms']),
+        mime_type: headers['content-type'],
+        sequence_no: sequenceNo,
+        size_bytes: request.postDataBuffer()?.byteLength ?? 0,
+        start_ms: Number(headers['x-chunk-start-ms']),
+        uploaded_at: '2026-08-08T08:00:00.000Z',
+      };
+      const chunks = uploadedChunks.get(audioObjectId) ?? [];
+      chunks[sequenceNo] = chunk;
+      uploadedChunks.set(audioObjectId, chunks);
       return route.fulfill({
         json: {
-          audio_object_id: AUDIO_OBJECT_ID,
-          checksum: headers['x-chunk-sha256'],
-          end_ms: Number(headers['x-chunk-end-ms']),
+          audio_object_id: audioObjectId,
+          checksum: chunk.checksum,
+          end_ms: chunk.end_ms,
           id: '88888888-8888-4888-8888-888888888888',
-          mime_type: headers['content-type'],
+          mime_type: chunk.mime_type,
           sequence_no: sequenceNo,
-          size_bytes: request.postDataBuffer()?.byteLength ?? 0,
-          start_ms: Number(headers['x-chunk-start-ms']),
+          size_bytes: chunk.size_bytes,
+          start_ms: chunk.start_ms,
           upload_status: 'uploaded',
           uploaded_at: '2026-08-08T08:00:00.000Z',
         },
@@ -789,6 +983,7 @@ function currentSession(state: HarnessState, captureStatus: string, streamId: st
         transcript_error_code: null,
         transcript_status:
           state === 'completed' ? 'drained' : state === 'processing' ? 'draining' : 'pending',
+        total_size_bytes: 4,
         upload_status: state === 'stopping' ? 'verifying' : 'complete',
         uploaded_chunk_count: 1,
       }
@@ -842,7 +1037,7 @@ function user(): unknown {
   };
 }
 
-function project(): unknown {
+function project(): Record<string, unknown> {
   return {
     approximate_age: null,
     birth_year: null,
@@ -895,20 +1090,29 @@ function consents(): unknown {
   ];
 }
 
-function manifest(): unknown {
+function manifest(
+  audioObjectId: string = AUDIO_OBJECT_ID,
+  purpose: 'consent' | 'interview' = 'interview',
+  uploaded: ReadonlyMap<string, Array<Record<string, unknown>>> = new Map(),
+): unknown {
+  const chunks = uploaded.get(audioObjectId) ?? [];
+  const totalSize = chunks.reduce(
+    (total, chunk) => total + (typeof chunk.size_bytes === 'number' ? chunk.size_bytes : 0),
+    0,
+  );
   return {
-    chunk_count: 1,
-    chunks: [],
+    chunk_count: chunks.length,
+    chunks,
     completed_at: '2026-08-08T08:30:00.000Z',
     created_at: '2026-08-08T08:00:00.000Z',
     created_by: '33333333-3333-4333-8333-333333333333',
-    id: AUDIO_OBJECT_ID,
+    id: audioObjectId,
     manifest_checksum: 'manifest',
     mime_type: 'audio/webm;codecs=opus',
     project_id: PROJECT_ID,
-    purpose: 'interview',
-    session_id: SESSION_ID,
+    purpose,
+    session_id: purpose === 'interview' ? SESSION_ID : null,
     status: 'complete',
-    total_size_bytes: 4,
+    total_size_bytes: totalSize,
   };
 }

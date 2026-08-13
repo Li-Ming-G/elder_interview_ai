@@ -192,6 +192,8 @@ describe('SessionReviewRoute', () => {
     );
 
     expect(await screen.findByText('仍有采集恢复事实')).toBeTruthy();
+    expect(screen.getByText(/页面会继续自动核对/)).toBeTruthy();
+    expect(screen.getByText(/本机副本只属于当前网址/)).toBeTruthy();
     expect(screen.queryByText('我是访谈员')).toBeNull();
     fireEvent(globalThis.window, new Event('online'));
     await waitFor(() => {

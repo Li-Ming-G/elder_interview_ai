@@ -392,25 +392,41 @@ export function WorkbenchShell({
     if (actionLock.current) return;
     actionLock.current = true;
     setActionError(null);
+    setFinalizingLocal(true);
     try {
-      await reconcileInternal();
-      await captureController.verifyServerSession();
+      const status = captureController.snapshot.serverSession?.status;
+      if (
+        (status === 'stopping' || status === 'processing') &&
+        captureController.snapshot.endHandoff !== null
+      ) {
+        const handoff = await captureController.stopAndFreeze();
+        await finishFrozenAudio(handoff);
+      } else {
+        await reconcileInternal();
+        await captureController.verifyServerSession();
+      }
     } catch (error) {
-      setActionError(readableActionError(error, '管理服务暂时无法继续收束，请稍后重新核对'));
+      setActionError(readableActionError(error, '保存状态尚未核对完成，请稍后重新核对'));
     } finally {
+      setFinalizingLocal(false);
       actionLock.current = false;
     }
   }
 
   async function reconcileInternal(): Promise<void> {
-    reconcileRequestId.current ??= globalThis.crypto.randomUUID();
+    reconcileRequestId.current ??=
+      readReconcileRequestId(sessionId) ?? globalThis.crypto.randomUUID();
+    persistReconcileRequestId(sessionId, reconcileRequestId.current);
     const request: RecoverSessionRequest = {
       action: 'reconcile',
       request_id: reconcileRequestId.current,
     };
     const session = await api.recoverSession(sessionId, request);
     captureController.observeServerSession(session);
-    if (reconcileRequestId.current === request.request_id) reconcileRequestId.current = null;
+    if (reconcileRequestId.current === request.request_id) {
+      reconcileRequestId.current = null;
+      clearReconcileRequestId(sessionId, request.request_id);
+    }
   }
 
   useEffect(() => {
@@ -424,20 +440,19 @@ export function WorkbenchShell({
     }
     const status = snapshot.serverSession?.status;
     const handoff = snapshot.endHandoff;
-    if ((status !== 'stopping' && status !== 'processing') || handoff === null) return;
+    if (status !== 'stopping' && status !== 'processing') return;
     const watermark = [
       status,
-      handoff.audioObjectId,
-      handoff.completeRequestId,
-      handoff.expectedChunkCount,
+      handoff?.audioObjectId ?? 'no-local-handoff',
+      handoff?.completeRequestId ?? 'no-complete-request',
+      handoff?.expectedChunkCount ?? 'unknown-chunk-count',
       snapshot.archive.pendingDeliveryCount,
       snapshot.serverSession?.updated_at ?? 'unknown',
     ].join(':');
     if (autoCloseoutWatermark.current === watermark) return;
     autoCloseoutWatermark.current = watermark;
     const timer = globalThis.setTimeout(() => {
-      if (status === 'processing') void reconcile();
-      else void continueFrozenEnd();
+      void reconcile();
     }, 0);
     return (): void => {
       globalThis.clearTimeout(timer);
@@ -1286,17 +1301,13 @@ function SessionStatePanel({
             重试完成安全保存
           </button>
         ) : null}
-        {state === 'stopping' && snapshot.endHandoff !== null && hasActionError ? (
-          <button className="button button--primary" onClick={onContinueFrozen} type="button">
-            重试完成安全保存
+        {(state === 'stopping' || state === 'processing') && hasActionError ? (
+          <button className="button button--primary" onClick={onReconcile} type="button">
+            重新核对保存状态
           </button>
         ) : null}
-        {state === 'processing' && hasActionError ? (
-          <button className="button button--secondary" onClick={onReconcile} type="button">
-            重试处理收尾
-          </button>
-        ) : null}
-        {hasActionError || ['interrupted', 'failed', 'blocked'].includes(state) ? (
+        {(hasActionError && !['ending_frozen', 'stopping', 'processing'].includes(state)) ||
+        ['interrupted', 'failed', 'blocked'].includes(state) ? (
           <button className="button button--secondary" onClick={onRecheck} type="button">
             重新核对当前状态
           </button>
@@ -1898,6 +1909,37 @@ function isCalibrationProviderUnavailable(
   failureKind: RealtimeState['failureKind'],
 ): boolean {
   return failureKind === 'asr' || (connection === 'unavailable' && failureKind === null);
+}
+
+function reconcileStorageKey(sessionId: string): string {
+  return `elder-interview:closeout-reconcile:${sessionId}`;
+}
+
+function readReconcileRequestId(sessionId: string): string | null {
+  try {
+    const value = globalThis.sessionStorage.getItem(reconcileStorageKey(sessionId));
+    return value !== null && /^[0-9a-f-]{36}$/u.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistReconcileRequestId(sessionId: string, requestId: string): void {
+  try {
+    globalThis.sessionStorage.setItem(reconcileStorageKey(sessionId), requestId);
+  } catch {
+    // The mounted ref still keeps the request stable when sessionStorage is unavailable.
+  }
+}
+
+function clearReconcileRequestId(sessionId: string, requestId: string): void {
+  try {
+    const key = reconcileStorageKey(sessionId);
+    if (globalThis.sessionStorage.getItem(key) === requestId)
+      globalThis.sessionStorage.removeItem(key);
+  } catch {
+    // A successful canonical ACK is sufficient even if local cleanup is unavailable.
+  }
 }
 
 function uploadText(

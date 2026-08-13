@@ -32,7 +32,10 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 const AUDIO_OBJECT_ID = '33333333-3333-4333-8333-333333333333';
 const VERIFIED_AT = '2026-08-08T08:00:00.000Z';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  globalThis.sessionStorage.clear();
+});
 
 describe('WorkbenchShell', () => {
   it('recovers read-only facts without requesting a microphone or resuming on mount', async () => {
@@ -332,6 +335,9 @@ describe('WorkbenchShell', () => {
     expect(await screen.findByText(/没有找到已冻结的结束交接/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续安全保存' })).toBeNull();
     expect(screen.queryByRole('button', { name: /继续处理收尾|继续安全保存/ })).toBeNull();
+    await waitFor(() => {
+      expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('automatically closes out and preserves the reconcile id for an explicit failure retry', async () => {
@@ -351,18 +357,32 @@ describe('WorkbenchShell', () => {
       endHandoff: END_HANDOFF,
       phase: 'stopped',
     });
-    retryHarness.api.recoverSession
-      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', '暂时无法连接服务', 0))
-      .mockResolvedValueOnce(endingSession('stopping'));
+    retryHarness.api.recoverSession.mockRejectedValueOnce(
+      new InterviewApiError('NETWORK_UNAVAILABLE', '暂时无法连接服务', 0),
+    );
     cleanup();
     renderWorkbench(retryHarness);
     await screen.findByText(/暂时无法连接服务/);
     const firstId = retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id;
-    fireEvent.click(screen.getByRole('button', { name: '重试完成安全保存' }));
-    await waitFor(() => {
-      expect(retryHarness.api.recoverSession).toHaveBeenCalledTimes(2);
+
+    const reloadedHarness = createHarness(endingSession('stopping'), {
+      endHandoff: END_HANDOFF,
+      phase: 'stopped',
     });
-    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(firstId);
+    reloadedHarness.api.recoverSession
+      .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', '暂时无法连接服务', 0))
+      .mockResolvedValueOnce(endingSession('stopping'));
+    cleanup();
+    renderWorkbench(reloadedHarness);
+    await screen.findByText(/暂时无法连接服务/);
+    expect(reloadedHarness.api.recoverSession.mock.calls[0]?.[1].request_id).toBe(firstId);
+    const retry = screen.getByRole('button', { name: '重新核对保存状态' });
+    expect(screen.queryByRole('button', { name: '重新核对当前状态' })).toBeNull();
+    fireEvent.click(retry);
+    await waitFor(() => {
+      expect(reloadedHarness.api.recoverSession).toHaveBeenCalledTimes(2);
+    });
+    expect(reloadedHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(firstId);
   });
 
   it.each([

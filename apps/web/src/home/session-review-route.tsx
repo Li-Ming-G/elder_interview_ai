@@ -15,6 +15,11 @@ import { InterviewApiError } from '../interview/interview-api.js';
 import { ErrorState, HomeFrame, LoadingState, StatusBadge } from './home-shell.js';
 
 type SessionReviewApi = HomeApi & ReviewApi;
+type ReprojectionState =
+  { kind: 'idle' } | { attempt: number; kind: 'checking' | 'waiting' } | { kind: 'exhausted' };
+
+const MAX_AUTOMATIC_REPROJECTIONS = 12;
+const REPROJECTION_INTERVAL_MS = 1_250;
 
 export function SessionReviewRoute({
   api,
@@ -43,6 +48,8 @@ export function SessionReviewRoute({
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reprojection, setReprojection] = useState<ReprojectionState>({ kind: 'idle' });
+  const [reprojectionGeneration, setReprojectionGeneration] = useState(0);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const confirmDeleteRef = useRef<HTMLButtonElement | null>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement | null>(null);
@@ -65,6 +72,7 @@ export function SessionReviewRoute({
     let retryTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
     let retryCount = 0;
     async function load(): Promise<void> {
+      if (retryCount > 0) setReprojection({ attempt: retryCount, kind: 'checking' });
       try {
         const authorized = await findAuthorizedReview(api, projectId, sessionId);
         if (authorized === null) throw new InterviewApiError('FORBIDDEN', '不可访问', 403);
@@ -83,12 +91,19 @@ export function SessionReviewRoute({
           transcriptItems.filter((segment) => segment.content_kind !== 'speaker_calibration'),
         );
         setProjection(localProjection);
-        if (shouldReproject(localProjection.state) && retryCount < 4) {
+        setError(null);
+        if (shouldReproject(localProjection.state) && retryCount < MAX_AUTOMATIC_REPROJECTIONS) {
           retryCount += 1;
-          retryTimer = globalThis.setTimeout(() => void load(), 1_250);
+          setReprojection({ attempt: retryCount, kind: 'waiting' });
+          retryTimer = globalThis.setTimeout(() => void load(), REPROJECTION_INTERVAL_MS);
+        } else if (shouldReproject(localProjection.state)) {
+          setReprojection({ kind: 'exhausted' });
+        } else {
+          setReprojection({ kind: 'idle' });
         }
       } catch (loadError) {
         if (!current) return;
+        setReprojection({ kind: 'exhausted' });
         setError(reviewErrorMessage(loadError));
       }
     }
@@ -96,6 +111,7 @@ export function SessionReviewRoute({
       if (!current) return;
       if (retryTimer !== null) globalThis.clearTimeout(retryTimer);
       retryCount = 0;
+      setReprojection({ attempt: 0, kind: 'checking' });
       void load();
     };
     const onVisible = (): void => {
@@ -112,7 +128,7 @@ export function SessionReviewRoute({
       playbackRef.current?.revoke();
       playbackRef.current = null;
     };
-  }, [api, archive, projectId, sessionId]);
+  }, [api, archive, projectId, reprojectionGeneration, sessionId]);
 
   async function startPlayback(): Promise<void> {
     setBusy(true);
@@ -222,6 +238,9 @@ export function SessionReviewRoute({
             <p className="privacy-boundary">
               此处只管理当前浏览器/此设备上的录音副本。服务器录音、转录、记忆和审计仍保留。
             </p>
+            <p className="review-origin">
+              本机副本只属于当前网址：<code>{globalThis.location.origin}</code>
+            </p>
             <dl className="review-facts">
               <div>
                 <dt>本次访谈副本</dt>
@@ -268,8 +287,32 @@ export function SessionReviewRoute({
               </p>
             ) : null}
             {projection.state !== 'available_complete' ? (
-              <p className="review-note">{projectionHelp(projection.state)}</p>
+              <p className="review-note">
+                {projectionHelp(projection.state, globalThis.location.origin)}
+              </p>
             ) : null}
+            <div className="review-reprojection" aria-live="polite">
+              {reprojection.kind === 'checking' ? (
+                <p>正在重新核对本机副本与最新服务器清单…</p>
+              ) : null}
+              {reprojection.kind === 'waiting' ? (
+                <p>保存仍在收尾，页面会继续自动核对（第 {String(reprojection.attempt)} 次）。</p>
+              ) : null}
+              {reprojection.kind === 'exhausted' ? (
+                <div>
+                  <p>自动核对已暂时停止。当前安全门禁仍保持不变。</p>
+                  <button
+                    className="button button--secondary"
+                    onClick={() => {
+                      setReprojectionGeneration((value) => value + 1);
+                    }}
+                    type="button"
+                  >
+                    重新核对本机副本
+                  </button>
+                </div>
+              ) : null}
+            </div>
             {playback === null ? null : (
               <audio className="review-player" controls preload="metadata" src={playback.url}>
                 当前浏览器不支持音频播放控件。
@@ -409,7 +452,7 @@ function projectionLabel(state: LocalAudioArchiveProjection['state']): string {
   }[state];
 }
 
-function projectionHelp(state: LocalAudioArchiveProjection['state']): string {
+function projectionHelp(state: LocalAudioArchiveProjection['state'], origin: string): string {
   return {
     available_complete: '',
     available_incomplete: '本机分片缺失或不可读，不会播放部分录音。服务器转录仍可查看。',
@@ -417,7 +460,7 @@ function projectionHelp(state: LocalAudioArchiveProjection['state']): string {
     blocked_pending_delivery: '仍有录音分片等待保存，当前不会播放或删除。',
     blocked_server_unverified: '暂时无法用最新服务器事实核验本机副本，当前不会播放或删除。',
     deleted_on_device: '本机删除回执已提交；服务器录音、转录、记忆和审计仍保留。',
-    missing_unknown: '副本可能从未保存、已被浏览器清理或由用户清站；无法判断具体原因。',
+    missing_unknown: `当前网址 ${origin} 未找到副本。副本可能从未保存、已被浏览器清理，或录音时使用了不同主机名/端口；请返回录音时的原网址核对。无法据此判断服务器录音缺失。`,
   }[state];
 }
 

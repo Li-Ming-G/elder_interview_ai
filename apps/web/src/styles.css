@@ -391,6 +391,18 @@ p {
   background: var(--accent-soft);
 }
 
+.review-origin {
+  margin: -0.35rem 0 1rem;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.review-origin code {
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+}
+
 .review-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -438,9 +450,18 @@ p {
 }
 
 .review-note,
-.review-live {
+.review-live,
+.review-reprojection {
   margin: 1rem 0 0;
   font-size: 0.88rem;
+}
+
+.review-reprojection:empty {
+  display: none;
+}
+
+.review-reprojection p {
+  margin-bottom: 0.65rem;
 }
 
 .review-live {

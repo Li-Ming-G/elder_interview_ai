@@ -50,7 +50,7 @@ describe('NewInterviewPage', () => {
     expect(api.createServiceTerm).not.toHaveBeenCalled();
   });
 
-  it('marks a network response unknown and replays the frozen request identity', async () => {
+  it('automatically replays an unknown create with the frozen request identity', async () => {
     const api = fakeApi();
     api.createProject
       .mockRejectedValueOnce(new InterviewApiError('NETWORK_UNAVAILABLE', '网络不可用', 0))
@@ -61,11 +61,11 @@ describe('NewInterviewPage', () => {
       target: { value: '虚构恢复长者' },
     });
     fireEvent.click(screen.getByRole('button', { name: '创建项目并继续' }));
-    await screen.findByText(/上次响应未知/);
-    const firstRequest = api.createProject.mock.calls[0]?.[0];
-    fireEvent.click(screen.getByRole('button', { name: '使用原请求重试' }));
     await screen.findByRole('heading', { name: '建立本次访谈会话' });
+    const firstRequest = api.createProject.mock.calls[0]?.[0];
+    expect(api.createProject).toHaveBeenCalledTimes(2);
     expect(api.createProject.mock.calls[1]?.[0]).toEqual(firstRequest);
+    expect(screen.queryByText(/request ID|payload|表单已锁定/)).toBeNull();
   });
 
   it('waits for active consent capture disposal before SPA navigation', async () => {

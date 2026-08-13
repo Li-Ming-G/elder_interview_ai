@@ -82,7 +82,9 @@ export function NewInterviewPage({
   const [message, setMessage] = useState<string | null>(null);
   const [captureSnapshot, setCaptureSnapshot] = useState(EMPTY_CAPTURE);
   const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
+  const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
+  const unknownReplayKey = useRef<string | null>(null);
   const capture = useRef<ConsentCapture | null>(null);
   const captureUnsubscribe = useRef<(() => void) | null>(null);
   const mounted = useRef(true);
@@ -119,6 +121,38 @@ export function NewInterviewPage({
     };
   }, []);
 
+  useEffect(() => {
+    const retryUnknown = (): void => {
+      unknownReplayKey.current = null;
+      setUnknownReplayGeneration((value) => value + 1);
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') retryUnknown();
+    };
+    globalThis.addEventListener('online', retryUnknown);
+    document.addEventListener('visibilitychange', onVisible);
+    return (): void => {
+      globalThis.removeEventListener('online', retryUnknown);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (page.kind !== 'ready') return;
+    const attempt = unknownAttempt(page.workflow);
+    if (attempt === null) return;
+    const key = `${page.workflow.workflowId}:${attempt.requestId}`;
+    if (unknownReplayKey.current === key) return;
+    unknownReplayKey.current = key;
+    showMessage('正在恢复上次创建操作，不会重复创建项目。');
+    const timer = globalThis.setTimeout(() => {
+      void replayUnknown(page.workflow);
+    }, 0);
+    return (): void => {
+      globalThis.clearTimeout(timer);
+    };
+  }, [page, unknownReplayGeneration]);
+
   async function save(workflow: NewInterviewWorkflow): Promise<void> {
     await store.put(workflow);
     if (mounted.current) setPage({ kind: 'ready', workflow });
@@ -138,13 +172,85 @@ export function NewInterviewPage({
     } catch (error) {
       if (isUnknownResponse(error)) {
         await save(markUnknown(workflow, attempt.requestId));
-        showMessage('服务响应未知。为避免重复记录，只能使用原请求编号重试。');
+        showMessage('暂时无法确认创建结果。网络恢复后会自动继续，也可以重新恢复创建操作。');
       } else {
         showMessage(readableError(error));
       }
       return null;
     } finally {
       endAction();
+    }
+  }
+
+  async function replayUnknown(workflow: NewInterviewWorkflow): Promise<void> {
+    const projectAttempt = workflow.projectAttempt;
+    if (workflow.step === 'project' && projectAttempt?.state === 'unknown_response') {
+      await runCreate(
+        projectAttempt,
+        workflow,
+        () => api.createProject(projectAttempt.payload),
+        (response) => {
+          assertProjectAck(projectAttempt.payload, response);
+          return {
+            ...workflow,
+            projectAttempt: acknowledged(projectAttempt, response),
+            step: 'session',
+          };
+        },
+      );
+      return;
+    }
+
+    const projectId = workflow.projectAttempt?.response?.id;
+    const sessionAttempt = workflow.sessionAttempt;
+    if (
+      workflow.step === 'session' &&
+      projectId !== undefined &&
+      sessionAttempt?.state === 'unknown_response'
+    ) {
+      const response = await runCreate(
+        sessionAttempt,
+        workflow,
+        () => api.createSession(projectId, sessionAttempt.payload),
+        (ack) => {
+          assertSessionAck(projectId, ack);
+          return {
+            ...workflow,
+            sessionAttempt: acknowledged(sessionAttempt, ack),
+            step: workflow.consentAudioObjectId === null ? 'consent_audio' : 'consent',
+          };
+        },
+      );
+      if (response !== null) setDeviceState({ kind: 'idle' });
+      return;
+    }
+
+    const consentAttempt = workflow.consentAttempt;
+    if (
+      workflow.step === 'consent' &&
+      projectId !== undefined &&
+      consentAttempt?.state === 'unknown_response'
+    ) {
+      const response = await runCreate(
+        consentAttempt,
+        workflow,
+        () => api.createConsent(projectId, consentAttempt.payload),
+        (ack) => {
+          assertConsentAck(projectId, consentAttempt.payload, ack);
+          return {
+            ...workflow,
+            consentAttempt: acknowledged(consentAttempt, ack),
+            step: 'start',
+          };
+        },
+      );
+      if (response !== null) {
+        await startFormalCapture({
+          ...workflow,
+          consentAttempt: acknowledged(consentAttempt, response),
+          step: 'start',
+        });
+      }
     }
   }
 
@@ -507,7 +613,7 @@ export function NewInterviewPage({
 
       {resumed ? (
         <p className="workflow-resume" role="status">
-          已恢复这台浏览器上未完成的新建记录。响应未知的步骤只会重放原请求编号。
+          已恢复这台浏览器上未完成的新建记录。正在恢复上次创建操作，不会重复创建项目。
         </p>
       ) : null}
 
@@ -620,7 +726,7 @@ function ProjectForm({
       </div>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} type="submit">
-        {busy ? '正在确认…' : frozen ? '使用原请求重试' : '创建项目并继续'}
+        {busy ? '正在确认…' : frozen ? '重新恢复创建操作' : '创建项目并继续'}
       </button>
     </form>
   );
@@ -725,7 +831,7 @@ function ConsentConfirmationStep({
       <p>确认录音中已完整朗读固定文本，并且长者明确表达了同意。</p>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} onClick={onConfirm} type="button">
-        {busy ? '正在登记…' : attempt === null ? '确认并登记正式授权' : '使用原请求重试'}
+        {busy ? '正在登记…' : attempt === null ? '确认并登记正式授权' : '重新恢复登记操作'}
       </button>
     </div>
   );
@@ -747,7 +853,7 @@ function SessionStep({
       <p>先建立会话，才能把接下来的当前页麦克风检查和授权绑定到同一次访谈。</p>
       <AttemptNotice attempt={attempt} />
       <button className="button button--primary" disabled={busy} onClick={onCreate} type="button">
-        {busy ? '正在建立…' : attempt === null ? '建立会话并检查麦克风' : '使用原请求重试'}
+        {busy ? '正在建立…' : attempt === null ? '建立会话并检查麦克风' : '重新恢复建立会话'}
       </button>
     </div>
   );
@@ -775,8 +881,8 @@ function AttemptNotice({
   return (
     <p className={attempt.state === 'unknown_response' ? 'inline-error' : 'workflow-frozen'}>
       {attempt.state === 'unknown_response'
-        ? '上次响应未知：表单已锁定，重试只会发送原 request ID 与原 payload。'
-        : '请求已在首次联网前保存；提交期间不会生成第二个 request ID。'}
+        ? '正在恢复上次创建操作，不会重复创建项目。若网络仍不可用，可稍后重新恢复。'
+        : '创建操作已可靠保存，正在确认服务端结果。'}
     </p>
   );
 }
@@ -807,6 +913,16 @@ function markUnknown(workflow: NewInterviewWorkflow, requestId: string): NewInte
       return { ...workflow, [key]: { ...attempt, state: 'unknown_response' } };
   }
   return workflow;
+}
+
+function unknownAttempt(
+  workflow: NewInterviewWorkflow,
+): StableCreateAttempt<unknown, unknown> | null {
+  return (
+    [workflow.projectAttempt, workflow.sessionAttempt, workflow.consentAttempt].find(
+      (attempt) => attempt?.state === 'unknown_response',
+    ) ?? null
+  );
 }
 
 function assertProjectAck(request: CreateProjectRequest, response: ProjectResponse): void {
