@@ -364,7 +364,7 @@
 
 ## ADR-037｜首次访谈使用授权前当前页设备检查、正式流校准与自动收尾
 
-- 状态：`Accepted`；绑定 DEV-008A4 / REV-047。accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。
+- 状态：`Accepted`；REV-047 绑定 PR #44 accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876`，项目负责人手动审查 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/44#issuecomment-5281992260)（P0/P1/P2=0）；merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。旧失败 head/CI 与用户实测发现历史永久保留。
 - 背景：A1/A2/A3 已按旧路径完成，但普通流程仍把 ServiceTerm 同时作为 UI 与 start/readiness gate，麦克风检查晚于授权，校准与工作台同屏，complete ACK 未落本地 complete，正常收尾依赖三个手动动作。
 - 决定：普通链路冻结为 `project → early session → current-page mic/input → consent audio/consent → formal start/stream → dedicated calibration → workbench → automatic closeout → completed/review`。ServiceTerm API/表/历史 dormant，不在普通 UI 创建或展示，也不参与 ready/start/capture current gate；consent 仍是 ready 与 start 的正式门禁。
 - 校准边界：已有 collecting attempt 的 degraded continue 必须经 server skip marker 收束，无 attempt + provider unavailable 才可本地 bypass；WS interim 由服务端按持久 attempt 半开时间区间发布 `content_kind`，不让客户端用 revision/到达顺序猜测。
