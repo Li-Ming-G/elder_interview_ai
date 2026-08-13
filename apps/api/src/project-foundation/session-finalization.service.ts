@@ -25,9 +25,7 @@ import type {
   SessionFinalizationChunk,
 } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
-import { mapAsrResultToSessionTimeline } from '../realtime-transcription/asr-timeline.js';
 import { StreamingAsrAdapter } from '../realtime-transcription/streaming-asr.js';
-import { TranscriptIngestionService } from '../transcription/transcript-ingestion.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 
 type FinalizationRecoveryRequest = Exclude<RecoverSessionRequest, { action: 'resume_capture' }>;
@@ -41,7 +39,6 @@ export class SessionFinalizationService {
     private readonly authorization: ResourceAuthorizationService,
     private readonly runtime: RealtimeRuntimeService,
     private readonly adapter: StreamingAsrAdapter,
-    private readonly ingestion: TranscriptIngestionService,
     private readonly snapshots: SessionSnapshotService,
   ) {}
 
@@ -166,51 +163,150 @@ export class SessionFinalizationService {
   ): Promise<InterviewSessionResponse> {
     await this.authorization.assertRole(actor, ['interviewer']);
     this.validateCommitments(input);
-    const outcome = await this.prisma.$transaction(async (tx) => {
-      await this.lock(tx, `request:${input.request_id}`);
-      const location = await tx.interviewSession.findUnique({ where: { id: sessionId } });
-      if (location === null) throw this.notFound();
-      await this.lockResources(tx, location.projectId, sessionId, input.audio_object_id);
-      const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
-      if (session === null) throw this.notFound();
-      const existing = await tx.sessionFinalization.findUnique({
-        include: { chunks: { orderBy: { sequenceNo: 'asc' } } },
-        where: { sessionId },
-      });
-      const replay = await tx.idempotencyRecord.findUnique({
-        where: { requestId: input.request_id },
-      });
-      if (replay !== null) {
-        const expectedAction = interrupted
-          ? 'interview_session.finalize_interrupted'
-          : 'interview_session.stop';
+    const outcome = await this.prisma.$transaction(
+      async (tx) => {
+        await this.lock(tx, `request:${input.request_id}`);
+        const location = await tx.interviewSession.findUnique({ where: { id: sessionId } });
+        if (location === null) throw this.notFound();
+        await this.lockResources(tx, location.projectId, sessionId, input.audio_object_id);
+        const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
+        if (session === null) throw this.notFound();
+        const existing = await tx.sessionFinalization.findUnique({
+          include: { chunks: { orderBy: { sequenceNo: 'asc' } } },
+          where: { sessionId },
+        });
+        const replay = await tx.idempotencyRecord.findUnique({
+          where: { requestId: input.request_id },
+        });
+        if (replay !== null) {
+          const expectedAction = interrupted
+            ? 'interview_session.finalize_interrupted'
+            : 'interview_session.stop';
+          if (
+            replay.action !== expectedAction ||
+            replay.actorId !== actor.id ||
+            replay.targetId !== sessionId ||
+            replay.targetType !== 'interview_session'
+          )
+            throw this.conflict('IDEMPOTENCY_KEY_REUSED');
+          if (
+            existing === null ||
+            existing.audioObjectId !== input.audio_object_id ||
+            existing.expectedChunkCount !== input.expected_chunk_count ||
+            existing.commitmentsChecksum !== commitmentChecksum(input.chunks)
+          )
+            throw this.conflict('IDEMPOTENCY_PAYLOAD_MISMATCH');
+          return {
+            denied: false as const,
+            snapshot: replay.responsePayload as unknown as InterviewSessionResponse,
+          };
+        }
+        if (existing !== null) {
+          this.assertFrozenMatches(
+            existing.audioObjectId,
+            existing.expectedChunkCount,
+            existing.commitmentsChecksum,
+            input,
+          );
+          this.assertFinalizationActor(actor, existing.createdBy);
+          const snapshot = await this.snapshot(tx, sessionId);
+          await this.writeStopIdempotency(
+            tx,
+            input.request_id,
+            interrupted,
+            actor.id,
+            sessionId,
+            snapshot,
+          );
+          return { denied: false as const, finalizationId: existing.id, snapshot };
+        }
+        const gate = await this.currentGate(tx, actor, session.projectId);
+        if (!gate) {
+          await tx.interviewSession.updateMany({
+            data: { status: 'interrupted' },
+            where: { id: sessionId, status: { in: ['recording', 'reconnecting'] } },
+          });
+          return { denied: true as const };
+        }
+        const legal = interrupted
+          ? session.status === 'interrupted'
+          : ['recording', 'reconnecting'].includes(session.status);
+        if (!legal) throw this.conflict('SESSION_NOT_STOPPABLE');
+        const object = await tx.audioObject.findUnique({ where: { id: input.audio_object_id } });
         if (
-          replay.action !== expectedAction ||
-          replay.actorId !== actor.id ||
-          replay.targetId !== sessionId ||
-          replay.targetType !== 'interview_session'
-        )
-          throw this.conflict('IDEMPOTENCY_KEY_REUSED');
-        if (
-          existing === null ||
-          existing.audioObjectId !== input.audio_object_id ||
-          existing.expectedChunkCount !== input.expected_chunk_count ||
-          existing.commitmentsChecksum !== commitmentChecksum(input.chunks)
-        )
-          throw this.conflict('IDEMPOTENCY_PAYLOAD_MISMATCH');
-        return {
-          denied: false as const,
-          snapshot: replay.responsePayload as unknown as InterviewSessionResponse,
-        };
-      }
-      if (existing !== null) {
-        this.assertFrozenMatches(
-          existing.audioObjectId,
-          existing.expectedChunkCount,
-          existing.commitmentsChecksum,
-          input,
-        );
-        this.assertFinalizationActor(actor, existing.createdBy);
+          object === null ||
+          object.projectId !== session.projectId ||
+          object.sessionId !== sessionId ||
+          object.purpose !== 'interview' ||
+          object.createdBy !== actor.id
+        ) {
+          return { denied: true as const };
+        }
+        const uploaded = await tx.audioChunk.findMany({ where: { audioObjectId: object.id } });
+        for (const chunk of uploaded) {
+          const commitment = input.chunks[chunk.sequenceNo];
+          if (commitment === undefined || !sameChunk(chunk, commitment))
+            throw this.conflict('AUDIO_COMMITMENT_CONFLICT');
+        }
+        const last = input.chunks.at(-1);
+        if (last === undefined || session.startedAt === null)
+          throw this.conflict('SESSION_NOT_STOPPABLE');
+        const captureEndedAt = new Date(session.startedAt.getTime() + last.end_ms);
+        const finalization = await tx.sessionFinalization.create({
+          data: {
+            asrLastAudioSequenceAccepted:
+              this.runtime.find(sessionId)?.highestAudioSequenceAcked ?? null,
+            audioObjectId: object.id,
+            captureEndedAt,
+            commitmentsChecksum: commitmentChecksum(input.chunks),
+            createdBy: actor.id,
+            expectedChunkCount: input.expected_chunk_count,
+            sessionId,
+            stopRequestId: input.request_id,
+            chunks: {
+              createMany: {
+                data: input.chunks.map((chunk) => ({
+                  checksum: chunk.checksum,
+                  endMs: chunk.end_ms,
+                  mimeType: chunk.mime_type,
+                  sequenceNo: chunk.sequence_no,
+                  sizeBytes: chunk.size_bytes,
+                  startMs: chunk.start_ms,
+                })),
+              },
+            },
+          },
+        });
+        await tx.interviewSession.update({
+          data: {
+            durationSeconds: Math.ceil(last.end_ms / 1000),
+            endedAt: captureEndedAt,
+            status: 'stopping',
+          },
+          where: { id: sessionId },
+        });
+        await tx.sessionCaptureGeneration.updateMany({
+          data: { status: 'stopped', stoppedAt: captureEndedAt },
+          where: {
+            audioObjectId: object.id,
+            sessionId,
+            status: { in: ['preparing', 'active'] },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            action: 'interview_session.stop',
+            actorId: actor.id,
+            actorType: 'user',
+            entityId: sessionId,
+            entityType: 'interview_session',
+            metadata: {
+              audio_object_id: object.id,
+              expected_chunk_count: input.expected_chunk_count,
+            },
+            requestId: input.request_id,
+          },
+        });
         const snapshot = await this.snapshot(tx, sessionId);
         await this.writeStopIdempotency(
           tx,
@@ -220,106 +316,10 @@ export class SessionFinalizationService {
           sessionId,
           snapshot,
         );
-        return { denied: false as const, finalizationId: existing.id, snapshot };
-      }
-      const gate = await this.currentGate(tx, actor, session.projectId);
-      if (!gate) {
-        await tx.interviewSession.updateMany({
-          data: { status: 'interrupted' },
-          where: { id: sessionId, status: { in: ['recording', 'reconnecting'] } },
-        });
-        return { denied: true as const };
-      }
-      const legal = interrupted
-        ? session.status === 'interrupted'
-        : ['recording', 'reconnecting'].includes(session.status);
-      if (!legal) throw this.conflict('SESSION_NOT_STOPPABLE');
-      const object = await tx.audioObject.findUnique({ where: { id: input.audio_object_id } });
-      if (
-        object === null ||
-        object.projectId !== session.projectId ||
-        object.sessionId !== sessionId ||
-        object.purpose !== 'interview' ||
-        object.createdBy !== actor.id
-      ) {
-        return { denied: true as const };
-      }
-      const uploaded = await tx.audioChunk.findMany({ where: { audioObjectId: object.id } });
-      for (const chunk of uploaded) {
-        const commitment = input.chunks[chunk.sequenceNo];
-        if (commitment === undefined || !sameChunk(chunk, commitment))
-          throw this.conflict('AUDIO_COMMITMENT_CONFLICT');
-      }
-      const last = input.chunks.at(-1);
-      if (last === undefined || session.startedAt === null)
-        throw this.conflict('SESSION_NOT_STOPPABLE');
-      const captureEndedAt = new Date(session.startedAt.getTime() + last.end_ms);
-      const finalization = await tx.sessionFinalization.create({
-        data: {
-          asrLastAudioSequenceAccepted:
-            this.runtime.find(sessionId)?.highestAudioSequenceAcked ?? null,
-          audioObjectId: object.id,
-          captureEndedAt,
-          commitmentsChecksum: commitmentChecksum(input.chunks),
-          createdBy: actor.id,
-          expectedChunkCount: input.expected_chunk_count,
-          sessionId,
-          stopRequestId: input.request_id,
-          chunks: {
-            createMany: {
-              data: input.chunks.map((chunk) => ({
-                checksum: chunk.checksum,
-                endMs: chunk.end_ms,
-                mimeType: chunk.mime_type,
-                sequenceNo: chunk.sequence_no,
-                sizeBytes: chunk.size_bytes,
-                startMs: chunk.start_ms,
-              })),
-            },
-          },
-        },
-      });
-      await tx.interviewSession.update({
-        data: {
-          durationSeconds: Math.ceil(last.end_ms / 1000),
-          endedAt: captureEndedAt,
-          status: 'stopping',
-        },
-        where: { id: sessionId },
-      });
-      await tx.sessionCaptureGeneration.updateMany({
-        data: { status: 'stopped', stoppedAt: captureEndedAt },
-        where: {
-          audioObjectId: object.id,
-          sessionId,
-          status: { in: ['preparing', 'active'] },
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          action: 'interview_session.stop',
-          actorId: actor.id,
-          actorType: 'user',
-          entityId: sessionId,
-          entityType: 'interview_session',
-          metadata: {
-            audio_object_id: object.id,
-            expected_chunk_count: input.expected_chunk_count,
-          },
-          requestId: input.request_id,
-        },
-      });
-      const snapshot = await this.snapshot(tx, sessionId);
-      await this.writeStopIdempotency(
-        tx,
-        input.request_id,
-        interrupted,
-        actor.id,
-        sessionId,
-        snapshot,
-      );
-      return { denied: false as const, finalizationId: finalization.id, snapshot };
-    });
+        return { denied: false as const, finalizationId: finalization.id, snapshot };
+      },
+      { maxWait: 5_000, timeout: 30_000 },
+    );
     if (outcome.denied) throw this.forbidden();
     this.runtime.interruptSession(sessionId);
     if ('finalizationId' in outcome) await this.advance(outcome.finalizationId);
@@ -405,30 +405,22 @@ export class SessionFinalizationService {
       return {
         accepted,
         sessionId: f.sessionId,
-        speakerStreamId: activeRuntime.speakerStreamId,
-        timelineOffsetMs: activeRuntime.timelineOffsetMs,
       };
     });
     if (prepared === null) return;
 
     let drained = false;
     try {
-      await withTimeout(
-        this.adapter.drainAndClose({
-          ingestFinal: async (result) => {
-            if (result.kind !== 'final' || result.sessionId !== prepared.sessionId)
-              throw new Error('ASR_DRAIN_INVALID_FINAL');
-            await this.ingestion.ingest({
-              ...mapAsrResultToSessionTimeline(result, prepared.timelineOffsetMs),
-              speakerStreamId: prepared.speakerStreamId,
-            });
-          },
-          lastAudioSequenceAccepted: prepared.accepted,
-          sessionId: prepared.sessionId,
-        }),
-        1_000,
-      );
-      drained = true;
+      const receipt = await this.adapter.drainAndClose({
+        lastAudioSequenceAccepted: prepared.accepted,
+        sessionId: prepared.sessionId,
+      });
+      const completeness = this.adapter.completeness(prepared.sessionId);
+      drained =
+        receipt.acceptedThroughSequence >= prepared.accepted &&
+        receipt.terminalThroughSequence >= prepared.accepted &&
+        completeness.status === 'no_known_gap' &&
+        completeness.completeCaptureCoverageProven;
     } catch {
       drained = false;
     }
@@ -716,23 +708,6 @@ function evidenceFailureCode(value: string | null): EvidenceFinalizationResponse
   }
   return 'FINALIZATION_INTERNAL_FAILURE';
 }
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error('ASR_DRAIN_TIMEOUT'));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
 function commitmentChecksum(chunks: SessionChunkCommitment[]): string {
   return createHash('sha256')
     .update(

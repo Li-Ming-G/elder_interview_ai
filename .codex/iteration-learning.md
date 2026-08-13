@@ -1132,6 +1132,101 @@
 - Better future prompt: “请分别定义每个 ASR 连接的收束证据与整场访谈完整性；任一未回补缺口必须跨重连保持 degraded，直到权威 backfill 明确关闭。”
 - Boundary and risk: 当前不持久化精确 gap interval、不实现 backfill/clear、业务代码或 provider；runtime/coverage evidence 丢失会保守 `degraded`，允许假阴性但禁止假完整。权威 gap ledger 与有证据重算仍归 HARDEN-ASR-001。
 
+### 2026-08-11 — DEV-ASR-PROVIDER-001 v2 实现候选与真实配额阻塞
+
+- User outcome: 在腾讯 V2 单 provider、标准普通话和完全虚构内容边界内，把已审 v2 生命周期落到生产 adapter，并完成桌面、同 PCM 三次 replay、故障、账单与目标 Android 验收；执行 Agent 只交付 REVIEW 候选，不自宣 PASS/DONE。
+- Review mode: Learning mode；开工前恰好一次独立只读 iteration-coach 复核。腾讯官方 V2 同页同时出现 200ms/6400 bytes 与 40ms/1280 bytes 两套建议；正式 machine contract 已选择有官方依据的 200ms/6400 bytes，且无 live 反证，因此不制造契约变更。当前官方正文未证明 `speaker_diarization` wire 参数，继续禁止发送。
+- Adopted implementation: production v1→v2 原子迁移；provider ready 与 session.ready 分离；有界 accept、异步 sink、attempt/voice/request/stream namespace、new voice 重校准、fencing/retry/cancel、final-only persist、structured drain、sticky session completeness、错误 redaction 与预算门禁。没有 Prisma/public model、第二 provider/diarizer、gap/backfill 或真实 LLM 改动。
+- Verification evidence: format/lint/typecheck/build、unit 46 files/301 tests、PostgreSQL integration 13 files/77 tests、auth 4 files/23 tests、smoke、Chromium 10/10、auth Chromium 4/4 均通过。并行 unit timing flake 与首次错误 API 端口的 auth Chromium 失败保留为测试环境记录，隔离/正确端口复跑通过；上一轮 usage limit 也是环境中断而非实现结论。
+- Secret boundary: `.env.local` 被 gitignore，项目负责人完成安全注入；实现 Agent 只观察配置加载成功/缺失错误码，不读取、显示或提交 secret、签名 URL、provider 原始正文或转录正文。
+- Live blocker: 前两次分别获授权的 2 秒合成 probe 均映射 `ASR_QUOTA_EXHAUSTED`。复核证明 contract 有意合并官方 `4004/4005` 为稳定业务码，但诊断层不应丢失数值区别；已补 providerCode + 官方类别白名单且不输出 message，定向 9 tests/lint/typecheck 通过。项目负责人明确确认大模型2.0后付费此前已开启并第三次只授权一次 probe；本次配置有效，却在腾讯 JSON 前以 `ASR_PROVIDER_UNAVAILABLE`/network 失败，无官方数值码且未上传 PCM。已停止连接，不推断未开通或固定生效延迟；失败调用估算 CNY 0，实际账单待核。
+- Verification boundary: 三次 replay、桌面正式 lane、fault、账单、目标 Android与两个可校准 label 均未执行；无 final head、PR 或 CI，任务保持 REVIEW。项目负责人处理腾讯账号/资源包门禁并重新授权最小 probe 后才能继续；CON-027 继续阻塞真实长者/PII。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 无会话网络分层诊断
+
+- User outcome: 在不创建腾讯识别会话、不上传 PCM、不读取 secret 的条件下，把第三次 `network` 失败分层为基础网络、代理、TLS、upgrade、签名或实现问题，并使下一次最小 probe 能安全给出足够证据。
+- Evidence: 系统 lookup 成功且只取 IPv4；c-ares resolve4/6 被本地 DNS 拒绝，但不影响 `ws` 的系统 lookup。TCP443 与裸 TLS SNI 成功、证书 authorized、TLS1.2/ALPN http1.1。环境存在 HTTP(S)_PROXY 和 Windows Internet proxy，但 WinHTTP direct，`ws` 无 custom agent 因而直接连接；local fake server 在同环境成功。
+- Implementation correction: 新增白名单 provider/HTTP/TLS/close 诊断，不保留 body/reason/URL；修复 `final=1` 后 close 被误判 network 的竞态；数字 AppID fail-closed、ASCII canonical key order 与 signature percent encoding 断言。local fake 403/1013、TLS/DNS class 和 final-close drain 通过。
+- Verification: format/lint/typecheck/build；unit 46 files/304 tests；定向 config+adapter 16 tests。没有真实 WebSocket upgrade、provider session、PCM 或 secret access。
+- Conclusion: 基础 DNS lookup/TCP/TLS 与 Node proxy 行为不是已证根因；实现可观测性和 close/config 硬化缺陷已关闭。既有第三次失败缺少新字段，仍不能离线归为瞬时本地网络或腾讯侧。下一次严格单 probe 已具备充分安全诊断，需总控另行授权；任务保持 REVIEW，真实 3 replay/桌面/fault/账单/Android和双 label均未完成。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 第四次严格零重连 probe
+
+- Authorization: 项目负责人明确“授权再试一次”；probe 先固定 reconnect=0，保证只有一个 provider connection，输出限制为批准的非敏感字段。
+- Observation: config valid；腾讯 code0 handshake complete；首个 PCM 实际发送前 network close；pcmSentBytes=0，safeCode `ASR_PROVIDER_UNAVAILABLE`，无 provider/HTTP/TLS/close 数值，final 未证明、drain=false，估算 CNY0。立即停止，无第二连接或 replay/desktop。
+- Inference: 本次签名/AppID/engine入口/账号服务门禁已被握手接受，因此 quota/未开通不是当前故障解释。只可把窗口收窄为握手后、首 PCM 前 close，不能推断具体 close code或腾讯根因。
+- Correction: harness 未保存 onStatus close diagnostic，而 failed drain 返回通用 error。仅离线修复 attempt failure preservation 与 status diagnostic merge，local close1013回归通过；定向 config+adapter 17 tests、全量 unit 46 files/305 tests、lint/typecheck/diff check通过，未再次 connect。
+- Boundary: 等总控决定，不自动追加 probe；无 final head/PR/CI，3 replay、桌面、fault、账单、Android及双 label均未完成，保持 REVIEW/CON-027。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 code0→1005 与 wire contract 阻塞
+
+- User outcome: 在 CNY20 硬上限/CNY15 预警内继续安全定位握手后关闭，并在无需改变 provider/engine/正式产品语义时推进真实验收。
+- Evidence: 累计11连接且全部零重连；连接4-11均 code0。补齐官方 SDK 句子模式/default query 后，双频合成波与本机离线 zh-CN TTS 的2秒虚构普通话都稳定 code0→close1005，0 confirmed、无final/drain。基础DNS/TCP/TLS、Node proxy、签名、握手顺序、官方6400/200ms pacing、缺省query与非语音输入均不再是已证根因。
+- Implementation correction: 区分 attempted/confirmed；failed pump 后 drain 不得再发第二包、重复gap或重复status。回归只记录6400 attempted，unit增至306；PG integration77、auth23、smoke、Chromium10、auth Chromium4及format/lint/typecheck/build均通过。
+- Contract conflict: 腾讯官方 Go/Python V2 SDK 总是发送 `speaker_diarization=0` 与空 `speaker_context_id`，并要求显式打开分离；ADR-032/profile 禁止前者且不发送后者。该差异可能影响目标 speaker engine 的真实 wire 语义，不能由执行 Agent静默修正或用预算试探。
+- Budget boundary: 8个code0连接的保守 attempted-equivalent 上界8秒；官方说明失败调用不计费且大模型2.0为CNY1/hour，当前估算billable0秒/CNY0，实际日结账单待核，未接近预警。
+- Next decision: 停止全部新connect；由总控决定先取腾讯支持的非敏感账号/engine证据，或启动正式契约变更审查。3 replay、桌面、fault、Android、双label、PR/CI均保持未完成；REVIEW/CON-027。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 PR #29 wire 修正后单 probe
+
+- Decision: docs-only PR #29 exact head `650f856c918639a7b992294b805873d7052ab44e` 获项目负责人手动 PASS，merge/main `1e18ea83cd5a1d4953bb92fd251637ed6107c322`；ADR-033 将 speaker wire 冻结为 diarization=1、context enable=0、context ID key omit。
+- Implementation evidence: DEV 只在实际query map加入diarization=1，两个必发键均参与ASCII canonical/HMAC；context ID无生成路径。定向18/18、format/lint/typecheck/build/diff通过。
+- Live observation: 相同2秒离线zh-CN TTS PCM、reconnect=0、恰好一连接；code0后首包失败，6400 attempted/0 confirmed，无final/drain，network unknown_transport/tcp，估算0秒/CNY0。累计12连接且没有自动追加。
+- Lesson: 正式wire事实修正是必要条件但不是当前transport故障的充分修复；code0只证明鉴权/入口接受，不能证明首包可发送。没有close code时不得把unknown transport推断为腾讯1005、账号或本地TCP根因。
+- Boundary: 停止新connect，不进入3 replay/桌面/fault/Android；优先腾讯支持非敏感核对。无final head/PR/CI，任务保持REVIEW，CON-027继续限制真实长者/PII。
+- Support handoff: 本地执行日志将唯一 probe 精确绑定为 UTC `03:37:07.898Z–03:37:08.867Z` / 北京时间 `11:37:07.898–11:37:08.867`。独立中文工单模板只包含产品/engine、静态query选择、PCM、环境版本、排除项和明确问题；动态voice/request ID由负责人从本地私密证据补充，secret/签名/完整URL/query/代理凭据/音频及正文一律禁止。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 腾讯支持外部阻塞
+
+- Submission: 项目负责人已向腾讯云提交工单 `202608125900`，使用安全中文模板请求按精确时间窗、关联账号和 engine 定位 code0 后首包不可用；没有把 secret、签名、完整URL/query、代理凭据、音频或转录正文写入项目记录。
+- State decision: 真实 provider 无法继续且恢复依赖腾讯外部回复，任务从 REVIEW 转为 BLOCKED。状态变化不否定现有实现候选或本地306 unit/77 integration/23 auth/Chromium证据，也不表示产品验收失败或通过。
+- Freeze: 保留原工作树全部未提交实现与证据；禁止新provider connect、commit、PR或merge。三次replay、桌面、fault、账单、Android和双label继续未验证。
+- Resume contract: 腾讯回复必须给出新的可执行根因/账号或协议结论，经总控与项目负责人复核并明确授权恢复；若改变wire/engine/provider/验收语义，先完成docs-only契约exact-head PASS与merge。恢复首步只能是基于新假设、相同虚构TTS、reconnect=0的单连接probe。
+
+### 2026-08-12 — DEV-ASR-PROVIDER-001 `result_mod` 工单单变量离线候选
+
+- Support evidence: 工单 `202608125900` 建议 V2（话者分离）诊断完全删除 `result_mod=1`，并保留更常用的 `sentence_strategy`。这是供应商支持对本次故障的单变量假设，不是公共官方文档事实。
+- Evidence correction: 固定 Go/Python SDK 快照携带 `result_mod` 只证明 SDK 行为，不能提升为“公共 V2 强制”。历史连接及原工单提交快照保留；本轮通过新增补充记录纠正解释，不回写历史观察。
+- Offline decision: Accepted ADR-033/profile 不要求 `result_mod`，因此无需新 docs-only 契约。未提交 adapter 从实际 query、canonical/HMAC 及 allowlist 断言完全省略该 key，同时保持 `sentence_strategy=1`、`speaker_diarization=1`、`enable_speaker_context=0`、omit `speaker_context_id`；其余 engine/PCM/pacing/reconnect 不变。
+- Verification: adapter+config 2 files/18 tests、format/lint/typecheck/build/diff通过；生产 adapter 零 `result_mod` 命中，测试保留显式 absence 断言；排除 `.env.local` 与模板后的 credential scan 零命中。
+- Boundary: 本轮没有 provider connect、PCM 上传或 secret 读取。任务保持 `BLOCKED`，等待总控/项目负责人明确授权唯一 probe；获授权后只能复用相同虚构 TTS PCM、同账号/endpoint/engine、6400 bytes/200ms、reconnect=0、单连接，且唯一有意变量为省略 `result_mod`，不得自动第二连接。
+
+### 2026-08-13 — DEV-ASR-PROVIDER-001 已授权 probe 的 PCM 等同性预检停止
+
+- Authorization: 项目负责人明确授权一次 ASR probe；边界要求相同虚构 zh-CN TTS PCM 且唯一有意变量为省略 `result_mod`，无法证明等同时必须在连接前停止。
+- Preflight evidence: 当前 build 与 query invariant 通过；安全预检只检查非凭据的 fixture-path 存在性，得到 `fixture_path_missing`。harness 的缺省输入是双频合成波，不等同于上一轮 TTS，因此不能继续。
+- Safe result: provider connection 0、code0 未尝试、PCM attempted/confirmed 0/0、无 provider/transport/close、final/drain 未尝试、估算0秒/CNY0；没有读取或输出 secret、路径、签名、URL/query、音频或正文。
+- Lesson: live harness 必须在 `adapter.open` 前验证所有“相同输入”前提；fixture 缺失时的便利 fallback 只能用于明确的早期 synthetic lane，不能用于单变量供应商诊断。
+- Boundary: 保持 `BLOCKED/REVIEW`；先安全恢复并离线证明同一 64000-byte TTS fixture，再由总控明确恢复唯一 probe。执行 Agent不自行连接，无 commit/PR/CI。
+
+### 2026-08-13 — DEV-ASR-PROVIDER-001 omit-`result_mod` 唯一真实 probe
+
+- Input equivalence: 3个去重系统temp安全roots、Depth≤4中，64000-byte PCM/raw/bin候选恰好1个；basename/UTC mtime/SHA-256与总控给定上一轮TTS资产完全一致。绝对路径只注入probe子进程，不输出或写`.env.local`。
+- Offline gate: build、adapter+config 18/18通过；source/dist完全omit `result_mod`，sentence/speaker/context正式参数保持，reconnect=0。
+- Verified observation: UTC `2026-08-12T16:06:16.880Z–16:06:17.601Z` / 北京时间 `2026-08-13 00:06:16.880–00:06:17.601`恰好一连接；code0 handshake；6400 attempted/0 confirmed；无provider numeric/close；network `unknown_transport`/tcp；无final、drain=false；估算0秒/CNY0。
+- Inference boundary: omit `result_mod` 不是恢复当前lane的充分条件，但不能据此判断腾讯服务端根因或实际账单。累计真实连接13；无第二连接、replay/desktop/fault/Android。
+- State: 立即停止全部新connect，继续`BLOCKED/REVIEW`，等待腾讯支持/总控新的可执行结论；无commit/PR/CI，CON-027持续有效。
+
+### 2026-08-13 — DEV-ASR-PROVIDER-001 客户端 `ws.send` null callback 根因
+
+- External evidence: 腾讯工单确认engine/account正常、参数无明显异常且无额外限制，并将服务端日志归类为客户端断开，要求排查timeout/auto-close。
+- Root cause: Node24/ws8.21.2成功send callback实际传`null`；adapter只接受`undefined`，把成功首包误判为unknown_transport/tcp并主动close。local real-ws server修复前已收到6400 binary且观察client close1005，完全匹配live attempted6400/confirmed0/code0/no-final。
+- Minimal fix: callback success接受`undefined|null`；Error、non-open、close诊断、retry/gap/drain/fence/sticky/security/speaker均不变。
+- Timing audit: connect/ready 5s且成功后清理，drain10s仅flush/end后，gateway accept250ms不在live harness，non-open250ms只被动等close；无ping/idle；budget/reconnect0不主动close。listener在factory resolve前安装并缓存，harness accept20后drain且drain await pump。
+- Deterministic evidence: code0后等待超过压缩20ms connect/ready门槛仍OPEN；live-harness同构20×3200→10×6400→end→final1→drain，attempted/sent64000。
+- Gates: adapter+config19/19，unit46/307，format/lint/typecheck/build/diff；postgres-test13 migrations current，integration3/26、auth4/23。未读`.env.local`、未connect腾讯。
+- Next boundary: 技术上充分支持一次同TTS/同参数/reconnect0的post-fix单连接probe，但须新明确授权；继续BLOCKED/REVIEW，无commit/PR/CI。
+
+### 2026-08-13 — DEV-ASR-PROVIDER-001 post-fix 真实链路与 sticky fault 收口
+
+- User outcome: 在完全虚构普通话、腾讯单provider与既有正式wire语义内，把修复后的真实转录推进到三次replay、桌面normal和受控fault；原始录音不能被ASR故障损害，new voice必须重校准，旧gap不能被后续成功清除。
+- Verified evidence: 26.4秒probe final/drain且双known labels；同一473.9秒PCM三次均46 finals、双label、unknown0、无gap、hash一致；桌面normal archive/manifest/audio完整且transcript drained；fault中WS1006但archive继续，恢复new capture/voice/stream并重新确认双label，最终audio完整而transcript按早期coverage loss sticky degraded。
+- Implementation corrections: 腾讯V2顶层`sentences.sentence_list`进入正式mapping；persisted `firstPcmAcceptedAt`在runtime丢失时保守形成evidence_lost；provider-ready promise立即挂containment catch避免Node24 orphan rejection退出，status callback failure不越过provider边界；长manifest JSON limit与finalization transaction budget有界调整。
+- Verification: merge main `2f29cc7e` 后format/lint/typecheck/build；unit57/364；PG integration14/84、auth4/23；smoke、Chromium24、auth Chromium5、默认300秒R4 formal route通过。main新首页/IndexedDB v5造成旧R4 helper定位器与version绑定失败，最小适配后通过；R4 deterministic sequence-2是已知gap，故按正式sticky contract预期degraded，不是为通过测试而放宽实现。
+- Cost/privacy: 已知成功约2019秒，估算约CNY0.561；实际SKU/日结账单仍unknown。所有live输入为虚构/合成，未记录secret、签名URL/query、provider正文、音频或转录正文；CON-027不变。
+- Git evidence: 安全merge main `2f29cc7e`，non-Draft PR #45；实现head `ac44b4a9` CI run `31700867211` SUCCESS。治理补记后的final metadata head/CI以PR最新head为准。
+- Android evidence: OnePlus GM1900/Android12/Chrome150正式MediaStream链路运行382秒；373/373 archive、manifest/audio complete、transcript drained、13 finals、双known labels、unknown0、双user-confirmed mappings。检测阶段无capture/provider connect，开始后单一MediaRecorder；API/Web/ADB映射结束后关闭。纯录音旋转/后台事实沿用同机DEV-005已证明且与本ASR改动无关的证据。
+- Cost/boundary: 已知成功约2403秒、估算CNY0.668；实际SKU/日结账单仍unknown。仍需负责人exact-head手动审查。任务仅REVIEW，不自宣PASS/DONE、不merge；gap/backfill、真实LLM、真实长者与生产部署仍不在本任务。
 ### 2026-08-12 — 腾讯 V2 话者分离 wire 事实修正候选
 
 - User outcome: 修正腾讯实时 ASR V2 话者分离 wire 参数的过时正式事实，让 DEV-ASR-PROVIDER-001 在新契约 exact-head 获项目负责人 PASS 后，用同一虚构 TTS PCM、`reconnect=0` 做一次隔离诊断，而不把 close 1005 根因写成已证明。

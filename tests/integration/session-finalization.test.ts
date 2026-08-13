@@ -19,7 +19,10 @@ import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcriptio
 import {
   DeterministicStreamingAsrFake,
   StreamingAsrAdapter,
-  StreamingAsrUnavailableError,
+  StreamingAsrError,
+  type AttemptDrainReceipt,
+  type SessionCaptureCompleteness,
+  type StreamingAcceptReceipt,
   type StreamingEndContext,
 } from '../../apps/api/src/realtime-transcription/streaming-asr.js';
 import { TranscriptIngestionService } from '../../apps/api/src/transcription/transcript-ingestion.service.js';
@@ -57,7 +60,6 @@ describe('session finalization PostgreSQL orchestration', () => {
       new ResourceAuthorizationService(prisma),
       new RealtimeRuntimeService(),
       new DeterministicStreamingAsrFake(),
-      new TranscriptIngestionService(prisma, config),
       new SessionSnapshotService(prisma),
     );
     await prisma.user.create({
@@ -210,26 +212,93 @@ describe('session finalization PostgreSQL orchestration', () => {
     expect(await service.stop(actor, session.id, requestB)).toEqual(firstB);
   });
 
+  it('freezes an eight-minute browser archive without exceeding the transaction deadline', async () => {
+    const session = await prisma.interviewSession.create({
+      data: {
+        createdBy: actorId,
+        projectId,
+        sequenceNo: 101,
+        startedAt: new Date('2026-08-13T07:00:00Z'),
+        status: 'recording',
+      },
+    });
+    const audio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorId,
+        mimeType: 'audio/webm;codecs=opus',
+        projectId,
+        purpose: 'interview',
+        sessionId: session.id,
+      },
+    });
+    const chunks = Array.from({ length: 510 }, (_, sequenceNo) => ({
+      checksum: createHash('sha256')
+        .update(`fictional-${String(sequenceNo)}`)
+        .digest('hex'),
+      end_ms: (sequenceNo + 1) * 1_000,
+      mime_type: audio.mimeType,
+      sequence_no: sequenceNo,
+      size_bytes: 10,
+      start_ms: sequenceNo * 1_000,
+    }));
+
+    const stopped = await service.stop(actor, session.id, {
+      audio_object_id: audio.id,
+      chunks,
+      expected_chunk_count: chunks.length,
+      request_id: randomUUID(),
+    });
+
+    expect(stopped).toMatchObject({
+      duration_seconds: 510,
+      finalization: { expected_chunk_count: 510, upload_status: 'awaiting_upload' },
+      status: 'stopping',
+    });
+    expect(
+      await prisma.sessionFinalizationChunk.count({
+        where: { finalization: { sessionId: session.id } },
+      }),
+    ).toBe(510);
+  });
+
   it('drains ASR only after final ingestion and degrades unavailable, timeout, and lost runtimes', async () => {
     const order: string[] = [];
     const successfulRuntime = new RealtimeRuntimeService();
     const successful = successfulRuntime.create(randomUUID(), randomUUID(), 6_000);
     successful.highestAudioSequenceAcked = 0;
     const successfulCase = await createReadyFinalization(successful.sessionId, 10);
+    await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: successfulCase.audioObjectId,
+        audioStreamId: successful.audioStreamId,
+        confirmedActiveAt: new Date(),
+        generationNo: 0,
+        id: successful.captureGenerationId,
+        sessionId: successful.sessionId,
+        status: 'active',
+        timelineOffsetMs: 0,
+      },
+    });
     await prisma.speakerStream.create({
       data: {
-        closedAt: new Date(),
+        captureGenerationId: successful.captureGenerationId,
         id: successful.speakerStreamId,
         sessionId: successful.sessionId,
-        status: 'closed',
+        status: 'active',
       },
+    });
+    order.push('final');
+    await new TranscriptIngestionService(prisma, config).ingest({
+      ...finalResult(successful.sessionId),
+      endMs: 7_000,
+      speakerStreamId: successful.speakerStreamId,
+      startMs: 6_000,
     });
     const successfulService = createService(
       successfulRuntime,
-      new EndingAdapter(async (context) => {
-        order.push('final');
-        await context.ingestFinal(finalResult(context.sessionId));
+      new EndingAdapter(() => {
         order.push('closed');
+        return Promise.resolve();
       }),
     );
     await successfulService.recover(actor, successfulCase.sessionId, {
@@ -263,6 +332,21 @@ describe('session finalization PostgreSQL orchestration', () => {
     expect(
       await prisma.sessionFinalization.findUniqueOrThrow({
         where: { sessionId: unavailableCase.sessionId },
+      }),
+    ).toMatchObject({ transcriptStatus: 'degraded' });
+
+    const stickyGapRuntime = new RealtimeRuntimeService();
+    const stickyGap = stickyGapRuntime.create(randomUUID(), randomUUID());
+    stickyGap.highestAudioSequenceAcked = 0;
+    const stickyGapCase = await createReadyFinalization(stickyGap.sessionId, 41);
+    await createService(stickyGapRuntime, new GapEndingAdapter()).recover(
+      actor,
+      stickyGapCase.sessionId,
+      { action: 'reconcile', request_id: randomUUID() },
+    );
+    expect(
+      await prisma.sessionFinalization.findUniqueOrThrow({
+        where: { sessionId: stickyGapCase.sessionId },
       }),
     ).toMatchObject({ transcriptStatus: 'degraded' });
 
@@ -565,7 +649,6 @@ describe('session finalization PostgreSQL orchestration', () => {
       new ResourceAuthorizationService(prisma),
       runtime,
       adapter,
-      new TranscriptIngestionService(prisma, config),
       new SessionSnapshotService(prisma),
     );
   }
@@ -778,24 +861,68 @@ class EndingAdapter extends StreamingAsrAdapter {
     super();
   }
 
-  public accept(): Promise<readonly NormalizedAsrResult[]> {
-    return Promise.resolve([]);
+  public open(): Promise<void> {
+    return Promise.resolve();
   }
 
-  public drainAndClose(context: StreamingEndContext): Promise<void> {
-    return this.ending(context);
+  public accept(): Promise<StreamingAcceptReceipt> {
+    return Promise.resolve(acceptReceipt());
+  }
+
+  public async drainAndClose(context: StreamingEndContext): Promise<AttemptDrainReceipt> {
+    await this.ending(context);
+    return drainReceipt();
+  }
+
+  public cancel(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public markCoverageGap(): void {
+    // Test adapter remains complete unless the drain itself rejects.
+  }
+
+  public completeness(): SessionCaptureCompleteness {
+    return completeCoverage();
   }
 }
 
 class UnavailableEndingAdapter extends EndingAdapter {
   public constructor() {
-    super(() => Promise.reject(new StreamingAsrUnavailableError()));
+    super(() =>
+      Promise.reject(new StreamingAsrError('provider', false, 'ASR_PROVIDER_UNAVAILABLE')),
+    );
   }
 }
 
 class TimeoutEndingAdapter extends EndingAdapter {
   public constructor() {
-    super(() => new Promise(() => undefined));
+    super(() => Promise.reject(new StreamingAsrError('timeout', true, 'ASR_TIMEOUT')));
+  }
+}
+
+class GapEndingAdapter extends EndingAdapter {
+  public constructor() {
+    super(() => Promise.resolve());
+  }
+
+  public override completeness(): SessionCaptureCompleteness {
+    return {
+      clearAuthority: 'HARDEN-ASR-001',
+      completeCaptureCoverageProven: false,
+      scope: 'session_capture',
+      status: 'known_unbackfilled_gap',
+      stickyDegraded: true,
+      unbackfilledGaps: [
+        {
+          backfillStatus: 'unbackfilled',
+          endSequence: 0,
+          reason: 'provider_error_unaccounted_pcm',
+          sourceAttemptId: '00000000-0000-4000-8000-000000000083',
+          startSequence: 0,
+        },
+      ],
+    };
   }
 }
 
@@ -816,19 +943,68 @@ class BlockingEndingAdapter extends StreamingAsrAdapter {
     });
   }
 
-  public accept(): Promise<readonly NormalizedAsrResult[]> {
-    return Promise.resolve([]);
+  public open(): Promise<void> {
+    return Promise.resolve();
   }
 
-  public async drainAndClose(): Promise<void> {
+  public accept(): Promise<StreamingAcceptReceipt> {
+    return Promise.resolve(acceptReceipt());
+  }
+
+  public async drainAndClose(): Promise<AttemptDrainReceipt> {
     this.calls += 1;
     this.signalEntered?.();
     await this.released;
+    return drainReceipt();
+  }
+
+  public cancel(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public markCoverageGap(): void {
+    // Test adapter remains complete.
+  }
+
+  public completeness(): SessionCaptureCompleteness {
+    return completeCoverage();
   }
 
   public release(): void {
     this.signalRelease?.();
   }
+}
+
+function acceptReceipt(): StreamingAcceptReceipt {
+  return {
+    acceptedThroughSequence: 0,
+    attemptId: '00000000-0000-4000-8000-000000000081',
+    providerNamespaceId: 'ending-namespace',
+    providerRequestId: 'ending-request',
+    scope: 'attempt',
+    speakerStreamId: '00000000-0000-4000-8000-000000000082',
+  };
+}
+
+function drainReceipt(): AttemptDrainReceipt {
+  return {
+    ...acceptReceipt(),
+    completedAt: new Date().toISOString(),
+    providerFinalObserved: true,
+    resultsIngested: true,
+    terminalThroughSequence: 0,
+  };
+}
+
+function completeCoverage(): SessionCaptureCompleteness {
+  return {
+    clearAuthority: 'HARDEN-ASR-001',
+    completeCaptureCoverageProven: true,
+    scope: 'session_capture',
+    status: 'no_known_gap',
+    stickyDegraded: false,
+    unbackfilledGaps: [],
+  };
 }
 
 function finalResult(sessionId: string): NormalizedAsrResult {

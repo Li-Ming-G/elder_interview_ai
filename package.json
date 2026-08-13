@@ -29,6 +29,8 @@
     "test:e2e": "playwright test",
     "test:e2e:auth": "node scripts/run-auth-e2e.mjs",
     "test:e2e:r4": "node scripts/run-r4-e2e.mjs",
+    "test:asr:live-probe": "pnpm build && node --env-file=.env.local scripts/tencent-asr-v2-live-probe.mjs",
+    "test:asr:live-replay": "pnpm build && node --env-file-if-exists=.env.local scripts/tencent-asr-v2-live-replay.mjs",
     "test:e2e:install": "playwright install --with-deps chromium",
     "test:smoke": "node scripts/smoke.mjs",
     "test:unit": "vitest --config vitest.unit.config.ts --coverage",
