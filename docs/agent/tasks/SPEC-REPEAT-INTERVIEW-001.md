@@ -5,7 +5,7 @@
 - 状态：`REVIEW`
 - 负责人：独立 docs-only 契约任务 `codex/spec-repeat-interview-001`
 - 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`
-- 审查：`REV-048`；non-Draft PR exact-head CI + 项目负责人 GitHub 手动审查
+- 审查：`REV-048`；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) exact-head CI + 项目负责人 GitHub 手动审查
 - 前置决定：项目负责人已明确首版响应式网页方向并授权真实可重复使用流程；不得重开战略方向
 - iteration-coach：总控已对本轮执行恰好一次独立只读复核，结论 `Correction / NO-PAUSE`；本任务复用该结论，未启动第二次复核
 - 依赖边界：DEV-008A4 / PR #44 占用 REV-047、ADR-037；B1/B2 runtime 必须等待其新 exact-head PASS/merge，本 SPEC 可并行审查但不改 A4 runtime/UI

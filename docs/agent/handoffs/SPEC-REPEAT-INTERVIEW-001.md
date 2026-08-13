@@ -2,7 +2,7 @@
 
 ## 状态与审查边界
 
-- 状态：`REVIEW`；REV-048；non-Draft PR 与 exact-head CI 待补。
+- 状态：`REVIEW`；REV-048；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) 已建立，等待 final exact-head CI 与项目负责人手动审查。
 - 分支：`codex/spec-repeat-interview-001`；base `origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`。
 - iteration-coach：复用总控已完成的唯一 `Correction / NO-PAUSE` 独立只读复核；本任务没有启动第二次。
 - 本交接不是 PASS/DONE/merge；执行 Agent 只整理人工审查包。
