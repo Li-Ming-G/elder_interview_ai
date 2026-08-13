@@ -1451,8 +1451,14 @@ POST /projects/:id/next-session
 
 `GET /projects/:id/sessions` 的 item 可 additive 返回 `post_session_analysis`; rollout 缺键表示 runtime 未实现，绝不等同 succeeded。内容无关状态以 shared DTO 为准。GET/list/Home/WS replay 只读，不创建或重试 job。retry 只能由受控 system coordinator 或未来明确授权的管理接口触发；本 SPEC 不新增普通倾听员 retry 按钮。
 
-会后 trigger 在 canonical completed 持久提交后产生，不在 HTTP 响应渲染时产生。两 lane 独立：memory 可 succeeded 而 actual-question unjudged/failed，反之亦然。任何 lane 失败都不修改 session status/finalization，不禁用 review/next-session，也不影响 audio/transcript truth。
+会后 trigger 在 canonical completed 持久提交后产生，不在 HTTP 响应渲染时产生。两 lane 独立：memory 可 succeeded 而 actual-question unjudged/failed，反之亦然。`succeeded|unjudged|failed|cancelled|unavailable` 为 opening 可观察的 terminal；`not_started|pending|running` 非 terminal。任何 lane 状态都不修改 session status/finalization，不禁用 review/next-session，不影响新 session 的 mic/recording/ASR，也不改变 audio/transcript truth。
 
 ### 11.4 Second-session opening
 
-calibration gate 终结产生稳定 system request/trigger：terminal attempt 使用 `session_id + speaker_stream_id + attempt_id + terminal_status`，provider unavailable 且 snapshot 明确无 attempt 时使用 `session_id + capture_generation_id + provider-unavailable policy revision`。同 gate 恰好一个 `second_session_opening` attempt。failed/skipped/unavailable gate 不得携带当前 stream trusted membership，但可消费先前 session 的 eligible project facts。结果继续通过既有 suggestion REST 与无正文 WS 1.2 投影；不新增 opening 正文 endpoint 或第二套 history。LLM/provider unavailable 以既有 `kind=unavailable`/failed attempt 诚实返回，不自动回退 basic 题，不阻塞 recording。页面刷新、重复 snapshot、WS resume、provider 恢复或同 response replay 不得重触发。
+calibration gate terminal 只满足 opening 的一个前置。若 next-session basis 的任一 analysis lane 为 `not_started|pending|running`，不得创建 generation attempt、冻结 Context、调用 provider或占用 stable request/trigger；内容无关投影为 `waiting_basis_analysis`，`request_id/attempt_id=null`。next-session、device/mic、recording、ASR、safe completion 与 review 继续运行。
+
+两个 basis lane 均 terminal 后才创建稳定 system request/trigger：`session_id + basis_analysis_trigger_identity + calibration_gate_identity`。calibration terminal attempt 使用 `speaker_stream_id + attempt_id + terminal_status`；provider unavailable 且 snapshot 明确无 attempt 时使用 `capture_generation_id + provider-unavailable policy revision`。同组合恰好一个 `second_session_opening` attempt。analysis-first 由 calibration terminal 事件协调；calibration-first 由最后一个 lane terminal 事件协调；启动恢复/刷新后由后台 reconciliation 读取持久事实重算。所有路径使用同一 request ID 与 trigger dedupe，GET/list/WS replay 只读且不触发。
+
+basis `succeeded` 的 eligible output 必须进入随后冻结的 Context；`unjudged|failed|cancelled|unavailable` 作为 terminal 如实记录，省略无法证明的本次新增 membership 后继续一次 opening，不等待无限 retry。某 lane 在 opening attempt 已提交后通过显式 retry 得到新 terminal outcome，也不得为同一 consumer session 重开 gate；新证据只按既有 future-eligibility 参与后续 session。failed/skipped/unavailable calibration gate 不得携带当前 stream trusted membership，但可消费先前 session eligible project facts。结果继续通过既有 suggestion REST 与无正文 WS 1.2 投影；不新增正文 endpoint 或第二套 history。LLM unavailable 以既有 `kind=unavailable`/failed attempt 诚实返回，不自动回退 basic 题，不阻塞 recording。页面刷新、重复 snapshot、WS resume、provider 恢复或同 response replay 不得重触发。
+
+`GET /projects/:id/sessions` 可 additive 返回 shared `second_session_opening` 内容无关投影。waiting/ready 不是 attempt；running/succeeded/failed/cancelled/unavailable 必须绑定稳定 request/attempt identity。`updated_at` 来自组成当前状态的最新持久事实，不是 GET 响应时间。字段缺失、null 或 waiting 不得被客户端当作开场已经生成。

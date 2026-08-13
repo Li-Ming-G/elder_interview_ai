@@ -14,7 +14,7 @@
 3. stable next-session request/payload/replay、same-project basis 与 seq1→2 并发门禁；
 4. 新 session capture/audio/ASR/speaker/calibration/runtime 全隔离；
 5. stable post-analysis trigger、Memory/actual-question 生产调用与内容无关 retry projection；
-6. calibration-gate-terminal opening exact once、same-project eligible Context、降级 gate 不伪造当前角色、唯一 QuestionEvidence/current/history；
+6. calibration gate 可先 waiting；basis 两 lane terminal 后才冻结 opening Context并 exact once；same-project eligible Context、降级 lane/gate 不伪造当前角色、唯一 QuestionEvidence/current/history；
 7. LLM/ASR unavailable 不阻塞 raw recording/completed/review；
 8. 无 memory UI、第二 AI/history、Prisma/migration、provider 选择或隐私/删除/retention 语义变化。
 
@@ -39,3 +39,9 @@
 本地已通过：`pnpm lint`、全 workspace `pnpm typecheck`、`pnpm build`、`pnpm format:check`、contracts 定向 typecheck/build、full unit `56 files / 341 tests`、`git diff --check`，以及 changed Markdown 相对链接检查。未运行 PostgreSQL integration/auth/Chromium，因为本任务没有 runtime/Prisma/UI 改动；non-Draft PR exact-head CI 仍须跑仓库完整 verify，不能用本地结果替代。
 
 项目负责人重点审查：action eligibility、seq1→2 并发、post-analysis 非阻塞、Context membership、opening exact once、provider unavailable、A4 分界与无范围扩张。
+
+## REV-048 首轮 REQUEST_CHANGES
+
+- old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` SUCCESS；项目负责人正式 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。永久保留，不由后续候选覆盖。
+- P1 是 calibration-first 抢跑：basis memory/actual lane 尚 pending/running 时旧契约已消费唯一 opening gate，之后成功输出永久漏入。
+- 当前候选只定向增加双前置/waiting/terminal 协调与四类顺序矩阵；next-session、录音非阻塞及其余已认可方向不变。等待新 exact-head CI/定向复审，不是 PASS/DONE。

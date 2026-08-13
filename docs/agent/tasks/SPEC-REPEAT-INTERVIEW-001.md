@@ -21,7 +21,7 @@
 3. `POST /projects/:id/next-session` 稳定 request ID/canonical payload/replay、project 锁和 seq1→2 并发门禁；只创建新 session；
 4. 新 session 重检 actor/assignment/consent/device/mic，建立全新 capture/audio/ASR/speaker/calibration runtime；
 5. canonical completed 的稳定 post-analysis trigger 接通既有 `MemoryService.extract` 与 `QuestionEvidenceService.reconcileActualQuestions`；失败不回退 completed；
-6. calibration gate terminal 后稳定 `second_session_opening` system trigger；降级 gate 不伪造当前角色；唯一 QuestionEvidence owner/current/history；displayed != actual asked；
+6. calibration gate terminal 只进入 waiting/ready 协调；basis session 的 memory/actual 两 lane 均 terminal 后才冻结 Context并稳定触发一次 `second_session_opening`；降级 lane/gate 诚实且不伪造当前角色；唯一 QuestionEvidence owner/current/history；displayed != actual asked；
 7. 无记忆管理/摘要待确认 UI，无第二 AI/history，无真实 provider 选择，无 Prisma/migration/runtime 实现；
 8. 权限、deletion、retention、membership/revision drift 和 provider unavailable 全部诚实失败关闭。
 
@@ -30,7 +30,8 @@
 - `RepeatInterviewProjectActionProjection`
 - `CreateNextSessionRequest/Response`
 - `PostSessionAnalysisProjection` 与 lane 状态
-- `ProjectListOrdinaryProjection.repeat_interview?`、`ProjectSessionListItem.post_session_analysis?` 仅为 contract-first rollout optional；缺失不得被解释为 eligible/succeeded。DEV-008B1/B2 runtime 接入时必须显式投影并补 mapper/API/browser tests。
+- `SecondSessionOpeningProjection` 的 waiting/ready/terminal 内容无关状态
+- `ProjectListOrdinaryProjection.repeat_interview?`、`ProjectSessionListItem.post_session_analysis?`、`second_session_opening?` 仅为 contract-first rollout optional；缺失不得被解释为 eligible/succeeded/已触发。DEV-008B1/B2 runtime 接入时必须显式投影并补 mapper/API/browser tests。
 
 ## 明确现状与禁止声明
 
@@ -50,6 +51,13 @@
 4. opening membership 是否只消费 same-project eligible current/published facts，并维持 displayed != actual asked；
 5. 无新 memory UI、AI/history、DB ownership、privacy/deletion/retention 语义或个人身份硬编码；
 6. 与 DEV-008A4/PR #44 的 exact-head PASS/merge 依赖是否阻止 Home/routes/styles 冲突。
+
+## REV-048 首轮审查与定向修复
+
+- 项目负责人代审严格绑定 old exact head `99e5d317f4e5ad62444148442329114840c58293`、CI `31709711887` SUCCESS，正式结论 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。该 old-head 结论永久保留。
+- 唯一 P1：calibration gate 可能在 basis post-analysis pending/running 时抢跑并消费 exact-once opening，导致之后成功的 memory/actual 输出永久缺席第二次开场。
+- 定向修复：next-session/mic/recording/ASR/review 继续不等 AI；opening 在两 lane terminal 前只派生 waiting 且不创建 job/attempt/Context；两 lane terminal 后用 basis analysis trigger + calibration gate stable identity 至多一次冻结/触发；`unjudged|failed|cancelled|unavailable` 明确为诚实 terminal；`09` §17 增加 analysis-first/calibration-first/单 lane 降级/刷新重放并发矩阵。
+- 当前仍为 `REVIEW`，等待新 exact-head CI 与项目负责人定向复审；不得用 old CI 或本修复自宣 PASS/DONE/merge。
 
 ## 当前验证候选
 

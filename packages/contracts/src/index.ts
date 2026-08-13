@@ -263,7 +263,14 @@ export type SessionPrimaryAction =
 export type SessionReviewAccess = 'unavailable' | 'read_only';
 
 export type PostSessionAnalysisLaneStatus =
-  'not_started' | 'pending' | 'running' | 'succeeded' | 'unjudged' | 'failed' | 'cancelled';
+  | 'not_started'
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'unjudged'
+  | 'failed'
+  | 'cancelled'
+  | 'unavailable';
 
 export interface PostSessionAnalysisLaneProjection {
   status: PostSessionAnalysisLaneStatus;
@@ -279,6 +286,27 @@ export interface PostSessionAnalysisProjection {
   trigger_identity: string;
   memory_extract: PostSessionAnalysisLaneProjection;
   actual_question_reconcile: PostSessionAnalysisLaneProjection;
+}
+
+export type SecondSessionOpeningStatus =
+  | 'waiting_calibration'
+  | 'waiting_basis_analysis'
+  | 'ready'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'unavailable';
+
+export interface SecondSessionOpeningProjection {
+  status: SecondSessionOpeningStatus;
+  basis_session_id: string;
+  basis_analysis_trigger_identity: string;
+  calibration_gate_identity: string | null;
+  request_id: string | null;
+  attempt_id: string | null;
+  error_code: string | null;
+  updated_at: string;
 }
 
 export interface ProjectSessionListItem {
@@ -309,6 +337,12 @@ export interface ProjectSessionListItem {
    * successful inheritance analysis.
    */
   post_session_analysis?: PostSessionAnalysisProjection | null;
+  /**
+   * Derived, content-free coordination state. Waiting states never imply that
+   * a generation attempt exists or that the exact-once opening gate has been
+   * consumed.
+   */
+  second_session_opening?: SecondSessionOpeningProjection | null;
 }
 
 export interface ProjectSessionListResponse {
