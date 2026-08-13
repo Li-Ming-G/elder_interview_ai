@@ -850,3 +850,4 @@ P2：
 - 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
 - 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
 - 审查材料：[PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已作为 non-Draft 建立；实现候选提交 `e003c519835f7cadaa4b7edc89b65760a00bc783`，本地 unit 339/339、Chromium 27/27 与三视口截图已完成；治理补记后的 final exact head 与 PostgreSQL CI 等待 PR 实时结果。
+- CI 历史：exact head `7e1fae8d1fe8be7cb3c0e703b67d022818d1501c` / run `31654793944` 在 integration 失败；原因是旧 HTTP 测试仍期待 ordinary transcript 返回校准控制片段。修复保持 runtime 过滤，并增加“API 仅 conversation、数据库校准证据仍完整保留”的双向断言；该 attempt 不作为接收证据。
