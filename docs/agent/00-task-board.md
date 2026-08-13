@@ -12,6 +12,9 @@
 
 | 任务编号 | 任务 | 负责人 | 状态 | 前置任务 | 验收依据 | 阻塞原因 |
 |---|---|---|---|---|---|---|
+| SPEC-REPEAT-INTERVIEW-001 | 同项目连续访谈、会后继承与第二次开场契约 | 独立 docs-only 契约任务 `codex/spec-repeat-interview-001` | REVIEW | 项目负责人已确认响应式网页与真实 repeat flow；复用总控唯一 iteration-coach `Correction / NO-PAUSE` | [任务卡](tasks/SPEC-REPEAT-INTERVIEW-001.md)、[候选交接](handoffs/SPEC-REPEAT-INTERVIEW-001.md)、`01/03/04/05/06/07/08/09/10`、shared contracts、ADR-038、CON-030、REV-048 | 等待 non-Draft PR exact-head CI 与项目负责人手动审查；执行 Agent 不得 PASS/DONE/merge；未写 runtime/Prisma/UI/provider |
+| DEV-008B1 | 同 project 下一次访谈入口与权威 action | 未分配 | BLOCKED | SPEC-REPEAT-INTERVIEW-001 PASS/merge；DEV-008A4 / PR #44 新 exact-head PASS/merge | [任务卡](tasks/DEV-008B1.md)、`09` §17、ADR-038 | 等待两项契约/整合依赖；不得并发修改 A4 Home/routes/styles/completion/review |
+| DEV-008B2 | 会后分析生产触发与第二次 opening suggestion | 未分配 | BLOCKED | SPEC-REPEAT-INTERVIEW-001 PASS/merge；DEV-008A4 / PR #44 新 exact-head PASS/merge；DEV-008B1 seam | [任务卡](tasks/DEV-008B2.md)、`07` §18、`09` §17、ADR-027-031/038 | 生产 caller 当前缺失；可在依赖关闭后先做 deterministic seam，真实 LLM/provider/真实试点结论继续受外部门禁阻塞 |
 | BASE-001 | 首次总控基线审计与 Git 建立 | 总控 Agent | DONE | 无 | 本轮检查记录、Git 提交、交接日志 | 无；低风险基线整理已由总控自检 |
 | DOC-001 | 建立项目文档基线 | 总控 Agent | DONE | 无 | 文档包完整性与一致性检查 | REV-003 PASS；文档和契约一致性门禁通过 |
 | DOC-002 | 分离协作文档当前态与历史归档 | 总控 Agent | DONE | BASE-001 | `docs/agent/README.md`、当前审查/交接索引、归档卷、OPEN 冲突索引 | 文档结构整理、链接检查、Git diff check 通过；不改变产品或技术契约 |

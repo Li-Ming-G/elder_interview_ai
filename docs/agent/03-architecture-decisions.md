@@ -361,3 +361,16 @@
 - 取舍：分阶段 optional 让 docs/contract PR 不越界修改业务 mapper且 CI 可通过，但若没有 A3 exact-key 白名单测试会有永久漏发风险；因此 runtime 显式 key 与 legacy/null 反例是解锁后的硬门禁。
 - 边界：不改变 local deletion≠server deletion、权限、删除范围、CON-023、DEV-008D、首页动作矩阵或 evidence-finalization 例外；不实现 A3、IndexedDB、页面、服务端下载或服务器删除。
 - 接收边界：只接受 contract-first total bytes 接缝并解锁 DEV-008A3 runtime；ordinary mapper 显式 key、safe integer、权限白名单与 fresh/legacy 失败关闭仍须由 A3 实现和验收。父 DEV-008A、DEV-008A2、DEV-008D 与 CON-023 状态不因本 ADR 改变。
+
+## ADR-038｜连续访谈采用项目级权威动作、完成后双分析与校准后单次开场
+
+- 状态：`Proposed / REVIEW`；绑定 SPEC-REPEAT-INTERVIEW-001 / REV-048，等待项目负责人 exact-head 审查，不由执行 Agent 自行 Accepted。ADR-037 已由并行 DEV-008A4 / PR #44 占用。
+- 背景：数据模型已有 project/session sequence、Memory current view、actual-question catalog、context snapshot 与 `second_session_opening` attempt kind，但 Home 没有 project-level repeat action，`MemoryService.extract`/`reconcileActualQuestions` 没有生产调用者。只加按钮会创建新 session 却没有真实继承。
+- 决定：普通 project read model 投影唯一 `start_next_session` action；服务端按当前权限/assignment/project/consent/deletion 与 session 集合失败关闭，前端不猜 status。全局 new-interview 继续创建新 project，session 行继续只处理当前 session。
+- 创建：新增显式 next-session workflow，stable request/canonical payload 绑定 existing project + latest completed basis；project 锁和 sequence 唯一性保证不同 request 并发至多创建一个 sequence+1。新 session 的 capture/audio/ASR/speaker/calibration/runtime 全新且重新 gate。
+- 会后：canonical completed 提交产生稳定 trigger root，分别调用既有 Memory owner 和 QuestionEvidence actual-question owner。两 lane 非阻塞、独立投影 status/retry evidence；失败不回退 completed、不阻塞 raw recording/review/next session。
+- 开场：sequence>=2 的 calibration gate terminal 后产生一个稳定 `second_session_opening` attempt；confirmed gate 可含当前 stream trusted membership，failed/skipped/no-attempt provider-unavailable gate 只使用先前 session 的可信资料。Context 只冻结 same-project eligible current memory、published reliable actual asked、边界与可信 membership。displayed != actual asked；继续复用唯一 Director/QuestionEvidence/current/history。
+- 降级：provider unavailable 不回退基础题、不阻塞创建或录音；analysis/opening 如实 failed/unjudged/unavailable。GET/render/WS replay 不产生 job。
+- UI/治理：不新增 memory/summary/pending-confirmation UI，不引入第二 AI/history、Prisma/migration、DB ownership、privacy/deletion/retention 或网页方向变化。称呼来自 `AuthUser.display_name`。
+- 依赖：B1/B2 runtime 必须等待本 ADR/SPEC PASS/merge，并等待 DEV-008A4 / PR #44 新 exact-head PASS/merge，避免 Home/routes/styles/completion/review 冲突。
+- 代价：增加一类 project action、显式 workflow 和两个系统触发身份；换取可证明的 same-project sequence、真实生产 caller、可审计 membership 与 AI 故障不伤录音。未来若需 memory UI、新 AI 或删除语义，必须另立决策。

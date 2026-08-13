@@ -62,6 +62,29 @@ export interface ProjectResponse extends ProjectDetails {
 export interface ProjectListOrdinaryProjection extends Omit<ProjectResponse, 'status'> {
   projection: 'ordinary';
   status: Exclude<ProjectStatus, 'restricted' | 'deleted'>;
+  /**
+   * SPEC-REPEAT-INTERVIEW-001 contract-first seam. Absence is fail-closed
+   * during rollout. DEV-008B1 must emit this key for every ordinary row before
+   * the Home UI may render the project-level next-session action.
+   */
+  repeat_interview?: RepeatInterviewProjectActionProjection;
+}
+
+export type RepeatInterviewActionReason =
+  | 'eligible'
+  | 'no_completed_session'
+  | 'session_in_progress'
+  | 'project_unavailable'
+  | 'consent_unavailable'
+  | 'access_unavailable';
+
+export interface RepeatInterviewProjectActionProjection {
+  primary_action: 'start_next_session' | null;
+  reason: RepeatInterviewActionReason;
+  basis_session_id: string | null;
+  basis_sequence_no: number | null;
+  next_sequence_no: number | null;
+  workflow_version: 'repeat-interview-v1';
 }
 
 export interface ProjectListRestrictedProjection {
@@ -124,6 +147,20 @@ export interface ConsentResponse extends ConsentDetails {
 
 export interface IdempotentRequest {
   request_id: string;
+}
+
+export interface CreateNextSessionRequest extends IdempotentRequest {
+  basis_session_id: string;
+  expected_basis_sequence_no: number;
+  workflow_version: 'repeat-interview-v1';
+}
+
+export interface CreateNextSessionResponse {
+  request_id: string;
+  project_id: string;
+  basis_session_id: string;
+  basis_sequence_no: number;
+  session: InterviewSessionResponse;
 }
 
 export type InterviewSessionStatus =
@@ -225,6 +262,25 @@ export type SessionPrimaryAction =
 
 export type SessionReviewAccess = 'unavailable' | 'read_only';
 
+export type PostSessionAnalysisLaneStatus =
+  'not_started' | 'pending' | 'running' | 'succeeded' | 'unjudged' | 'failed' | 'cancelled';
+
+export interface PostSessionAnalysisLaneProjection {
+  status: PostSessionAnalysisLaneStatus;
+  job_id: string | null;
+  request_id: string | null;
+  attempt_no: number;
+  retryable: boolean;
+  error_code: string | null;
+  updated_at: string | null;
+}
+
+export interface PostSessionAnalysisProjection {
+  trigger_identity: string;
+  memory_extract: PostSessionAnalysisLaneProjection;
+  actual_question_reconcile: PostSessionAnalysisLaneProjection;
+}
+
 export interface ProjectSessionListItem {
   id: string;
   project_id: string;
@@ -247,6 +303,12 @@ export interface ProjectSessionListItem {
   home_state: SessionHomeState;
   primary_action: SessionPrimaryAction;
   review_access: SessionReviewAccess;
+  /**
+   * Contract-first, content-free status/retry evidence. Absence means the
+   * runtime has not implemented the projection and must not be treated as a
+   * successful inheritance analysis.
+   */
+  post_session_analysis?: PostSessionAnalysisProjection | null;
 }
 
 export interface ProjectSessionListResponse {
