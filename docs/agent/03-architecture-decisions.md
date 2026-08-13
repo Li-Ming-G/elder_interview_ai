@@ -361,3 +361,14 @@
 - 取舍：分阶段 optional 让 docs/contract PR 不越界修改业务 mapper且 CI 可通过，但若没有 A3 exact-key 白名单测试会有永久漏发风险；因此 runtime 显式 key 与 legacy/null 反例是解锁后的硬门禁。
 - 边界：不改变 local deletion≠server deletion、权限、删除范围、CON-023、DEV-008D、首页动作矩阵或 evidence-finalization 例外；不实现 A3、IndexedDB、页面、服务端下载或服务器删除。
 - 接收边界：只接受 contract-first total bytes 接缝并解锁 DEV-008A3 runtime；ordinary mapper 显式 key、safe integer、权限白名单与 fresh/legacy 失败关闭仍须由 A3 实现和验收。父 DEV-008A、DEV-008A2、DEV-008D 与 CON-023 状态不因本 ADR 改变。
+
+## ADR-037｜首次访谈使用授权前当前页设备检查、正式流校准与自动收尾
+
+- 状态：`Proposed / REVIEW`；绑定 DEV-008A4 / REV-047，等待项目负责人 exact-head 审查，不由执行 Agent 自行 Accepted。
+- 背景：A1/A2/A3 已按旧路径完成，但普通流程仍把 ServiceTerm 同时作为 UI 与 start/readiness gate，麦克风检查晚于授权，校准与工作台同屏，complete ACK 未落本地 complete，正常收尾依赖三个手动动作。
+- 决定：普通链路冻结为 `project → early session → current-page mic/input → consent audio/consent → formal start/stream → dedicated calibration → workbench → automatic closeout → completed/review`。ServiceTerm API/表/历史 dormant，不在普通 UI 创建或展示，也不参与 ready/start/capture current gate；consent 仍是 ready 与 start 的正式门禁。
+- 设备事实：服务端 device_check 可复用既有状态机，但当前页面 passed 只存于组件生命周期，刷新必重检。formal start 的 getUserMedia 继续作为开始当下重验。
+- 校准与正文：校准仍由正式 provider stream/attempt 权威绑定，不成为 raw recording 硬门禁。失败/跳过/不可用时角色不可信且录音继续。降级放行前，已有 pending/collecting attempt 必须由 resolve `skip` 收束；仅无 attempt 的 provider unavailable 可本地放行。校准证据保留，但 ordinary realtime/transcript/review/AI context 不含其正文；客户端以 attempt 结束时间与 hypothesis ID 双重 fence 隔离迟到校准 interim，同时允许新 conversation hypothesis。
+- 收尾与 A3：controller 持有 complete ACK→local job complete 的唯一写权。exact ACK 后才能落 complete；自动 reconcile/verify 使用稳定幂等 ID、单 in-flight 与状态水位。canonical completed 在同一 URL 渲染独立完成态，不携带普通 transcript/suggestion/workbench。回顾可有界重新投影，但不放宽 fresh manifest + archive 全门禁。本机删除仍不影响服务器，DEV-008D/CON-023 不变。
+- 迁移与范围：无需 Prisma migration 或新状态枚举。不实现真实 ASR/LLM、题库、server deletion、导出、部署、PWA 或 App。
+- 取代关系：本 ADR 只取代 ADR-034 中普通新建必须 project→service term→consent→prepare/device-check/start 以及同屏校准/手动 happy-path 收尾的部分；ADR-034/035/036 的统一 shell、权限失败关闭、本机删除边界和严格 A3 门禁继续有效，历史正文永久保留。

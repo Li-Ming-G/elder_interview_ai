@@ -4,15 +4,11 @@ export type ProjectOperationalStatus =
 export interface InterviewStartGateInput {
   allRequiredConsentsValid: boolean;
   projectStatus: ProjectOperationalStatus;
-  serviceExplanationConfirmed: boolean;
   sessionStatus: InterviewSessionOperationalStatus;
 }
 
 export type InterviewStartBlockReason =
-  | 'project_not_startable'
-  | 'session_not_startable'
-  | 'service_explanation_required'
-  | 'consent_required';
+  'project_not_startable' | 'session_not_startable' | 'consent_required';
 
 export type InterviewStartGateResult =
   { allowed: true } | { allowed: false; reason: InterviewStartBlockReason };
@@ -43,9 +39,6 @@ export function evaluateInterviewStartGate(
   }
   if (input.sessionStatus !== 'device_check') {
     return { allowed: false, reason: 'session_not_startable' };
-  }
-  if (!input.serviceExplanationConfirmed) {
-    return { allowed: false, reason: 'service_explanation_required' };
   }
   if (!input.allRequiredConsentsValid) {
     return { allowed: false, reason: 'consent_required' };

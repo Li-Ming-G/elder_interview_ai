@@ -382,6 +382,58 @@ describe('project, bundled consent and interview start vertical seam', () => {
     expect(csrfB).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
+  it('starts a checked and consented interview without inventing a service-term row', async () => {
+    const listener = request.agent(application().getHttpServer() as SupertestApp);
+    const login = await listener
+      .post('/api/v1/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: 'project-listener-a@example.test', password: PASSWORD });
+    const csrf = (login.body as LoginBody).csrf_token;
+    const project = await listener
+      .post('/api/v1/projects')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ display_name: '虚构无价格主链路', request_id: randomUUID() });
+    const projectId = (project.body as IdBody).id;
+    const createdSession = await listener
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ request_id: randomUUID() });
+    const sessionId = (createdSession.body as IdBody).id;
+    await listener
+      .post(`/api/v1/sessions/${sessionId}/device-check`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ input_detected: true, microphone_permission: 'granted' });
+    await listener
+      .post(`/api/v1/projects/${projectId}/consents`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        consent_audio_object_id: null,
+        consent_method: 'electronic',
+        consent_text_version: 'mvp-v1',
+        consent_type: 'recording_transcription_ai',
+        consented_at: '2026-08-13T00:00:00.000Z',
+        request_id: randomUUID(),
+      });
+
+    expect(await prisma.serviceTerm.count({ where: { projectId } })).toBe(0);
+    const started = await listener
+      .post(`/api/v1/sessions/${sessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        audio_stream_id: randomUUID(),
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: randomUUID(),
+      });
+    expect(started.status).toBe(201);
+    expect(started.body).toMatchObject({ id: sessionId, status: 'recording' });
+    expect(await prisma.serviceTerm.count({ where: { projectId } })).toBe(0);
+  });
+
   it('authoritatively replays all four creates and rejects changed bindings', async () => {
     const server = application().getHttpServer() as SupertestApp;
     const listenerA = request.agent(server);

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 
-test('assigned fictional project passes preparation and enters only the workbench shell', async ({
+test('legacy checked session recovery hides price and microphone controls before formal start', async ({
   page,
 }) => {
   const writes: string[] = [];
@@ -293,24 +293,18 @@ test('assigned fictional project passes preparation and enters only the workbenc
     });
   });
 
-  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
-  await expect(page.getByRole('heading', { name: /和虚构长者小禾开始/ })).toBeVisible();
-  await expect(page.getByText('30 分钟', { exact: true })).toBeVisible();
+  await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
+  await expect(page.getByRole('heading', { name: '继续建立正式录音' })).toBeVisible();
   await expect(page.getByText(/正式授权有效/)).toBeVisible();
-  await expect(page.getByRole('button', { name: '开始访谈' })).toBeDisabled();
+  await expect(page.getByText(/服务说明|价格|费用|预计时长/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /检测麦克风/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '建立正式录音并进入校准' })).toBeEnabled();
   await page.setViewportSize({ height: 844, width: 390 });
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= globalThis.innerWidth),
   ).toBe(true);
 
-  await page.getByRole('button', { name: '检测麦克风' }).click();
-  await expect(page.getByText('权限已允许，并检测到声音输入。')).toBeVisible();
-  await expect(page).toHaveURL(
-    new RegExp(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare$`),
-  );
-  await expect(page.getByRole('button', { name: '开始访谈' })).toBeEnabled();
-
-  await page.getByRole('button', { name: '开始访谈' }).click();
+  await page.getByRole('button', { name: '建立正式录音并进入校准' }).click();
   await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
   await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
   await expect(
@@ -322,8 +316,6 @@ test('assigned fictional project passes preparation and enters only the workbenc
   await page.screenshot({ fullPage: true, path: 'test-results/dev-005b-workbench-narrow.png' });
 
   expect(writes).toEqual([
-    `/api/v1/projects/${PROJECT_ID}/sessions`,
-    `/api/v1/sessions/${SESSION_ID}/device-check`,
     `/api/v1/sessions/${SESSION_ID}/start`,
     `/api/v1/sessions/${SESSION_ID}/capture/confirm-active`,
   ]);
@@ -354,25 +346,8 @@ function responseFor(path: string, method: string): unknown {
       updated_at: '2026-08-07T00:00:00.000Z',
     };
   }
-  if (path === `/api/v1/projects/${PROJECT_ID}/service-terms`) {
-    return [
-      {
-        created_at: '2026-08-07T00:00:00.000Z',
-        currency: 'CNY',
-        effective_from: '2026-08-07T00:00:00.000Z',
-        estimated_session_count: 1,
-        expected_current_minutes: 30,
-        explained_at: '2026-08-07T00:00:00.000Z',
-        explained_by: '33333333-3333-4333-8333-333333333333',
-        id: '44444444-4444-4444-8444-444444444444',
-        included_minutes: 60,
-        overtime_price_minor: 0,
-        overtime_unit_minutes: 30,
-        project_id: PROJECT_ID,
-        superseded_at: null,
-      },
-    ];
-  }
+  if (path === `/api/v1/projects/${PROJECT_ID}/service-terms`)
+    throw new Error('ordinary recovery must not request service terms');
   if (path === `/api/v1/projects/${PROJECT_ID}/consents`) {
     return [
       {
@@ -389,12 +364,6 @@ function responseFor(path: string, method: string): unknown {
         status: 'valid',
       },
     ];
-  }
-  if (path === `/api/v1/projects/${PROJECT_ID}/sessions` && method === 'POST') {
-    return session('created');
-  }
-  if (path === `/api/v1/sessions/${SESSION_ID}/device-check` && method === 'POST') {
-    return session('device_check');
   }
   if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
     return session('device_check');

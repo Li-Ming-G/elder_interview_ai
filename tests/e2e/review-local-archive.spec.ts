@@ -27,8 +27,12 @@ for (const viewport of [
     await expect(page.getByText('原始虚构文字')).toBeVisible();
     await expect(page.getByText('修订后的虚构文字')).toBeVisible();
     await expect(page.getByText('完整可播放')).toBeVisible();
+    await expect(page.getByText('转录降级保存')).toBeVisible();
+    await expect(page.getByText('转录已收束')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '载入完整录音' })).toBeEnabled();
     await expect(page.getByRole('button', { name: '只删除此浏览器副本' })).toBeEnabled();
+    await page.getByRole('button', { name: '载入完整录音' }).click();
+    await expect(page.locator('audio.review-player')).toBeVisible();
     await expect(page.getByRole('textbox')).toHaveCount(0);
     expect(requests.some((url) => /download|signed|deletion/u.test(url))).toBe(false);
 
@@ -203,6 +207,27 @@ test('danger confirmation keeps keyboard focus inside and restores it on cancel 
   await expect(notice).toContainText('服务器录音、转录、记忆和审计仍保留');
 });
 
+for (const [variant, stateText] of [
+  ['dirty', '检测到采集或恢复事实'],
+  ['pending', '仍有录音分片等待保存'],
+  ['mismatch', '暂时无法用最新服务器事实核验本机副本'],
+] as const) {
+  test(`${variant} local archive facts keep playback and deletion disabled in Chromium`, async ({
+    page,
+  }) => {
+    await mockReviewApi(page, []);
+    await page.goto('/');
+    await seedVersionFourArchive(page);
+    await mutateArchiveForGate(page, variant);
+    await page.goto(REVIEW_PATH);
+
+    await expect(page.getByText(stateText)).toBeVisible();
+    await expect(page.getByRole('button', { name: '载入完整录音' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '只删除此浏览器副本' })).toBeDisabled();
+    await expect(page.locator('audio.review-player')).toHaveCount(0);
+  });
+}
+
 test('unload before the receipt completion never exposes a mixed local state', async ({
   context,
   page,
@@ -298,7 +323,7 @@ function apiResponse(pathname: string): unknown {
             failure_code: null,
             manifest_checksum: 'manifest',
             recording_status: 'stopped',
-            transcript_status: 'drained',
+            transcript_status: 'degraded',
             upload_status: 'complete',
           },
           home_state: 'review_ready',
@@ -368,8 +393,8 @@ function sessionResponse(): unknown {
       processing_started_at: '2026-08-12T08:00:01.500Z',
       recording_status: 'stopped',
       total_size_bytes: 5,
-      transcript_error_code: null,
-      transcript_status: 'drained',
+      transcript_error_code: 'ASR_UNAVAILABLE',
+      transcript_status: 'degraded',
       upload_status: 'complete',
       uploaded_chunk_count: 1,
     },
@@ -532,6 +557,80 @@ async function seedVersionFourArchive(page: Page): Promise<void> {
       });
     },
     { audioId: AUDIO_ID, checksum: CHECKSUM, projectId: PROJECT_ID, sessionId: SESSION_ID },
+  );
+}
+
+async function mutateArchiveForGate(
+  page: Page,
+  variant: 'dirty' | 'mismatch' | 'pending',
+): Promise<void> {
+  await page.evaluate(
+    async ({ sessionId, targetVariant }) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const open = indexedDB.open('elder-interview-audio-buffer', 4);
+        open.onerror = (): void => {
+          reject(open.error ?? new Error('mutation open failed'));
+        };
+        open.onsuccess = (): void => {
+          resolve(open.result);
+        };
+      });
+      const transaction = database.transaction(
+        targetVariant === 'dirty'
+          ? ['capture-checkpoints']
+          : targetVariant === 'pending'
+            ? ['delivery-queue']
+            : ['archive-chunks'],
+        'readwrite',
+      );
+      if (targetVariant === 'dirty') {
+        const store = transaction.objectStore('capture-checkpoints');
+        const record = await new Promise<Record<string, unknown>>((resolve, reject) => {
+          const request = store.get(`interview-capture:${sessionId}`);
+          request.onerror = (): void => {
+            reject(request.error ?? new Error('checkpoint read failed'));
+          };
+          request.onsuccess = (): void => {
+            resolve(request.result as Record<string, unknown>);
+          };
+        });
+        store.put({ ...record, dirty: true });
+      } else if (targetVariant === 'pending') {
+        transaction.objectStore('delivery-queue').put({
+          key: `${sessionId}:0`,
+          lastError: null,
+          retryCount: 0,
+          sequenceNo: 0,
+          sessionId,
+          status: 'pending',
+        });
+      } else {
+        const store = transaction.objectStore('archive-chunks');
+        const record = await new Promise<Record<string, unknown>>((resolve, reject) => {
+          const request = store.get(`${sessionId}:0`);
+          request.onerror = (): void => {
+            reject(request.error ?? new Error('archive read failed'));
+          };
+          request.onsuccess = (): void => {
+            resolve(request.result as Record<string, unknown>);
+          };
+        });
+        store.put({ ...record, checksumSha256: 'f'.repeat(64) });
+      }
+      await new Promise<void>((resolve, reject) => {
+        transaction.onabort = (): void => {
+          reject(transaction.error ?? new Error('mutation aborted'));
+        };
+        transaction.onerror = (): void => {
+          reject(transaction.error ?? new Error('mutation failed'));
+        };
+        transaction.oncomplete = (): void => {
+          resolve();
+        };
+      });
+      database.close();
+    },
+    { sessionId: SESSION_ID, targetVariant: variant },
   );
 }
 
