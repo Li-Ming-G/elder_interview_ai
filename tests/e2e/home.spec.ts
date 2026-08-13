@@ -59,7 +59,7 @@ for (const viewport of [
     await expect(page.getByRole('button', { name: '新建访谈' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: '最低项目信息' })).toBeVisible();
-    await expect(page.getByText(/创建项目本身不代表已经可以开始/)).toBeVisible();
+    await expect(page.getByText(/先确认当前页面的麦克风，再录制口头授权/)).toBeVisible();
     await page.getByRole('button', { name: '返回工作区' }).click();
     await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
   });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
@@ -15,14 +16,15 @@ test('real controller facts drive the complete workbench state and responsive sc
   page,
 }) => {
   test.setTimeout(120_000);
+  await mkdir('output/playwright', { recursive: true });
   const server = await installWorkbenchHarness(page);
   const workbenchUrl = `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`;
 
-  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
-  await page.getByRole('button', { name: '检测麦克风' }).click();
-  await expect(page.getByText('权限已允许，并检测到声音输入。')).toBeVisible();
-  await page.getByRole('button', { name: '开始访谈' }).click();
+  await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
+  await page.getByRole('button', { name: '建立正式录音并进入校准' }).click();
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
+  await expect(page.locator('.calibration-gate')).toBeVisible();
+  await page.getByRole('button', { name: '确认说话人' }).click();
   await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
   const micBeforeCorrection = await page.evaluate(() =>
     Number(Reflect.get(globalThis, '__micRequests')),
@@ -59,8 +61,8 @@ test('real controller facts drive the complete workbench state and responsive sc
     micBeforeCorrection,
   );
   await captureStateMatrix(page, 'recording');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
-  expect(server.createdSessions).toBe(1);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
+  expect(server.createdSessions).toBe(0);
 
   server.setState('interrupted');
   await triggerReadOnlyVerification(page);
@@ -68,7 +70,7 @@ test('real controller facts drive the complete workbench state and responsive sc
   await expect(page.getByRole('button', { name: '继续同一次访谈' })).toBeVisible();
   await expect(page.getByRole('button', { name: '安全结束已有音频' })).toBeVisible();
   await captureStateMatrix(page, 'interrupted');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
 
   await page.setViewportSize({ height: 844, width: 390 });
@@ -97,7 +99,10 @@ test('real controller facts drive the complete workbench state and responsive sc
     await triggerReadOnlyVerification(page);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     if (state === 'completed') {
-      await expect(page.getByRole('button', { name: '完成并离开' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '查看回顾' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '返回工作区' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: '当前对话' })).toHaveCount(0);
+      await expect(page.locator('.suggestion-panel')).toHaveCount(0);
     }
     if (state === 'failed') {
       await expect(page.getByRole('button', { name: '保留现状并离开' })).toBeVisible();
@@ -112,17 +117,16 @@ test('canonical calibration snapshots render all small-screen panel states witho
   page,
 }) => {
   test.setTimeout(90_000);
+  await mkdir('output/playwright', { recursive: true });
   await installWorkbenchHarness(page);
-  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
-  await page.getByRole('button').first().click();
-  await expect(page.getByRole('button').last()).toBeEnabled();
-  await page.getByRole('button').last().click();
+  await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
+  await page.getByRole('button', { name: '建立正式录音并进入校准' }).click();
   await expect(page).toHaveURL(
     new RegExp(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench$`),
   );
   const panel = page.locator('.speaker-calibration');
   await expect(panel).toBeVisible();
-  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(page.locator('.calibration-gate')).toBeVisible();
   await expect(panel.locator('strong')).toBeVisible();
   await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
   await expect(panel.locator('[aria-live="polite"]')).toBeVisible();
@@ -134,7 +138,7 @@ test('canonical calibration snapshots render all small-screen panel states witho
     { height: 568, width: 320 },
   ]) {
     await page.setViewportSize(viewport);
-    await expect(page.locator('.workbench--recording')).toBeVisible();
+    await expect(page.locator('.calibration-gate')).toBeVisible();
     await expect(panel.locator('strong')).toBeVisible();
     await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
     const dimensions = await panel.evaluate((element) => {
@@ -160,21 +164,13 @@ test('canonical calibration snapshots render all small-screen panel states witho
     );
     await page.screenshot({
       animations: 'disabled',
-      path: `test-results/dev-004c1/calibration-collecting-${String(viewport.width)}x${String(viewport.height)}.png`,
+      path: `output/playwright/dev-008a4-calibration-collecting-${String(viewport.width)}x${String(viewport.height)}.png`,
     });
   }
 
-  await emitCalibration(page, calibrationSnapshot('confirmed', 1));
-  await expect(page.locator('.workbench--recording')).toBeVisible();
-  await expect(panel).toHaveClass(/speaker-calibration--confirmed/u);
-  await expect(panel.locator('strong')).toBeVisible();
-  await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
-  await expect(panel).toContainText('\u8bf4\u8bdd\u4eba\u5df2\u786e\u8ba4');
-  await expect(panel).toHaveAttribute('aria-live', 'polite');
-
   for (const status of ['failed', 'skipped'] as const) {
     await emitCalibration(page, calibrationSnapshot(status, 0));
-    await expect(page.locator('.workbench--recording')).toBeVisible();
+    await expect(page.locator('.calibration-gate')).toBeVisible();
     await expect(panel.locator('strong')).toBeVisible();
     await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
     await expect(panel).toHaveAttribute('aria-live', 'polite');
@@ -184,17 +180,25 @@ test('canonical calibration snapshots render all small-screen panel states witho
     expect(retryBox?.height).toBeGreaterThanOrEqual(44);
     expect(retryBox?.width).toBeGreaterThanOrEqual(44);
     const beforeRetry = await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')));
+    await page.screenshot({
+      animations: 'disabled',
+      path: `output/playwright/dev-008a4-calibration-${status}-320x568.png`,
+    });
     await retry.click();
     await emitCalibration(page, calibrationSnapshot('collecting', 0));
     await expect(panel.getByRole('button')).toHaveCount(4);
     expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
       beforeRetry,
     );
-    await page.screenshot({
-      animations: 'disabled',
-      path: `test-results/dev-004c1/calibration-${status}-320x568.png`,
-    });
   }
+
+  await emitCalibration(page, calibrationSnapshot('confirmed', 1));
+  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(page.locator('.calibration-gate')).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
+    micRequests,
+  );
 });
 
 async function captureStateMatrix(page: Page, state: string): Promise<void> {
@@ -238,7 +242,7 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
     expect(dimensions.pageHeight).toBe(viewport.height);
     expect(dimensions.bodyScrollHeight).toBeLessThanOrEqual(viewport.height);
     expect(dimensions.smallestButtonHeight).toBeGreaterThanOrEqual(44);
-    if (viewport.width <= 390) {
+    if (viewport.width <= 390 && state !== 'completed') {
       expect(dimensions.metadataWidth).toBeGreaterThanOrEqual(52);
       expect(dimensions.metadataWidth).toBeLessThanOrEqual(64);
       expect(dimensions.paragraphX).toBeGreaterThan(dimensions.metadataX);
@@ -272,7 +276,7 @@ async function captureStateMatrix(page: Page, state: string): Promise<void> {
     }
     await page.screenshot({
       animations: 'disabled',
-      path: `test-results/dev-005r3/${state}-${String(viewport.width)}x${String(viewport.height)}.png`,
+      path: `output/playwright/dev-008a4-${state}-${String(viewport.width)}x${String(viewport.height)}.png`,
     });
   }
 }

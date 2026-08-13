@@ -62,6 +62,8 @@ export function SessionReviewRoute({
 
   useEffect(() => {
     let current = true;
+    let retryTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+    let retryCount = 0;
     async function load(): Promise<void> {
       try {
         const authorized = await findAuthorizedReview(api, projectId, sessionId);
@@ -77,16 +79,36 @@ export function SessionReviewRoute({
         }
         setListItem(authorized);
         setSession(freshSession);
-        setTranscripts(transcriptItems);
+        setTranscripts(
+          transcriptItems.filter((segment) => segment.content_kind !== 'speaker_calibration'),
+        );
         setProjection(localProjection);
+        if (shouldReproject(localProjection.state) && retryCount < 4) {
+          retryCount += 1;
+          retryTimer = globalThis.setTimeout(() => void load(), 1_250);
+        }
       } catch (loadError) {
         if (!current) return;
         setError(reviewErrorMessage(loadError));
       }
     }
+    const retryWhenCurrent = (): void => {
+      if (!current) return;
+      if (retryTimer !== null) globalThis.clearTimeout(retryTimer);
+      retryCount = 0;
+      void load();
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') retryWhenCurrent();
+    };
+    globalThis.addEventListener('online', retryWhenCurrent);
+    document.addEventListener('visibilitychange', onVisible);
     void load();
     return function cleanup(): void {
       current = false;
+      if (retryTimer !== null) globalThis.clearTimeout(retryTimer);
+      globalThis.removeEventListener('online', retryWhenCurrent);
+      document.removeEventListener('visibilitychange', onVisible);
       playbackRef.current?.revoke();
       playbackRef.current = null;
     };
@@ -304,8 +326,8 @@ export function SessionReviewRoute({
                 <p className="context-label">服务器事实 · 只读</p>
                 <h2 id="transcript-title">原始与修订转录</h2>
               </div>
-              <StatusBadge tone={session.status === 'completed' ? 'active' : 'warning'}>
-                {sessionStatusLabel(session.status)}
+              <StatusBadge tone={transcriptStatusTone(session)}>
+                {sessionStatusLabel(session)}
               </StatusBadge>
             </div>
             {transcripts.length === 0 ? (
@@ -340,6 +362,14 @@ export function SessionReviewRoute({
       )}
     </HomeFrame>
   );
+}
+
+function shouldReproject(state: LocalAudioArchiveProjection['state']): boolean {
+  return [
+    'blocked_active_or_dirty',
+    'blocked_pending_delivery',
+    'blocked_server_unverified',
+  ].includes(state);
 }
 
 async function findAuthorizedReview(
@@ -430,9 +460,20 @@ function speakerLabel(value: TranscriptSegmentResponse['effective_speaker_role']
   return { elder: '长者', interviewer: '倾听员', unknown: '说话人待确认' }[value];
 }
 
-function sessionStatusLabel(status: InterviewSessionResponse['status']): string {
-  if (status === 'completed') return '转录已收束';
-  if (status === 'processing') return '转录处理中';
-  if (status === 'failed') return '保存需关注';
+function sessionStatusLabel(session: InterviewSessionResponse): string {
+  if (session.finalization?.transcript_status === 'drained') return '转录已收束';
+  if (session.finalization?.transcript_status === 'degraded') return '转录降级保存';
+  if (
+    session.finalization?.transcript_status === 'pending' ||
+    session.finalization?.transcript_status === 'draining'
+  ) {
+    return '转录处理中';
+  }
+  if (session.status === 'failed') return '保存需关注';
+  if (session.finalization?.transcript_status === 'not_started') return '转录尚未开始';
   return '只读';
+}
+
+function transcriptStatusTone(session: InterviewSessionResponse): 'active' | 'warning' {
+  return session.finalization?.transcript_status === 'drained' ? 'active' : 'warning';
 }

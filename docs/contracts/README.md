@@ -6,6 +6,8 @@
 
 REST 的正式 TypeScript shared DTO 位于 `packages/contracts/src/index.ts`，与本目录的 JSON Schema/OpenAPI 资产共同受 `05` 的契约变更规则约束。`ProjectListProjection`、`ProjectSessionListResponse` 与 `EvidenceFinalizationResponse` 已由 SPEC-DEV-008A1-ACCESS / REV-042 exact-head PASS 并合并，现为 DEV-008A1 的正式实现依据；接收 shared DTO 不代表对应运行时已实现。
 
+DEV-008A4 / ADR-037 / REV-047 的普通首次访谈行为修订不新增 REST DTO、数据库字段或公共状态枚举；可执行 start gate 由 `apps/api/src/project-foundation/interview-start-policy.ts` 表达。ServiceTerm DTO/API 保留 dormant，普通 transcript list 的 `conversation` 过滤与 exact complete ACK 本机状态转换属于既有 DTO/状态上的收紧行为。
+
 - `openapi.yaml`：REST API 的机器可读定义；
 - `websocket-events.md`：实时事件目录及其 Schema 文件索引；
 - `interview-recorder-output.schema.json`：访谈记录员结构化输出；

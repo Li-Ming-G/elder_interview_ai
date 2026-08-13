@@ -49,6 +49,7 @@ export class InterviewApiError extends Error {
 export interface PreparationData {
   consents: ConsentResponse[];
   project: ProjectResponse;
+  /** Dormant compatibility data; ordinary DEV-008A4 UI does not project it. */
   serviceTerms: ServiceTermResponse[];
   session: InterviewSessionResponse | null;
 }
@@ -67,6 +68,8 @@ export interface NewInterviewApi {
     request: CreateServiceTermRequest,
   ): Promise<ServiceTermResponse>;
   createSession(projectId: string, request: IdempotentRequest): Promise<InterviewSessionResponse>;
+  deviceCheck(sessionId: string, request: DeviceCheckRequest): Promise<InterviewSessionResponse>;
+  startSession(sessionId: string, request: StartSessionRequest): Promise<InterviewSessionResponse>;
 }
 
 export interface HomeApi {
@@ -265,9 +268,8 @@ export function createInterviewApi(
       throw new InterviewApiError('NOT_FOUND', '转录片段已不可用，请重新核对当前会话', 404);
     },
     loadPreparation: async (projectId, sessionId): Promise<PreparationData> => {
-      const [project, serviceTerms, consents, session] = await Promise.all([
+      const [project, consents, session] = await Promise.all([
         read<ProjectResponse>(`/api/v1/projects/${projectId}`),
-        read<ServiceTermResponse[]>(`/api/v1/projects/${projectId}/service-terms`),
         read<ConsentResponse[]>(`/api/v1/projects/${projectId}/consents`),
         sessionId === null
           ? Promise.resolve(null)
@@ -276,7 +278,7 @@ export function createInterviewApi(
       if (session !== null && session.project_id !== projectId) {
         throw new InterviewApiError('SESSION_PROJECT_MISMATCH', '访谈会话与当前项目不匹配', 409);
       }
-      return { consents, project, serviceTerms, session };
+      return { consents, project, serviceTerms: [], session };
     },
     listProjects: async (): Promise<ProjectListResponse> => read('/api/v1/projects'),
     listProjectSessions: async (projectId, input = {}): Promise<ProjectSessionListResponse> => {

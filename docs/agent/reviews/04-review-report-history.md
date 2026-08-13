@@ -842,3 +842,14 @@ P2：
 - 合并与集成：PR #40 按仓库 merge-commit 策略非 squash 合入，merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 的 parents 为 prior main `5035c119fa5a3eeb7999d305f5c052672dc50d25` 与 accepted head `93be9a27b93e763e56457668c78b5ac2a332bab4`；main CI `31613083916` completed / success。
 - 治理：DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 未实现边界：本结论不宣称 server deletion/deletion_request、倾听员导出、PWA/Capacitor/WebView/App、真实 ASR/LLM、DEV-007 聚合验收、正式题库、真实试点或 MVP 发布完成。
+
+## REV-047｜DEV-008A4 首次访谈主链路整合候选
+
+- 状态：`PENDING / REVIEW`；项目负责人尚未审查，执行 Agent 不得给出 PASS/DONE。
+- 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`；接续分支 `codex/dev-008a4-first-interview-flow-continuation`，原分支/worktree 保持未修改。
+- 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
+- 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
+- 审查材料：[PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已作为 non-Draft 建立；实现候选提交 `e003c519835f7cadaa4b7edc89b65760a00bc783`，本地 unit 339/339、Chromium 27/27 与三视口截图已完成；治理补记后的 final exact head 与 PostgreSQL CI 等待 PR 实时结果。
+- CI 历史：exact head `7e1fae8d1fe8be7cb3c0e703b67d022818d1501c` / run `31654793944` 在 integration 失败；原因是旧 HTTP 测试仍期待 ordinary transcript 返回校准控制片段。修复保持 runtime 过滤，并增加“API 仅 conversation、数据库校准证据仍完整保留”的双向断言；该 attempt 不作为接收证据。
+- CI 历史：exact head `6ae8d2cb81a9fccca192c404eacaf0de534a9342` / run `31655022427` 通过 fresh migrations、81/81 integration、23/23 auth、build、smoke 与普通 Chromium，最后 auth Chromium 失败。旧 fixture 仍创建 0 元 ServiceTerm，并按旧 ready 逻辑期待 consent 错误；修复删除伪条款、增加数据库无条款断言，并按正式 project-first gate 期待 `PROJECT_NOT_STARTABLE`。该 attempt 不作为接收证据。
+- CI 成功候选：exact head `715d3b16723eaff4331f894880f940cd2b4c73be` / run `31655327168` completed / success；format/lint/typecheck/unit、14 migrations deploy/status、81/81 integration、23/23 auth、build、smoke、普通 Chromium 与 auth Chromium 5/5 全绿。后续仅为将该事实写回治理文档的 docs-only head；PR final exact head 仍须保持绿色，项目负责人尚未审查。

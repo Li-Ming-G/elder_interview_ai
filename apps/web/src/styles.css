@@ -803,6 +803,140 @@ p {
   flex-direction: column;
 }
 
+.calibration-gate {
+  min-height: 100dvh;
+  background:
+    radial-gradient(
+      circle at 50% 20%,
+      color-mix(in oklch, var(--accent-soft) 72%, transparent),
+      transparent 44%
+    ),
+    var(--surface-subtle);
+}
+
+.calibration-gate__stage {
+  overflow-y: auto;
+  width: min(100% - 3rem, 52rem);
+  min-height: 0;
+  padding: clamp(2rem, 8vh, 6rem) 0 3rem;
+  margin: 0 auto;
+}
+
+.calibration-gate__stage > h1 {
+  max-width: 18ch;
+  margin-bottom: 0.75rem;
+}
+
+.calibration-gate__stage > p:not(.context-label) {
+  max-width: 66ch;
+  color: var(--muted-ink);
+  line-height: 1.65;
+}
+
+.calibration-gate__stage .speaker-calibration {
+  width: 100%;
+  min-height: 9rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.calibration-gate__stage .transcript-notice {
+  margin-top: 1rem;
+}
+
+.completed-interview {
+  min-height: 100dvh;
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      color-mix(in oklch, var(--accent-soft) 78%, transparent),
+      transparent 42%
+    ),
+    var(--surface-subtle);
+}
+
+.completed-interview__stage {
+  display: grid;
+  overflow-y: auto;
+  width: min(100% - 3rem, 46rem);
+  min-height: 0;
+  padding: clamp(2.5rem, 10vh, 7rem) 0 3rem;
+  margin: 0 auto;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.completed-interview__mark {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 1.25rem;
+  place-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  color: white;
+  background: var(--accent);
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.completed-interview__stage h1 {
+  max-width: 20ch;
+  margin-bottom: 0.75rem;
+}
+
+.completed-interview__stage > p:not(.context-label) {
+  max-width: 58ch;
+}
+
+.completed-interview__facts {
+  display: grid;
+  overflow: hidden;
+  width: 100%;
+  margin: 2rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  text-align: left;
+}
+
+.completed-interview__facts > div {
+  min-width: 0;
+  padding: 1rem;
+  border-right: 1px solid var(--line);
+}
+
+.completed-interview__facts > div:last-child {
+  border-right: 0;
+}
+
+.completed-interview__facts dt {
+  color: var(--muted-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.completed-interview__facts dd {
+  overflow-wrap: anywhere;
+  margin: 0.3rem 0 0;
+  color: var(--ink);
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.completed-interview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
 .speaker-calibration {
   display: flex;
   align-items: center;
@@ -858,6 +992,35 @@ p {
 }
 
 @media (max-width: 40rem) {
+  .calibration-gate__stage {
+    width: min(100% - 1.5rem, 52rem);
+    padding-top: 2rem;
+  }
+
+  .completed-interview__stage {
+    width: min(100% - 1.5rem, 46rem);
+    padding-top: 2.5rem;
+  }
+
+  .completed-interview__facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .completed-interview__facts > div,
+  .completed-interview__facts > div:last-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .completed-interview__facts > div:last-child {
+    border-bottom: 0;
+  }
+
+  .completed-interview__actions,
+  .completed-interview__actions .button {
+    width: 100%;
+  }
+
   .speaker-calibration {
     align-items: stretch;
     padding: 0.65rem 0.75rem;
@@ -879,6 +1042,44 @@ p {
 
   .speaker-calibration__actions .text-button {
     flex: 1 1 6rem;
+  }
+}
+
+@media (max-width: 22.5rem) and (max-height: 36rem) {
+  .completed-interview__stage {
+    padding-block: 1rem;
+    align-content: start;
+  }
+
+  .completed-interview__mark {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.45rem;
+  }
+
+  .completed-interview__stage h1 {
+    margin-bottom: 0.4rem;
+    font-size: 1.75rem;
+  }
+
+  .completed-interview__stage > p:not(.context-label) {
+    margin-bottom: 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
+  .completed-interview__facts {
+    margin-top: 0.75rem;
+  }
+
+  .completed-interview__facts > div {
+    padding: 0.55rem 0.75rem;
+  }
+
+  .completed-interview__actions {
+    gap: 0.4rem;
+    margin-top: 0.75rem;
   }
 }
 

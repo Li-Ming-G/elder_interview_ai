@@ -45,6 +45,38 @@ describe('WorkbenchShell', () => {
     expect(screen.getByText('正在采集 · 本浏览器已保存 2 段')).toBeTruthy();
   });
 
+  it('keeps calibration evidence out of the ordinary transcript projection', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('confirmed'),
+        finals: [
+          {
+            contentKind: 'speaker_calibration',
+            endMs: 500,
+            segmentId: 'calibration-segment',
+            speakerRole: 'interviewer',
+            startMs: 0,
+            text: '我是访谈员',
+          },
+          {
+            contentKind: 'conversation',
+            endMs: 1_500,
+            segmentId: 'conversation-segment',
+            speakerRole: 'elder',
+            startMs: 500,
+            text: '我们从河边的老房子说起。',
+          },
+        ],
+      },
+    });
+    renderWorkbench(harness);
+
+    expect(await screen.findByText('我们从河边的老房子说起。')).toBeTruthy();
+    expect(screen.queryByText('我是访谈员')).toBeNull();
+    expect(screen.queryByText('校准片段')).toBeNull();
+  });
+
   it('switches the same mounted page from recording to interrupted and keeps transcript read-only', async () => {
     const harness = createHarness(recordingSession());
     renderWorkbench(harness);
@@ -101,7 +133,7 @@ describe('WorkbenchShell', () => {
     expect(await screen.findByText(/登录、授权或项目权限当前无法确认/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续同一次访谈' })).toBeNull();
     expect(screen.queryByRole('button', { name: '安全结束已有音频' })).toBeNull();
-    expect(screen.getByRole('button', { name: '重新核对' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '重新核对当前状态' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '离开工作台' })).toBeTruthy();
   });
 
@@ -244,8 +276,8 @@ describe('WorkbenchShell', () => {
       expect(harness.controller.stopAndFreeze).toHaveBeenCalledTimes(1);
     });
     expect(harness.api.stopSession).toHaveBeenCalledTimes(1);
-    expect(harness.controller.flushDelivery).toHaveBeenCalledTimes(1);
-    expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
+    expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
+    expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
     expect(harness.api.stopSession).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({
@@ -259,7 +291,6 @@ describe('WorkbenchShell', () => {
   it.each([
     ['stopping', '正在安全保存录音'],
     ['processing', '正在完成转录处理'],
-    ['completed', '录音和转录已完成'],
     ['failed', '本次访谈未能自动收束'],
   ] as const)('renders persisted %s facts and actions', async (status, title) => {
     const harness = createHarness(endingSession(status), {
@@ -273,10 +304,49 @@ describe('WorkbenchShell', () => {
         true,
       );
     }
-    if (status === 'processing' || status === 'completed') {
+    if (status === 'processing') {
       fireEvent.click(screen.getByRole('button', { name: '收起状态' }));
       expect(await screen.findByRole('button', { name: '查看详情' })).toBeTruthy();
     }
+  });
+
+  it('switches automatically to an independent completed view with only final actions', async () => {
+    const harness = createHarness(endingSession('processing'), {
+      endHandoff: null,
+      phase: 'stopped',
+      realtime: {
+        ...EMPTY_REALTIME,
+        finals: [
+          {
+            endMs: 1_000,
+            segmentId: 'conversation-segment',
+            speakerRole: 'elder',
+            startMs: 0,
+            text: '这段文字不应留在完成页。',
+          },
+        ],
+      },
+    });
+    renderWorkbench(harness);
+    expect(await screen.findByText('正在完成转录处理')).toBeTruthy();
+
+    act(() => {
+      harness.emit(
+        snapshot(endingSession('completed'), {
+          phase: 'stopped',
+          realtime: harness.controller.snapshot.realtime,
+        }),
+      );
+    });
+
+    expect(await screen.findByRole('heading', { name: '录音和转录已完成' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '查看回顾' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '返回工作区' })).toBeTruthy();
+    expect(screen.getByText('已安全保存')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: '当前对话' })).toBeNull();
+    expect(screen.queryByText('这段文字不应留在完成页。')).toBeNull();
+    expect(screen.queryByTestId('workbench-finals')).toBeNull();
+    expect(screen.queryByRole('heading', { name: '追问建议' })).toBeNull();
   });
 
   it('does not offer a dead local-save action when a stopping handoff is missing', async () => {
@@ -289,33 +359,21 @@ describe('WorkbenchShell', () => {
 
     expect(await screen.findByText(/没有找到已冻结的结束交接/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '继续安全保存' })).toBeNull();
-    expect(screen.getByRole('button', { name: '继续处理收尾' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /继续处理收尾|继续安全保存/ })).toBeNull();
   });
 
-  it('rotates reconcile IDs after authoritative success but preserves them after unknown failure', async () => {
+  it('automatically closes out and preserves the reconcile id for an explicit failure retry', async () => {
     const harness = createHarness(endingSession('stopping'), {
       endHandoff: END_HANDOFF,
       phase: 'stopped',
     });
-    harness.api.recoverSession
-      .mockResolvedValueOnce(endingSession('stopping'))
-      .mockResolvedValueOnce(endingSession('processing'));
+    harness.api.recoverSession.mockResolvedValueOnce(endingSession('processing'));
     renderWorkbench(harness);
-
-    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
     await waitFor(() => {
       expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
     });
-    const firstId = harness.api.recoverSession.mock.calls[0]?.[1].request_id;
-
-    fireEvent.click(screen.getByRole('button', { name: '继续安全保存' }));
-    await waitFor(() => {
-      expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
-    });
-    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
     await screen.findByText('正在完成转录处理');
-    const secondId = harness.api.recoverSession.mock.calls[1]?.[1].request_id;
-    expect(secondId).not.toBe(firstId);
 
     const retryHarness = createHarness(endingSession('stopping'), {
       endHandoff: END_HANDOFF,
@@ -326,20 +384,18 @@ describe('WorkbenchShell', () => {
       .mockResolvedValueOnce(endingSession('stopping'));
     cleanup();
     renderWorkbench(retryHarness);
-    fireEvent.click(await screen.findByRole('button', { name: '继续处理收尾' }));
     await screen.findByText(/暂时无法连接服务/);
-    fireEvent.click(screen.getByRole('button', { name: '继续处理收尾' }));
+    const firstId = retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id;
+    fireEvent.click(screen.getByRole('button', { name: '重试完成安全保存' }));
     await waitFor(() => {
       expect(retryHarness.api.recoverSession).toHaveBeenCalledTimes(2);
     });
-    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(
-      retryHarness.api.recoverSession.mock.calls[0]?.[1].request_id,
-    );
+    expect(retryHarness.api.recoverSession.mock.calls[1]?.[1].request_id).toBe(firstId);
   });
 
   it.each([
     ['processing', '安全离开'],
-    ['completed', '完成并离开'],
+    ['completed', '返回工作区'],
     ['failed', '保留现状并离开'],
   ] as const)('uses truthful leave copy for %s', async (status, label) => {
     const harness = createHarness(endingSession(status), {
@@ -620,11 +676,8 @@ describe('WorkbenchShell', () => {
         }),
       );
     });
-    expect(await screen.findByText('正在录音 · 已跳过说话人确认')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '重试确认' }));
-    await waitFor(() => {
-      expect(beginSpeakerCalibration).toHaveBeenCalledTimes(1);
-    });
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+    expect(screen.queryByText('正在录音 · 已跳过说话人确认')).toBeNull();
 
     act(() => {
       harness.emit(
@@ -633,7 +686,109 @@ describe('WorkbenchShell', () => {
         }),
       );
     });
-    expect(await screen.findByText('正在录音 · 说话人已确认')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+  });
+
+  it('resolves an active server calibration attempt before continuing in ASR degraded mode', async () => {
+    const resolveSpeakerCalibration = vi.fn(() => Promise.resolve(calibrationSnapshot('skipped')));
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('collecting'),
+        failureKind: 'asr',
+      },
+    });
+    Object.assign(harness.api, { resolveSpeakerCalibration });
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    await waitFor(() => {
+      expect(resolveSpeakerCalibration).toHaveBeenCalledWith(
+        '55555555-5555-4555-8555-555555555555',
+        expect.objectContaining({ action: 'skip', mappings: [] }),
+      );
+    });
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+  });
+
+  it('allows local degraded bypass only when ASR is unavailable and no attempt exists', async () => {
+    const resolveSpeakerCalibration = vi.fn();
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationWithoutAttempt(),
+        failureKind: 'asr',
+      },
+    });
+    Object.assign(harness.api, { resolveSpeakerCalibration });
+    renderWorkbench(harness);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+    expect(resolveSpeakerCalibration).not.toHaveBeenCalled();
+  });
+
+  it('fences late calibration interim revisions while allowing a new conversation hypothesis', async () => {
+    const resolveSpeakerCalibration = vi.fn(() => Promise.resolve(calibrationSnapshot('skipped')));
+    const calibrationInterim = {
+      endMs: 180,
+      hypothesisId: 'calibration-hypothesis',
+      revision: 1,
+      startMs: 0,
+      text: '我是访谈员',
+    };
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('collecting'),
+        failureKind: 'asr',
+        interim: calibrationInterim,
+      },
+    });
+    Object.assign(harness.api, { resolveSpeakerCalibration });
+    renderWorkbench(harness);
+    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          ...harness.controller.snapshot,
+          realtime: {
+            ...harness.controller.snapshot.realtime,
+            interim: {
+              ...calibrationInterim,
+              endMs: 260,
+              revision: 2,
+              text: '我是访谈员，迟到修订',
+            },
+          },
+        }),
+      );
+    });
+    expect(screen.queryByTestId('workbench-interim')).toBeNull();
+    expect(screen.queryByText('我是访谈员，迟到修订')).toBeNull();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          ...harness.controller.snapshot,
+          realtime: {
+            ...harness.controller.snapshot.realtime,
+            interim: {
+              endMs: 500,
+              hypothesisId: 'conversation-hypothesis',
+              revision: 1,
+              startMs: 300,
+              text: '我们从老房子说起。',
+            },
+          },
+        }),
+      );
+    });
+    expect((await screen.findByTestId('workbench-interim')).textContent).toContain(
+      '我们从老房子说起。',
+    );
   });
 });
 
@@ -641,6 +796,7 @@ type CompleteApi = InterviewApi & InterviewCaptureApi & SpeakerCorrectionApi;
 type MockApi = { [Key in keyof CompleteApi]: ReturnType<typeof vi.fn<CompleteApi[Key]>> };
 type ControllerPort = Pick<
   InterviewCaptureController,
+  | 'completeFrozenAudio'
   | 'flushDelivery'
   | 'observeServerSession'
   | 'recover'
@@ -662,11 +818,18 @@ function createHarness(
   let current = snapshot(serverSession, overrides);
   const listeners = new Set<(next: InterviewCaptureControllerSnapshot) => void>();
   const emit = (next: InterviewCaptureControllerSnapshot): void => {
-    current = next;
-    for (const listener of listeners) listener(next);
+    current =
+      next.phase === 'active' && next.realtime.calibration === undefined
+        ? {
+            ...next,
+            realtime: { ...next.realtime, calibration: calibrationSnapshot('confirmed') },
+          }
+        : next;
+    for (const listener of listeners) listener(current);
   };
   const api = createApi(serverSession);
   const controller: ControllerPort = {
+    completeFrozenAudio: vi.fn(() => Promise.resolve(current)),
     flushDelivery: vi.fn(() => Promise.resolve(current.archive.pendingDeliveryCount)),
     observeServerSession: vi.fn(
       (next: InterviewSessionResponse): InterviewCaptureControllerSnapshot => {
@@ -838,7 +1001,10 @@ function snapshot(
     localJobId: `interview-capture:${SESSION_ID}`,
     phase: serverSession.status === 'interrupted' ? 'interrupted' : 'active',
     projectId: PROJECT_ID,
-    realtime: EMPTY_REALTIME,
+    realtime:
+      serverSession.status === 'recording'
+        ? { ...EMPTY_REALTIME, calibration: calibrationSnapshot('confirmed') }
+        : EMPTY_REALTIME,
     serverCapture: serverSession.capture ?? null,
     serverSession,
     serverVerificationError: null,
@@ -1017,6 +1183,22 @@ function calibrationSnapshot(
       status: 'active',
     },
     status,
+    updated_at: VERIFIED_AT,
+  };
+}
+
+function calibrationWithoutAttempt(): SpeakerCalibrationSnapshot {
+  return {
+    attempt: null,
+    session_id: SESSION_ID,
+    speaker_role_revision: 0,
+    speaker_stream: {
+      audio_stream_id: '77777777-7777-4777-8777-777777777777',
+      capture_generation_id: '66666666-6666-4666-8666-666666666666',
+      id: '44444444-4444-4444-8444-444444444444',
+      status: 'active',
+    },
+    status: 'not_started',
     updated_at: VERIFIED_AT,
   };
 }

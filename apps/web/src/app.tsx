@@ -198,10 +198,8 @@ export function App(): React.JSX.Element {
   if (route?.kind === 'preparation') {
     return (
       <PreparationPage
-        actorId={user.id}
         api={interviewApi}
         captureController={(sessionId) => captureController(route.projectId, sessionId)}
-        checkMicrophone={checkMicrophoneInput}
         initialSessionId={route.sessionId}
         navigate={navigate}
         projectId={route.projectId}
@@ -226,6 +224,8 @@ export function App(): React.JSX.Element {
       <NewInterviewPage
         actorId={user.id}
         api={interviewApi}
+        captureController={captureController}
+        checkMicrophone={checkMicrophoneInput}
         csrfToken={csrfToken}
         navigate={navigate}
       />

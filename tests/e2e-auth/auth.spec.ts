@@ -99,15 +99,6 @@ test('authenticated browser start fails closed after consent version, withdrawal
         request_id: crypto.randomUUID(),
       });
       const projectId = String(project.id);
-      await write(`/projects/${projectId}/service-terms`, {
-        currency: 'CNY',
-        estimated_session_count: 1,
-        expected_current_minutes: 10,
-        included_minutes: 60,
-        overtime_price_minor: 0,
-        overtime_unit_minutes: 30,
-        request_id: crypto.randomUUID(),
-      });
       const consent = await write(`/projects/${projectId}/consents`, {
         consent_audio_object_id: null,
         consent_method: 'electronic',
@@ -153,7 +144,7 @@ test('authenticated browser start fails closed after consent version, withdrawal
   });
 
   expect(scenarios.versionStart).toEqual({
-    body: expect.objectContaining({ code: 'CONSENT_REQUIRED' }),
+    body: expect.objectContaining({ code: 'PROJECT_NOT_STARTABLE' }),
     status: 409,
   });
   expect(scenarios.withdrawnStart).toEqual({
@@ -165,6 +156,19 @@ test('authenticated browser start fails closed after consent version, withdrawal
   if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
   const prisma = createTestPrismaClient(databaseUrl);
   try {
+    expect(
+      await prisma.serviceTerm.count({
+        where: {
+          projectId: {
+            in: [
+              scenarios.version.projectId,
+              scenarios.withdrawn.projectId,
+              scenarios.assignment.projectId,
+            ],
+          },
+        },
+      }),
+    ).toBe(0);
     await prisma.projectAssignment.updateMany({
       data: { revokedAt: new Date() },
       where: { projectId: scenarios.assignment.projectId, revokedAt: null },

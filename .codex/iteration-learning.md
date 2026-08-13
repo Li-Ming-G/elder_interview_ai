@@ -1304,3 +1304,26 @@
 - Historical integrity: reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 的 REQUEST_CHANGES/P1=1/P2=1 与 `f491d99` 中间修复 / CI `31606148505` 永久保留，不被最终 PASS 覆盖。
 - Verification boundary: 本 closeout 只修改治理文档，不改业务代码、Prisma/migration、ASR、DEV-007 或 DEV-008D；不宣称 server deletion/deletion_request、导出、PWA/App、真实 ASR/LLM、正式题库、真实试点或 MVP 发布完成。
 - Lesson: 父任务聚合 DONE 必须显式限定到已经逐子任务 exact-head 接收的产品范围；相邻真实试点门禁即使在同一 Epic，也不能因网页切片完成而被隐式关闭。
+
+### 2026-08-13 — DEV-008A4 首次访谈主链路整合启动
+
+- User outcome: 普通倾听员不再填写固定服务价格；先在当前页面确认麦克风再录口头授权；授权后建立正式录音/ASR并完成独立校准；结束后自动收尾，raw archive 完整即使 ASR 降级也可回顾播放或只删本机副本。
+- Review mode: 本轮按 iteration-coach 执行恰好一次独立只读复核，结果 `Correction / NO-PAUSE`。复核确认这是 contract-first 跨层重构，不是文案补丁；工作树在复核结束时仍无改动。
+- Facts: ServiceTerm 同时阻塞 refreshReady/start/capture current gate；旧 device_check 会被页面 load 直接投影为 passed；普通 transcript query 未过滤 calibration；stop 后 formal job 为 uploading 且 complete ACK 未写回 complete；A3 因此判 activeOrDirty。
+- Adopted decision: ADR-037 / DEV-008A4 / REV-047 冻结 `project→early session→current-page mic→consent→formal start/stream→dedicated calibration→workbench→automatic closeout→completed/review`。保留 ServiceTerm API/表/历史 dormant，不做 migration；普通正文双层过滤 calibration；controller 负责 exact ACK 后 local complete；回顾只做不放宽门禁的有界重投影。
+- Risk controls: 当前页 mic passed 不持久化；校准失败/不可用不伪成功且不阻塞 raw recording；automatic closeout 使用稳定 ID、单 in-flight 和状态水位；mismatch/unknown/本机写失败绝不标 complete；CON-023/DEV-008D/local-delete≠server-delete 不变。
+- Verification boundary: 当前仅完成正式契约与治理候选，任务保持 REVIEW。实现、全量门禁、真实 Chromium、non-Draft PR 与 exact-head CI 尚待完成；执行 Agent 不得自行 PASS/DONE/merge。
+- Lesson: 跨页面“已检查”状态与服务端业务状态不是同一事实；当安全要求依赖当前设备与当前页面时，持久状态只能证明历史动作，不能替代本次本地重新取证。
+
+### 2026-08-13 — DEV-008A4 接续实现与总控三项补强
+
+- Continuation integrity: 原 worktree tracked binary diff 与唯一 untracked task card 已机械复制；tracked diff、numstat、name-status 与 task SHA-256 全部一致，原 worktree 未修改。接续分支为 `codex/dev-008a4-first-interview-flow-continuation`。
+- Correction applied: ASR 降级时 collecting attempt 先 resolve `skip`，仅无 attempt 的 ASR unavailable 本地放行；校准 interim 由 resolved end timeline + hypothesis ID fence，迟到高 revision 不泄漏且新 conversation hypothesis 正常；canonical completed 使用独立完成页隐藏普通工作台。
+- Product/UI evidence: impeccable product register 采用克制、连续的既有 token/组件语言；目视发现并修复 320×568 完成页事实与按钮重叠，改为明确内部滚动边界和紧凑高度布局。三视口、44px、焦点、aria-live、reduced motion、overflow 与 completed 全状态截图通过。
+- Safety evidence: Chromium 以 `transcript_status=degraded` 验证 raw archive complete 可实际载入 `<audio>` 且本机删除可用；dirty、pending delivery、checksum mismatch 三类均禁用播放/删除。A3 fresh verifier 与 local-delete≠server-delete 边界未放宽。
+- Verification: format/lint/typecheck/build 通过；unit 339/339；Chromium 27/27。unit 首轮高负载触发既有 AI retry 绝对时限用例 1 次偶发失败，单测与完整重跑均通过，未修改目标。Docker Desktop 可启动但 Linux engine pipe 未就绪，fresh PostgreSQL/migration/integration/auth/smoke/auth Chromium 交 exact-head CI 验证。
+- Governance: 本轮未再次运行 iteration-coach；复用唯一 `Correction / NO-PAUSE`。任务、ADR-037 与 REV-047 继续 `REVIEW / PENDING`，执行 Agent 不给出 PASS/DONE、不 merge。
+- Delivery evidence: non-Draft [PR #43](https://github.com/Li-Ming-G/elder_interview_ai/pull/43) 已建立；实现候选提交为 `e003c519835f7cadaa4b7edc89b65760a00bc783`。治理补记推送后只接受 PR final exact head 的完整 CI，仍由项目负责人决定审查结论。
+- CI correction: first exact-head run `31654793944` 在 integration 暴露旧 speaker-calibration API 测试仍将控制片段计入 ordinary transcript。没有回退 runtime 隔离；测试改为同时证明 ordinary API 只返回 conversation、数据库仍保存 calibration 审计证据，然后触发新 exact-head 全门禁。
+- CI correction 2: run `31655022427` 已越过上述修复并通过 integration/auth/build/smoke/普通 Chromium，最后 auth Chromium 揭示旧 fixture 仍造 0 元 ServiceTerm 且使用旧 ready 错误预期。删除伪条款、增加数据库 0 条款断言，并按 `draft` project-first gate 期待 `PROJECT_NOT_STARTABLE`；继续触发新 exact-head 全门禁。
+- CI success: exact head `715d3b16723eaff4331f894880f940cd2b4c73be` / run `31655327168` completed / success；14 migrations deploy/status、81/81 integration、23/23 auth、普通 Chromium 与 auth Chromium 5/5 连同静态/unit/build/smoke 全绿。治理补记后的 PR final head 仍须维持绿色；任务保持 REVIEW，项目负责人决定最终结论。

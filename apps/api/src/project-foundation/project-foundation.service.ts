@@ -584,9 +584,6 @@ export class ProjectFoundationService {
       const project = await transaction.elderProject.findUniqueOrThrow({
         where: { id: session.projectId },
       });
-      const serviceTerm = await transaction.serviceTerm.findFirst({
-        where: { projectId: project.id, supersededAt: null },
-      });
       const consent = await transaction.consentRecord.findFirst({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         where: { consentType: 'recording_transcription_ai', projectId: project.id },
@@ -597,7 +594,6 @@ export class ProjectFoundationService {
           consent.revokedAt === null &&
           consent.consentTextVersion === CURRENT_CONSENT_TEXT_VERSION,
         projectStatus: project.status,
-        serviceExplanationConfirmed: serviceTerm !== null,
         sessionStatus: session.status,
       });
       if (!gate.allowed) {
@@ -717,14 +713,15 @@ export class ProjectFoundationService {
   ): Promise<void> {
     const project = await transaction.elderProject.findUniqueOrThrow({ where: { id: projectId } });
     if (project.status !== 'draft') return;
-    const serviceTerm = await transaction.serviceTerm.findFirst({
-      where: { projectId, supersededAt: null },
-    });
     const consent = await transaction.consentRecord.findFirst({
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       where: { consentType: 'recording_transcription_ai', projectId },
     });
-    if (serviceTerm !== null && consent?.status === 'valid' && consent.revokedAt === null) {
+    if (
+      consent?.status === 'valid' &&
+      consent.revokedAt === null &&
+      consent.consentTextVersion === CURRENT_CONSENT_TEXT_VERSION
+    ) {
       await transaction.elderProject.update({
         data: { status: 'ready' },
         where: { id: projectId },
