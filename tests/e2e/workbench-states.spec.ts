@@ -18,11 +18,14 @@ test('real controller facts drive the complete workbench state and responsive sc
   const server = await installWorkbenchHarness(page);
   const workbenchUrl = `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`;
 
-  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
-  await page.getByRole('button', { name: '检测麦克风' }).click();
-  await expect(page.getByText('权限已允许，并检测到声音输入。')).toBeVisible();
-  await page.getByRole('button', { name: '开始访谈' }).click();
+  await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
+  const startCapture = page.getByRole('button', { name: '建立正式录音并进入校准' });
+  await expect(startCapture).toBeEnabled();
+  await startCapture.click();
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
+  await expect(page.locator('.calibration-gate')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '当前对话' })).toHaveCount(0);
+  await emitCalibration(page, calibrationSnapshot('confirmed', 1));
   await expect(page.getByText('那时候我们住在河边。')).toBeVisible();
   const micBeforeCorrection = await page.evaluate(() =>
     Number(Reflect.get(globalThis, '__micRequests')),
@@ -59,8 +62,8 @@ test('real controller facts drive the complete workbench state and responsive sc
     micBeforeCorrection,
   );
   await captureStateMatrix(page, 'recording');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
-  expect(server.createdSessions).toBe(1);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
+  expect(server.createdSessions).toBe(0);
 
   server.setState('interrupted');
   await triggerReadOnlyVerification(page);
@@ -68,7 +71,7 @@ test('real controller facts drive the complete workbench state and responsive sc
   await expect(page.getByRole('button', { name: '继续同一次访谈' })).toBeVisible();
   await expect(page.getByRole('button', { name: '安全结束已有音频' })).toBeVisible();
   await captureStateMatrix(page, 'interrupted');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
 
   await page.setViewportSize({ height: 844, width: 390 });
@@ -119,16 +122,19 @@ test('dedicated calibration gate remains accessible on small screens and exits t
 }) => {
   test.setTimeout(90_000);
   await installWorkbenchHarness(page);
-  await page.goto(`/projects/${PROJECT_ID}/interview/prepare`);
-  await page.getByRole('button').first().click();
-  await expect(page.getByRole('button').last()).toBeEnabled();
-  await page.getByRole('button').last().click();
+  await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
+  const startCapture = page.getByRole('button', { name: '建立正式录音并进入校准' });
+  await expect(startCapture).toBeEnabled();
+  await startCapture.click();
   await expect(page).toHaveURL(
     new RegExp(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench$`),
   );
+  const gate = page.locator('.calibration-gate');
   const panel = page.locator('.speaker-calibration');
+  await expect(gate).toBeVisible();
   await expect(panel).toBeVisible();
-  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(page.locator('.workbench--recording')).toHaveCount(0);
+  await expect(page.locator('.transcript-stage')).toHaveCount(0);
   await expect(panel.locator('strong')).toBeVisible();
   await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
   await expect(panel.locator('[aria-live="polite"]')).toBeVisible();
@@ -140,7 +146,8 @@ test('dedicated calibration gate remains accessible on small screens and exits t
     { height: 568, width: 320 },
   ]) {
     await page.setViewportSize(viewport);
-    await expect(page.locator('.workbench--recording')).toBeVisible();
+    await expect(gate).toBeVisible();
+    await expect(page.locator('.workbench--recording')).toHaveCount(0);
     await expect(panel.locator('strong')).toBeVisible();
     await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
     const dimensions = await panel.evaluate((element) => {
@@ -172,6 +179,8 @@ test('dedicated calibration gate remains accessible on small screens and exits t
 
   await emitCalibration(page, calibrationSnapshot('confirmed', 1));
   await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
+  await expect(page.locator('.workbench--recording')).toBeVisible();
+  await expect(gate).toHaveCount(0);
   await expect(panel).toHaveCount(0);
   expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(
     micRequests,
@@ -871,8 +880,8 @@ function serviceTerms(): unknown {
 function consents(): unknown {
   return [
     {
-      consent_audio_object_id: null,
-      consent_method: 'electronic',
+      consent_audio_object_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      consent_method: 'recorded_verbal',
       consent_text_version: 'mvp-v1',
       consent_type: 'recording_transcription_ai',
       consented_at: '2026-08-08T08:00:00.000Z',
