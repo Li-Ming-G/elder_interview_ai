@@ -135,4 +135,5 @@
 - Implementation correction：初始transport rejection在provider-ready promise被await前可能触发Node24 unhandled rejection并退出；promise创建后立即附加containment catch而不吞掉后来await的拒绝，`onStatus` callback failure也被隔离。production仍只有v2 adapter truth source，正式drain/fence/sticky completeness/speaker/security语义未放宽。
 - Offline gates：安全 merge main `2f29cc7ef66563aebd2cd3d293606a5de6c20ca6` 后，format/lint/typecheck/build；unit57 files/364；独立PG 14 migrations current、integration14 files/84、auth4 files/23；smoke；Chromium24/24；auth Chromium5/5；R4 formal route默认300秒1/1。main新首页和IndexedDB v5使R4旧标题/v4 helper先失败，最小适配后全流程通过；一次准备按钮偶发禁用未稳定复现，原样复跑通过并保留为环境波动记录。
 - Cost：已知成功证据约2019 seconds、按公开 CNY1/hour 估算约CNY0.561，远低于预警/硬上限。Actual SKU/日结账单仍 unknown，需要控制台证据；估算不能替代账单。
-- Remaining：安全合并最新main、non-Draft PR、exact-head CI、项目负责人手动GitHub审查；物理目标Android Chrome；actual billing/SKU。CON-027继续阻塞真实长者/PII；不含gap/backfill、第二provider、真实LLM、生产部署。任务保持REVIEW，不得自宣PASS/DONE或merge。
+- Git review：已安全merge main `2f29cc7e` 并创建non-Draft [PR #45](https://github.com/Li-Ming-G/elder_interview_ai/pull/45)；实现head `ac44b4a9` 的CI run `31700867211` SUCCESS。本治理补记后的final metadata head/CI以PR最新head为准。
+- Remaining：项目负责人绑定PR exact head手动GitHub审查；物理目标Android Chrome；actual billing/SKU。CON-027继续阻塞真实长者/PII；不含gap/backfill、第二provider、真实LLM、生产部署。任务保持REVIEW，不得自宣PASS/DONE或merge。
