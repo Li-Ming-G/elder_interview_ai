@@ -144,7 +144,8 @@ test('two tabs serialize local deletion, commit all stores, replay receipt and s
   });
   await page.reload();
   await expect(page.getByText('此浏览器未找到副本')).toBeVisible();
-  await expect(page.getByText(/无法判断具体原因/u)).toBeVisible();
+  await expect(page.getByText(/当前网址 .* 未找到副本/u)).toBeVisible();
+  await expect(page.getByText(/无法据此判断服务器录音缺失/u)).toBeVisible();
 });
 
 test('danger confirmation keeps keyboard focus inside and restores it on cancel and success', async ({

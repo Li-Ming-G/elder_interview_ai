@@ -270,6 +270,16 @@ describe('WorkbenchShell', () => {
 
   it('submits one real frozen stop chain and never completes from a timer', async () => {
     const harness = createHarness(recordingSession());
+    vi.mocked(harness.controller.stopAndFreeze).mockImplementation(() => {
+      const handoff = stopHandoff(harness.controller.snapshot);
+      harness.emit(
+        snapshot(endingSession('stopping'), {
+          endHandoff: END_HANDOFF,
+          phase: 'stopped',
+        }),
+      );
+      return Promise.resolve(handoff);
+    });
     renderWorkbench(harness);
     fireEvent.click(await screen.findByRole('button', { name: '结束访谈' }));
     const confirm = screen.getByRole('button', { name: '确认结束' });
@@ -282,6 +292,9 @@ describe('WorkbenchShell', () => {
     expect(harness.api.stopSession).toHaveBeenCalledTimes(1);
     expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
     expect(harness.api.recoverSession).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(harness.controller.completeFrozenAudio).toHaveBeenCalledTimes(1);
+    });
     expect(harness.api.stopSession).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({

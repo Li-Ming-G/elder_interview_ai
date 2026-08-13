@@ -291,27 +291,32 @@ export function SessionReviewRoute({
                 {projectionHelp(projection.state, globalThis.location.origin)}
               </p>
             ) : null}
-            <div className="review-reprojection" aria-live="polite">
-              {reprojection.kind === 'checking' ? (
-                <p>正在重新核对本机副本与最新服务器清单…</p>
-              ) : null}
-              {reprojection.kind === 'waiting' ? (
-                <p>保存仍在收尾，页面会继续自动核对（第 {String(reprojection.attempt)} 次）。</p>
-              ) : null}
-              {reprojection.kind === 'exhausted' ? (
-                <div>
-                  <p>自动核对已暂时停止。当前安全门禁仍保持不变。</p>
-                  <button
-                    className="button button--secondary"
-                    onClick={() => {
-                      setReprojectionGeneration((value) => value + 1);
-                    }}
-                    type="button"
-                  >
-                    重新核对本机副本
-                  </button>
-                </div>
-              ) : null}
+            <div aria-live="polite">
+              <div className="review-reprojection">
+                {reprojection.kind === 'checking' ? (
+                  <p>正在重新核对本机副本与最新服务器清单…</p>
+                ) : null}
+                {reprojection.kind === 'waiting' ? (
+                  <p>保存仍在收尾，页面会继续自动核对（第 {String(reprojection.attempt)} 次）。</p>
+                ) : null}
+                {reprojection.kind === 'exhausted' ? (
+                  <div>
+                    <p>自动核对已暂时停止。当前安全门禁仍保持不变。</p>
+                    <button
+                      className="button button--secondary"
+                      onClick={() => {
+                        setReprojectionGeneration((value) => value + 1);
+                      }}
+                      type="button"
+                    >
+                      重新核对本机副本
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <p className="review-live" ref={noticeRef} tabIndex={-1}>
+                {notice}
+              </p>
             </div>
             {playback === null ? null : (
               <audio className="review-player" controls preload="metadata" src={playback.url}>
@@ -355,9 +360,6 @@ export function SessionReviewRoute({
                 </div>
               </div>
             ) : null}
-            <p className="review-live" aria-live="polite" ref={noticeRef} tabIndex={-1}>
-              {notice}
-            </p>
           </section>
 
           <section

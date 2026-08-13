@@ -103,6 +103,7 @@ export function WorkbenchShell({
     requestId: string;
   } | null>(null);
   const autoCloseoutWatermark = useRef<string | null>(null);
+  const completedHandoffKey = useRef<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
@@ -361,6 +362,7 @@ export function WorkbenchShell({
 
   async function finishFrozenAudio(handoff: CaptureStopHandoff): Promise<void> {
     await captureController.completeFrozenAudio(handoff);
+    completedHandoffKey.current = frozenHandoffKey(handoff);
     await reconcileInternal();
     await captureController.verifyServerSession();
   }
@@ -395,9 +397,11 @@ export function WorkbenchShell({
     setFinalizingLocal(true);
     try {
       const status = captureController.snapshot.serverSession?.status;
+      const endHandoff = captureController.snapshot.endHandoff;
       if (
         (status === 'stopping' || status === 'processing') &&
-        captureController.snapshot.endHandoff !== null
+        endHandoff !== null &&
+        completedHandoffKey.current !== frozenHandoffKey(endHandoff)
       ) {
         const handoff = await captureController.stopAndFreeze();
         await finishFrozenAudio(handoff);
@@ -1913,6 +1917,12 @@ function isCalibrationProviderUnavailable(
 
 function reconcileStorageKey(sessionId: string): string {
   return `elder-interview:closeout-reconcile:${sessionId}`;
+}
+
+function frozenHandoffKey(
+  handoff: Pick<CaptureStopHandoff, 'audioObjectId' | 'completeRequestId'>,
+): string {
+  return `${handoff.audioObjectId}:${handoff.completeRequestId}`;
 }
 
 function readReconcileRequestId(sessionId: string): string | null {
