@@ -14,6 +14,8 @@ import type { NormalizedAsrResult } from '../../apps/api/src/transcription/trans
 
 let defaultSessionId = '';
 let defaultSpeakerStreamId = '';
+let defaultCaptureGenerationId = '';
+let defaultAudioStreamId = '';
 
 describe('final-only transcript evidence core', () => {
   let app: INestApplication;
@@ -126,13 +128,36 @@ describe('final-only transcript evidence core', () => {
       data: { status: 'recording' },
       where: { id: sessionId },
     });
+    const audio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorA.id,
+        mimeType: 'audio/webm;codecs=opus',
+        projectId,
+        purpose: 'interview',
+        sessionId,
+      },
+    });
+    const generation = await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: audio.id,
+        audioStreamId: crypto.randomUUID(),
+        confirmedActiveAt: new Date(),
+        generationNo: 0,
+        sessionId,
+        status: 'active',
+        timelineOffsetMs: 0,
+      },
+    });
     const stream = await prisma.speakerStream.create({
       data: {
+        captureGenerationId: generation.id,
         closedAt: new Date(),
         sessionId,
         status: 'closed',
       },
     });
+    defaultCaptureGenerationId = generation.id;
+    defaultAudioStreamId = generation.audioStreamId;
     defaultSpeakerStreamId = stream.id;
   });
 
@@ -193,8 +218,8 @@ describe('final-only transcript evidence core', () => {
     await prisma.speakerCalibrationAttempt.create({
       data: {
         attemptNo: 1,
-        audioStreamId: crypto.randomUUID(),
-        captureGenerationId: crypto.randomUUID(),
+        audioStreamId: defaultAudioStreamId,
+        captureGenerationId: defaultCaptureGenerationId,
         endMs: 200,
         endSequenceNo: 2,
         resolvedAt: new Date('2026-08-04T08:06:00.000Z'),

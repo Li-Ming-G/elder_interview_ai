@@ -849,6 +849,7 @@ P2：
 - 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`；分支 `codex/dev-008a4-first-interview-flow`。
 - 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
 - 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
-- 审查材料：PR、exact head、CI、截图与门禁结果待实现完成后补齐。
+- 审查材料：non-Draft [PR #44](https://github.com/Li-Ming-G/elder_interview_ai/pull/44) 已建立；最终 exact head、完整 CI 与负责人结论仍待补齐。
 - 实现候选：ordinary ServiceTerm dormant/current-page mic/formal-stream calibration/自动收尾/exact complete ACK/回顾重投影与独立 completed DOM 已实现；WS interim 由服务端权威 `content_kind` 隔离迟到校准文本，collecting degraded 通过稳定幂等 server skip 收束。
 - 本地证据：format/lint/typecheck/build/diff-check 通过，full unit `56 files / 339 tests` 通过。Chromium 24 项均在 launch 阶段 `spawn EPERM`，未进入断言；Docker API permission denied 且无 DB URL，fresh migration/integration/auth/smoke/auth Chromium 本地未运行。必须由 exact-head GitHub CI 完整覆盖，不得把当前记录升级为 PASS。
+- CI 失败历史：initial head `a26a5230f9d50d28633aee528fb7eeb79e842528` / CI `31665010283` 的 static、unit、fresh migration deploy/status 成功，integration 80/82 后失败并跳过后续门禁。两项均为测试夹具未随新契约更新：迟到 interim 用例缺真实 capture generation 外键，旧 calibration API 用例仍把 2 条校准原始证据计入 ordinary transcript。定向修复构造真实 generation/audio 身份，并证明数据库 4 条原始证据仍在、普通 API 只返回 2 条 conversation；不改产品代码、不降低目标，必须以新 exact head 重跑完整 CI。

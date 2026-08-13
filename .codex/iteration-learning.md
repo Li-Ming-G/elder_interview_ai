@@ -1321,3 +1321,9 @@
 - Adopted boundary: 已有 attempt 以 payload-stable request ID 调用 `resolveSpeakerCalibration(action=skip)`；无 attempt + provider unavailable 才本地 bypass，auth/permission 错误不提供越过。WS interim 增加服务端按持久 attempt 时间区间分类的 `content_kind`，UI 只显示 conversation。completed 切换为无 workbench/transcript/suggestion DOM 的独立页并聚焦标题。
 - Verification evidence: format/lint/typecheck/build/diff 通过，full unit `56 files / 339 tests` 通过。本地 Chromium 在 launch 阶段 `spawn EPERM`，Docker API/DB URL 不可用；这些门禁保留给 exact-head CI，未改测试目标。
 - Lesson: 校准边界必须由 provider stream 与服务端时间证据表达，不能由 UI 的“刚点了跳过”或当前 revision 猜测；临时事件不落库也仍需要权威内容类型。完成态的独立性要用 DOM 排除而不是视觉遮盖来证明。
+
+### 2026-08-13 — DEV-008A4 initial exact-head CI 夹具修正
+
+- Failure evidence: PR #44 initial head `a26a5230f9d50d28633aee528fb7eeb79e842528` / CI `31665010283` 在 static、unit、fresh migration deploy/status 成功后，于 integration 80/82 失败；后续 auth/build/smoke/Chromium 按工作流跳过。迟到 interim 测试用随机 generation/audio ID 违反真实外键；旧 calibration API 测试仍期望 ordinary transcript 返回校准证据。
+- Correction: 测试夹具构造真实 AudioObject/SessionCaptureGeneration/SpeakerStream 复合身份；API 用例同时断言数据库仍保留 4 条原始 final（含 2 条 `speaker_calibration`），而普通 transcript 只投影 2 条 `conversation`。产品代码、过滤规则和测试目标均未放宽。
+- Verification boundary: 修复后本地 format/lint/typecheck/diff 与 full unit `56 files / 339 tests` 通过；fresh PostgreSQL integration 及后续完整门禁必须由新 exact-head CI 重跑。任务继续 REVIEW，失败 head/CI 永久保留，不自宣 PASS/DONE/merge。
