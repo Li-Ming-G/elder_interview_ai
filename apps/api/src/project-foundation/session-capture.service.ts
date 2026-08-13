@@ -382,14 +382,13 @@ export class SessionCaptureService {
     actor: AuthPrincipal,
     projectId: string,
   ): Promise<void> {
-    const [project, assignment, consent, serviceTerm] = await Promise.all([
+    const [project, assignment, consent] = await Promise.all([
       tx.elderProject.findUnique({ where: { id: projectId } }),
       tx.projectAssignment.findFirst({ where: { projectId, revokedAt: null, userId: actor.id } }),
       tx.consentRecord.findFirst({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         where: { consentType: 'recording_transcription_ai', projectId },
       }),
-      tx.serviceTerm.findFirst({ where: { projectId, supersededAt: null } }),
     ]);
     if (
       actor.status !== 'active' ||
@@ -397,9 +396,9 @@ export class SessionCaptureService {
       project.deletedAt !== null ||
       !['ready', 'active'].includes(project.status) ||
       assignment === null ||
-      serviceTerm === null ||
       consent?.status !== 'valid' ||
-      consent.revokedAt !== null
+      consent.revokedAt !== null ||
+      consent.consentTextVersion !== 'mvp-v1'
     ) {
       throw this.forbidden();
     }

@@ -181,8 +181,70 @@ describe('final-only transcript evidence core', () => {
       ...result({ ingestKey: 'fixture-stream:interim-1' }),
       kind: 'interim',
     });
-    expect(interim).toEqual({ kind: 'interim', persisted: false });
+    expect(interim).toEqual({
+      contentKind: 'conversation',
+      kind: 'interim',
+      persisted: false,
+    });
     expect(await prisma.transcriptSegment.count({ where: { sessionId } })).toBe(1);
+  });
+
+  it('classifies delayed interim against the persisted calibration interval', async () => {
+    const audio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorA.id,
+        mimeType: 'audio/webm;codecs=opus',
+        projectId,
+        purpose: 'interview',
+        sessionId,
+      },
+    });
+    const generation = await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: audio.id,
+        audioStreamId: crypto.randomUUID(),
+        confirmedActiveAt: new Date(),
+        generationNo: 0,
+        sessionId,
+        status: 'active',
+        timelineOffsetMs: 0,
+      },
+    });
+    await prisma.speakerStream.update({
+      data: { captureGenerationId: generation.id },
+      where: { id: defaultSpeakerStreamId },
+    });
+    await prisma.speakerCalibrationAttempt.create({
+      data: {
+        attemptNo: 1,
+        audioStreamId: generation.audioStreamId,
+        captureGenerationId: generation.id,
+        endMs: 200,
+        endSequenceNo: 2,
+        resolvedAt: new Date('2026-08-04T08:06:00.000Z'),
+        resolvedBy: actorA.id,
+        resolvedRequestId: crypto.randomUUID(),
+        sessionId,
+        speakerStreamId: defaultSpeakerStreamId,
+        startMs: 100,
+        startSequenceNo: 1,
+        startedBy: actorA.id,
+        startedRequestId: crypto.randomUUID(),
+        status: 'skipped',
+      },
+    });
+
+    const delayedCalibration = await ingestion.ingest({
+      ...result({ endMs: 180, ingestKey: 'fixture-stream:late-calibration', startMs: 120 }),
+      kind: 'interim',
+    });
+    const laterConversation = await ingestion.ingest({
+      ...result({ endMs: 280, ingestKey: 'fixture-stream:conversation', startMs: 220 }),
+      kind: 'interim',
+    });
+
+    expect(delayedCalibration).toMatchObject({ contentKind: 'speaker_calibration' });
+    expect(laterConversation).toMatchObject({ contentKind: 'conversation' });
   });
 
   it('keeps mappings append-only and snapshots original roles without historical rewrites', async () => {

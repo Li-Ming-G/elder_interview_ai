@@ -335,6 +335,7 @@ export class RealtimeTranscriptionGateway {
           this.sendStored(
             client,
             this.runtimes.append(runtime, 'asr.interim', {
+              content_kind: persisted.contentKind,
               end_ms: sessionTimelineResult.endMs,
               finality: 'interim',
               hypothesis_id: sessionTimelineResult.ingestKey,

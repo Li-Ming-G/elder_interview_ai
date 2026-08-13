@@ -1304,3 +1304,30 @@
 - Historical integrity: reviewed head `70b8fe89be9830cae5c3b493a88900eef881456e` 的 REQUEST_CHANGES/P1=1/P2=1 与 `f491d99` 中间修复 / CI `31606148505` 永久保留，不被最终 PASS 覆盖。
 - Verification boundary: 本 closeout 只修改治理文档，不改业务代码、Prisma/migration、ASR、DEV-007 或 DEV-008D；不宣称 server deletion/deletion_request、导出、PWA/App、真实 ASR/LLM、正式题库、真实试点或 MVP 发布完成。
 - Lesson: 父任务聚合 DONE 必须显式限定到已经逐子任务 exact-head 接收的产品范围；相邻真实试点门禁即使在同一 Epic，也不能因网页切片完成而被隐式关闭。
+
+### 2026-08-13 — DEV-008A4 首次访谈主链路整合启动
+
+- User outcome: 普通倾听员不再填写固定服务价格；先在当前页面确认麦克风再录口头授权；授权后建立正式录音/ASR并完成独立校准；结束后自动收尾，raw archive 完整即使 ASR 降级也可回顾播放或只删本机副本。
+- Review mode: 本轮按 iteration-coach 执行恰好一次独立只读复核，结果 `Correction / NO-PAUSE`。复核确认这是 contract-first 跨层重构，不是文案补丁；工作树在复核结束时仍无改动。
+- Facts: ServiceTerm 同时阻塞 refreshReady/start/capture current gate；旧 device_check 会被页面 load 直接投影为 passed；普通 transcript query 未过滤 calibration；stop 后 formal job 为 uploading 且 complete ACK 未写回 complete；A3 因此判 activeOrDirty。
+- Adopted decision: ADR-037 / DEV-008A4 / REV-047 冻结 `project→early session→current-page mic→consent→formal start/stream→dedicated calibration→workbench→automatic closeout→completed/review`。保留 ServiceTerm API/表/历史 dormant，不做 migration；普通正文双层过滤 calibration；controller 负责 exact ACK 后 local complete；回顾只做不放宽门禁的有界重投影。
+- Risk controls: 当前页 mic passed 不持久化；校准失败/不可用不伪成功且不阻塞 raw recording；automatic closeout 使用稳定 ID、单 in-flight 和状态水位；mismatch/unknown/本机写失败绝不标 complete；CON-023/DEV-008D/local-delete≠server-delete 不变。
+- Verification boundary: 当前仅完成正式契约与治理候选，任务保持 REVIEW。实现、全量门禁、真实 Chromium、non-Draft PR 与 exact-head CI 尚待完成；执行 Agent 不得自行 PASS/DONE/merge。
+- Lesson: 跨页面“已检查”状态与服务端业务状态不是同一事实；当安全要求依赖当前设备与当前页面时，持久状态只能证明历史动作，不能替代本次本地重新取证。
+
+### 2026-08-13 — DEV-008A4 校准边界与完成投影定向修正
+
+- Review correction: degraded 按钮不能只做 local dismiss；已有 collecting attempt 必须经 server skip marker 收束。revision 相等过滤无法阻止更高 revision 的迟到校准 interim。completed 不能只是工作台内可收起 panel。
+- Adopted boundary: 已有 attempt 以 payload-stable request ID 调用 `resolveSpeakerCalibration(action=skip)`；无 attempt + provider unavailable 才本地 bypass，auth/permission 错误不提供越过。WS interim 增加服务端按持久 attempt 时间区间分类的 `content_kind`，UI 只显示 conversation。completed 切换为无 workbench/transcript/suggestion DOM 的独立页并聚焦标题。
+- Verification evidence: format/lint/typecheck/build/diff 通过，full unit `56 files / 339 tests` 通过。本地 Chromium 在 launch 阶段 `spawn EPERM`，Docker API/DB URL 不可用；这些门禁保留给 exact-head CI，未改测试目标。
+- Lesson: 校准边界必须由 provider stream 与服务端时间证据表达，不能由 UI 的“刚点了跳过”或当前 revision 猜测；临时事件不落库也仍需要权威内容类型。完成态的独立性要用 DOM 排除而不是视觉遮盖来证明。
+
+### 2026-08-13 — DEV-008A4 initial exact-head CI 夹具修正
+
+- Failure evidence: PR #44 initial head `a26a5230f9d50d28633aee528fb7eeb79e842528` / CI `31665010283` 在 static、unit、fresh migration deploy/status 成功后，于 integration 80/82 失败；后续 auth/build/smoke/Chromium 按工作流跳过。迟到 interim 测试用随机 generation/audio ID 违反真实外键；旧 calibration API 测试仍期望 ordinary transcript 返回校准证据。
+- Correction: 测试夹具构造真实 AudioObject/SessionCaptureGeneration/SpeakerStream 复合身份；API 用例同时断言数据库仍保留 4 条原始 final（含 2 条 `speaker_calibration`），而普通 transcript 只投影 2 条 `conversation`。产品代码、过滤规则和测试目标均未放宽。
+- Verification boundary: 修复后本地 format/lint/typecheck/diff 与 full unit `56 files / 339 tests` 通过；fresh PostgreSQL integration 及后续完整门禁必须由新 exact-head CI 重跑。任务继续 REVIEW，失败 head/CI 永久保留，不自宣 PASS/DONE/merge。
+- Second failure evidence: head `13079c6d9b1d700425105ac5188d1350a2478ea7` / CI `31665356601` 的 integration 仍为 80/82；全局 generation 夹具占用 session 唯一 interview audio object，相同 `start_ms` 的正文则不保证写入顺序。generation 改为用例内局部创建；正文同时验证集合完整和正式 `start_ms,id` 排序。测试 fixture 应满足整套 schema 不变量，等时间戳数据必须按公开排序键而非插入偶然性断言。
+- Local retry evidence: 二次修复后首次 full unit 的既有工作台 401 异步用例等待超时（338/339），未修改该测试或产品；定向立即复跑 1/1、随后 full unit 339/339 与 build 均通过。exact-head CI 仍是最终门禁，局部时序波动必须保留事实而不能用放宽断言消失。
+- Browser CI evidence: head `cfffa8b5e5b1e1d15609ccc54438b1652bd7f88d` / CI `31665661744` 首次让 fresh integration 82/82、auth、build、smoke 全绿，普通 Chromium 19/24；失败的 3 个 Home 视口仍找旧提示，2 个 workbench 测试仍走无 session 旧准备页/后置 mic，并把独立校准与普通工作台并存。E2E 改为 current copy/no-price、session-specific recovery start、校准态排除普通 transcript/workbench、确认后进入正文；测试必须描述正式路径，不能让旧入口偶然继续存在来维持绿色。
+- Auth Chromium evidence: head `676a21d993676b9d97287b48aed1938d92b0ce3f` / CI `31666253024` 的 ordinary Chromium 24/24、auth Chromium 4/5。版本用例把无效 `mvp-v2` 当首份授权，实际测试的是 draft project，不是 consent drift；且仍造 0 超时价 ServiceTerm。夹具改为无 ServiceTerm、先有效 `mvp-v1` ready 后追加 `mvp-v2`，才准确验证 start 重验授权版本并返回 `CONSENT_REQUIRED`。

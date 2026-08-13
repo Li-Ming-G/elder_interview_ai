@@ -362,6 +362,21 @@
 - 边界：不改变 local deletion≠server deletion、权限、删除范围、CON-023、DEV-008D、首页动作矩阵或 evidence-finalization 例外；不实现 A3、IndexedDB、页面、服务端下载或服务器删除。
 - 接收边界：只接受 contract-first total bytes 接缝并解锁 DEV-008A3 runtime；ordinary mapper 显式 key、safe integer、权限白名单与 fresh/legacy 失败关闭仍须由 A3 实现和验收。父 DEV-008A、DEV-008A2、DEV-008D 与 CON-023 状态不因本 ADR 改变。
 
+## ADR-037｜首次访谈使用授权前当前页设备检查、正式流校准与自动收尾
+
+- 状态：`Accepted`；绑定 DEV-008A4 / REV-047。accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。
+- 背景：A1/A2/A3 已按旧路径完成，但普通流程仍把 ServiceTerm 同时作为 UI 与 start/readiness gate，麦克风检查晚于授权，校准与工作台同屏，complete ACK 未落本地 complete，正常收尾依赖三个手动动作。
+- 决定：普通链路冻结为 `project → early session → current-page mic/input → consent audio/consent → formal start/stream → dedicated calibration → workbench → automatic closeout → completed/review`。ServiceTerm API/表/历史 dormant，不在普通 UI 创建或展示，也不参与 ready/start/capture current gate；consent 仍是 ready 与 start 的正式门禁。
+- 校准边界：已有 collecting attempt 的 degraded continue 必须经 server skip marker 收束，无 attempt + provider unavailable 才可本地 bypass；WS interim 由服务端按持久 attempt 半开时间区间发布 `content_kind`，不让客户端用 revision/到达顺序猜测。
+- 完成投影：服务端 canonical `completed` 直接切换为独立完成 DOM，不在转录/建议工作台上叠加可收起 panel；仍保留 4 秒 canonical verify 使 processing 自动进入 completed。
+- 设备事实：服务端 device_check 可复用既有状态机，但当前页面 passed 只存于组件生命周期，刷新必重检。formal start 的 getUserMedia 继续作为开始当下重验。
+- 校准与正文：校准仍由正式 provider stream/attempt 权威绑定，不成为 raw recording 硬门禁。失败/跳过/不可用时角色不可信且录音继续。校准证据保留，但 ordinary realtime/transcript/review/AI context 不含其正文。
+- 收尾与 A3：controller 持有 complete ACK→local job complete 的唯一写权。exact ACK 后才能落 complete；自动 reconcile/verify 使用稳定幂等 ID、单 in-flight 与状态水位。回顾可有界重新投影，但不放宽 fresh manifest + archive 全门禁。本机删除仍不影响服务器，DEV-008D/CON-023 不变。
+- 迁移与范围：无需 Prisma migration 或新状态枚举。不实现真实 ASR/LLM、题库、server deletion、导出、部署、PWA 或 App。
+- 取代关系：本 ADR 只取代 ADR-034 中普通新建必须 project→service term→consent→prepare/device-check/start 以及同屏校准/手动 happy-path 收尾的部分；ADR-034/035/036 的统一 shell、权限失败关闭、本机删除边界和严格 A3 门禁继续有效，历史正文永久保留。
+- 用户实测补充（2026-08-13）：`stopping/processing` 的自动恢复以 canonical session 为触发事实，不得依赖页面内存中的 `endHandoff`；存在 handoff 时重放 exact complete，缺失时直接以跨刷新稳定的 reconcile identity 追认服务端事实并 verify。unknown create 同样以持久原 request ID/payload 自动 replay，普通文案不暴露实现身份；客户端不得用固定超时主动制造 status=0 未知响应。
+- 同源回顾补充（2026-08-13）：A3 门禁仍以 fresh server manifest 与当前 `location.origin` 的 IndexedDB archive identity/count/bytes/checksum/dirty/pending 为唯一依据。页面可有界、可见重投影，但跨 origin/主机名/端口只给诊断，禁止合并存储或放宽删除门禁。
+
 ## ADR-038｜连续访谈采用项目级权威动作、完成后双分析与校准后单次开场
 
 - 状态：`Proposed / REVIEW`；绑定 SPEC-REPEAT-INTERVIEW-001 / REV-048，等待项目负责人 exact-head 审查，不由执行 Agent 自行 Accepted。ADR-037 已由并行 DEV-008A4 / PR #44 占用。
@@ -372,6 +387,6 @@
 - 开场：sequence>=2 的 calibration gate terminal 后若 basis 任一分析 lane 非 terminal，只派生 waiting，不创建 opening job/attempt/Context、不消费 gate；两 lane terminal 后才以 basis analysis trigger + calibration gate stable identity 至多一次冻结并触发。confirmed gate 可含当前 stream trusted membership，failed/skipped/no-attempt provider-unavailable gate 只使用先前 session 的可信资料；成功 lane eligible output 必须纳入，降级 lane 如实留空并记录 outcome。Context 只冻结 same-project eligible current memory、published reliable actual asked、边界与可信 membership。displayed != actual asked；继续复用唯一 Director/QuestionEvidence/current/history。
 - 降级：provider unavailable 不回退基础题、不阻塞创建或录音；analysis/opening 如实 failed/unjudged/unavailable。GET/render/WS replay 不产生 job。
 - UI/治理：不新增 memory/summary/pending-confirmation UI，不引入第二 AI/history、Prisma/migration、DB ownership、privacy/deletion/retention 或网页方向变化。称呼来自 `AuthUser.display_name`。
-- 依赖：B1/B2 runtime 必须等待本 ADR/SPEC PASS/merge，并等待 DEV-008A4 / PR #44 新 exact-head PASS/merge，避免 Home/routes/styles/completion/review 冲突。
+- 依赖：DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge；B1/B2 runtime 仍必须等待本 ADR/SPEC PASS/merge，且不得改写 A4 Home/routes/styles/completion/review。
 - 代价：增加一类 project action、显式 workflow 和两个系统触发身份；换取可证明的 same-project sequence、真实生产 caller、可审计 membership 与 AI 故障不伤录音。未来若需 memory UI、新 AI 或删除语义，必须另立决策。
 - 审查历史：old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` 获项目负责人 `REQUEST_CHANGES`（P0=0/P1=1），指出 calibration-first 抢跑 post-analysis。该历史永久保留；双前置定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS，仍等待最终候选 exact-head 定向复审，ADR 保持 Proposed/REVIEW。

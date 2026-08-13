@@ -391,6 +391,18 @@ p {
   background: var(--accent-soft);
 }
 
+.review-origin {
+  margin: -0.35rem 0 1rem;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.review-origin code {
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+}
+
 .review-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -438,9 +450,18 @@ p {
 }
 
 .review-note,
-.review-live {
+.review-live,
+.review-reprojection {
   margin: 1rem 0 0;
   font-size: 0.88rem;
+}
+
+.review-reprojection:empty {
+  display: none;
+}
+
+.review-reprojection p {
+  margin-bottom: 0.65rem;
 }
 
 .review-live {
@@ -803,6 +824,115 @@ p {
   flex-direction: column;
 }
 
+.calibration-gate {
+  min-height: 100dvh;
+  background:
+    radial-gradient(
+      circle at 50% 20%,
+      color-mix(in oklch, var(--accent-soft) 72%, transparent),
+      transparent 44%
+    ),
+    var(--surface-subtle);
+}
+
+.calibration-gate__stage {
+  width: min(100% - 3rem, 52rem);
+  padding: clamp(2rem, 8vh, 6rem) 0 3rem;
+  margin: 0 auto;
+}
+
+.calibration-gate__stage > h1 {
+  max-width: 18ch;
+  margin-bottom: 0.75rem;
+}
+
+.calibration-gate__stage > p:not(.context-label) {
+  max-width: 66ch;
+  color: var(--muted-ink);
+  line-height: 1.65;
+}
+
+.calibration-gate__stage .speaker-calibration {
+  width: 100%;
+  min-height: 9rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.calibration-gate__stage .transcript-notice {
+  margin-top: 1rem;
+}
+
+.completion-page {
+  display: grid;
+  overflow: auto;
+  width: 100%;
+  min-height: 100dvh;
+  padding: clamp(1rem, 5vw, 3rem);
+  background: var(--surface-subtle);
+  place-items: center;
+}
+
+.completion-card {
+  width: min(100%, 42rem);
+  padding: clamp(1.25rem, 5vw, 3rem);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.completion-card > .context-label {
+  margin-bottom: 1.5rem;
+}
+
+.completion-status {
+  margin-bottom: 0.35rem;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.completion-card h1 {
+  margin-bottom: 0.8rem;
+}
+
+.completion-card h1:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 0.2rem;
+}
+
+.completion-copy,
+.completion-note {
+  max-width: 58ch;
+  line-height: 1.65;
+}
+
+.completion-copy {
+  color: var(--ink);
+}
+
+.completion-note {
+  margin-bottom: 0;
+  color: var(--muted-ink);
+  font-size: 0.9rem;
+}
+
+.completion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.5rem;
+}
+
+.completion-actions .button {
+  min-height: 2.75rem;
+}
+
 .speaker-calibration {
   display: flex;
   align-items: center;
@@ -858,6 +988,11 @@ p {
 }
 
 @media (max-width: 40rem) {
+  .calibration-gate__stage {
+    width: min(100% - 1.5rem, 52rem);
+    padding-top: 2rem;
+  }
+
   .speaker-calibration {
     align-items: stretch;
     padding: 0.65rem 0.75rem;
@@ -1787,6 +1922,33 @@ p {
   }
 
   .prep-actions .button {
+    width: 100%;
+  }
+
+  .completion-page {
+    padding: 0.75rem;
+    place-items: start center;
+  }
+
+  .completion-card {
+    padding: 1.25rem;
+  }
+
+  .completion-card > .context-label {
+    margin-bottom: 1rem;
+  }
+
+  .completion-card h1 {
+    font-size: 1.55rem;
+  }
+
+  .completion-actions {
+    align-items: stretch;
+    flex-direction: column;
+    margin-top: 1.1rem;
+  }
+
+  .completion-actions .button {
     width: 100%;
   }
 

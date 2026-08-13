@@ -695,6 +695,7 @@ export interface InterviewWsAudioAckPayload {
 }
 
 export interface InterviewWsAsrInterimPayload {
+  content_kind: 'conversation' | 'speaker_calibration';
   hypothesis_id: string;
   revision: number;
   start_ms: number;

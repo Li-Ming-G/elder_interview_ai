@@ -30,7 +30,7 @@
 ## 依赖与边界
 
 - `DEV-008B1`、`DEV-008B2` 在本 SPEC 项目负责人 PASS/merge 前 BLOCKED；
-- 两者还必须等待 DEV-008A4 / PR #44 新 exact-head PASS/merge，避免 Home/routes/styles/completion/review 冲突；
+- DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge `175e92e`；两者以该 accepted main 为基线，继续避免改写 Home/routes/styles/completion/review；
 - B2 deterministic seam 可先验收工程链路；真实 LLM/provider 与真实试点门禁保持未完成；
 - CON-023/DEV-008D 不变。
 

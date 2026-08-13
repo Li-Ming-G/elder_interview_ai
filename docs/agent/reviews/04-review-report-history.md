@@ -842,6 +842,24 @@ P2：
 - 合并与集成：PR #40 按仓库 merge-commit 策略非 squash 合入，merge commit `d2a911d3fd4362a84653c1401c4c23b8c5b4aafe` 的 parents 为 prior main `5035c119fa5a3eeb7999d305f5c052672dc50d25` 与 accepted head `93be9a27b93e763e56457668c78b5ac2a332bab4`；main CI `31613083916` completed / success。
 - 治理：DEV-008A3 `REVIEW→DONE`；A1/A2/A3 均 DONE 后，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 `IN_PROGRESS→DONE`。DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 - 未实现边界：本结论不宣称 server deletion/deletion_request、倾听员导出、PWA/Capacitor/WebView/App、真实 ASR/LLM、DEV-007 聚合验收、正式题库、真实试点或 MVP 发布完成。
+## REV-047｜DEV-008A4 首次访谈主链路整合候选
+
+- 状态：`PENDING / REVIEW`；项目负责人尚未审查，执行 Agent 不得给出 PASS/DONE。
+- 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`；分支 `codex/dev-008a4-first-interview-flow`。
+- 范围：ServiceTerm ordinary gate dormant、授权前当前页 mic、formal stream 后独立校准、ordinary calibration transcript filtering、自动收尾、exact complete ACK 本机落盘和 A3 有界重新投影。
+- 边界：保留 A1/A2/A3 历史 DONE；不改变 DEV-008D/CON-023，不实现真实 ASR/LLM、server deletion、导出、部署或 PWA/App。
+- 审查材料：non-Draft [PR #44](https://github.com/Li-Ming-G/elder_interview_ai/pull/44) 已建立；最终 exact head、完整 CI 与负责人结论仍待补齐。
+- 实现候选：ordinary ServiceTerm dormant/current-page mic/formal-stream calibration/自动收尾/exact complete ACK/回顾重投影与独立 completed DOM 已实现；WS interim 由服务端权威 `content_kind` 隔离迟到校准文本，collecting degraded 通过稳定幂等 server skip 收束。
+- 本地证据：format/lint/typecheck/build/diff-check 通过，full unit `56 files / 339 tests` 通过。Chromium 24 项均在 launch 阶段 `spawn EPERM`，未进入断言；Docker API permission denied 且无 DB URL，fresh migration/integration/auth/smoke/auth Chromium 本地未运行。必须由 exact-head GitHub CI 完整覆盖，不得把当前记录升级为 PASS。
+- CI 失败历史：initial head `a26a5230f9d50d28633aee528fb7eeb79e842528` / CI `31665010283` 的 static、unit、fresh migration deploy/status 成功，integration 80/82 后失败并跳过后续门禁。两项均为测试夹具未随新契约更新：迟到 interim 用例缺真实 capture generation 外键，旧 calibration API 用例仍把 2 条校准原始证据计入 ordinary transcript。定向修复构造真实 generation/audio 身份，并证明数据库 4 条原始证据仍在、普通 API 只返回 2 条 conversation；不改产品代码、不降低目标，必须以新 exact head 重跑完整 CI。
+- CI 二次失败历史：head `13079c6d9b1d700425105ac5188d1350a2478ea7` / CI `31665356601` 的 static、unit、fresh migration deploy/status 再次成功，integration 80/82 失败。全局 generation 夹具占用 session 唯一 interview audio object，且相同 `start_ms` 的两条正文被错误假定为写入顺序。二次修复把 generation 局部化，并同时验证正文集合与正式 `start_ms,id` 顺序；仍需新 exact head 完整 CI。
+- CI 三次失败历史：head `cfffa8b5e5b1e1d15609ccc54438b1652bd7f88d` / CI `31665661744` 已通过 integration 82/82、auth、build、smoke，普通 Chromium 19/24 后失败并跳过 auth Chromium。5 项均为旧 E2E 路径/文案：Home 仍找旧 readiness 提示；workbench 仍从无 session 的旧准备页点后置 mic check，并在独立校准期期待普通正文。修复改为当前无价格最低信息、session-specific recovery start，以及校准页存在时普通 transcript/workbench 正文缺席、确认后才出现；布局、44px、overflow 与全状态矩阵断言保留。
+- CI 四次失败历史：head `676a21d993676b9d97287b48aed1938d92b0ce3f` / CI `31666253024` 已通过 ordinary Chromium 24/24 及此前全部门禁，auth Chromium 4/5。旧 version 场景直接创建首份 `mvp-v2` 授权，项目保持 draft，故权威返回 `PROJECT_NOT_STARTABLE`；夹具还残留 0 超时价 ServiceTerm。修复移除普通 auth ServiceTerm，先用 `mvp-v1` ready 再追加 `mvp-v2`，形成真正版本漂移并继续期待 `CONSENT_REQUIRED`。
+- 用户实测历史候选：head `f1eea3c38bef6742fdb53e6070b99ecaa0bb380c` / CI `31666579181` completed / success。项目负责人在真实主链路仍发现回顾播放/本机删除灰置、刷新后 canonical processing 未自动收束、unknown create 永久等待手工重放与身份 fixture 混淆；因此该全绿 head 只作为历史候选保留，不构成 REV-047 PASS。
+- 限域修复候选：canonical `stopping/processing` 不再依赖内存 handoff 才自动恢复；reconcile identity 跨刷新稳定，有 handoff 时先 exact complete、无 handoff 时按服务端事实 reconcile/verify。unknown create 自动重放原 ID/payload并移除固定 15 秒客户端 timeout；同源回顾约 15 秒有界重投影且严格门禁不变；删除继续复用默认焦点取消的既有 alertdialog。新增三视口同源纵向 Chromium，必须由新 exact-head CI 全矩阵覆盖。
+- 用户实测修复首个 exact-head CI：head `1f3e7c4b0363b1ca3550e435e3b51f4e796a9433` / CI `31710311712` 的 static、unit、fresh migration、integration、auth、build、smoke 全部通过，ordinary Chromium 22/27。5 项失败收敛为：三视口回顾出现两个 `aria-live=polite`、本机库清空后的旧文案断言、同页 happy path 自动恢复重复发送一次 complete。修复合并为一个有意义 live region，接受更精确且稳定的 origin 诊断，并以已确认 exact complete handoff key 阻止同页重复 complete；刷新后的新 mount 仍可用原 identity replay。不得把此前门禁成功或本次定向修复写成 REV-047 PASS。
+- 最终接收：项目负责人严格绑定 exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 给出 `PASS`，P0=0/P1=0/P2=0；[正式评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/44#issuecomment-5281992260)。PR #44 merge `175e92e3bda76f4b180e85519e3bf8e62c356311`，main CI `31712044809` SUCCESS。DEV-008A4 转 DONE、ADR-037 转 Accepted；DEV-008D/CON-023 与真实 ASR/LLM 不变。
+
 ## REV-048｜SPEC-REPEAT-INTERVIEW-001 / PR #46 首轮项目负责人审查
 
 - 审查对象：[PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) exact head `99e5d317f4e5ad62444148442329114840c58293`；CI `31709711887` SUCCESS；PR 为 OPEN、non-Draft、CLEAN，head 在审查时未漂移。

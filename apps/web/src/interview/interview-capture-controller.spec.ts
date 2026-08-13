@@ -2,6 +2,7 @@
 
 import type {
   AudioChunkResponse,
+  AudioManifestResponse,
   CaptureInterruptionReason,
   InterviewSessionResponse,
   SessionCaptureSnapshot,
@@ -527,6 +528,47 @@ describe('InterviewCaptureController', () => {
       expectedChunkCount: 1,
       stopRequestId: first.stopRequestId,
     });
+  });
+
+  it('marks the formal local job complete only after an exact complete manifest ACK', async () => {
+    const harness = createHarness();
+    await harness.controller.start();
+    const handoff = await harness.controller.stopAndFreeze();
+    harness.api.completeInterviewAudio.mockResolvedValue({
+      chunk_count: 1,
+      chunks: [
+        {
+          checksum: 'checksum-0',
+          end_ms: 100,
+          mime_type: MIME,
+          sequence_no: 0,
+          size_bytes: 3,
+          start_ms: 0,
+          uploaded_at: '2026-08-08T00:00:00.000Z',
+        },
+      ],
+      completed_at: '2026-08-08T00:00:01.000Z',
+      created_at: '2026-08-08T00:00:00.000Z',
+      created_by: '44444444-4444-4444-8444-444444444444',
+      id: AUDIO_OBJECT_ID,
+      manifest_checksum: 'manifest-checksum',
+      mime_type: MIME,
+      project_id: PROJECT_ID,
+      purpose: 'interview',
+      session_id: SESSION_ID,
+      status: 'complete',
+      total_size_bytes: 3,
+    } satisfies AudioManifestResponse);
+
+    await harness.controller.completeFrozenAudio(handoff);
+
+    expect(harness.api.completeInterviewAudio).toHaveBeenCalledWith(AUDIO_OBJECT_ID, {
+      expected_chunk_count: 1,
+      request_id: handoff.completeRequestId,
+    });
+    expect((await harness.jobs.getUploadJob(handoff.localJobId))?.status).toBe('complete');
+    await harness.controller.completeFrozenAudio(handoff);
+    expect(harness.api.completeInterviewAudio).toHaveBeenCalledTimes(1);
   });
 
   it('rechecks only persisted server facts and preserves the last snapshot on a network failure', async () => {

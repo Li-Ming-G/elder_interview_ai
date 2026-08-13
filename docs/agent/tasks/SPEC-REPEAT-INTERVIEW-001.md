@@ -8,7 +8,7 @@
 - 审查：`REV-048`；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) exact-head CI + 项目负责人 GitHub 手动审查
 - 前置决定：项目负责人已明确首版响应式网页方向并授权真实可重复使用流程；不得重开战略方向
 - iteration-coach：总控已对本轮执行恰好一次独立只读复核，结论 `Correction / NO-PAUSE`；本任务复用该结论，未启动第二次复核
-- 依赖边界：DEV-008A4 / PR #44 占用 REV-047、ADR-037；B1/B2 runtime 必须等待其新 exact-head PASS/merge，本 SPEC 可并行审查但不改 A4 runtime/UI
+- 依赖边界：DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge `175e92e`；B1/B2 runtime 仍须等待本 SPEC PASS/merge，且不得改 A4 runtime/UI
 
 ## 用户结果
 
@@ -63,4 +63,4 @@
 
 - PASS：`pnpm lint`、workspace typecheck/build、format check、contracts typecheck/build、full unit `56 files / 341 tests`、`git diff --check`、changed Markdown 相对链接；
 - runtime/PostgreSQL/auth/Chromium 未做本地专项，因为本任务无业务/Prisma/UI 改动；仍等待 non-Draft PR exact-head 完整 CI；
-- DEV-008A4 / PR #44 当前 exact head `f1eea3c38bef6742fdb53e6070b99ecaa0bb380c` / CI `31666579181` SUCCESS，但项目负责人尚未手动 PASS/merge，因此 B1/B2 依赖保持 BLOCKED。
+- DEV-008A4 / PR #44 accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 已获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。A4 依赖已关闭；B1/B2 仍因本 SPEC 未 PASS/merge 保持 BLOCKED。

@@ -273,7 +273,11 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     let ingestionCalls = 0;
     const gateway = createGateway(new DeterministicStreamingAsrFake(), 'produce', runtimes, () => {
       ingestionCalls += 1;
-      return Promise.resolve({ kind: 'interim', persisted: false });
+      return Promise.resolve({
+        contentKind: 'conversation',
+        kind: 'interim',
+        persisted: false,
+      });
     });
     const client = new FakeSocket();
     const sessionId = randomUUID();
@@ -285,6 +289,11 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     client.receive(frame(sessionId, audioStreamId, 1));
     await waitFor(() => client.sent.filter(({ type }) => type === 'audio.ack').length === 2);
     expect(ingestionCalls).toBe(3);
+    expect(
+      client.sent
+        .filter(({ type }) => type === 'asr.interim')
+        .map(({ payload }) => payload.content_kind),
+    ).toEqual(['conversation', 'conversation', 'conversation']);
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
 
     client.receive(frame(sessionId, audioStreamId, 2));
@@ -416,7 +425,8 @@ function createGateway(
   adapter: StreamingAsrAdapter,
   mode: RealtimeSessionMode,
   runtimes = new RealtimeRuntimeService(),
-  ingest: () => Promise<unknown> = () => Promise.resolve({ kind: 'interim', persisted: false }),
+  ingest: () => Promise<unknown> = () =>
+    Promise.resolve({ contentKind: 'conversation', kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
   assertJoin: () => Promise<RealtimeJoinAccess> = () =>
     Promise.resolve({
