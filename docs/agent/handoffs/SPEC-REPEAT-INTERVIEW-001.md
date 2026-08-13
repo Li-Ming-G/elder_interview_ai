@@ -45,3 +45,5 @@
 - old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` SUCCESS；项目负责人正式 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。永久保留，不由后续候选覆盖。
 - P1 是 calibration-first 抢跑：basis memory/actual lane 尚 pending/running 时旧契约已消费唯一 opening gate，之后成功输出永久漏入。
 - 当前候选只定向增加双前置/waiting/terminal 协调与四类顺序矩阵；next-session、录音非阻塞及其余已认可方向不变。等待新 exact-head CI/定向复审，不是 PASS/DONE。
+
+定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` 的 CI `31711566144` 已 SUCCESS：format/lint/typecheck/build；unit 56 files / 341 tests；fresh 14 migrations deploy/status；integration 14 files / 80 tests；auth 4 files / 23 tests；smoke 2 assets；Chromium 24/24 与 auth Chromium 5/5。该绿灯不覆盖 old REQUEST_CHANGES；最终治理收尾提交仍须取得自身 exact-head CI 后再交项目负责人定向复审。

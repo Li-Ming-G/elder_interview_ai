@@ -374,4 +374,4 @@
 - UI/治理：不新增 memory/summary/pending-confirmation UI，不引入第二 AI/history、Prisma/migration、DB ownership、privacy/deletion/retention 或网页方向变化。称呼来自 `AuthUser.display_name`。
 - 依赖：B1/B2 runtime 必须等待本 ADR/SPEC PASS/merge，并等待 DEV-008A4 / PR #44 新 exact-head PASS/merge，避免 Home/routes/styles/completion/review 冲突。
 - 代价：增加一类 project action、显式 workflow 和两个系统触发身份；换取可证明的 same-project sequence、真实生产 caller、可审计 membership 与 AI 故障不伤录音。未来若需 memory UI、新 AI 或删除语义，必须另立决策。
-- 审查历史：old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` 获项目负责人 `REQUEST_CHANGES`（P0=0/P1=1），指出 calibration-first 抢跑 post-analysis。该历史永久保留；当前双前置修复等待新 exact-head 定向复审，ADR 仍 Proposed/REVIEW。
+- 审查历史：old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` 获项目负责人 `REQUEST_CHANGES`（P0=0/P1=1），指出 calibration-first 抢跑 post-analysis。该历史永久保留；双前置定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS，仍等待最终候选 exact-head 定向复审，ADR 保持 Proposed/REVIEW。

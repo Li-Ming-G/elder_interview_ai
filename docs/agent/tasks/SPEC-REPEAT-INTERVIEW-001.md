@@ -57,7 +57,7 @@
 - 项目负责人代审严格绑定 old exact head `99e5d317f4e5ad62444148442329114840c58293`、CI `31709711887` SUCCESS，正式结论 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。该 old-head 结论永久保留。
 - 唯一 P1：calibration gate 可能在 basis post-analysis pending/running 时抢跑并消费 exact-once opening，导致之后成功的 memory/actual 输出永久缺席第二次开场。
 - 定向修复：next-session/mic/recording/ASR/review 继续不等 AI；opening 在两 lane terminal 前只派生 waiting 且不创建 job/attempt/Context；两 lane terminal 后用 basis analysis trigger + calibration gate stable identity 至多一次冻结/触发；`unjudged|failed|cancelled|unavailable` 明确为诚实 terminal；`09` §17 增加 analysis-first/calibration-first/单 lane 降级/刷新重放并发矩阵。
-- 当前仍为 `REVIEW`，等待新 exact-head CI 与项目负责人定向复审；不得用 old CI 或本修复自宣 PASS/DONE/merge。
+- 当前仍为 `REVIEW`。定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS；治理收尾后的最终 exact head 仍须自身 CI 与项目负责人定向复审，不得用 old CI 或本修复自宣 PASS/DONE/merge。
 
 ## 当前验证候选
 
