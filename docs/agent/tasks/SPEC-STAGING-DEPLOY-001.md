@@ -6,7 +6,7 @@
 - 负责人：独立执行 Agent
 - base：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
 - branch：`codex/spec-staging-deploy-001`
-- PR：待创建（必须非 Draft）
+- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、OPEN）
 - 审查：高影响部署/安全契约；必须由项目负责人按 exact head 手动审查，本任务不得自行 PASS/DONE/merge
 
 ## 目标
@@ -37,3 +37,5 @@
 changed docs 格式、链接、表格列数和 `git diff --check` 通过；完整仓库 CI 对 exact head SUCCESS；非 Draft PR 审查包列明 base/head/CI/scope/门禁。项目负责人明确 PASS 且 merge/main CI 成功前，状态保持 `REVIEW`、ADR-041 保持 `Proposed / REVIEW`、DEV 任务保持 `BLOCKED`。
 
 本地候选已通过 format/lint/typecheck/build、372 unit、独立空库 14 migrations、84 integration、23 auth、smoke、ordinary Chromium 27/27、auth Chromium 5/5 和 19 文件链接/表格/diff/docs-only 检查。默认 4173 占用与一次 auth API 端口错配失败永久保留在交接；本地绿灯不能替代 exact-head GitHub CI 或项目负责人结论。
+
+首个提交 head `235a3df6a5431b72d21dd13820628280067a4a61` 的完整 CI run [`31798290760`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798290760) SUCCESS。补写该证据会形成新的最终治理 head，必须取得自己的完整 CI SUCCESS 才能作为项目负责人审查对象；首轮绿灯不能替代最终 head。

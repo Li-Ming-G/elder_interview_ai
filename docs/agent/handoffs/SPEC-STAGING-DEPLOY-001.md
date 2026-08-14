@@ -5,7 +5,9 @@
 - 状态：`REVIEW`；不得自行 PASS/DONE/merge
 - base：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
 - branch：`codex/spec-staging-deploy-001`
-- PR/exact head/CI：提交后补入；以 GitHub 当前 head 为唯一审查对象
+- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、OPEN）
+- 首个提交 exact head / CI：`235a3df6a5431b72d21dd13820628280067a4a61` / [`31798290760`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798290760) SUCCESS
+- 最终审查 head：补写本条证据后的 GitHub PR 当前 head；必须有自己的完整 CI SUCCESS，不能复用首轮 run
 
 ## 已冻结
 
@@ -38,6 +40,7 @@
 2. 一次只读 Compose 路径查询误用不存在的 `compose.yaml`；实际文件为 `docker-compose.yml`。该组合命令中的 diff/format 仍通过，但错误永久保留；随后只读确认 `postgres-test` healthy。
 3. 首次 smoke 使用默认 4173，在测试启动前因 `EADDRINUSE` 退出；未终止未知/并行进程。改用 3111/4181 后 smoke PASS，ordinary E2E 使用 4182 为 27/27。
 4. 首次 auth Chromium 隔离配置把 API 设为 3112，但现有 Vite proxy 固定指向 3101，五条均因 `ECONNREFUSED 127.0.0.1:3101` 失败；未改代码/测试。保持隔离 Web 4183、恢复正式 API 3101 后 5/5 PASS。旧 5 failures 不被绿灯覆盖。
+5. 补写首轮 PR/CI 证据后的首次组合门禁中，`format:check` 与 `git diff --check` 已通过，但 docs-only 检查直接读取 Git 默认 quoted path，中文文件名被转义并带引号，误报 10 个根目录 Markdown 为非文档后退出；这是检查器输入解析失败，不是范围污染。改用 `git -c core.quotepath=false diff --name-only` 后重跑，旧失败永久保留。
 
 ## 审查重点
 
