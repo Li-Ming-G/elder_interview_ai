@@ -4,11 +4,12 @@
 
 - 状态：`REVIEW`
 - 分支：`codex/sec-auth-public-001`
-- 基线：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
+- 原 content 基线：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
+- latest-main integration 基线：`origin/main@751a32e1ffbae12ec639230cd3bf8482d1ff2820`
 - PR：[非 Draft PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55)
-- 候选提交：contract `84b009e23ce26cbdc45ff1c3d414d5a2cf961647`；runtime `02dc367`
+- 候选提交：contract `84b009e23ce26cbdc45ff1c3d414d5a2cf961647`；runtime `02dc367`；content review head `01018376002b475fd7715ca9b3cb8ee6333a3a72`
 - 负责人：独立 SEC-AUTH-PUBLIC-001 执行任务
-- 审查：项目负责人 GitHub 手动 exact-head 安全审查；实现者不得自宣 PASS/DONE/merge
+- 审查：项目负责人已对 content head 手动 PASS；latest-main integration exact head 必须另行窄复审；实现者不得自宣 PASS/DONE/merge
 - iteration-coach：恰好一次独立只读复核，结论 `Clear / NO-PAUSE`
 
 ## 当前证据
@@ -16,7 +17,8 @@
 - 本地 format/lint/typecheck、unit 382/382、build、生产依赖审计、diff check 通过；
 - 空 PostgreSQL 从零应用 16 个迁移、status、重复 deploy/status 通过；integration 84/84、auth 26/26；
 - smoke、普通 Chromium 27/27、auth Chromium 5/5 通过；auth Chromium 首次启动曾因前序门禁短暂占用本地 3101 端口失败，端口自动释放后 clean rerun 通过，旧失败永久保留；
-- PR exact-head CI 与项目负责人手动安全审查待定；当前不等于 PASS/DONE，不允许合并或启用公网。
+- content head `0101837` / CI `31798421917` 已获项目负责人正式手动 PASS（P0/P1/P2=0）；GitHub APPROVE 因 integration 403 未写入但不改变审查事实；
+- 当前只等待 latest-main integration exact-head CI 与窄复审；任务仍为 REVIEW，不允许合并或启用公网。branch-local ADR-041 仅机械映射为 canonical ADR-042，旧提交与历史不改写。
 
 ## 目标
 
@@ -49,7 +51,7 @@
 1. 单独 contract/governance commit 冻结匿名 actor、外部 HTTPS Cookie、应用身份/Access 分责、session 原子条件与部署 resolver 接缝；
 2. 实现不依赖 Cloudflare部署语义的 runtime 与反例；
 3. 完整本地门禁、非 Draft PR、exact head CI 和 REVIEW 审查包；
-4. Cloudflare header/hop/origin 直连实现等待 SPEC-STAGING-DEPLOY-001 exact-head PASS/merge。
+4. Cloudflare header/hop/origin 直连实现等待 DEV-STAGING-DEPLOY-001 exact-head 实现与审查；SPEC-STAGING-DEPLOY-001 的契约 PASS/merge 不等于部署完成。
 
 ## 验收标准
 

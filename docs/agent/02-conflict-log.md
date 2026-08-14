@@ -102,6 +102,7 @@
 - 历史状态纠偏（2026-08-14）：提交 `a9cf1c5` 在收口无关的 SPEC-QUESTION-DIRECTOR-001 时仅把本条状态从 `OPEN` 改为 `RESOLVED`，没有选择方案、更新正式数据/API/安全契约、提供迁移/测试或关闭证据；同一 latest-main 的任务板、开放冲突索引、审查索引、DEV-001B 卡和 HO-006 始终继续把 CON-008 视为 REVIEW 阻塞。旧提交永久保留，本条以追加事实恢复为 `REOPENED`，不得把机械状态改动冒充解决。
 - 当前候选决定（SEC-AUTH-PUBLIC-001）：采用方案 A 的窄版本，为 `audit_log.actor_type` 增加仅限认证安全事件的 `anonymous`；未知账号失败使用用途分隔 HMAC 身份摘要作为 `actor_reference`，`actor_id/entity_id` 为空，metadata 只含统一失败分类与不可逆客户端 IP 摘要。已知用户失败仍用 user actor；客户端响应不可区分。Cloudflare Access 不成为 audit actor 或应用身份来源。
 - 关闭条件：SEC-AUTH-PUBLIC-001 非 Draft PR 的 exact head 完整 CI 成功，项目负责人对数据迁移、匿名摘要最小化、登录/限流/会话/代理反例手动安全审查 PASS，并将结论写回；此前 CON-008 与 DEV-001B 均保持 REVIEW，不得自行转 RESOLVED/DONE。
+- latest-main integration 事实（2026-08-14）：项目负责人已对 PR #55 content head `01018376002b475fd7715ca9b3cb8ee6333a3a72` / CI `31798421917` 正式手动 PASS（P0/P1/P2=0）；GitHub APPROVE 因 integration 403 未写入。PR #54 merge 后发生 ADR 编号碰撞，故 content 中 branch-local ADR-041 机械映射为 canonical ADR-042，并以 `main@751a32e1` 形成新 integration head。该映射不改写旧提交/审查历史；new integration exact-head 复审与后续治理收口前，本冲突和 DEV-001B 仍保持 REVIEW。
 
 ### CON-009｜最小项目、授权与会话 API 缺少关键业务契约
 

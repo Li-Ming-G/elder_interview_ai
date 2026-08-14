@@ -23,3 +23,5 @@ DEV-008A4 / ADR-037 / REV-047 的普通首次访谈行为修订不新增 REST DT
 - `llm-provider-registry-semantics-v1.md` 与 `fixtures/llm-provider-registry-semantics-v1.fixtures.json`：REV-050 定向修复的跨数组 exactly-one/membership/duplicate/digest deterministic contract；JSON Schema 通过不替代 semantic validator。
 - `llm-model-config-v1.schema.json`、`llm-model-config-v1.md` 与 fixtures：完整 generation/provider-options manifest、canonical JSON v1、SHA-256 golden vector 和 equal-effective-config 边界。
 - `llm-provider-call-receipt-v1.schema.json` 与 `fixtures/llm-provider-call-receipt-v1.fixtures.json`：`LlmProviderCallReceiptV1` 候选 provenance；拆分 requested/observed model、provider request ID、SDK response ID 与各自来源，并用正反例锁定 sanitized config warning/status。禁止用 `local-test` 补缺，不包含完整 Prompt/Context/output、warning 原文或 secret。
+- `staging-deployment-manifest-v1.schema.json`：`DEV-STAGING-DEPLOY-001` 的正式服务端 deployment manifest Schema；唯一数据许可字段为 `data_mode=synthetic_only`，missing/unknown/其他值及旧 `real_data_allowed` 等平行字段全部失败关闭。
+- `fixtures/staging-deployment-manifest-v1.fixtures.json`：manifest 正反例与入站 provenance 判定矩阵；真实来源即使去标识/脱敏、真实备份或来源不明，也必须在 connect/upload/persist 前以零业务副作用拒绝。
