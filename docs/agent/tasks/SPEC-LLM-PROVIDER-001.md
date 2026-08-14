@@ -6,6 +6,7 @@
 - 负责人：独立执行 Agent
 - base：`origin/main@6f6363f517a6588ff4eb31aee7996b7116092c03`
 - branch：`codex/spec-llm-provider-001`
+- PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft；等待最终 metadata head CI）
 - 前置决定：项目负责人已选择 Vercel AI SDK、厂商直连、正式单 active provider/model、隔离多模型横评；不使用 Gateway/LiteLLM
 - 审查：高影响契约任务；只由项目负责人对非 Draft PR exact head/CI 手动给结论。执行 Agent 不得 PASS/DONE/merge
 
@@ -56,4 +57,4 @@
 
 按 `09` §19 完成 JSON Schema/fixture、shared typecheck、v1 loader、定向 unit 和仓库全门禁验证；创建非 Draft PR 并取得 exact-head CI SUCCESS。任务保持 REVIEW，等待项目负责人手动审查。
 
-本地结果：format/lint/typecheck/build PASS；unit 57 files / 344 tests、定向 SPEC 5/5、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL deploy/status PASS。PR/exact-head CI 仍待提交后补齐，当前结果不构成真实 provider PASS。
+本地结果：format/lint/typecheck/build PASS；unit 57 files / 344 tests、定向 SPEC 5/5、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL deploy/status PASS。PR #52 已创建且非 Draft；最终 metadata head CI 仍待补齐，当前结果不构成真实 provider PASS。

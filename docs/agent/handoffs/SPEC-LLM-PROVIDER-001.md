@@ -5,7 +5,8 @@
 - 状态：`REVIEW`；等待项目负责人 exact-head 手动 GitHub 审查
 - base：`origin/main@6f6363f517a6588ff4eb31aee7996b7116092c03`
 - branch：`codex/spec-llm-provider-001`
-- PR / exact head / CI：提交后补齐；任何 CI SUCCESS 不等于 PASS
+- PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft）
+- exact head / CI：以本次 PR 元数据回填提交后的 GitHub head 与 CI run 为准；任何 CI SUCCESS 不等于 PASS
 
 ## 已冻结
 
@@ -49,4 +50,4 @@
 
 第一次数据库命令在专用数据库尚未创建时于 migration 前失败；随后显式创建隔离数据库并完成上述全套数据库门禁，没有改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
 
-提交后继续补齐非 Draft PR、exact head 与 CI run。只有项目负责人明确 PASS 后，治理 Agent 才可将任务 DONE、ADR-040 Accepted 并决定后续 provider 选择任务；执行 Agent 不得自行 merge。
+PR #52 已创建且非 Draft；元数据回填提交后继续取得 exact head 与 CI run。只有项目负责人明确 PASS 后，治理 Agent 才可将任务 DONE、ADR-040 Accepted 并决定后续 provider 选择任务；执行 Agent 不得自行 merge。
