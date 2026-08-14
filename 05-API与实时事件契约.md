@@ -1457,7 +1457,7 @@ runtime 必须跨新 voice 保留 session/capture 级 `no_known_gap -> known_unb
 
 ### 11.1 Home project action
 
-`GET /projects` 的 ordinary item 可 additive 返回 `repeat_interview`，Schema 以 shared contracts 为准。rollout 中缺键必须失败关闭；DEV-008B1 完成后 ordinary item 必须显式带键。restricted item 不得出现该键或 session/basis 元数据。客户端只有在 `primary_action=start_next_session` 时显示 project 卡动作，不得用 project/session status、本地 session 数量或回顾可见性自行推断。
+`GET /projects` 的 ordinary item 可 additive 返回 `repeat_interview`，Schema 以 shared contracts 为准。rollout 中外层键缺失必须失败关闭；键一旦存在，内部 discriminated union 必须完整，不能省略 `consent_continuation` 或拼出矛盾的 reason/action/basis。DEV-008B1 完成后 ordinary item 必须显式带键。restricted item 不得出现该键或 session/basis 元数据。客户端只有在 `primary_action=start_next_session` 时显示 project 卡动作，不得用 project/session status、本地 session 数量或回顾可见性自行推断。
 
 ### 11.2 创建下一次 session
 
@@ -1497,7 +1497,7 @@ basis `succeeded` 的 eligible output 必须进入随后冻结的 Context；`unj
 
 ### 12.1 Project 与 session 投影
 
-ordinary project 的 `repeat_interview` 可 additive 返回 `consent_continuation`，精确字段与枚举以 shared contracts 为准。`covered` 时 required action 为 `show_recording_reminder`，且满足其他 repeat 条件后主动作才是 `start_next_session`；明确需要重授权且 project 仍 ordinary 可读、正式重授权入口可用时主动作只能是 `record_formal_consent`；revoked/restricted、policy/reader unavailable 或字段缺失时无普通动作。restricted projection 不返回该对象。
+ordinary project 的 `repeat_interview` 按 shared contracts 的 discriminated union 返回完整 `consent_continuation`，并遵守 `04` §8.1 的固定优先级和交叉约束。`eligible/start_next_session` 只能搭配 covered + reminder action + 非空 session basis；`consent_reauthorization_required/record_formal_consent` 只能搭配 reauthorization branch + 全 null session basis；`consent_unavailable/null` 只能搭配 unavailable 全 null branch；`session_in_progress|no_completed_session` 必须 null action/basis，即使嵌套 continuation 为 reauthorization 也不能提升 action；`project_unavailable|access_unavailable` 的 continuation 必须为 null。revoked/restricted 或字段缺失时无普通动作，restricted projection 不返回该对象。
 
 `GET /sessions/:id`、device-check 与尚未成功 start 的 session snapshot 可 additive 返回服务端权威 `recording_start_reminder`：
 
@@ -1515,7 +1515,7 @@ ordinary project 的 `repeat_interview` 可 additive 返回 `consent_continuatio
 
 ### 12.2 next-session 与正式重授权
 
-`POST /projects/:id/next-session` 在既有锁内重算 `consent_continuation`。covered 才可创建；ordinary project 的 `reauthorization_required` 稳定返回 409 `CONSENT_REAUTHORIZATION_REQUIRED` 且零 session/idempotency-success/audit 业务副作用，客户端回到现有完整 `recorded_verbal` 流程。revoked/restricted 继续使用既有不泄密拒绝，不通过本错误泄露 reauthorization 细节。完成新的、版本匹配的 consent 后必须重新 GET project action，再以新的 next-session request 发起；不得把失败的旧请求改绑新 consent 或将轻提醒当授权。
+`POST /projects/:id/next-session` 在既有锁内按 `04` §8.1 同一优先级重算完整 repeat action 与 `consent_continuation`。只有最终 `eligible/start_next_session/covered` 才可创建。非终态 session 与 reauthorization 同时成立时必须按 session conflict 返回既有 `NEXT_SESSION_ALREADY_EXISTS`/当前 session 安全标识语义，零新 session 副作用；不得返回 `CONSENT_REAUTHORIZATION_REQUIRED` 或引导并行重授权。只有更高优先级均未命中且 ordinary project 的最终 action 为 `record_formal_consent` 时，才稳定返回 409 `CONSENT_REAUTHORIZATION_REQUIRED`，且零 session/idempotency-success/audit 业务副作用，客户端回到现有完整 `recorded_verbal` 流程。revoked/restricted 继续使用既有不泄密拒绝，不通过本错误泄露 reauthorization 细节。完成新的、版本匹配的 consent 后必须重新 GET project action，再以新的 next-session request 发起；不得把失败的旧请求改绑新 consent 或将轻提醒当授权。
 
 普通时间间隔、有效 assignment 内更换倾听员或设备变化不触发重授权。设备变化只影响当前页面 mic/device check。revoked/expired、版本不兼容、processing purpose/access subject/provider region/public-or-training expansion、future interviews 未覆盖分别映射 shared reason；policy 无法读取时使用既有非泄密 unavailable 分类并失败关闭。
 

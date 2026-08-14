@@ -4,7 +4,7 @@
 
 - 状态：`REVIEW`；执行 Agent 未给出 PASS/DONE，未合并。
 - 分支：`codex/spec-continuing-consent-001`。
-- PR：[non-Draft PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；最终 exact head 与 CI 以 GitHub 当前提交为准。
+- PR：[non-Draft PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；old exact head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 已获项目负责人 [REQUEST_CHANGES](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288715503)（P0=0/P1=3/P2=0），旧结论永久保留。
 - 基线：`origin/main@2f7bb9632293694a0e22ed7e64adefff5fc5a57d`；main CI [31758380540](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31758380540) completed / SUCCESS。
 - iteration-coach：总控已在产品决定前恰好完成一次独立只读 `Correction / NO-PAUSE`；本任务没有启动第二次，也没有写 legacy learning log。
 - 范围：只改正式文档、additive shared TypeScript contract 与直接治理记录；无 runtime、Prisma/migration、页面、ASR/LLM、删除或部署改动。
@@ -21,8 +21,8 @@
 
 ## Shared contract
 
-- `ConsentContinuationProjection`：covered / reauthorization_required / unavailable、精确 reason、basis/required version 与 required action。
-- `RepeatInterviewProjectActionProjection.primary_action` additive 支持 `record_formal_consent`；restricted 不暴露该动作。
+- `ConsentContinuationProjection`：discriminated union 机械绑定 covered / reauthorization_required / unavailable 与各自 reason、basis/required version、required action；missing 与 existing-record reauthorization 的 basis 可空性不同。
+- `RepeatInterviewProjectActionProjection`：交叉 discriminated union 绑定 primary action/reason/session basis/continuation；外层 rollout seam 可缺失，但对象一旦出现就必须完整。非终态 session + reauthorization 只能 `session_in_progress/null action`。
 - `RecordingStartReminderProjection` 与 `RECORDING_START_REMINDER_VERSION/TEXT`：服务端拥有固定文案和版本，`creates_consent_record=false`。
 - `InterviewSessionResponse.recording_start_reminder?`、`StartSessionRequest.recording_reminder_version?` 为 contract-first optional seam；B1 runtime 完成时必须显式返回/要求，缺失失败关闭。
 
@@ -47,8 +47,15 @@
 5. B1/B2 是否在本 SPEC exact-head PASS/merge/治理收口前持续 BLOCKED；
 6. 是否完全没有 runtime/Prisma/UI/ASR/LLM/deletion/ServiceTerm 范围扩张。
 
+## REV-049 定向修复包
+
+- 固定优先级：不可披露 → access/project unavailable → session in progress → no completed → consent unavailable → reauthorization → eligible；GET 与 next-session 使用同一顺序。
+- 组合反例：session+reauthorization、no-completed+reauthorization 均由 session 条件获胜；所有不可操作分支 session basis/next 为 null。
+- 编译期测试：`packages/contracts/src/continuing-consent.contract-test.ts` 覆盖合法三分支、basis 可空性、action/continuation 交叉组合及上述冲突。
+- 真实交付前置：新建 SPEC-CONSENT-TEXT-POLICY-001，等待有权主体与项目负责人/数据治理接收真实正文、版本/digest 和 machine scope。未接收前真实路径失败关闭；Agent 不代写/批准法律文本。
+
 ## 未完成与接收动作
 
-- 项目负责人需绑定 PR exact head 与 CI 给出 PASS 或 REQUEST_CHANGES；push/CI 绿不等于审查通过。
+- 项目负责人需绑定修复后的新 exact head 与 CI 再给出 PASS 或 REQUEST_CHANGES；push/CI 绿不等于审查通过，old REQUEST_CHANGES 不被覆盖。
 - PASS 后仍需 merge 与独立治理收口，才能把 ADR-039 转 Accepted、CON-012 转 RESOLVED、SPEC 转 DONE，并重新评估 B1/B2 是否机械解锁。
-- 真实授权正文、scope metadata、runtime、数据库约束、页面和完整 `09` §§17-18 实现验收仍未完成。
+- SPEC-CONSENT-TEXT-POLICY-001、真实授权正文/scope metadata、runtime、数据库约束、页面和完整 `09` §§17-18 实现验收仍未完成。

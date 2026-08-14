@@ -393,7 +393,7 @@
 
 ## ADR-039｜同项目使用持续授权并在每次正式录音前提供版本化轻提醒
 
-- 状态：`Proposed`；等待 SPEC-CONTINUING-CONSENT-001 non-Draft PR exact-head CI 与项目负责人手动审查，执行 Agent 不得自行转 Accepted。
+- 状态：`Proposed`；REV-049 已对 PR #49 old exact head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 给出 [REQUEST_CHANGES](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288715503)（P0=0/P1=3/P2=0），正在原分支定向修复；执行 Agent 不得自行转 Accepted。
 - 背景：ADR-037 固化首次口头授权，ADR-038 固化同 project 多 session，但旧规范把“每个新 session 重检 consent”留成可被误解为每次重录完整授权的空白，也未定义开始按钮、轻提醒与正式 consent 的边界。CON-012 同时未关闭跨文本版本复用风险。
 - 决定：一位长者一个 project、多次 session。首次访谈在当前页 mic 检查后录制完整 `recorded_verbal` 授权；正式文本必须覆盖同 project 当前及未来计划内访谈，并说明可随时暂停、停止或撤回。普通后续 session 复用仍适用的原 consent record，不重录授权音频、不追加 consent record、不重复完整授权页。
 - 每次录音：每个 formal start 前由服务端 snapshot 返回版本化、逐字轻提醒和“开始访谈”动作；客户端原样显示，倾听员显式点击并回传 reminder version。该动作是本次录音启动事实，不是新授权，不创建 consent/audio，也不能修复无效授权。
@@ -402,3 +402,6 @@
 - 数据与范围：不新增 Prisma 字段、表、migration 或持久“提醒确认”记录；继续使用 consent 追加历史和 start/idempotency 审计。ServiceTerm 保持 dormant。不改变 ASR/LLM、删除/retention、A4 completion/review 或网页方向。
 - 取代关系：本 ADR 只澄清并部分取代 ADR-037/038 中把“当前版本 consent”简单理解为逐 session 新授权的可能性；它不改写两 ADR 的历史正文、首次 mic→consent→start、repeat action、会后分析或 opening 决定。
 - 代价：需要维护服务端 consent version compatibility policy 和 recording reminder version；换取授权证据与实际文本一致、后续访谈低摩擦，并能在版本/用途/访问范围漂移时确定性失败关闭。
+- 确定性修订：repeat action 按 access/project → non-terminal session → no completed → consent unavailable → reauthorization → eligible 的固定优先级取首个命中；非终态 session 与 reauthorization 同时成立时只能 `session_in_progress/null action`。shared contracts 使用交叉 discriminated unions 机械约束 continuation 与 repeat reason/action/basis。
+- 可交付前置：真实 `covered` 状态须等待独立 SPEC-CONSENT-TEXT-POLICY-001 接收有权主体提供的正式正文、版本/digest 与 machine scope。Agent 不代写或批准法律文本；local/test fixture 如未来采用，只能显式虚构且生产/真实路径继续失败关闭。
+- 审查历史：old head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 的 REV-049 REQUEST_CHANGES 永久保留；本 ADR 继续 Proposed，等待新 exact head 定向复审。
