@@ -863,10 +863,16 @@ P2：
 - 合并与集成：PR #44 以 merge commit `175e92e3bda76f4b180e85519e3bf8e62c356311` 合入 `main`；main CI [31712044809](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31712044809) completed / SUCCESS，verify 3m28s，全链路通过。
 - 接收边界：只接受 DEV-008A4 的响应式网页首次访谈整合修复和 ADR-037；真实 ASR/provider、真实 LLM、题库、server deletion、导出、部署、PWA/App、DEV-008D/CON-023 与真实试点继续独立。旧失败 head/CI、旧全绿但用户发现缺口的候选及真实用户发现历史全部永久保留。
 
-## REV-048｜SPEC-REPEAT-INTERVIEW-001 / PR #46 首轮项目负责人审查
+## REV-048｜SPEC-REPEAT-INTERVIEW-001 / PR #46 项目负责人审查
 
+- 状态：`PASS / DONE`；项目负责人已对 final accepted exact head 手动定向复审，P0/P1=0；任务在 merge 与 main CI 成功后完成治理收口。
 - 审查对象：[PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) exact head `99e5d317f4e5ad62444148442329114840c58293`；CI `31709711887` SUCCESS；PR 为 OPEN、non-Draft、CLEAN，head 在审查时未漂移。
 - 正式结论：`REQUEST_CHANGES`；P0=0、P1=1。SPEC 保持 REVIEW、ADR-038 保持 Proposed，DEV-008B1/B2 保持 BLOCKED；不得合并或自行宣布 PASS/DONE。
 - 唯一 P1：next-session/录音不等待 AI 是正确的，但 calibration gate terminal 会在 basis memory/actual analysis pending/running 时立即冻结 Context并消费唯一 opening trigger。之后 basis 分析成功也不会重开 gate，导致“第二次开场继承第一次访谈”偶发永久漏失。
 - 定向修复要求：opening 在 basis 两 lane terminal 前不得创建 generation attempt、冻结 Context或消费 gate，可投影 waiting；两 lane terminal 后才 exact once；unjudged/failed/cancelled/unavailable 需诚实 terminal 且不阻塞录音；补 analysis-first/calibration-first/单 lane degraded/刷新重放并发矩阵。
 - 审查评论：[issuecomment-5281848055](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。old head、CI 与 REQUEST_CHANGES 永久保留，不得被后续定向复审覆盖。
+- 定向修复内容：head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI [31711566144](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31711566144) SUCCESS，冻结双前置、waiting 零 attempt、两 lane terminal 后 exact-once 与顺序/并发矩阵；该中间绿灯不覆盖 old REQUEST_CHANGES。
+- 最终 accepted exact head：`8d4a26263db7b75dd22469f767240d705d3ce5fe`，tree `a9df0737de73602c25c6384da2acdd13e449c037`；exact-head CI [31715348528](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31715348528) completed / SUCCESS，format、lint、typecheck、build、unit、fresh PostgreSQL migration deploy/status、integration、auth、smoke、ordinary Chromium 与 auth Chromium 全矩阵通过。
+- 项目负责人手动定向复审：[PR #46 正式 PASS 评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5287945749)，严格绑定 accepted exact head `8d4a26263db7b75dd22469f767240d705d3ce5fe`，正式结论 P0=0 / P1=0；上一轮唯一 P1 已关闭，旧 REQUEST_CHANGES 历史永久保留。
+- 合并与集成：PR #46 以 merge commit `54fb814e44ab2a405f78133e480d467577dbc7b8` 合入 `main`；main CI [31757442056](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31757442056) completed / SUCCESS，verify 3m30s，全链路通过。merge parents 为 prior main `869556a2ae6616a3a236251371054fd28bee7059` 与 accepted head；merge tree 与 accepted head tree 相同。
+- 接收边界：只接受 SPEC-REPEAT-INTERVIEW-001 的正式规范、shared contract 与治理；DEV-008B1/B2 机械转为 READY，不代表 runtime、Prisma/UI/provider、真实 LLM、privacy/deletion/retention、DEV-008D/CON-023 或真实试点已实现或通过。

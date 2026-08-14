@@ -379,7 +379,7 @@
 
 ## ADR-038｜连续访谈采用项目级权威动作、完成后双分析与校准后单次开场
 
-- 状态：`Proposed / REVIEW`；绑定 SPEC-REPEAT-INTERVIEW-001 / REV-048，等待项目负责人 exact-head 审查，不由执行 Agent 自行 Accepted。ADR-037 已由并行 DEV-008A4 / PR #44 占用。
+- 状态：`Accepted`；REV-048 绑定 PR #46 accepted exact head `8d4a26263db7b75dd22469f767240d705d3ce5fe` / CI `31715348528`，项目负责人手动审查 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5287945749)（P0/P1=0）；merge `54fb814e44ab2a405f78133e480d467577dbc7b8` / main CI `31757442056` SUCCESS。ADR-037 已由并行 DEV-008A4 / PR #44 占用。
 - 背景：数据模型已有 project/session sequence、Memory current view、actual-question catalog、context snapshot 与 `second_session_opening` attempt kind，但 Home 没有 project-level repeat action，`MemoryService.extract`/`reconcileActualQuestions` 没有生产调用者。只加按钮会创建新 session 却没有真实继承。
 - 决定：普通 project read model 投影唯一 `start_next_session` action；服务端按当前权限/assignment/project/consent/deletion 与 session 集合失败关闭，前端不猜 status。全局 new-interview 继续创建新 project，session 行继续只处理当前 session。
 - 创建：新增显式 next-session workflow，stable request/canonical payload 绑定 existing project + latest completed basis；project 锁和 sequence 唯一性保证不同 request 并发至多创建一个 sequence+1。新 session 的 capture/audio/ASR/speaker/calibration/runtime 全新且重新 gate。
@@ -387,6 +387,6 @@
 - 开场：sequence>=2 的 calibration gate terminal 后若 basis 任一分析 lane 非 terminal，只派生 waiting，不创建 opening job/attempt/Context、不消费 gate；两 lane terminal 后才以 basis analysis trigger + calibration gate stable identity 至多一次冻结并触发。confirmed gate 可含当前 stream trusted membership，failed/skipped/no-attempt provider-unavailable gate 只使用先前 session 的可信资料；成功 lane eligible output 必须纳入，降级 lane 如实留空并记录 outcome。Context 只冻结 same-project eligible current memory、published reliable actual asked、边界与可信 membership。displayed != actual asked；继续复用唯一 Director/QuestionEvidence/current/history。
 - 降级：provider unavailable 不回退基础题、不阻塞创建或录音；analysis/opening 如实 failed/unjudged/unavailable。GET/render/WS replay 不产生 job。
 - UI/治理：不新增 memory/summary/pending-confirmation UI，不引入第二 AI/history、Prisma/migration、DB ownership、privacy/deletion/retention 或网页方向变化。称呼来自 `AuthUser.display_name`。
-- 依赖：DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge；B1/B2 runtime 仍必须等待本 ADR/SPEC PASS/merge，且不得改写 A4 Home/routes/styles/completion/review。
+- 依赖：DEV-008A4 / PR #44 与本 ADR/SPEC 均已 exact-head PASS/merge；B1/B2 机械转为 `READY`，但 runtime 尚未实现，且不得改写 A4 Home/routes/styles/completion/review。
 - 代价：增加一类 project action、显式 workflow 和两个系统触发身份；换取可证明的 same-project sequence、真实生产 caller、可审计 membership 与 AI 故障不伤录音。未来若需 memory UI、新 AI 或删除语义，必须另立决策。
-- 审查历史：old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` 获项目负责人 `REQUEST_CHANGES`（P0=0/P1=1），指出 calibration-first 抢跑 post-analysis。该历史永久保留；双前置定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS，仍等待最终候选 exact-head 定向复审，ADR 保持 Proposed/REVIEW。
+- 审查历史：old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` 获项目负责人 `REQUEST_CHANGES`（P0=0/P1=1），指出 calibration-first 抢跑 post-analysis；双前置定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS。final accepted head `8d4a26263db7b75dd22469f767240d705d3ce5fe` / CI `31715348528` 获项目负责人 PASS（P0/P1=0），唯一 P1 已关闭；旧结论与修复历史永久保留。
