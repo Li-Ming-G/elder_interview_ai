@@ -418,3 +418,4 @@
 - 代价：短期内仍没有真实 LLM；每个 provider 需维护独立 profile/合规证据，Prompt promotion 与横评增加治理步骤。换取 retry/fallback 单一真相、供应商可替换、Prompt 可控试验、真实 provenance 和评测/业务数据严格隔离。
 - 不做：真实 provider、在线 Prompt 管理、第二 critic、LiteLLM、Gateway、题库重做、DEV-007/008 流、真实数据横评、Prisma/migration 或 formal v2 切换。
 - iteration-coach：复用总控本轮唯一独立只读 Correction，未启动第二次；其 Prompt lifecycle、SDK no-retry/fallback、provenance、隔离横评、region/secret 与 ASR 门禁修正已吸收。
+- 审查历史：REV-050 绑定 PR #52 old exact head `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS，项目负责人正式 `REQUEST_CHANGES`（P0=0/P1=3/P2=0）。三项缺口为 active-binding semantic membership、requested/observed/request-ID/response-ID provenance 分离、canonical model-config 与 warning/effective-config 门禁；old head/CI/结论永久保留。ADR 继续 `Proposed / REVIEW`，定向修复与新 CI 不自动 Accepted。

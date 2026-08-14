@@ -892,3 +892,14 @@ P2：
 - 最终状态：`PASS / DONE`；仅在 merge、main CI 与本次独立低风险治理收口完成后转为当前状态。
 - 合并与集成：PR #49 以 merge commit `712b4ff46acbff5168453c79b2d02375a84fa017` 合入 `main`；main CI [31764903272](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31764903272) completed / SUCCESS。merge parents 为 prior main `2f7bb9632293694a0e22ed7e64adefff5fc5a57d` 与 accepted head。
 - 接收边界：SPEC-CONTINUING-CONSENT-001 DONE、ADR-039 Accepted、CON-012 RESOLVED。B1 只解除契约实现前置并转为 implementation-ready；真实 `covered` 端到端完成仍由 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001 阻塞，B2 仍等待 B1 runtime。本结论不接收 runtime、Prisma/UI、真实正文、provider 或真实试点。
+
+## REV-050｜SPEC-LLM-PROVIDER-001 / PR #52 项目负责人初轮审查
+
+- 状态：`REQUEST_CHANGES / REVIEW`；P0=0、P1=3、P2=0。SPEC-LLM-PROVIDER-001 保持 REVIEW、ADR-040 保持 Proposed/REVIEW、CON-031 保持 OPEN；不得合并或自行宣布 PASS/DONE。
+- 审查对象：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52) exact head `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede`；exact-head CI [31769677989](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31769677989) completed / SUCCESS。锁定时 PR OPEN、非 Draft、MERGEABLE、未合并且 head 未漂移。
+- P1-1：registry JSON Schema 只验证结构，未机械证明 active binding 对 provider/model/config/endpoint/region/secret/environment/data-class 的 exactly-one 解析与 membership；重复 provider/model/config identity 也未统一失败关闭。要求冻结独立 deterministic semantic validator contract 与正反 fixtures。
+- P1-2：invocation/receipt 共用 `provider_model_id`，provider request ID 与 SDK response ID 的来源模型混杂，且未区分 requested binding model 与 observed response model。要求拆成 requested model、observed model+source、provider request ID+source、SDK response ID+source四类事实并同步持久化候选。
+- P1-3：model config 只有 version/digest，没有 digest 所覆盖的 canonical manifest、规范化/版本规则与真实生成参数；receipt 也没有可判定 unsupported/ignored/adjusted 的 sanitized warnings，横评可能把实际不同配置误当相同。要求新增 model-config-v1 Schema、golden digest vector、warning 正反例和 equal-effective-config 门禁。
+- 已通过且不重做：direct vendor、无 Gateway/LiteLLM、SDK `maxRetries=0`、项目唯一 same-input retry、共享 8 秒 deadline/abort/late-result fence、formal v1 与不可加载 v2-draft、Prompt 生命周期、synthetic evaluation 隔离、empty registry/no active binding/real-data deny、CON-031 OPEN。
+- 定向修复边界：只修改 docs/shared machine contracts、纯确定性 semantic validator 与 fixtures/tests；不安装 SDK、不选择真实厂商、不请求密钥、不实现 provider runtime/Prisma migration/在线 Prompt 管理/第二 critic/数据外发，也不启动第二次 iteration-coach。
+- 历史规则：本 old head、CI 与正式 REQUEST_CHANGES 永久保留。后续新 head 即使 CI SUCCESS 也只形成定向复审候选，不能覆盖本记录。

@@ -58,3 +58,11 @@
 按 `09` §19 完成 JSON Schema/fixture、shared typecheck、v1 loader、定向 unit 和仓库全门禁验证；创建非 Draft PR 并取得 exact-head CI SUCCESS。任务保持 REVIEW，等待项目负责人手动审查。
 
 本地结果：format/lint/typecheck/build PASS；unit 57 files / 344 tests、定向 SPEC 5/5、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL deploy/status PASS。PR #52 已创建且非 Draft；最终 metadata head CI 仍待补齐，当前结果不构成真实 provider PASS。
+
+## REV-050 正式 REQUEST_CHANGES
+
+- reviewed exact head：`b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede`；CI `31769677989` SUCCESS；项目负责人正式结论 `REQUEST_CHANGES`，P0=0/P1=3/P2=0。
+- P1-1：补 active binding → exactly one provider/model/config 与 endpoint/region/secret/environment/data-class membership 的 deterministic semantic validator；重复 identity/缺失/歧义全部 fail closed，并用正反 fixtures 固定。
+- P1-2：拆分 requested model、observed response model+source、provider request ID+source、SDK response ID+source四类 provenance；同步 receipt/shared types 与 `04/05/07/09/10`。
+- P1-3：新增 `llm-model-config-v1` canonical manifest/schema、精确 digest 算法与 golden vector；冻结真实 generation/provider options，receipt/persistence 增加 sanitized warning 与 effective-config 状态，横评不得把 warning/unknown 当同配置。
+- old head/CI/REQUEST_CHANGES 永久保留；定向修复候选仍保持 REVIEW，ADR-040 Proposed/REVIEW、CON-031 OPEN，不得 PASS/DONE/merge。

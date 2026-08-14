@@ -7,6 +7,7 @@
 - branch：`codex/spec-llm-provider-001`
 - PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft）
 - exact head / CI：以本次 PR 元数据回填提交后的 GitHub head 与 CI run 为准；任何 CI SUCCESS 不等于 PASS
+- 正式旧审查：REV-050 绑定 `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS，项目负责人 `REQUEST_CHANGES`，P0=0/P1=3/P2=0；永久保留
 
 ## 已冻结
 
@@ -51,3 +52,7 @@
 第一次数据库命令在专用数据库尚未创建时于 migration 前失败；随后显式创建隔离数据库并完成上述全套数据库门禁，没有改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
 
 PR #52 已创建且非 Draft；元数据回填提交后继续取得 exact head 与 CI run。只有项目负责人明确 PASS 后，治理 Agent 才可将任务 DONE、ADR-040 Accepted 并决定后续 provider 选择任务；执行 Agent 不得自行 merge。
+
+## REV-050 定向修复交接
+
+当前只允许关闭三项 P1：registry semantic reference/membership、四类 provenance identity、canonical model-config/warnings/equal-effective-config。不得重做已通过方向，不安装 SDK、不选厂商、不写真实 provider runtime/Prisma migration、不启动第二次 iteration-coach。修复完成后必须产生新的 exact head 与完整 CI SUCCESS，再由项目负责人定向复审；新绿灯不覆盖旧 REQUEST_CHANGES。
