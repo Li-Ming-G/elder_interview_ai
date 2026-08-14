@@ -75,17 +75,136 @@ export type RepeatInterviewActionReason =
   | 'no_completed_session'
   | 'session_in_progress'
   | 'project_unavailable'
+  | 'consent_reauthorization_required'
   | 'consent_unavailable'
   | 'access_unavailable';
 
-export interface RepeatInterviewProjectActionProjection {
-  primary_action: 'start_next_session' | null;
-  reason: RepeatInterviewActionReason;
-  basis_session_id: string | null;
-  basis_sequence_no: number | null;
-  next_sequence_no: number | null;
+export type ConsentContinuationStatus = 'covered' | 'reauthorization_required' | 'unavailable';
+
+export type ConsentContinuationReauthorizationReason =
+  | 'consent_missing'
+  | 'consent_revoked'
+  | 'consent_expired'
+  | 'consent_text_version_incompatible'
+  | 'processing_purpose_expanded'
+  | 'access_scope_expanded'
+  | 'provider_processing_region_expanded'
+  | 'public_or_training_use_expanded'
+  | 'future_interviews_not_covered';
+
+export type ConsentContinuationReason =
+  | 'same_project_planned_interviews_covered'
+  | ConsentContinuationReauthorizationReason
+  | 'policy_unavailable';
+
+interface ConsentContinuationProjectionBase {
+  workflow_version: 'continuing-consent-v1';
+}
+
+export interface ConsentContinuationCoveredProjection extends ConsentContinuationProjectionBase {
+  status: 'covered';
+  reason: 'same_project_planned_interviews_covered';
+  basis_consent_record_id: string;
+  basis_consent_text_version: string;
+  required_consent_text_version: string;
+  required_action: 'show_recording_reminder';
+}
+
+export interface ConsentContinuationMissingProjection extends ConsentContinuationProjectionBase {
+  status: 'reauthorization_required';
+  reason: 'consent_missing';
+  basis_consent_record_id: null;
+  basis_consent_text_version: null;
+  required_consent_text_version: string;
+  required_action: 'record_formal_consent';
+}
+
+export interface ConsentContinuationExistingRecordReauthorizationProjection extends ConsentContinuationProjectionBase {
+  status: 'reauthorization_required';
+  reason: Exclude<ConsentContinuationReauthorizationReason, 'consent_missing'>;
+  basis_consent_record_id: string;
+  basis_consent_text_version: string;
+  required_consent_text_version: string;
+  required_action: 'record_formal_consent';
+}
+
+export interface ConsentContinuationUnavailableProjection extends ConsentContinuationProjectionBase {
+  status: 'unavailable';
+  reason: 'policy_unavailable';
+  basis_consent_record_id: null;
+  basis_consent_text_version: null;
+  required_consent_text_version: null;
+  required_action: null;
+}
+
+export type ConsentContinuationReauthorizationProjection =
+  ConsentContinuationMissingProjection | ConsentContinuationExistingRecordReauthorizationProjection;
+
+export type ConsentContinuationProjection =
+  | ConsentContinuationCoveredProjection
+  | ConsentContinuationReauthorizationProjection
+  | ConsentContinuationUnavailableProjection;
+
+interface RepeatInterviewProjectActionProjectionBase {
   workflow_version: 'repeat-interview-v1';
 }
+
+export interface RepeatInterviewEligibleProjection extends RepeatInterviewProjectActionProjectionBase {
+  primary_action: 'start_next_session';
+  reason: 'eligible';
+  basis_session_id: string;
+  basis_sequence_no: number;
+  next_sequence_no: number;
+  consent_continuation: ConsentContinuationCoveredProjection;
+}
+
+export interface RepeatInterviewSessionBlockedProjection extends RepeatInterviewProjectActionProjectionBase {
+  primary_action: null;
+  reason: 'no_completed_session' | 'session_in_progress';
+  basis_session_id: null;
+  basis_sequence_no: null;
+  next_sequence_no: null;
+  consent_continuation: ConsentContinuationProjection;
+}
+
+export interface RepeatInterviewProjectOrAccessUnavailableProjection extends RepeatInterviewProjectActionProjectionBase {
+  primary_action: null;
+  reason: 'project_unavailable' | 'access_unavailable';
+  basis_session_id: null;
+  basis_sequence_no: null;
+  next_sequence_no: null;
+  consent_continuation: null;
+}
+
+export interface RepeatInterviewConsentUnavailableProjection extends RepeatInterviewProjectActionProjectionBase {
+  primary_action: null;
+  reason: 'consent_unavailable';
+  basis_session_id: null;
+  basis_sequence_no: null;
+  next_sequence_no: null;
+  consent_continuation: ConsentContinuationUnavailableProjection;
+}
+
+export interface RepeatInterviewConsentReauthorizationProjection extends RepeatInterviewProjectActionProjectionBase {
+  primary_action: 'record_formal_consent';
+  reason: 'consent_reauthorization_required';
+  basis_session_id: null;
+  basis_sequence_no: null;
+  next_sequence_no: null;
+  consent_continuation: ConsentContinuationReauthorizationProjection;
+}
+
+/**
+ * If this rollout seam is present, its discriminants and consent projection
+ * are complete. The outer ProjectListOrdinaryProjection.repeat_interview key
+ * remains optional until DEV-008B1; absence is fail-closed.
+ */
+export type RepeatInterviewProjectActionProjection =
+  | RepeatInterviewEligibleProjection
+  | RepeatInterviewSessionBlockedProjection
+  | RepeatInterviewProjectOrAccessUnavailableProjection
+  | RepeatInterviewConsentUnavailableProjection
+  | RepeatInterviewConsentReauthorizationProjection;
 
 export interface ProjectListRestrictedProjection {
   project_id: string;
@@ -188,6 +307,23 @@ export interface InterviewSessionResponse {
   updated_at: string;
   capture?: SessionCaptureSnapshot | null;
   finalization?: SessionFinalizationSnapshot | null;
+  /**
+   * Server-owned notice shown verbatim before every formal recording start.
+   * Absence is fail-closed once the continuing-consent workflow is enabled.
+   */
+  recording_start_reminder?: RecordingStartReminderProjection;
+}
+
+export const RECORDING_START_REMINDER_VERSION = 'recording-reminder-v1' as const;
+export const RECORDING_START_REMINDER_TEXT =
+  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。' as const;
+
+export interface RecordingStartReminderProjection {
+  version: typeof RECORDING_START_REMINDER_VERSION;
+  text: typeof RECORDING_START_REMINDER_TEXT;
+  action_label: '开始访谈';
+  requires_explicit_action: true;
+  creates_consent_record: false;
 }
 
 export type CaptureGenerationStatus =
@@ -381,6 +517,8 @@ export interface StopSessionRequest extends IdempotentRequest {
 export interface StartSessionRequest extends IdempotentRequest {
   mime_type: string;
   audio_stream_id: string;
+  /** Contract-first rollout seam; DEV-008B1 runtime must require this field. */
+  recording_reminder_version?: typeof RECORDING_START_REMINDER_VERSION;
 }
 
 export interface ConfirmCaptureActiveRequest extends IdempotentRequest {
