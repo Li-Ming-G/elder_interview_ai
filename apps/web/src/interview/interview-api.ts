@@ -42,6 +42,7 @@ export class InterviewApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly status: number,
+    public readonly details: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
     this.name = 'InterviewApiError';
@@ -369,10 +370,22 @@ async function toApiError(response: Response): Promise<InterviewApiError> {
       typeof payload.code === 'string' ? payload.code : 'REQUEST_FAILED',
       safeMessage(payload.code),
       response.status,
+      safeDetails(payload.details),
     );
   } catch {
     return new InterviewApiError('REQUEST_FAILED', '请求未能完成，请稍后重试', response.status);
   }
+}
+
+function safeDetails(value: unknown): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(value).filter(
+        ([key]) => key !== '__proto__' && key !== 'constructor' && key !== 'prototype',
+      ),
+    ),
+  );
 }
 
 function safeMessage(code: unknown): string {

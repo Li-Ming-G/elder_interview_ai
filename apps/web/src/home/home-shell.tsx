@@ -136,16 +136,13 @@ export function HomeShell({
         attemptError instanceof InterviewApiError &&
         attemptError.code === 'NEXT_SESSION_ALREADY_EXISTS'
       ) {
-        const page = await api.listProjectSessions(attempt.projectId, { limit: 100 });
-        const existing = page.items.find(
-          ({ sequence_no: sequenceNo }) =>
-            sequenceNo === attempt.payload.expected_basis_sequence_no + 1,
-        );
-        if (existing !== undefined) {
+        const existing = parseCurrentSessionPointer(attemptError.details);
+        if (existing !== null) {
           await store.acknowledgeNextSession(user.id, attempt.projectId);
-          navigate(preparationPath(attempt.projectId, existing.id));
+          navigate(preparationPath(attempt.projectId, existing.sessionId));
         } else {
-          setActionMessage('已有会话占用下一次访谈，请刷新后从对应会话行继续。');
+          await store.markNextSessionUnknown(attempt);
+          setActionMessage('服务端返回的会话指针无法安全核对；已保留原操作，请刷新后重试。');
         }
       } else {
         await store.acknowledgeNextSession(user.id, attempt.projectId);
@@ -261,6 +258,23 @@ export function HomeShell({
       </section>
     </HomeFrame>
   );
+}
+
+function parseCurrentSessionPointer(
+  details: Readonly<Record<string, unknown>>,
+): { sequenceNo: number; sessionId: string } | null {
+  const keys = Object.keys(details).sort();
+  if (keys.length !== 2 || keys[0] !== 'sequence_no' || keys[1] !== 'session_id') return null;
+  const sequenceNo = details.sequence_no;
+  const sessionId = details.session_id;
+  if (!Number.isSafeInteger(sequenceNo) || (sequenceNo as number) < 1) return null;
+  if (
+    typeof sessionId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(sessionId)
+  ) {
+    return null;
+  }
+  return { sequenceNo: sequenceNo as number, sessionId };
 }
 
 export function HomeFrame({ children }: { children: ReactNode }): React.JSX.Element {

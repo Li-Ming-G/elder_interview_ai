@@ -5,6 +5,7 @@ import type { InterviewApi, PreparationData } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
 import type { InterviewCaptureController } from './interview-capture-controller.js';
+import type { MicrophoneChecker, MicrophoneCheckResult } from './microphone-check.js';
 import { workbenchPath } from './routes.js';
 
 interface PreparationPageProps {
@@ -12,7 +13,7 @@ interface PreparationPageProps {
   actorId?: string;
   api: InterviewApi;
   captureController: (sessionId: string) => Pick<InterviewCaptureController, 'start'>;
-  checkMicrophone?: unknown;
+  checkMicrophone: MicrophoneChecker;
   initialSessionId: string | null;
   navigate: (path: string, replace?: boolean) => void;
   projectId: string;
@@ -23,20 +24,29 @@ type LoadState =
   | { kind: 'error'; message: string }
   | { data: PreparationData; kind: 'ready' };
 
-/** Legacy/recovery route. DEV-008A4's ordinary first-interview flow starts capture directly. */
+type DeviceState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'passed' }
+  | { kind: 'failed'; message: string };
+
+/** Repeat-session and legacy recovery route; every page visit requires a fresh local device check. */
 export function PreparationPage({
   api,
   captureController,
+  checkMicrophone,
   initialSessionId,
   navigate,
   projectId,
 }: PreparationPageProps): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
   const [submitting, setSubmitting] = useState(false);
+  const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
+    setDeviceState({ kind: 'idle' });
     try {
       const data = await api.loadPreparation(projectId, initialSessionId);
       setLoadState({ data, kind: 'ready' });
@@ -49,8 +59,53 @@ export function PreparationPage({
     void load();
   }, [load]);
 
+  async function runDeviceCheck(): Promise<void> {
+    if (
+      loadState.kind !== 'ready' ||
+      loadState.data.session === null ||
+      !['created', 'device_check'].includes(loadState.data.session.status) ||
+      deviceState.kind === 'checking' ||
+      submitting
+    ) {
+      return;
+    }
+    setDeviceState({ kind: 'checking' });
+    setActionError(null);
+    try {
+      const result = await checkMicrophone();
+      if (!result.inputDetected) {
+        setDeviceState({ kind: 'failed', message: microphoneFailure(result) });
+        return;
+      }
+      const currentSession = loadState.data.session;
+      const checked = await api.deviceCheck(currentSession.id, {
+        input_detected: true,
+        microphone_permission: 'granted',
+      });
+      if (
+        checked.id !== currentSession.id ||
+        checked.project_id !== projectId ||
+        checked.status !== 'device_check'
+      ) {
+        throw new Error('DEVICE_CHECK_ACK_MISMATCH');
+      }
+      setLoadState({
+        data: { ...loadState.data, session: checked },
+        kind: 'ready',
+      });
+      setDeviceState({ kind: 'passed' });
+    } catch (error) {
+      setDeviceState({ kind: 'failed', message: readableDeviceError(error) });
+    }
+  }
+
   async function startInterview(): Promise<void> {
-    if (loadState.kind !== 'ready' || loadState.data.session?.status !== 'device_check') return;
+    if (
+      loadState.kind !== 'ready' ||
+      loadState.data.session?.status !== 'device_check' ||
+      deviceState.kind !== 'passed'
+    )
+      return;
     setSubmitting(true);
     setActionError(null);
     try {
@@ -97,6 +152,7 @@ export function PreparationPage({
     (project.status === 'ready' || project.status === 'active') &&
     consentReady &&
     session?.status === 'device_check' &&
+    deviceState.kind === 'passed' &&
     session.recording_start_reminder !== undefined &&
     !submitting;
 
@@ -105,9 +161,7 @@ export function PreparationPage({
       <section className="readiness-panel" aria-labelledby="recovery-title">
         <p className="context-label">访谈恢复</p>
         <h1 id="recovery-title">继续建立正式录音</h1>
-        <p>
-          当前普通新建流程已把麦克风检查放在口头授权之前；本页只用于恢复已完成设备检查与正式授权的旧会话。
-        </p>
+        <p>请先检查当前页面的麦克风输入，再核对服务端提醒并显式开始本次访谈。</p>
         <StatusItem
           detail={
             currentConsent === null
@@ -123,14 +177,33 @@ export function PreparationPage({
           detail={
             session === null
               ? '没有可恢复的会话，请从工作区重新发起。'
-              : session.status === 'device_check'
-                ? '会话已完成授权前设备检查。'
-                : `当前会话状态为“${sessionStatusText(session)}”，不能从本页开始。`
+              : !['created', 'device_check'].includes(session.status)
+                ? `当前会话状态为“${sessionStatusText(session)}”，不能从本页开始。`
+                : deviceState.kind === 'passed'
+                  ? '已确认当前页面的麦克风有输入。'
+                  : deviceState.kind === 'checking'
+                    ? '正在检测当前页面的麦克风输入…'
+                    : '待设备检查；不会复用上一次访谈或其他页面的设备状态。'
           }
-          label="已有会话"
-          state={session?.status === 'device_check' ? 'ready' : 'blocked'}
+          label="当前页设备检查"
+          state={deviceState.kind === 'passed' ? 'ready' : 'blocked'}
         />
-        {session?.recording_start_reminder === undefined ? (
+        {session !== null && ['created', 'device_check'].includes(session.status) ? (
+          <button
+            className="button button--secondary"
+            disabled={deviceState.kind === 'checking' || submitting || !consentReady}
+            onClick={() => void runDeviceCheck()}
+            type="button"
+          >
+            {deviceState.kind === 'checking' ? '正在检测麦克风…' : '检测麦克风'}
+          </button>
+        ) : null}
+        {deviceState.kind === 'failed' ? (
+          <p className="inline-error" role="alert">
+            {deviceState.message}
+          </p>
+        ) : null}
+        {deviceState.kind !== 'passed' ? null : session?.recording_start_reminder === undefined ? (
           <p className="inline-error" role="alert">
             暂时无法核对服务端录音提醒，当前不能开始访谈。
           </p>
@@ -207,4 +280,16 @@ function sessionStatusText(session: InterviewSessionResponse): string {
 
 function readableError(error: unknown, fallback: string): string {
   return error instanceof InterviewApiError ? error.message : fallback;
+}
+
+function microphoneFailure(result: MicrophoneCheckResult): string {
+  if (result.permission === 'denied') return '麦克风权限未开启，请允许本页使用麦克风后重试。';
+  if (!result.inputDetected && result.reason === 'too_low')
+    return '检测到的声音太小，请靠近麦克风并重新检查。';
+  return '没有检测到声音，请检查麦克风选择和静音开关后重试。';
+}
+
+function readableDeviceError(error: unknown): string {
+  if (error instanceof InterviewApiError) return error.message;
+  return '当前页麦克风检查未完成，请检查设备后重试。';
 }

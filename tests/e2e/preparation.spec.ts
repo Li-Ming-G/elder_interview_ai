@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 
-test('legacy checked session recovery hides price and microphone controls before formal start', async ({
+test('created repeat session performs current-page microphone check before reminder-gated start', async ({
   page,
 }) => {
   const writes: string[] = [];
@@ -275,6 +275,10 @@ test('legacy checked session recovery hides price and microphone controls before
       await route.fulfill({ json: session('recording', 'preparing', captureStreamId) });
       return;
     }
+    if (path === `/api/v1/sessions/${SESSION_ID}/device-check` && request.method() === 'POST') {
+      await route.fulfill({ json: session('device_check') });
+      return;
+    }
     if (
       path === `/api/v1/sessions/${SESSION_ID}/capture/confirm-active` &&
       request.method() === 'POST'
@@ -299,7 +303,9 @@ test('legacy checked session recovery hides price and microphone controls before
   await expect(page.getByRole('heading', { name: '继续建立正式录音' })).toBeVisible();
   await expect(page.getByText(/正式授权有效/)).toBeVisible();
   await expect(page.getByText(/服务说明|价格|费用|预计时长/)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /检测麦克风/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '检测麦克风' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '开始访谈' })).toBeDisabled();
+  await page.getByRole('button', { name: '检测麦克风' }).click();
   await expect(
     page.getByText('本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。'),
   ).toBeVisible();
@@ -321,6 +327,7 @@ test('legacy checked session recovery hides price and microphone controls before
   await page.screenshot({ fullPage: true, path: 'test-results/dev-005b-workbench-narrow.png' });
 
   expect(writes).toEqual([
+    `/api/v1/sessions/${SESSION_ID}/device-check`,
     `/api/v1/sessions/${SESSION_ID}/start`,
     `/api/v1/sessions/${SESSION_ID}/capture/confirm-active`,
   ]);
@@ -371,7 +378,7 @@ function responseFor(path: string, method: string): unknown {
     ];
   }
   if (path === `/api/v1/sessions/${SESSION_ID}` && method === 'GET') {
-    return session('device_check');
+    return session('created');
   }
   if (path === `/api/v1/sessions/${SESSION_ID}/suggestions/current` && method === 'GET') {
     return emptySuggestion();
@@ -426,7 +433,7 @@ function session(
     recording_start_reminder: ['created', 'device_check'].includes(status)
       ? recordingStartReminder()
       : undefined,
-    sequence_no: 1,
+    sequence_no: 2,
     started_at: status === 'recording' ? new Date().toISOString() : null,
     status,
     updated_at: '2026-08-07T00:01:00.000Z',

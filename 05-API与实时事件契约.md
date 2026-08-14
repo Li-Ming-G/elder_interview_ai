@@ -278,7 +278,7 @@ POST /sessions/:id/recover
 GET  /sessions/:id/evidence-finalization
 ```
 
-`POST /projects/:id/sessions` 请求固定为 `{ "request_id": "uuid" }`，只要求有效 assignment，可在项目仍为 `draft` 时创建 `status=created` 的会话；响应返回 `id`、`project_id`、递增 `sequence_no`、`status` 和时间戳。创建 draft session 不等于允许录音。
+`POST /projects/:id/sessions` 请求固定为 `{ "request_id": "uuid" }`，只用于创建该 project 的首个 `status=created` 会话：只要求有效 assignment，可在项目仍为 `draft` 时创建固定 `sequence_no=1`；响应返回 `id`、`project_id`、`sequence_no`、`status` 和时间戳。相同 actor/action/project/payload 的同一 request ID 仍可权威 replay 首次响应；project 已存在任一 session 时，不同 request ID 必须稳定返回 409 `NEXT_SESSION_REQUIRED`，且零 session/audit/idempotency-success 副作用。后续 session 唯一入口是 §11.2 `POST /projects/:id/next-session`。创建 draft session 不等于允许录音。
 
 `POST /projects`、`POST /projects/:id/service-terms`、`POST /projects/:id/consents`、`POST /projects/:id/sessions` 都必须在首次网络请求前由 A2 将稳定 `request_id` 持久化到当前 origin 的新建访谈 workflow 记录。响应未知、刷新或重开后复用原 ID重放；只有收到首次结果或权威 replay 并将返回资源 ID/版本推进到 workflow 下一步后，才清除该步骤 ID。GET 只用于展示/核对，不能凭相似字段猜测某次未知 POST 是否成功。
 
@@ -1475,7 +1475,7 @@ POST /projects/:id/next-session
 
 服务端依次锁 request、project，再按稳定顺序锁相关 session；在锁内重查 `04` §8.1 全部资格。basis 不属于 path project、sequence 不符或已不再是最新 completed 返回 `NEXT_SESSION_BASIS_STALE`；权限/assignment/restricted/deleted/deletion/consent 失败使用既有不泄密 403/404/409 分类且零 session/audit/idempotency 副作用。不同 request ID 并发时，唯一 `(project_id,sequence_no)` 与非终态 session 门禁确保至多一个 sequence+1；输家返回 `409 NEXT_SESSION_ALREADY_EXISTS`，details 只可含 path project 下已获授权的新 `session_id/sequence_no`，方便 Home 转入当前行，不创建 sequence+2。
 
-该 endpoint 只创建 `interview_session`。设备检查、start、capture、speaker calibration 使用既有 session endpoint 和全新身份；它不克隆旧 session 或触发 getUserMedia。全局 `POST /projects` 与普通首次 `POST /projects/:id/sessions` 语义不变。
+该 endpoint 只创建 `interview_session`。设备检查、start、capture、speaker calibration 使用既有 session endpoint 和全新身份；它不克隆旧 session 或触发 getUserMedia。全局 `POST /projects` 语义不变；普通 `POST /projects/:id/sessions` 仅保留 §3.5 冻结的首场创建与同 request replay，已有任一 session 后不得作为 repeat 入口。
 
 ### 11.3 Post-session analysis projection
 

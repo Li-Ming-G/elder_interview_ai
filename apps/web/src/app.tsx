@@ -201,6 +201,7 @@ export function App(): React.JSX.Element {
       <PreparationPage
         api={interviewApi}
         captureController={(sessionId) => captureController(route.projectId, sessionId)}
+        checkMicrophone={checkMicrophoneInput}
         initialSessionId={route.sessionId}
         navigate={navigate}
         projectId={route.projectId}

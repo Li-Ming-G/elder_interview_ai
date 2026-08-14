@@ -323,12 +323,14 @@ describe('project, bundled consent and interview start vertical seam', () => {
       });
     expect(secondConsent.status).toBe(201);
     const secondConsentId = (secondConsent.body as IdBody).id;
-    const driftSession = await listenerA
-      .post(`/api/v1/projects/${projectId}/sessions`)
-      .set('Origin', ORIGIN)
-      .set('X-CSRF-Token', csrfA)
-      .send({ request_id: randomUUID() });
-    const driftSessionId = (driftSession.body as IdBody).id;
+    const sessionOwner = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+    // Internal fixture only: the public legacy endpoint is first-session-only and is tested below.
+    const driftSession = await prisma.interviewSession.create({
+      data: { createdBy: sessionOwner.id, projectId, sequenceNo: 2 },
+    });
+    const driftSessionId = driftSession.id;
     await listenerA
       .post(`/api/v1/sessions/${driftSessionId}/device-check`)
       .set('Origin', ORIGIN)
@@ -575,7 +577,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     expect((crossAction.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
   });
 
-  it('serializes concurrent session numbering', async () => {
+  it('allows the legacy endpoint to create only the first session and preserves winner replay', async () => {
     const server = application().getHttpServer() as SupertestApp;
     const listener = request.agent(server);
     const login = await listener
@@ -590,20 +592,61 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({ display_name: '虚构并发场次项目', request_id: randomUUID() });
     const projectId = (project.body as IdBody).id;
 
+    const requestIds = Array.from({ length: 5 }, () => randomUUID());
     const responses = await Promise.all(
-      Array.from({ length: 5 }, async () =>
+      requestIds.map(async (requestId) =>
         listener
           .post(`/api/v1/projects/${projectId}/sessions`)
           .set('Origin', ORIGIN)
           .set('X-CSRF-Token', csrf)
-          .send({ request_id: randomUUID() }),
+          .send({ request_id: requestId }),
       ),
     );
-    expect(responses.every((response) => response.status === 201)).toBe(true);
-    const sequenceNumbers = responses
-      .map((response) => (response.body as { sequence_no: number }).sequence_no)
-      .sort((left, right) => left - right);
-    expect(sequenceNumbers).toEqual([1, 2, 3, 4, 5]);
+    const winnerIndex = responses.findIndex((response) => response.status === 201);
+    expect(winnerIndex).toBeGreaterThanOrEqual(0);
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(1);
+    expect((responses[winnerIndex]?.body as { sequence_no: number }).sequence_no).toBe(1);
+    expect(
+      responses
+        .filter((response) => response.status === 409)
+        .every((response) => (response.body as ErrorBody).code === 'NEXT_SESSION_REQUIRED'),
+    ).toBe(true);
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'interview_session.create', requestId: { in: requestIds } },
+      }),
+    ).toBe(1);
+    expect(await prisma.idempotencyRecord.count({ where: { requestId: { in: requestIds } } })).toBe(
+      1,
+    );
+
+    const replay = await listener
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ request_id: requestIds[winnerIndex] });
+    expect(replay.status).toBe(201);
+    expect(replay.body).toEqual(responses[winnerIndex]?.body);
+
+    await prisma.interviewSession.updateMany({
+      data: { endedAt: new Date(), status: 'completed' },
+      where: { projectId },
+    });
+    const bypassRequestId = randomUUID();
+    const bypass = await listener
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ request_id: bypassRequestId });
+    expect(bypass.status).toBe(409);
+    expect((bypass.body as ErrorBody).code).toBe('NEXT_SESSION_REQUIRED');
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.idempotencyRecord.count({
+        where: { requestId: { in: [...requestIds, bypassRequestId] } },
+      }),
+    ).toBe(1);
   });
 
   it('uses one authoritative repeat decision for Home, next-session, and reminder-gated start', async () => {
@@ -1045,23 +1088,30 @@ describe('project, bundled consent and interview start vertical seam', () => {
       });
     const consentId = (consent.body as IdBody).id;
 
-    const sessionResponses = await Promise.all(
-      [0, 1].map(async () => {
-        const created = await listenerA
-          .post(`/api/v1/projects/${projectId}/sessions`)
-          .set('Origin', ORIGIN)
-          .set('X-CSRF-Token', csrfA)
-          .send({ request_id: randomUUID() });
-        const sessionId = (created.body as IdBody).id;
-        await listenerA
-          .post(`/api/v1/sessions/${sessionId}/device-check`)
-          .set('Origin', ORIGIN)
-          .set('X-CSRF-Token', csrfA)
-          .send({ input_detected: true, microphone_permission: 'granted' });
-        return sessionId;
-      }),
-    );
-    const [sessionId, otherSessionId] = sessionResponses as [string, string];
+    const createdSession = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: randomUUID() });
+    const sessionId = (createdSession.body as IdBody).id;
+    await listenerA
+      .post(`/api/v1/sessions/${sessionId}/device-check`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ input_detected: true, microphone_permission: 'granted' });
+    const otherSessionOwner = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+    // Internal fixture for cross-target idempotency binding; not a production creation path.
+    const otherSession = await prisma.interviewSession.create({
+      data: {
+        createdBy: otherSessionOwner.id,
+        projectId,
+        sequenceNo: 2,
+        status: 'device_check',
+      },
+    });
+    const otherSessionId = otherSession.id;
     const startRequestIds = [
       '00000000-0000-4000-8000-000000000301',
       '00000000-0000-4000-8000-000000000302',

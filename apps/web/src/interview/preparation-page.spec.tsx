@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewApi, PreparationData } from './interview-api.js';
 import { PreparationPage } from './preparation-page.js';
 import type { InterviewCaptureControllerSnapshot } from './interview-capture-controller.js';
+import type { MicrophoneChecker } from './microphone-check.js';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
@@ -18,13 +19,24 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 describe('PreparationPage DEV-008A4 recovery route', () => {
   afterEach(cleanup);
 
-  it('does not show service-price or microphone controls and resumes an already checked session', async () => {
-    const api = createApi();
+  it('checks current-page microphone input before advancing a created repeat session and starting', async () => {
+    const api = createApi({ session: { ...SESSION, status: 'created' } });
     const navigate = vi.fn();
-    renderPage(api, navigate);
+    const checkMicrophone = vi.fn<MicrophoneChecker>(() =>
+      Promise.resolve({ inputDetected: true, permission: 'granted' }),
+    );
+    renderPage(api, navigate, checkMicrophone);
     await screen.findByRole('heading', { name: '继续建立正式录音' });
     expect(screen.queryByText(/服务说明|价格|费用|预计时长/)).toBeNull();
-    expect(screen.queryByRole('button', { name: /麦克风|设备检查/ })).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    await waitFor(() => {
+      expect(api.deviceCheck).toHaveBeenCalledWith(SESSION_ID, {
+        input_detected: true,
+        microphone_permission: 'granted',
+      });
+    });
+    expect(checkMicrophone).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/本次仍会录音、转录并由 AI 辅助分析/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
     await waitFor(() => {
@@ -36,12 +48,34 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     );
   });
 
-  it('fails closed when the existing session was not checked before authorization', async () => {
+  it('fails closed when current-page microphone input is not detected', async () => {
     const api = createApi({ session: { ...SESSION, status: 'created' } });
-    renderPage(api);
+    renderPage(
+      api,
+      vi.fn(),
+      vi.fn<MicrophoneChecker>(() =>
+        Promise.resolve({ inputDetected: false, permission: 'granted', reason: 'silent' }),
+      ),
+    );
     expect(await screen.findByText(/待设备检查/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    expect(await screen.findByText(/没有检测到声音/)).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
     expect(api.deviceCheck).not.toHaveBeenCalled();
+  });
+
+  it('rechecks this page even when the server session already has device_check status', async () => {
+    const api = createApi();
+    const checkMicrophone = vi.fn<MicrophoneChecker>(() =>
+      Promise.resolve({ inputDetected: true, permission: 'granted' }),
+    );
+    renderPage(api, vi.fn(), checkMicrophone);
+    await screen.findByRole('heading', { name: '继续建立正式录音' });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    await waitFor(() => {
+      expect(api.deviceCheck).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('fails closed when current formal consent is invalid', async () => {
@@ -52,11 +86,17 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
   });
 });
 
-function renderPage(api: MockApi, navigate = vi.fn()): void {
+function renderPage(
+  api: MockApi,
+  navigate = vi.fn(),
+  checkMicrophone: MicrophoneChecker = () =>
+    Promise.resolve({ inputDetected: true, permission: 'granted' }),
+): void {
   render(
     <PreparationPage
       api={api}
       captureController={() => ({ start: api.captureStart })}
+      checkMicrophone={checkMicrophone}
       initialSessionId={SESSION_ID}
       navigate={navigate}
       projectId={PROJECT_ID}
@@ -81,7 +121,7 @@ function createApi(overrides: Partial<PreparationData> = {}): MockApi {
       Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
     ),
     createSession: vi.fn(),
-    deviceCheck: vi.fn(),
+    deviceCheck: vi.fn(() => Promise.resolve({ ...SESSION, status: 'device_check' })),
     loadPreparation: vi.fn(() => Promise.resolve(data)),
   };
 }

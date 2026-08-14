@@ -3,6 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { InterviewApiError } from '../interview/interview-api.js';
+import type { NextSessionAttempt } from '../interview/new-interview-workflow-store.js';
 import { HomeShell } from './home-shell.js';
 
 const USER = {
@@ -294,4 +296,108 @@ describe('HomeShell', () => {
     });
     expect(store.acknowledgeNextSession).toHaveBeenCalledWith(USER.id, PROJECT_ID);
   });
+
+  it('recovers a stale unknown attempt only from the authoritative current session pointer', async () => {
+    const newerSessionId = '55555555-5555-4555-8555-555555555555';
+    const attempt = unknownAttempt();
+    const store = unknownAttemptStore(attempt);
+    const api = {
+      createNextSession: vi
+        .fn()
+        .mockRejectedValue(
+          new InterviewApiError(
+            'NEXT_SESSION_ALREADY_EXISTS',
+            '操作未能完成，请核对当前状态后重试',
+            409,
+            { sequence_no: 3, session_id: newerSessionId },
+          ),
+        ),
+      listProjectSessions: vi.fn(),
+      listProjects: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    const navigate = vi.fn();
+    render(
+      <HomeShell
+        api={api}
+        navigate={navigate}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={store as never}
+      />,
+    );
+    await screen.findByText(/还没有已分配的项目/);
+    window.dispatchEvent(new Event('online'));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith(
+        `/projects/${PROJECT_ID}/interview/${newerSessionId}/prepare`,
+      );
+    });
+    expect(api.listProjectSessions).not.toHaveBeenCalled();
+    expect(store.acknowledgeNextSession).toHaveBeenCalledWith(USER.id, PROJECT_ID);
+  });
+
+  it('rejects malformed or expanded current-session details without navigating or leaking them', async () => {
+    const attempt = unknownAttempt();
+    const store = unknownAttemptStore(attempt);
+    const api = {
+      createNextSession: vi.fn().mockRejectedValue(
+        new InterviewApiError('NEXT_SESSION_ALREADY_EXISTS', 'secret server message', 409, {
+          sequence_no: '3',
+          session_id: 'not-a-uuid',
+          secret: 'must-not-render',
+        }),
+      ),
+      listProjectSessions: vi.fn(),
+      listProjects: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    const navigate = vi.fn();
+    render(
+      <HomeShell
+        api={api}
+        navigate={navigate}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={store as never}
+      />,
+    );
+    await screen.findByText(/还没有已分配的项目/);
+    window.dispatchEvent(new Event('online'));
+    expect(await screen.findByText(/服务端返回的会话指针无法安全核对/)).toBeTruthy();
+    expect(screen.queryByText(/secret|must-not-render/)).toBeNull();
+    expect(api.listProjectSessions).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(store.acknowledgeNextSession).not.toHaveBeenCalled();
+    expect(store.markNextSessionUnknown).toHaveBeenCalledWith(attempt);
+  });
 });
+
+function unknownAttempt(): NextSessionAttempt {
+  return {
+    actorId: USER.id,
+    key: `${USER.id}:${PROJECT_ID}`,
+    payload: {
+      basis_session_id: SESSION_ID,
+      expected_basis_sequence_no: 1,
+      request_id: '33333333-3333-4333-8333-333333333333',
+      workflow_version: 'repeat-interview-v1' as const,
+    },
+    projectId: PROJECT_ID,
+    state: 'unknown_response' as const,
+  };
+}
+
+function unknownAttemptStore(attempt: ReturnType<typeof unknownAttempt>): {
+  acknowledgeNextSession: ReturnType<typeof vi.fn>;
+  getOrCreateNextSessionAttempt: ReturnType<typeof vi.fn>;
+  listNextSessionAttempts: ReturnType<typeof vi.fn>;
+  markNextSessionUnknown: ReturnType<typeof vi.fn>;
+} {
+  return {
+    acknowledgeNextSession: vi.fn(),
+    getOrCreateNextSessionAttempt: vi.fn(),
+    listNextSessionAttempts: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([attempt]),
+    markNextSessionUnknown: vi.fn(),
+  };
+}

@@ -507,13 +507,19 @@ export class ProjectFoundationService {
       ) {
         throw this.projectNotStartable();
       }
-      const last = await transaction.interviewSession.findFirst({
-        orderBy: { sequenceNo: 'desc' },
-        select: { sequenceNo: true },
+      const existing = await transaction.interviewSession.findFirst({
+        select: { id: true },
         where: { projectId },
       });
+      if (existing !== null) {
+        throw new ConflictException({
+          code: 'NEXT_SESSION_REQUIRED',
+          details: {},
+          message: 'Additional interview sessions must use the next-session workflow',
+        });
+      }
       const created = await transaction.interviewSession.create({
-        data: { createdBy: actor.id, projectId, sequenceNo: (last?.sequenceNo ?? 0) + 1 },
+        data: { createdBy: actor.id, projectId, sequenceNo: 1 },
       });
       await transaction.auditLog.create({
         data: {
