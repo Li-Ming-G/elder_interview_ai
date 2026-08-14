@@ -28,6 +28,7 @@ export function createQuestionOrchestrationModule(
   const localOrTest = ['local', 'test'].includes(config.appEnv);
   return {
     controllers: [QuestionController],
+    exports: [QuestionOrchestrationService],
     imports: [
       authModule,
       aiRuntimeModule,

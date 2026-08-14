@@ -3,7 +3,7 @@ import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { AuthPrincipal } from './auth.types.js';
-import { opaqueToken, sha256 } from './auth.utils.js';
+import { constantTimeHashEqual, opaqueToken, sha256 } from './auth.utils.js';
 
 @Injectable()
 export class SessionService {
@@ -48,17 +48,29 @@ export class SessionService {
       session.user.status !== 'active'
     ) {
       if (session !== null && session.revokedAt === null) {
-        await this.prisma.authSession.update({
+        await this.prisma.authSession.updateMany({
           data: {
             revokedAt: now,
             revokedReason: session.user.status !== 'active' ? 'user_disabled' : 'expired',
           },
-          where: { id: session.id },
+          where: { id: session.id, revokedAt: null },
         });
       }
       throw this.authRequired();
     }
-    await this.prisma.authSession.update({ data: { lastSeenAt: now }, where: { id: session.id } });
+    const touched = await this.prisma.authSession.updateMany({
+      data: { lastSeenAt: now },
+      where: {
+        expiresAt: { gt: now },
+        id: session.id,
+        lastSeenAt: {
+          gt: new Date(now.getTime() - this.config.authSessionIdleTtlMinutes * 60_000),
+        },
+        revokedAt: null,
+        user: { status: 'active' },
+      },
+    });
+    if (touched.count !== 1) throw this.authRequired();
     return {
       displayName: session.user.displayName,
       id: session.user.id,
@@ -71,18 +83,37 @@ export class SessionService {
 
   public async rotateCsrf(sessionId: string): Promise<string> {
     const csrfToken = opaqueToken();
-    await this.prisma.authSession.update({
+    const now = new Date();
+    const rotated = await this.prisma.authSession.updateMany({
       data: { csrfTokenHash: sha256(csrfToken) },
-      where: { id: sessionId },
+      where: {
+        expiresAt: { gt: now },
+        id: sessionId,
+        lastSeenAt: {
+          gt: new Date(now.getTime() - this.config.authSessionIdleTtlMinutes * 60_000),
+        },
+        revokedAt: null,
+        user: { status: 'active' },
+      },
     });
+    if (rotated.count !== 1) throw this.authRequired();
     return csrfToken;
   }
 
   public async verifyCsrf(sessionId: string, token: string | undefined): Promise<boolean> {
     if (token === undefined) return false;
-    const session = await this.prisma.authSession.findUnique({ where: { id: sessionId } });
+    const session = await this.prisma.authSession.findUnique({
+      include: { user: true },
+      where: { id: sessionId },
+    });
+    const now = Date.now();
     return (
-      session !== null && session.revokedAt === null && sha256(token) === session.csrfTokenHash
+      session !== null &&
+      session.revokedAt === null &&
+      session.expiresAt.getTime() > now &&
+      session.lastSeenAt.getTime() + this.config.authSessionIdleTtlMinutes * 60_000 > now &&
+      session.user.status === 'active' &&
+      constantTimeHashEqual(sha256(token), session.csrfTokenHash)
     );
   }
 

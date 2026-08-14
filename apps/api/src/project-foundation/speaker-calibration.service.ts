@@ -9,6 +9,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
@@ -21,6 +22,7 @@ import {
   type SessionRuntime,
 } from '../realtime-transcription/realtime-runtime.service.js';
 import { SpeakerCalibrationSnapshotService } from '../transcription/speaker-calibration-snapshot.service.js';
+import { PostSessionCoordinationService } from './post-session-coordination.service.js';
 
 const MARKER_TIMEOUT_MS = 5_000;
 type Transaction = Prisma.TransactionClient;
@@ -31,6 +33,7 @@ export class SpeakerCalibrationService {
     private readonly prisma: PrismaService,
     private readonly runtimes: RealtimeRuntimeService,
     private readonly snapshots: SpeakerCalibrationSnapshotService,
+    @Optional() private readonly postSession?: PostSessionCoordinationService,
   ) {}
 
   public async get(actor: AuthPrincipal, sessionId: string): Promise<SpeakerCalibrationSnapshot> {
@@ -97,6 +100,7 @@ export class SpeakerCalibrationService {
           return marker;
         },
       );
+      this.postSession?.notifyCalibration(attempt.sessionId);
       return result.snapshot;
     } catch (error) {
       throw this.mapMarkerError(error);

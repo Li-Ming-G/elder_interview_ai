@@ -125,8 +125,72 @@ describe('identity, opaque session, Origin and CSRF', () => {
     const auditedFailures = await prisma.auditLog.findMany({
       where: { action: 'auth.login_failed' },
     });
-    expect(auditedFailures).toHaveLength(2);
-    expect(auditedFailures.every((entry) => entry.actorId !== null)).toBe(true);
+    expect(auditedFailures).toHaveLength(3);
+    const anonymous = auditedFailures.find((entry) => entry.actorType === 'anonymous');
+    expect(anonymous).toMatchObject({
+      actorId: null,
+      entityId: null,
+      entityType: 'authentication',
+    });
+    expect(anonymous?.actorReference).toMatch(/^auth_subject:v1:[a-f0-9]{64}$/);
+    const anonymousMetadata = anonymous?.metadata as Record<string, unknown> | undefined;
+    expect(anonymousMetadata?.client_ip_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(anonymousMetadata?.outcome).toBe('invalid_credentials');
+    expect(JSON.stringify(anonymous)).not.toContain('absent@example.test');
+    expect(JSON.stringify(anonymous)).not.toContain('127.0.0.1');
+    expect(auditedFailures.filter((entry) => entry.actorType === 'user')).toHaveLength(2);
+  });
+
+  it('rejects malformed anonymous audit rows at the database boundary', async () => {
+    await expect(
+      prisma.auditLog.create({
+        data: {
+          action: 'auth.login_failed',
+          actorReference: 'raw-subject@example.test',
+          actorType: 'anonymous',
+          entityType: 'authentication',
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('ignores forged proxy IP headers and never accepts Access headers as app identity', async () => {
+    const unauthenticated = await request(application().getHttpServer() as SupertestApp)
+      .get('/api/v1/auth/me')
+      .set('Origin', ORIGIN)
+      .set('Cf-Access-Authenticated-User-Email', 'listener-a@example.test')
+      .set('Cf-Access-Jwt-Assertion', 'forged-edge-assertion');
+    expect(unauthenticated.status).toBe(401);
+    expect(JSON.stringify(unauthenticated.body)).not.toContain('forged-edge-assertion');
+
+    await prisma.authLoginThrottle.deleteMany({ where: { keyKind: 'ip' } });
+    for (const [header, value] of [
+      ['Forwarded', 'for=198.51.100.10'],
+      ['X-Forwarded-For', '198.51.100.11'],
+      ['CF-Connecting-IP', '198.51.100.12'],
+    ] as const) {
+      const response = await request(application().getHttpServer() as SupertestApp)
+        .post('/api/v1/auth/login')
+        .set('Origin', ORIGIN)
+        .set(header, value)
+        .send({ email: `forged-${header.toLowerCase()}@example.test`, password: PASSWORD });
+      expect(response.status).toBe(401);
+      expect(JSON.stringify(response.body)).not.toContain(value);
+    }
+    const ipRecords = await prisma.authLoginThrottle.findMany({ where: { keyKind: 'ip' } });
+    expect(ipRecords).toHaveLength(1);
+    expect(ipRecords[0]?.failureCount).toBe(3);
+  });
+
+  it('treats a malformed Cookie as unauthenticated without reflecting it', async () => {
+    const malformed = '%E0%A4%A';
+    const response = await request(application().getHttpServer() as SupertestApp)
+      .get('/api/v1/auth/me')
+      .set('Cookie', `elder_interview_session=${malformed}`)
+      .set('Origin', ORIGIN);
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ code: 'AUTH_REQUIRED', details: {} });
+    expect(JSON.stringify(response.body)).not.toContain(malformed);
   });
 
   it('atomically denies concurrent guesses once four failures already exist', async () => {
@@ -202,9 +266,13 @@ describe('identity, opaque session, Origin and CSRF', () => {
   it('revokes all old sessions through the permission-change seam', async () => {
     const sessionService = application().get(SessionService);
     const created = await sessionService.create(userId);
-    expect(await sessionService.authenticate(created.sessionToken)).toMatchObject({ id: userId });
+    const principal = await sessionService.authenticate(created.sessionToken);
+    expect(principal).toMatchObject({ id: userId });
     expect(await sessionService.revokeAllForUser(userId, 'permission_changed')).toBeGreaterThan(0);
     await expect(sessionService.authenticate(created.sessionToken)).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(sessionService.rotateCsrf(principal.sessionId)).rejects.toMatchObject({
       status: 401,
     });
   });

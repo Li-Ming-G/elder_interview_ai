@@ -912,3 +912,21 @@ P2：
 - 合并与集成：PR #52 以 merge commit `99ce83d001ffca5075d63f60c26067a2f9f2de59` 合入 main；main CI [31789810221](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31789810221) attempt 1 completed / SUCCESS。
 - 最终状态：`PASS / DONE`；SPEC-LLM-PROVIDER-001 `REVIEW→DONE`，ADR-040 `Proposed/REVIEW→Accepted`。CON-031 只就 provider-neutral 契约未冻结的冲突 `RESOLVED`；真实 provider/model/region、DPA/retention/training/跨境、DEV-ASR-PROVIDER-001、secret injection 与 runtime 仍是后续 `DEV-LLM-PROVIDER-001` 的独立外部门禁。
 - 接收边界：不安装 SDK/provider package，不实现 runtime/Prisma migration，不选择 provider/model/region，不索取密钥，不加载 `v2-draft`，不形成真实 provider PASS。old `b7ae9a4` REQUEST_CHANGES/P1=3 与 branch-local REV-050 alias 历史永久保留。
+
+## REV-052｜SPEC-STAGING-DEPLOY-001 / PR #54 项目负责人审查
+
+- 初轮对象：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54) old exact head `195c4be2c4cd9277036e6a8759ab15e00e984a61`；exact-head CI [31798730203](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798730203) SUCCESS。
+- 初轮结论：`REQUEST_CHANGES / REVIEW`，P0=0/P1=1/P2=0。唯一 P1 为数据分类仍可能把真实来源的去标识/脱敏数据升级为可用，且缺少唯一 machine authority、readiness 机械核对与 connect/upload/persist 前零业务副作用拒绝。Cloudflare/Access/WS/Windows/备份设计无需重做。
+- accepted 对象：exact head `64cf94f33c957dc1a1ff74cbf49e35bd1c44698b`；exact-head CI [31808762082](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31808762082) SUCCESS。定向修复冻结 synthetic/fictional only、唯一 `data_mode=synthetic_only`、失败关闭 Schema/fixtures 与真实来源/unknown provenance 零副作用拒绝。
+- 项目负责人定向复审：`PASS`，P0=0/P1=0/P2=0；严格绑定 accepted exact head 与 CI。old head/CI/REQUEST_CHANGES/P1=1 永久保留，不被最终 PASS 覆盖。
+- 合并与集成：PR #54 merge/main `751a32e1ffbae12ec639230cd3bf8482d1ff2820`；main CI [31815415871](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31815415871) SUCCESS。
+- 最终状态与边界：SPEC-STAGING-DEPLOY-001 `DONE`、ADR-041 `Accepted`、REQ-020 契约完成。只接收 docs/machine contract；未安装 Cloudflare、未请求 token、未部署、未许可真实数据。DEV-STAGING-DEPLOY-001 继续 BLOCKED。
+
+## REV-053｜SEC-AUTH-PUBLIC-001 / PR #55 项目负责人审查
+
+- content 对象：[PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55) exact head `01018376002b475fd7715ca9b3cb8ee6333a3a72`；exact-head CI [31798421917](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798421917) SUCCESS。项目负责人正式 `PASS`，P0=0/P1=0/P2=0。
+- integration 对象：在 `main@751a32e1ffbae12ec639230cd3bf8482d1ff2820` 上机械保全 #54 staging 事实并将 branch-local ADR-041 映射为 canonical ADR-042；exact head `d67dd12de5010f49e5ad97733a9c33aecea0c5c5`，CI [31816652463](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31816652463) SUCCESS。项目负责人窄 integration 复审再次 `PASS`，P0=0/P1=0/P2=0。
+- 接收内容：窄 `anonymous` audit actor、用途分隔 HMAC 摘要与数据库 shape 约束；staging/production Secure HttpOnly SameSite=Strict `__Host-` Cookie；Origin/CSRF、session rotation/revocation 竞态失败关闭；Access/应用身份分责；默认 direct-peer `ClientIpResolver` 忽略转发 header 的反例。
+- 历史完整性：旧 REV-007/`ab9628b` REVIEW、所有本地/CI 失败与重跑、content PASS、integration PASS、branch-local ADR-041 alias 均永久保留，不互相覆盖。
+- 合并与集成：PR #55 merge/current main `8bcf65b2575841277ca7f885cdb783d57494b01e`；main CI [31817732960](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31817732960) SUCCESS。
+- 最终状态与边界：SEC-AUTH-PUBLIC-001 与 DEV-001B 在应用身份/会话基础范围 `DONE`，ADR-042 `Accepted`，CON-008 `RESOLVED`。trusted ingress、可信 proxy/header/hop、origin 防直连、公网容量与真实数据许可仍未实现；DEV-STAGING-DEPLOY-001 继续 BLOCKED，runtime 继续 direct peer。

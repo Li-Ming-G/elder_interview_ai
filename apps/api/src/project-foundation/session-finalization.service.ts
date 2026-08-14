@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
 import type { AuthPrincipal } from '../auth/auth.types.js';
@@ -27,6 +28,7 @@ import type {
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { StreamingAsrAdapter } from '../realtime-transcription/streaming-asr.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
+import { PostSessionCoordinationService } from './post-session-coordination.service.js';
 
 type FinalizationRecoveryRequest = Exclude<RecoverSessionRequest, { action: 'resume_capture' }>;
 
@@ -40,6 +42,7 @@ export class SessionFinalizationService {
     private readonly runtime: RealtimeRuntimeService,
     private readonly adapter: StreamingAsrAdapter,
     private readonly snapshots: SessionSnapshotService,
+    @Optional() private readonly postSession?: PostSessionCoordinationService,
   ) {}
 
   public async stop(
@@ -333,6 +336,7 @@ export class SessionFinalizationService {
     this.advances.set(finalizationId, running);
     void running
       .finally(() => {
+        this.postSession?.notifyFinalization(finalizationId);
         if (this.advances.get(finalizationId) === running) this.advances.delete(finalizationId);
       })
       .catch(() => undefined);

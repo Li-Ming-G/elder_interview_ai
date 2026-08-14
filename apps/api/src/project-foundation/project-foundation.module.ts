@@ -23,6 +23,7 @@ import {
   UnavailableConsentContinuationPolicyReader,
 } from './consent-continuation.policy.js';
 import { RepeatInterviewDecisionService } from './repeat-interview-decision.service.js';
+import { PostSessionCoordinationService } from './post-session-coordination.service.js';
 
 @Module({})
 // Nest requires a module token for the dynamic module returned below.
@@ -36,11 +37,23 @@ export function createProjectFoundationModule(
   audioModule: DynamicModule,
   realtimeModule: DynamicModule,
   transcriptionModule: DynamicModule,
+  memoryModule: DynamicModule,
+  questionEvidenceModule: DynamicModule,
+  questionOrchestrationModule: DynamicModule,
   consentContinuationPolicyReader?: ConsentContinuationPolicyReader,
 ): DynamicModule {
   return {
     controllers: [ProjectFoundationController],
-    imports: [authModule, aiRuntimeModule, audioModule, realtimeModule, transcriptionModule],
+    imports: [
+      authModule,
+      aiRuntimeModule,
+      audioModule,
+      realtimeModule,
+      transcriptionModule,
+      memoryModule,
+      questionEvidenceModule,
+      questionOrchestrationModule,
+    ],
     module: ProjectFoundationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },
@@ -56,6 +69,7 @@ export function createProjectFoundationModule(
           }
         : { provide: ConsentContinuationPolicyReader, useValue: consentContinuationPolicyReader },
       RepeatInterviewDecisionService,
+      PostSessionCoordinationService,
       ProjectFoundationService,
       ProjectRequestActorService,
       ProjectSessionListService,

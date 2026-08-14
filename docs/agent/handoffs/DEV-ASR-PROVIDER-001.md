@@ -140,3 +140,28 @@
 - Android verified：OnePlus GM1900 / Android12 / Chrome150，384×710正式无query route；真实手机麦克风采集同一受控虚构音频。382秒session、PCM accepted through sequence3835；373/373 archive、pending0、manifest present、audio complete、transcript drained、session completed、finalization约15秒；13 finals、双known labels、unknown0、双current user-confirmed mappings、单speaker stream，UI无转录不可用。检测阶段无MediaRecorder/PCM/provider connect，开始后单一访谈MediaRecorder。已关闭API/Web/ADB映射，不记录设备序列号/正文/凭据。
 - Cost update：已知成功约2403秒，估算约CNY0.668；actual SKU/日结账单继续unknown，不能用估算替代。
 - Remaining：项目负责人绑定PR exact head手动GitHub审查；actual billing/SKU。CON-027继续阻塞真实长者/PII；不含gap/backfill、第二provider、真实LLM、生产部署。任务保持REVIEW，不得自宣PASS/DONE或merge。
+
+## accepted content PASS 与 latest-main integration 窄复审（2026-08-15）
+
+- 项目负责人已对 PR #57 accepted ASR content exact head `5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` 正式手动 PASS，P0/P1/P2=0。该审查事实永久保留；它不等于后续 integration head 已自动 PASS。
+- 本轮人工整合 final main `f2707ff09be2723812aff1a6bc4cfd0e33ab841b` / CI `31823015620` SUCCESS。保留 PR #54/#55/#56/#58/#59、REV-052/053/054 与 ADR alias 历史；PR #59 head `5e9d6eda` / CI `31822686412` SUCCESS。SEC auth/direct-peer、B2 coordinator/migration 与 staging synthetic-only contract 未被 ASR 覆盖。
+- ASR migration 从 branch-local `20260814122000` 机械顺延为 `20260815120000_drop_legacy_speaker_mapping_session_unique`，在 SEC migration #15/#16 与 B2 migration #17 后成为第 18 个；只删除遗留 `speaker_mapping_current_key`，stream-scoped replacement 不变。
+- canonical 集成复审编号为 `REV-055`；本任务此前没有 branch-local ASR review 编号，因此没有需要重映射的 alias。accepted content PASS 与 integration `REVIEW` 并存，待 new exact-head CI 与授权独立窄复审；PR #57 保持 OPEN/non-Draft，不自行 PASS/DONE/merge。
+- 本 closeout 开工前已完成唯一一次 iteration-coach。latest-main integration 属同一任务；执行窗口曾误启动第二复核，收到项目负责人纠正后立即中断，未取得、未采用任何输出，也未据此修改计划或实现。
+- 本轮不建立腾讯连接、不上传 PCM、不产生新 provider 费用；旧 provider/replay/desktop/Android 证据继续严格绑定 `af99d91`。actual billing/SKU 仍 unknown，CON-027 继续 OPEN，真实长者/PII、真实数据与生产试点继续禁止。
+
+### latest-main integration 本地证据
+
+- 静态：`pnpm format:check`、lint、typecheck、build、`git diff --check` PASS。unit 66 files / 408 tests PASS。
+- fresh PostgreSQL `elder_asr57_latest_0815a`：18 migrations fresh deploy、repeat deploy、status PASS；顺序精确为 SEC #15/#16、B2 #17、ASR #18。最终索引仅有 `speaker_mapping_one_current_per_stream_label`、`speaker_mapping_stream_provider_current_idx` 与主键，遗留 `speaker_mapping_current_key` 不存在。
+- PostgreSQL：integration 15 files / 94 tests、auth 4 files / 26 tests PASS。覆盖录音 manifest、同 label 跨新 stream 复用、旧 stream 关闭/新 stream 无 trusted mapping、持久 PCM evidence、sticky degraded、final/drain 与 direct-peer forged Access header 401。
+- 浏览器：smoke PASS；普通 Chromium 27/27；真实 Web/API auth Chromium 5/5；正式 R4 `desktop-chromium-formal-route` 1/1，300000ms，296 archive chunks、单一 audio object、两代 capture/stream、pending delivery 0、manifest/audio complete、session completed、finalization transcript `degraded`。
+- 无漂移：accepted 非重叠 ASR 代码/测试 33 blobs 与 `5271b52` 完全一致；main 非重叠文件 66 blobs 与 `f2707ff` 完全一致。`session-finalization.service.ts` 只在 accepted ASR receipt/completeness drain 上叠加 B2 optional notification；realtime integration 只在 accepted ASR 回归上叠加 main forged Access header 401 负例。
+
+### 本轮失败与纠正历史
+
+- 首次 main-only blob 扫描未关闭 Git 中文路径 quote，导致 PowerShell 把 quoted path 误报 missing，并把本轮有意修改的 review 文档当漂移；改用 `git -c core.quotepath=false` 和明确治理排除集后 66 blobs PASS。首轮结果不作绿灯。
+- 合并后首次 typecheck 在 `pnpm db:generate` 前读取旧 Prisma client，无法识别 SEC anonymous actor 与 B2 snapshot 字段而失败；运行仓库正式生成脚本后 format/lint/typecheck/build 全绿，未改测试目标。
+- R4 首次错误附加 `--project=chromium`，因正式配置唯一项目为 `desktop-chromium-formal-route` 而在用例开始前退出；去掉错误参数后正式 300 秒用例 1/1 PASS。
+- 首次 speaker index 只读 SQL 查询使用错误表名而返回空；随后一次组合 PowerShell 命令又因引号未闭合在执行前退出。改用实际 `speaker_mapping` 表名与简化 quoting 后机械确认 stream-scoped indexes 存在、遗留 index 不存在。
+- integration/R4 仍输出既有 pg `client.query while already executing` deprecation warning；断言均通过，未扩大范围处理。

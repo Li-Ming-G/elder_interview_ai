@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 
 import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
 import type { AuthenticatedRequest } from './auth.types.js';
-import { COOKIE_LOCAL, COOKIE_PRODUCTION, parseCookie } from './auth.utils.js';
+import { parseCookie, sessionCookieName } from './auth.utils.js';
 import { ResourceAuthorizationService } from './resource-authorization.service.js';
 import { AUTH_ROLES } from './roles.decorator.js';
 import { SessionService } from './session.service.js';
@@ -19,7 +19,7 @@ export class RoleGuard implements CanActivate {
     private readonly authorization: ResourceAuthorizationService,
     @Inject(API_CONFIG) config: ApiConfigValue,
   ) {
-    this.cookieName = config.appEnv === 'production' ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+    this.cookieName = sessionCookieName(config.appEnv);
   }
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {

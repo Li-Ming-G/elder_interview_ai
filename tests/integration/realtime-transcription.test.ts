@@ -95,6 +95,17 @@ describe('authenticated realtime transcription WebSocket', () => {
   it('rejects Origin and Cookie before HTTP 101', async () => {
     await expectUpgradeStatus(url, { headers: { Cookie: cookie } }, 403);
     await expectUpgradeStatus(url, { origin: ORIGIN }, 401);
+    await expectUpgradeStatus(
+      url,
+      {
+        headers: {
+          'Cf-Access-Authenticated-User-Email': 'listener-a@example.test',
+          'Cf-Access-Jwt-Assertion': 'forged-edge-assertion',
+        },
+        origin: ORIGIN,
+      },
+      401,
+    );
   });
 
   it('fails a bad join CSRF without starting a producer', async () => {

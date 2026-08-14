@@ -1,0 +1,158 @@
+{
+  "schema": "../staging-deployment-manifest-v1.schema.json",
+  "manifest_cases": [
+    {
+      "name": "named staging has the sole synthetic-only authority",
+      "expected_valid": true,
+      "instance": {
+        "contract_version": "staging-deployment-manifest-v1",
+        "deployment_id": "named-synthetic-review-001",
+        "profile": "named-synthetic",
+        "data_mode": "synthetic_only",
+        "commit_sha": "0000000000000000000000000000000000000001",
+        "config_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "deployed_at": "2026-08-14T00:00:00Z",
+        "components": {
+          "os": "fixture-windows",
+          "runtime": "fixture-runtime",
+          "reverse_proxy": "fixture-proxy",
+          "app": "fixture-app",
+          "database": "fixture-database",
+          "cloudflared": "fixture-cloudflared"
+        },
+        "data_paths": ["C:\\fixture-only\\app-data"]
+      }
+    },
+    {
+      "name": "missing data mode fails closed",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "staging-deployment-manifest-v1",
+        "deployment_id": "missing-data-mode",
+        "profile": "named-synthetic",
+        "commit_sha": "0000000000000000000000000000000000000001",
+        "config_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "deployed_at": "2026-08-14T00:00:00Z",
+        "components": {
+          "os": "fixture-windows",
+          "runtime": "fixture-runtime",
+          "reverse_proxy": "fixture-proxy",
+          "app": "fixture-app",
+          "database": "fixture-database",
+          "cloudflared": "fixture-cloudflared"
+        },
+        "data_paths": ["C:\\fixture-only\\app-data"]
+      }
+    },
+    {
+      "name": "unknown data mode fails closed",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "staging-deployment-manifest-v1",
+        "deployment_id": "unknown-data-mode",
+        "profile": "named-synthetic",
+        "data_mode": "unknown",
+        "commit_sha": "0000000000000000000000000000000000000001",
+        "config_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "deployed_at": "2026-08-14T00:00:00Z",
+        "components": {
+          "os": "fixture-windows",
+          "runtime": "fixture-runtime",
+          "reverse_proxy": "fixture-proxy",
+          "app": "fixture-app",
+          "database": "fixture-database",
+          "cloudflared": "fixture-cloudflared"
+        },
+        "data_paths": ["C:\\fixture-only\\app-data"]
+      }
+    },
+    {
+      "name": "real mode cannot be requested by this task",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "staging-deployment-manifest-v1",
+        "deployment_id": "forbidden-real-mode",
+        "profile": "named-synthetic",
+        "data_mode": "real",
+        "commit_sha": "0000000000000000000000000000000000000001",
+        "config_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "deployed_at": "2026-08-14T00:00:00Z",
+        "components": {
+          "os": "fixture-windows",
+          "runtime": "fixture-runtime",
+          "reverse_proxy": "fixture-proxy",
+          "app": "fixture-app",
+          "database": "fixture-database",
+          "cloudflared": "fixture-cloudflared"
+        },
+        "data_paths": ["C:\\fixture-only\\app-data"]
+      }
+    },
+    {
+      "name": "legacy parallel real-data flag is rejected",
+      "expected_valid": false,
+      "instance": {
+        "contract_version": "staging-deployment-manifest-v1",
+        "deployment_id": "parallel-authority",
+        "profile": "named-synthetic",
+        "data_mode": "synthetic_only",
+        "real_data_allowed": false,
+        "commit_sha": "0000000000000000000000000000000000000001",
+        "config_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "deployed_at": "2026-08-14T00:00:00Z",
+        "components": {
+          "os": "fixture-windows",
+          "runtime": "fixture-runtime",
+          "reverse_proxy": "fixture-proxy",
+          "app": "fixture-app",
+          "database": "fixture-database",
+          "cloudflared": "fixture-cloudflared"
+        },
+        "data_paths": ["C:\\fixture-only\\app-data"]
+      }
+    }
+  ],
+  "admission_cases": [
+    {
+      "name": "fictional fixture with known project-created provenance may proceed to ordinary gates",
+      "manifest_case": "named staging has the sole synthetic-only authority",
+      "fixture_provenance": "fictional_created_for_test",
+      "expected_decision": "continue_to_ordinary_gates"
+    },
+    {
+      "name": "deidentified real elder data is still real-source and rejected",
+      "manifest_case": "named staging has the sole synthetic-only authority",
+      "fixture_provenance": "real_elder_deidentified",
+      "expected_decision": "reject_before_connect_upload_persist",
+      "expected_business_side_effect_count": 0
+    },
+    {
+      "name": "sanitized real interview transcript is rejected",
+      "manifest_case": "named staging has the sole synthetic-only authority",
+      "fixture_provenance": "real_interview_sanitized",
+      "expected_decision": "reject_before_connect_upload_persist",
+      "expected_business_side_effect_count": 0
+    },
+    {
+      "name": "sanitized real business backup is rejected",
+      "manifest_case": "named staging has the sole synthetic-only authority",
+      "fixture_provenance": "real_backup_sanitized",
+      "expected_decision": "reject_before_connect_upload_persist",
+      "expected_business_side_effect_count": 0
+    },
+    {
+      "name": "unknown fixture provenance is rejected",
+      "manifest_case": "named staging has the sole synthetic-only authority",
+      "fixture_provenance": "unknown",
+      "expected_decision": "reject_before_connect_upload_persist",
+      "expected_business_side_effect_count": 0
+    },
+    {
+      "name": "invalid manifest rejects even a fictional fixture",
+      "manifest_case": "missing data mode fails closed",
+      "fixture_provenance": "fictional_created_for_test",
+      "expected_decision": "reject_before_connect_upload_persist",
+      "expected_business_side_effect_count": 0
+    }
+  ]
+}

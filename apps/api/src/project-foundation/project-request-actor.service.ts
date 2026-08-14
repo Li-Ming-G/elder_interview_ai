@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
-import { COOKIE_LOCAL, COOKIE_PRODUCTION, parseCookie } from '../auth/auth.utils.js';
+import { parseCookie, sessionCookieName } from '../auth/auth.utils.js';
 import type { AuthenticatedRequest, AuthPrincipal } from '../auth/auth.types.js';
 import { SessionService } from '../auth/session.service.js';
 
@@ -13,7 +13,7 @@ export class ProjectRequestActorService {
     private readonly sessions: SessionService,
     @Inject(API_CONFIG) config: ApiConfigValue,
   ) {
-    this.cookieName = config.appEnv === 'production' ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+    this.cookieName = sessionCookieName(config.appEnv);
   }
 
   public async from(request: AuthenticatedRequest): Promise<AuthPrincipal> {
