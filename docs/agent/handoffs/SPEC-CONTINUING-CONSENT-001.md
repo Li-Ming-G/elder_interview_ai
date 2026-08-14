@@ -4,6 +4,7 @@
 
 - 状态：`REVIEW`；执行 Agent 未给出 PASS/DONE，未合并。
 - 分支：`codex/spec-continuing-consent-001`。
+- PR：[non-Draft PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；最终 exact head 与 CI 以 GitHub 当前提交为准。
 - 基线：`origin/main@2f7bb9632293694a0e22ed7e64adefff5fc5a57d`；main CI [31758380540](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31758380540) completed / SUCCESS。
 - iteration-coach：总控已在产品决定前恰好完成一次独立只读 `Correction / NO-PAUSE`；本任务没有启动第二次，也没有写 legacy learning log。
 - 范围：只改正式文档、additive shared TypeScript contract 与直接治理记录；无 runtime、Prisma/migration、页面、ASR/LLM、删除或部署改动。
@@ -35,7 +36,7 @@
 - `pnpm test:unit`：首次 55/56 files、338/339 tests，一条未改动的 workbench 401 online-verification 时序测试失败；定向重跑 39/39 PASS，随后全量重跑 56/56 files、339/339 tests PASS。未修改 runtime 或测试目标。
 - `git diff --check`：PASS。
 - changed Markdown 相对链接与受影响治理表列数：PASS。
-- exact-head CI：等待 non-Draft PR 创建后执行完整 workflow；本地结果不替代远端门禁。
+- exact-head CI：等待 PR #49 最终候选 head 执行完整 workflow；本地结果不替代远端门禁。
 
 ## 项目负责人审查重点
 

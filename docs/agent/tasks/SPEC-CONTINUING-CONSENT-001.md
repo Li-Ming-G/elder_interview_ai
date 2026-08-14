@@ -5,6 +5,7 @@
 - 状态：`REVIEW`
 - 负责人：独立 docs/shared-contract 执行任务 `codex/spec-continuing-consent-001`
 - 基线：`origin/main@2f7bb9632293694a0e22ed7e64adefff5fc5a57d`；main CI `31758380540` SUCCESS
+- PR：[non-Draft PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；等待最终 exact-head CI 与项目负责人手动审查
 - 前置：SPEC-REPEAT-INTERVIEW-001、DEV-008A4 均已 exact-head PASS/merge；项目负责人已明确本任务产品决定
 - iteration-coach：总控已在决定前恰好完成一次独立只读 `Correction / NO-PAUSE`；本任务复用其结论，不启动第二次复核，也不写 legacy learning log
 - 输入：`00/01/02/03/04/05/08/09/10`、SPEC-REPEAT-INTERVIEW-001、DEV-008B1/B2、最新 handoff/ADR/CON、CON-012
