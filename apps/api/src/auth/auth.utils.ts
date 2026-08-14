@@ -5,6 +5,18 @@ export const SESSION_BYTES = 32;
 export const COOKIE_LOCAL = 'elder_interview_session';
 export const COOKIE_PRODUCTION = '__Host-elder_interview_session';
 
+export function usesSecureBrowserCookie(
+  appEnvironment: 'local' | 'production' | 'staging' | 'test',
+): boolean {
+  return appEnvironment === 'staging' || appEnvironment === 'production';
+}
+
+export function sessionCookieName(
+  appEnvironment: 'local' | 'production' | 'staging' | 'test',
+): string {
+  return usesSecureBrowserCookie(appEnvironment) ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+}
+
 export function opaqueToken(): string {
   return randomBytes(SESSION_BYTES).toString('base64url');
 }
@@ -57,7 +69,13 @@ export function parseCookie(header: string | undefined, name: string): string | 
   if (header === undefined) return null;
   for (const part of header.split(';')) {
     const [key, ...rest] = part.trim().split('=');
-    if (key === name) return decodeURIComponent(rest.join('='));
+    if (key === name) {
+      try {
+        return decodeURIComponent(rest.join('='));
+      } catch {
+        return null;
+      }
+    }
   }
   return null;
 }

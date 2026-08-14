@@ -23,13 +23,14 @@ import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
 import { AuthService } from './auth.service.js';
 import type { AuthPrincipal } from './auth.types.js';
 import {
-  COOKIE_LOCAL,
-  COOKIE_PRODUCTION,
   cookieHeader,
   normalizeEmail,
   parseCookie,
+  sessionCookieName,
+  usesSecureBrowserCookie,
   validatePassword,
 } from './auth.utils.js';
+import { CLIENT_IP_RESOLVER, type ClientIpResolver } from './client-ip-resolver.js';
 import { SessionService } from './session.service.js';
 import { RoleGuard } from './role.guard.js';
 import { Roles } from './roles.decorator.js';
@@ -37,15 +38,16 @@ import { Roles } from './roles.decorator.js';
 @Controller('auth')
 export class AuthController {
   private readonly cookieName: string;
-  private readonly production: boolean;
+  private readonly secureBrowserCookie: boolean;
 
   public constructor(
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
+    @Inject(CLIENT_IP_RESOLVER) private readonly clientIps: ClientIpResolver,
     @Inject(API_CONFIG) config: ApiConfigValue,
   ) {
-    this.production = config.appEnv === 'production';
-    this.cookieName = this.production ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+    this.secureBrowserCookie = usesSecureBrowserCookie(config.appEnv);
+    this.cookieName = sessionCookieName(config.appEnv);
   }
 
   @Post('login')
@@ -58,12 +60,13 @@ export class AuthController {
     const result = await this.auth.login(
       normalizeEmail(body.email),
       validatePassword(body.password),
-      request.socket.remoteAddress ?? 'unknown',
+      this.clientIps.resolve(request),
+      String(response.locals.requestId ?? '00000000-0000-0000-0000-000000000000'),
     );
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader(
       'Set-Cookie',
-      cookieHeader(this.cookieName, result.sessionToken, this.production),
+      cookieHeader(this.cookieName, result.sessionToken, this.secureBrowserCookie),
     );
     return { csrf_token: result.csrfToken, user: result.user };
   }
@@ -119,7 +122,10 @@ export class AuthController {
       }
     }
     response.setHeader('Cache-Control', 'no-store');
-    response.setHeader('Set-Cookie', cookieHeader(this.cookieName, '', this.production, true));
+    response.setHeader(
+      'Set-Cookie',
+      cookieHeader(this.cookieName, '', this.secureBrowserCookie, true),
+    );
     return { logged_out: true };
   }
 

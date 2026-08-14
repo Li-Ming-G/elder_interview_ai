@@ -120,6 +120,14 @@ export class LoginThrottleService {
     });
   }
 
+  public anonymousActorReference(email: string): string {
+    return `auth_subject:v1:${this.digest(`audit_subject\0${email}`)}`;
+  }
+
+  public auditClientIpHash(ip: string): string {
+    return this.digest(`audit_client_ip\0${ip}`);
+  }
+
   private digest(value: string): string {
     return createHmac('sha256', this.config.authLoginThrottlePepper)
       .update(value, 'utf8')
