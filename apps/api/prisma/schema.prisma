@@ -20,6 +20,7 @@ enum UserStatus {
 
 enum AuditActorType {
   user
+  anonymous
   system_operator
 }
 

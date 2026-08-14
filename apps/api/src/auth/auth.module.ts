@@ -5,6 +5,7 @@ import { API_CONFIG } from '../api-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { CLIENT_IP_RESOLVER, DirectPeerClientIpResolver } from './client-ip-resolver.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { PasswordService } from './password.service.js';
 import { ResourceAuthorizationService } from './resource-authorization.service.js';
@@ -19,11 +20,12 @@ export class AuthModule {}
 export function createAuthModule(config: ApiConfig): DynamicModule {
   return {
     controllers: [AuthController],
-    exports: [PrismaService, ResourceAuthorizationService, SessionService],
+    exports: [CLIENT_IP_RESOLVER, PrismaService, ResourceAuthorizationService, SessionService],
     module: AuthModule,
     providers: [
       PrismaService,
       AuthService,
+      { provide: CLIENT_IP_RESOLVER, useClass: DirectPeerClientIpResolver },
       LoginThrottleService,
       PasswordService,
       ResourceAuthorizationService,

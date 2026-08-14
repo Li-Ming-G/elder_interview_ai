@@ -78,17 +78,19 @@ GET  /auth/csrf
 
 - `email` 为去除首尾空白后的 ASCII 字符串，最长 254 字节并按 `04` 规范化；`password` 为 12 至 128 UTF-8 字节，服务端不得记录原值；格式不合法返回 422 `VALIDATION_ERROR`；
 - 登录成功后只通过 `HttpOnly` 会话 Cookie 返回不透明会话 ID，不在 JSON、URL 或浏览器存储中返回访问令牌；
-- production Cookie 为 `__Host-elder_interview_session; Path=/; HttpOnly; Secure; SameSite=Strict` 且无 `Domain`；local/test HTTP Cookie 名为 `elder_interview_session`；
+- `staging|production` Cookie 为 `__Host-elder_interview_session; Path=/; HttpOnly; Secure; SameSite=Strict` 且无 `Domain`；只有 `local|test` HTTP Cookie 名为 `elder_interview_session`；
 - 登录失败或限流统一返回 401 `INVALID_CREDENTIALS`，不得暴露账号是否存在；服务端按 `04` 的数据库限流规则处理；
 - `/auth/logout` 必须撤销当前服务端会话；
 - `/auth/me` 只返回当前用户 ID、显示名、角色和状态，不返回 `password_hash`、会话哈希或权限内部信息；
 - 登录响应和 `/auth/csrf` 都可签发与当前会话绑定的 CSRF token；两者都设置 `Cache-Control: no-store`，后者需要有效会话且每次调用轮换 token；前端只在内存保存，并通过 `X-CSRF-Token` 发送；
 - 所有状态变更浏览器请求（包括登录）必须校验配置白名单中的 `Origin`；安全 GET 在存在 `Origin` 时也必须校验；登录不要求既有会话或 CSRF token，其他写请求必须同时验证会话和与该会话绑定的 CSRF token；
 - 状态变更请求缺少或不匹配 `Origin` 返回 403 `INVALID_ORIGIN`；会话有效但 CSRF token 缺少或错误返回 403 `INVALID_CSRF_TOKEN`；错误正文不得回显 header、Cookie 或允许来源配置；
-- 会话默认空闲 30 分钟、绝对 12 小时；登录和权限变化轮换 CSRF token，登出、会话撤销或过期时一并失效；
-- `/auth/logout` 成功或重复调用都清除 Cookie（`Max-Age=0; Path=/`，production 同时保留 `Secure` 等属性）；
+- 会话默认空闲 30 分钟、绝对 12 小时；每次登录签发全新 session ID 与 CSRF token，不接受或复用请求已有 session；权限变化以撤销相关 session 为准，CSRF token 随之失效；`/auth/csrf` 只对仍有效 session 原子轮换；
+- `/auth/logout` 成功或重复调用都清除 Cookie（`Max-Age=0; Path=/`，`staging|production` 同时保留 `Secure` 等属性）；
 - 未认证返回 401 `AUTH_REQUIRED`，已认证但角色或资源无权返回 403 `FORBIDDEN`；
 - 账号停用后现存会话不得继续访问。
+- Cloudflare Access 或其他边缘身份 header 不是本 API 的认证输入；缺少有效应用 session Cookie 时，即使这些 header 存在仍返回 401。Access 只承担外围网络准入，应用账号状态、角色、assignment、审计 actor 和撤销继续由应用数据库权威控制。
+- 登录限流默认只使用 TCP 直接对端并忽略所有转发 IP header。可信代理 resolver 是部署契约接口：`SPEC-STAGING-DEPLOY-001` 必须先冻结受信入口、origin 直连阻断、可信代理集合、唯一 IP header 和 hop/异常规则；本契约不预先选择 Cloudflare Tunnel、反向代理层数或 header 名。
 
 ### 3.1 项目
 
@@ -1147,7 +1149,7 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 
 ### 5.5 握手、join 与权限
 
-1. upgrade 必须携带允许列表内的 `Origin` 和有效不透明 session Cookie；缺失或错误时在 upgrade 前以 HTTP 401/403 拒绝，不返回 Cookie、token、Origin 白名单或业务正文；
+1. upgrade 必须携带允许列表内的 `Origin` 和有效不透明应用 session Cookie；缺失或错误时即使存在 Cloudflare Access/边缘身份 header，也在 upgrade 前以 HTTP 401/403 拒绝，不返回 Cookie、token、Origin 白名单或业务正文；
 2. 浏览器 WebSocket API 不能设置任意请求头，因此 CSRF token 由首个 `session.join.payload.csrf_token` 携带；该 token 只能停留在内存，日志和错误不得记录；
 3. `session.join.payload` 必须包含 `audio_stream_id`；首次加入不带恢复字段，重连可带 `event_stream_id` 与 `resume_after_server_sequence`，二者必须同时出现；
 4. join 时验证 CSRF 与当前 auth session 绑定、当前有效 assignment、项目为 `active`、§12 当前适用捆绑授权 covered、会话存在且未删除；
@@ -1572,3 +1574,14 @@ warning classification 只允许 `unsupported_setting|ignored_setting|adjusted_s
 正式 coordinator 先执行 registry JSON Schema，再执行独立 deterministic semantic validator；只有 active binding exactly-one 命中 provider→model→config manifest，且 endpoint/region/secret/environment/data-class membership 与 digest 全成立才可调用。无 binding 或任一门禁失败返回既有 provider unavailable/失败关闭结果，不尝试其他 provider。
 
 comparison evaluator 可循环显式选择的 bindings，但每个 invocation 都使用同一 frozen input identity 与同一 model-config version/digest。只有所有 receipt `config_application_status=as_requested` 且 warnings 为空时才可标 `equal_effective_config=true`；warning、unknown 或 config identity 不同必须分组/排除。receipt/output 只写评测工件，不调用 QuestionEvidence writer。
+
+## 14. Staging HTTP 与 WebSocket 入口契约
+
+- 对外唯一 origin 为 `https://<fixed-host>`；页面、`/api/v1/*`、upload 和 `wss://<fixed-host>/ws/interviews` 不使用跨源 cookie/CORS。Quick 只把 `<fixed-host>` 替换为当次随机 hostname，其他应用契约不变。
+- `__Host-elder_interview_session`、Origin/CSRF 与 §5.5 WS upgrade/join 规则原样保留。Access token/cookie 不可作为应用 session、CSRF、role 或 assignment。
+- reverse proxy 必须正确处理 HTTP upgrade、足够的 WS idle timeout 与既有 heartbeat；Cloudflare/connector/proxy 重启只触发断线和既有重连，不创建第二 session/generation/final。服务端还要在不长于 Access session duration 的最大连接年龄到期时发起可恢复关闭，下一次 upgrade 重新执行 Access JWT 与应用 join 门禁。
+- 外部 `/health` 只能返回无敏感信息的 liveness；业务 readiness 必须同时证明 DB、storage、migration status、app 与正式服务端 manifest 的唯一 `data_mode=synthetic_only`，missing/unknown/invalid/其他值或平行许可字段均未 ready、返回 503 且禁止新访谈。不得通过 health 暴露版本、路径、secret、账号或数据量。
+- session/connect、upload init/append/complete 与任一业务 persist 必须在建立连接、分配对象或开启写事务前，验证当前 manifest 及 `fixture_provenance=fictional_created_for_test`。真实来源即使去标识/脱敏、真实数据库/备份或 provenance 不明，统一返回失败关闭错误且 `business_side_effect_count=0`；不得创建 session/upload/object/row、本机 archive 或 provider 调用。
+- 上传 body/time limit 必须覆盖现有分片契约且有上界；拒绝必须返回公共错误壳并让客户端保留/重试本机作业。API/WS/upload 禁止 edge/proxy cache。
+- `CF-Connecting-IP` 只有在请求经整条受信链且入口头已清洗时可用于登录限流/审计。任何直连或伪造头不得改变当前 direct-peer 安全语义。
+- 公网业务 HTTP/WS 在 origin 必须复验 `Cf-Access-Jwt-Assertion` 的签名、issuer/team、audience 与 expiry；只把结果作为外层可达性布尔值，不把 email/subject/group 映射为应用用户。独立内部 health listener 不承载业务 route。

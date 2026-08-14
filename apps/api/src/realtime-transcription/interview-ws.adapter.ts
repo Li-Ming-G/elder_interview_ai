@@ -2,7 +2,7 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
 
 import type { ApiConfigValue } from '../api-config.js';
-import { COOKIE_LOCAL, COOKIE_PRODUCTION, parseCookie } from '../auth/auth.utils.js';
+import { parseCookie, sessionCookieName } from '../auth/auth.utils.js';
 import { SessionService } from '../auth/session.service.js';
 import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
 
@@ -40,7 +40,7 @@ export class InterviewWsAdapter extends WsAdapter {
       done(false, 403, 'Forbidden');
       return;
     }
-    const cookieName = this.config.appEnv === 'production' ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+    const cookieName = sessionCookieName(this.config.appEnv);
     let token: string | null;
     try {
       token = parseCookie(info.req.headers.cookie, cookieName);
