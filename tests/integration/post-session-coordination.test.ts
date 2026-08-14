@@ -8,11 +8,13 @@ import { createApplication } from '../../apps/api/src/create-application.js';
 import { AiJobCoordinatorService } from '../../apps/api/src/ai-runtime/ai-job-coordinator.service.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import { InterviewContextService } from '../../apps/api/src/memory/interview-context.service.js';
+import { CurrentMemoryReader } from '../../apps/api/src/memory/memory.service.js';
 import {
   FICTIONAL_CONTINUING_CONSENT_VERSION,
   SyntheticConsentContinuationPolicyReader,
 } from '../../apps/api/src/project-foundation/consent-continuation.policy.js';
 import { PostSessionCoordinationService } from '../../apps/api/src/project-foundation/post-session-coordination.service.js';
+import { ActualAskedReader } from '../../apps/api/src/question-evidence/question-evidence.service.js';
 import {
   calibrationAttemptGateIdentity,
   openingContextRequestId,
@@ -30,6 +32,8 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
   let coordinator: PostSessionCoordinationService;
   let jobs: AiJobCoordinatorService;
   let contexts: InterviewContextService;
+  let memories: CurrentMemoryReader;
+  let questions: ActualAskedReader;
 
   const actorId = randomUUID();
   const projectId = randomUUID();
@@ -40,6 +44,8 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
   let consumerAudioId = '';
   let firstCaptureId = '';
   let firstStreamId = '';
+  let restartConsumerSessionId = '';
+  let restartConsumerAudioId = '';
 
   beforeAll(async () => {
     const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -59,6 +65,8 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     coordinator = app.get(PostSessionCoordinationService);
     jobs = app.get(AiJobCoordinatorService);
     contexts = app.get(InterviewContextService);
+    memories = app.get(CurrentMemoryReader);
+    questions = app.get(ActualAskedReader);
 
     await prisma.user.create({
       data: {
@@ -628,6 +636,7 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     ]);
 
     const thirdSessionId = randomUUID();
+    restartConsumerSessionId = thirdSessionId;
     await prisma.interviewSession.create({
       data: {
         createdBy: actorId,
@@ -648,6 +657,7 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
         status: 'initiated',
       },
     });
+    restartConsumerAudioId = thirdAudio.id;
     const thirdCapture = await prisma.sessionCaptureGeneration.create({
       data: {
         audioObjectId: thirdAudio.id,
@@ -770,6 +780,179 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
         })
       ).interviewContextSnapshotId,
     ).toBe(contextSnapshotId);
+  });
+
+  it('terminalizes a frozen context job with no snapshot and rejects late writeback', async () => {
+    const basisCompletedAt = new Date('2026-08-14T10:00:00.000Z');
+    await prisma.interviewSession.update({
+      data: { status: 'completed' },
+      where: { id: restartConsumerSessionId },
+    });
+    const finalization = await prisma.sessionFinalization.create({
+      data: {
+        audioObjectId: restartConsumerAudioId,
+        audioStatus: 'complete',
+        captureEndedAt: basisCompletedAt,
+        commitmentsChecksum: '2'.repeat(64),
+        completedAt: basisCompletedAt,
+        createdBy: actorId,
+        expectedChunkCount: 1,
+        sessionId: restartConsumerSessionId,
+        stopRequestId: randomUUID(),
+        transcriptStatus: 'drained',
+      },
+    });
+    coordinator.notifyFinalization(finalization.id);
+    const root = postSessionTriggerIdentity(restartConsumerSessionId, basisCompletedAt);
+    const laneKeys = [
+      postSessionLaneTriggerKey(root, 'memory_extract'),
+      postSessionLaneTriggerKey(root, 'actual_question_reconcile'),
+    ];
+    await eventually(async () => {
+      const laneJobs = await prisma.aiJob.findMany({
+        where: { triggerDedupeKey: { in: laneKeys } },
+      });
+      return (
+        laneJobs.length === 2 &&
+        laneJobs.every(({ status }) => ['succeeded', 'failed', 'cancelled'].includes(status))
+      );
+    });
+
+    const consumerSessionId = randomUUID();
+    await prisma.interviewSession.create({
+      data: {
+        createdBy: actorId,
+        id: consumerSessionId,
+        projectId,
+        sequenceNo: 4,
+        speakerRoleRevision: 1,
+        status: 'recording',
+      },
+    });
+    const audio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorId,
+        mimeType: 'audio/webm',
+        projectId,
+        purpose: 'interview',
+        sessionId: consumerSessionId,
+        status: 'initiated',
+      },
+    });
+    const capture = await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: audio.id,
+        audioStreamId: randomUUID(),
+        confirmedActiveAt: new Date(),
+        generationNo: 0,
+        sessionId: consumerSessionId,
+        status: 'active',
+        timelineOffsetMs: 0,
+      },
+    });
+    const stream = await prisma.speakerStream.create({
+      data: {
+        captureGenerationId: capture.id,
+        sessionId: consumerSessionId,
+        status: 'active',
+      },
+    });
+    const calibration = await prisma.speakerCalibrationAttempt.create({
+      data: {
+        attemptNo: 1,
+        audioStreamId: capture.audioStreamId,
+        captureGenerationId: capture.id,
+        sessionId: consumerSessionId,
+        speakerStreamId: stream.id,
+        startMs: 0,
+        startSequenceNo: 0,
+        startedBy: actorId,
+        startedRequestId: randomUUID(),
+        status: 'collecting',
+      },
+    });
+    const gateIdentity = calibrationAttemptGateIdentity({
+      attemptId: calibration.id,
+      speakerStreamId: stream.id,
+      status: 'confirmed',
+    });
+    const identity = secondSessionOpeningIdentity({
+      basisAnalysisTriggerIdentity: root,
+      calibrationGateIdentity: gateIdentity,
+      consumerSessionId,
+    });
+    const [currentMemories, actualAsked] = await Promise.all([
+      memories.list(actorId, projectId),
+      questions.list(actorId, projectId),
+    ]);
+    const orphan = await jobs.freeze({
+      actorId,
+      actualQuestionIds: actualAsked.map(({ id }) => id),
+      contextBuilderVersion: 'dev-008b2-opening-context-v2',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      jobType: 'context_snapshot',
+      memoryResolutionIds: currentMemories.map(({ id }) => id),
+      projectId,
+      requestId: openingContextRequestId(identity),
+      sessionIds: [restartConsumerSessionId, consumerSessionId],
+      triggerDedupeKey: openingContextTriggerKey(identity),
+      trustedRole: 'interviewer',
+      trustedRoles: ['elder', 'interviewer'],
+    });
+    await prisma.aiJob.update({
+      data: { startedAt: new Date(Date.now() - 60_000) },
+      where: { id: orphan.id },
+    });
+    await prisma.speakerCalibrationAttempt.update({
+      data: {
+        endMs: 200,
+        endSequenceNo: 2,
+        resolvedAt: new Date(),
+        resolvedBy: actorId,
+        resolvedRequestId: randomUUID(),
+        status: 'confirmed',
+      },
+      where: { id: calibration.id },
+    });
+
+    coordinator.notifyCalibration(consumerSessionId);
+    coordinator.notifyCalibration(consumerSessionId);
+    await Promise.all([
+      coordinator.reconcilePersistedState(),
+      coordinator.reconcilePersistedState(),
+    ]);
+    await eventually(async () => {
+      const [contextJob, attempt] = await Promise.all([
+        prisma.aiJob.findUniqueOrThrow({ where: { id: orphan.id } }),
+        prisma.questionGenerationAttempt.findFirst({
+          where: { attemptKind: 'second_session_opening', sessionId: consumerSessionId },
+        }),
+      ]);
+      return (
+        contextJob.status === 'failed' &&
+        attempt !== null &&
+        attempt.status === 'failed' &&
+        attempt.resultKind === 'unavailable'
+      );
+    });
+    expect(await prisma.interviewContextSnapshot.count({ where: { aiJobId: orphan.id } })).toBe(0);
+    expect(
+      await prisma.questionGenerationAttempt.count({
+        where: { attemptKind: 'second_session_opening', sessionId: consumerSessionId },
+      }),
+    ).toBe(1);
+
+    let lateWriteInvoked = false;
+    await expect(
+      jobs.writeBack(orphan, () => {
+        lateWriteInvoked = true;
+        return Promise.resolve();
+      }),
+    ).rejects.toThrow('AI_JOB_NOT_RUNNING');
+    expect(lateWriteInvoked).toBe(false);
+    expect((await prisma.aiJob.findUniqueOrThrow({ where: { id: orphan.id } })).status).toBe(
+      'failed',
+    );
   });
 });
 

@@ -609,17 +609,18 @@ export class AiJobCoordinatorService {
         for (const sessionId of job.sessionIds) await this.lock(tx, `session:${sessionId}`);
         const driftCode = await this.findDrift(tx, job);
         if (driftCode !== null) {
-          await tx.aiJob.update({
+          await tx.aiJob.updateMany({
             data: { completedAt: new Date(), failureCode: driftCode, status: 'cancelled' },
-            where: { id: job.id },
+            where: { id: job.id, status: 'running' },
           });
           return { cancelled: true, code: driftCode };
         }
         const result = await write(tx);
-        await tx.aiJob.update({
+        const committed = await tx.aiJob.updateMany({
           data: { completedAt: new Date(), status: 'succeeded' },
-          where: { id: job.id },
+          where: { id: job.id, status: 'running' },
         });
+        if (committed.count !== 1) throw new Error('AI_JOB_NOT_RUNNING');
         return result;
       });
       if (this.isCancellation(outcome)) throw new Error(outcome.code);

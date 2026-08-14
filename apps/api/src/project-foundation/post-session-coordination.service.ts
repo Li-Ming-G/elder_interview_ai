@@ -142,6 +142,7 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
   }
 
   private async reconcileAll(): Promise<void> {
+    await this.failStaleContextJobsWithoutSnapshot();
     const [completed, consumers] = await Promise.all([
       this.prisma.interviewSession.findMany({
         select: { id: true },
@@ -440,6 +441,30 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
         await this.jobs.failOrphanedSystemJob(job.id);
       }
     }
+  }
+
+  private async failStaleContextJobsWithoutSnapshot(): Promise<void> {
+    const cutoff = new Date(Date.now() - ORPHAN_GRACE_MS);
+    const jobs = await this.prisma.aiJob.findMany({
+      select: { id: true },
+      where: {
+        jobType: 'context_snapshot',
+        OR: [{ startedAt: { lte: cutoff } }, { createdAt: { lte: cutoff }, startedAt: null }],
+        status: { in: ['pending', 'running'] },
+      },
+    });
+    if (jobs.length === 0) return;
+    const jobIds = jobs.map(({ id }) => id);
+    const snapshots = await this.prisma.interviewContextSnapshot.findMany({
+      select: { aiJobId: true },
+      where: { aiJobId: { in: jobIds } },
+    });
+    const committed = new Set(snapshots.map(({ aiJobId }) => aiJobId));
+    await Promise.all(
+      jobIds
+        .filter((jobId) => !committed.has(jobId))
+        .map((jobId) => this.jobs.failOrphanedSystemJob(jobId)),
+    );
   }
 
   private async projectCompleted(sessionId: string): Promise<PostSessionAnalysisProjection | null> {
