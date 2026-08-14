@@ -9,7 +9,11 @@ import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { API_CONFIG } from '../api-config.js';
 import { AiJobCoordinatorService } from '../ai-runtime/ai-job-coordinator.service.js';
 import { PrismaService } from '../database/prisma.service.js';
-import type { AiJob, InterviewSession } from '../generated/prisma/client.js';
+import type {
+  AiJob,
+  InterviewSession,
+  QuestionGenerationAttempt,
+} from '../generated/prisma/client.js';
 import { InterviewContextService } from '../memory/interview-context.service.js';
 import { MemoryService } from '../memory/memory.service.js';
 import { QuestionEvidenceService } from '../question-evidence/question-evidence.service.js';
@@ -78,7 +82,7 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
 
   public onModuleInit(): void {
     queueMicrotask(() => {
-      this.enqueue('startup', () => this.reconcileAll());
+      void this.reconcilePersistedState().catch(() => undefined);
     });
     this.timer = setInterval(() => {
       this.enqueue('periodic', () => this.reconcileAll());
@@ -105,6 +109,10 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
     this.enqueue(`consumer:${sessionId}`, () => this.reconcileConsumer(sessionId));
   }
 
+  public reconcilePersistedState(): Promise<void> {
+    return this.execute('startup', () => this.reconcileAll());
+  }
+
   public async project(session: InterviewSession): Promise<{
     postSessionAnalysis: PostSessionAnalysisProjection | null;
     secondSessionOpening: SecondSessionOpeningProjection | null;
@@ -117,17 +125,19 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
   }
 
   private enqueue(key: string, work: () => Promise<void>): void {
-    void this.execute(key, work);
+    void this.execute(key, work).catch(() => undefined);
   }
 
   private execute(key: string, work: () => Promise<void>): Promise<void> {
     const existing = this.active.get(key);
     if (existing !== undefined) return existing;
-    const running = work().catch(() => undefined);
+    const running = work();
     this.active.set(key, running);
-    void running.finally(() => {
-      if (this.active.get(key) === running) this.active.delete(key);
-    });
+    void running
+      .finally(() => {
+        if (this.active.get(key) === running) this.active.delete(key);
+      })
+      .catch(() => undefined);
     return running;
   }
 
@@ -231,6 +241,13 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
   private async reconcileConsumer(sessionId: string): Promise<void> {
     const consumer = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (consumer === null || consumer.sequenceNo < 2 || consumer.status === 'failed') return;
+    const consumed = await this.findOpeningAttempt(consumer.id);
+    if (consumed !== null) {
+      await this.terminalizeStaleOpeningAttempt(consumed);
+      await this.failStaleOpeningJobsWithoutAttempt(consumer.id);
+      return;
+    }
+    await this.failStaleOpeningJobsWithoutAttempt(consumer.id);
     const basisSession = await this.prisma.interviewSession.findFirst({
       include: { finalization: true },
       where: { projectId: consumer.projectId, sequenceNo: consumer.sequenceNo - 1 },
@@ -248,16 +265,13 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
     };
     const analysis = await this.analysisFacts(basis);
     if (!laneTerminal(analysis.memory) || !laneTerminal(analysis.actual)) return;
+    if (analysis.memory.job === null || analysis.actual.job === null) return;
     const identity = secondSessionOpeningIdentity({
       basisAnalysisTriggerIdentity: analysis.root,
       calibrationGateIdentity: gate.identity,
       consumerSessionId: consumer.id,
     });
     const requestId = openingRequestId(identity);
-    const existing = await this.prisma.questionGenerationAttempt.findUnique({
-      where: { requestId },
-    });
-    if (existing !== null) return;
 
     const consent = await this.prisma.consentRecord.findFirst({
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -280,29 +294,62 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
         gate,
         identity,
         `CONSENT_CONTINUATION_${continuation.status.toUpperCase()}`,
+        undefined,
       );
       return;
     }
 
     const scopeSessionIds = gate.confirmed ? [basis.id, consumer.id] : [basis.id];
     const expiresAt = new Date(Date.now() + RETENTION_MS);
+    let contextSnapshotId: string | undefined;
     try {
-      await this.contexts.create({
+      contextSnapshotId = await this.contexts.create({
         actorId: consumer.createdBy,
-        contextBuilderVersion: `dev-008b2.v1:m=${analysis.memory.projection.status}:a=${analysis.actual.projection.status}`,
+        contextBuilderVersion: 'dev-008b2-opening-context-v2',
         consumerSessionId: consumer.id,
         expiresAt,
+        openingProvenance: {
+          actualLane: {
+            jobId: analysis.actual.job.id,
+            outcome: analysis.actual.projection.status as
+              'succeeded' | 'unjudged' | 'failed' | 'cancelled' | 'unavailable',
+          },
+          basisAnalysisTriggerIdentity: analysis.root,
+          basisSessionId: basis.id,
+          calibrationConfirmed: gate.confirmed,
+          calibrationGateIdentity: gate.identity,
+          memoryLane: {
+            jobId: analysis.memory.job.id,
+            outcome: analysis.memory.projection.status as
+              'succeeded' | 'unjudged' | 'failed' | 'cancelled' | 'unavailable',
+          },
+        },
         projectId: consumer.projectId,
         requestId: openingContextRequestId(identity),
         scopeSessionIds,
         triggerDedupeKey: openingContextTriggerKey(identity),
         trustedRoles: ['elder', 'interviewer'],
       });
+      const frozenJob = await this.prisma.aiJob.findUnique({ where: { requestId } });
+      if (frozenJob !== null) {
+        if (!TERMINAL_JOB_STATUSES.has(frozenJob.status)) {
+          if (!isStale(frozenJob.startedAt ?? frozenJob.createdAt)) return;
+          await this.jobs.failOrphanedSystemJob(frozenJob.id);
+        }
+        await this.recordOpeningUnavailable(
+          basis,
+          consumer,
+          gate,
+          identity,
+          frozenJob.failureCode ?? 'SYSTEM_COORDINATOR_RESTARTED',
+          contextSnapshotId,
+        );
+        return;
+      }
       await this.openings.requestSecondSessionOpening({
         actorId: consumer.createdBy,
-        basisSessionId: basis.id,
-        calibrationConfirmed: gate.confirmed,
         consumerSessionId: consumer.id,
+        contextSnapshotId,
         requestId,
         triggerDedupeKey: openingTriggerKey(identity),
       });
@@ -317,6 +364,7 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
           gate,
           identity,
           stableErrorCode(error),
+          contextSnapshotId,
         ).catch(() => undefined);
       }
     }
@@ -328,17 +376,70 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
     gate: CalibrationGate,
     identity: string,
     errorCode: string,
+    contextSnapshotId: string | undefined,
   ): Promise<void> {
     await this.openings.recordSecondSessionOpeningUnavailable({
       actorId: consumer.createdBy,
       basisSessionId: basis.id,
       calibrationConfirmed: gate.confirmed,
       consumerSessionId: consumer.id,
+      ...(contextSnapshotId === undefined ? {} : { contextSnapshotId }),
       errorCode,
       projectId: consumer.projectId,
       requestId: openingRequestId(identity),
       triggerDedupeKey: openingTriggerKey(identity),
     });
+  }
+
+  private findOpeningAttempt(sessionId: string): Promise<QuestionGenerationAttempt | null> {
+    return this.prisma.questionGenerationAttempt.findFirst({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      where: { attemptKind: 'second_session_opening', sessionId },
+    });
+  }
+
+  private async terminalizeStaleOpeningAttempt(attempt: QuestionGenerationAttempt): Promise<void> {
+    if (
+      !['pending', 'running'].includes(attempt.status) ||
+      !isStale(attempt.startedAt ?? attempt.createdAt)
+    ) {
+      return;
+    }
+    await this.openings.failOrphanedSecondSessionOpening(attempt.id);
+  }
+
+  private async failStaleOpeningJobsWithoutAttempt(consumerSessionId: string): Promise<void> {
+    const snapshots = await this.prisma.interviewContextSnapshot.findMany({
+      where: {
+        basisAnalysisTriggerIdentity: { not: null },
+        basisSessionId: { not: null },
+        calibrationGateIdentity: { not: null },
+        consumerSessionId,
+      },
+    });
+    for (const snapshot of snapshots) {
+      if (
+        snapshot.basisAnalysisTriggerIdentity === null ||
+        snapshot.calibrationGateIdentity === null
+      ) {
+        continue;
+      }
+      const identity = secondSessionOpeningIdentity({
+        basisAnalysisTriggerIdentity: snapshot.basisAnalysisTriggerIdentity,
+        calibrationGateIdentity: snapshot.calibrationGateIdentity,
+        consumerSessionId,
+      });
+      const job = await this.prisma.aiJob.findUnique({
+        where: { requestId: openingRequestId(identity) },
+      });
+      if (
+        job !== null &&
+        !TERMINAL_JOB_STATUSES.has(job.status) &&
+        isStale(job.startedAt ?? job.createdAt)
+      ) {
+        await this.jobs.failOrphanedSystemJob(job.id);
+      }
+    }
   }
 
   private async projectCompleted(sessionId: string): Promise<PostSessionAnalysisProjection | null> {
@@ -369,6 +470,42 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
       sequenceNo: basisSession.sequenceNo,
     };
     const analysis = await this.analysisFacts(basis);
+    const consumed = await this.findOpeningAttempt(consumer.id);
+    if (consumed !== null) {
+      const context =
+        consumed.interviewContextSnapshotId === null
+          ? null
+          : await this.prisma.interviewContextSnapshot.findUnique({
+              select: { calibrationGateIdentity: true },
+              where: { id: consumed.interviewContextSnapshotId },
+            });
+      const unavailable =
+        consumed.resultKind === 'unavailable' || consumed.failureCode === 'AI_PROVIDER_UNAVAILABLE';
+      const status: SecondSessionOpeningProjection['status'] =
+        consumed.status === 'pending' || consumed.status === 'running'
+          ? 'running'
+          : consumed.status === 'succeeded'
+            ? 'succeeded'
+            : consumed.status === 'cancelled'
+              ? 'cancelled'
+              : unavailable
+                ? 'unavailable'
+                : 'failed';
+      return {
+        attempt_id: consumed.id,
+        basis_analysis_trigger_identity: analysis.root,
+        basis_session_id: basis.id,
+        calibration_gate_identity: context?.calibrationGateIdentity ?? null,
+        error_code: consumed.failureCode,
+        request_id: consumed.requestId,
+        status,
+        updated_at: (
+          consumed.completedAt ??
+          consumed.startedAt ??
+          consumed.createdAt
+        ).toISOString(),
+      };
+    }
     const gate = await this.calibrationGate(consumer);
     if (gate === null) {
       return {
@@ -398,52 +535,19 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
         ]).toISOString(),
       };
     }
-    const identity = secondSessionOpeningIdentity({
-      basisAnalysisTriggerIdentity: analysis.root,
-      calibrationGateIdentity: gate.identity,
-      consumerSessionId: consumer.id,
-    });
-    const requestId = openingRequestId(identity);
-    const attempt = await this.prisma.questionGenerationAttempt.findUnique({
-      where: { requestId },
-    });
-    if (attempt === null) {
-      return {
-        attempt_id: null,
-        basis_analysis_trigger_identity: analysis.root,
-        basis_session_id: basis.id,
-        calibration_gate_identity: gate.identity,
-        error_code: null,
-        request_id: null,
-        status: 'ready',
-        updated_at: latestDate([
-          gate.updatedAt,
-          laneUpdatedAt(analysis.memory),
-          laneUpdatedAt(analysis.actual),
-        ]).toISOString(),
-      };
-    }
-    const unavailable =
-      attempt.resultKind === 'unavailable' || attempt.failureCode === 'AI_PROVIDER_UNAVAILABLE';
-    const status: SecondSessionOpeningProjection['status'] =
-      attempt.status === 'pending' || attempt.status === 'running'
-        ? 'running'
-        : attempt.status === 'succeeded'
-          ? 'succeeded'
-          : attempt.status === 'cancelled'
-            ? 'cancelled'
-            : unavailable
-              ? 'unavailable'
-              : 'failed';
     return {
-      attempt_id: attempt.id,
+      attempt_id: null,
       basis_analysis_trigger_identity: analysis.root,
       basis_session_id: basis.id,
       calibration_gate_identity: gate.identity,
-      error_code: attempt.failureCode,
-      request_id: attempt.requestId,
-      status,
-      updated_at: (attempt.completedAt ?? attempt.startedAt ?? attempt.createdAt).toISOString(),
+      error_code: null,
+      request_id: null,
+      status: 'ready',
+      updated_at: latestDate([
+        gate.updatedAt,
+        laneUpdatedAt(analysis.memory),
+        laneUpdatedAt(analysis.actual),
+      ]).toISOString(),
     };
   }
 
@@ -493,9 +597,24 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
   }
 
   private async calibrationGate(session: InterviewSession): Promise<CalibrationGate | null> {
+    const stream = await this.prisma.speakerStream.findFirst({
+      include: { captureGeneration: true },
+      orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+      where: { captureGenerationId: { not: null }, sessionId: session.id, status: 'active' },
+    });
+    if (stream === null || stream.captureGeneration === null) return null;
+    const currentCapture = await this.prisma.sessionCaptureGeneration.findFirst({
+      orderBy: [{ generationNo: 'desc' }, { id: 'desc' }],
+      where: { sessionId: session.id, status: { in: ['preparing', 'active'] } },
+    });
+    if (currentCapture === null || currentCapture.id !== stream.captureGenerationId) return null;
     const latest = await this.prisma.speakerCalibrationAttempt.findFirst({
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      where: { sessionId: session.id },
+      where: {
+        captureGenerationId: currentCapture.id,
+        sessionId: session.id,
+        speakerStreamId: stream.id,
+      },
     });
     if (latest !== null) {
       if (!['confirmed', 'failed', 'skipped'].includes(latest.status) || latest.resolvedAt === null)
@@ -512,15 +631,10 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
       };
     }
     if (['local', 'test'].includes(this.config.appEnv)) return null;
-    const capture = await this.prisma.sessionCaptureGeneration.findFirst({
-      orderBy: [{ generationNo: 'desc' }, { id: 'desc' }],
-      where: { sessionId: session.id },
-    });
-    if (capture === null) return null;
     return {
       confirmed: false,
-      identity: calibrationUnavailableGateIdentity(capture.id),
-      updatedAt: capture.updatedAt,
+      identity: calibrationUnavailableGateIdentity(currentCapture.id),
+      updatedAt: latestDate([currentCapture.updatedAt, stream.updatedAt]),
     };
   }
 
@@ -604,4 +718,8 @@ function latestDate(values: readonly (Date | null)[]): Date {
 function stableErrorCode(error: unknown): string {
   if (error instanceof Error && error.message.length > 0) return error.message.slice(0, 80);
   return 'AI_TRIGGER_REJECTED';
+}
+
+function isStale(updatedAt: Date): boolean {
+  return Date.now() - updatedAt.getTime() >= ORPHAN_GRACE_MS;
 }

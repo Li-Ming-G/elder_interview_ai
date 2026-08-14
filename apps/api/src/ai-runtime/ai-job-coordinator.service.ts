@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import type { AiJobStatus, AiJobType, Prisma } from '../generated/prisma/client.js';
+import type {
+  AiJobInputSegment,
+  AiJobStatus,
+  AiJobType,
+  Prisma,
+} from '../generated/prisma/client.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
 import { canonicalJson, effectiveTextDigest, manifestHash, sha256 } from './ai-provenance.js';
@@ -59,6 +64,7 @@ export interface FreezeAiJobRequest {
   requestId: string;
   retryOfJobId?: string;
   sessionIds: readonly string[];
+  sourceContextSnapshotId?: string;
   triggerDedupeKey?: string;
   trustedRole: 'elder' | 'interviewer';
   trustedRoles?: readonly ('elder' | 'interviewer')[];
@@ -67,6 +73,15 @@ export interface FreezeAiJobRequest {
 interface CancellationResult {
   cancelled: true;
   code: string;
+}
+
+interface SourceContextInput {
+  actualQuestionIds: string[];
+  actualQuestions: Map<string, { analysisRevision: number; normalizedDigest: string }>;
+  memoryResolutionIds: string[];
+  memoryRevisions: Map<string, number>;
+  segments: Map<string, AiJobInputSegment>;
+  sessionIds: string[];
 }
 
 @Injectable()
@@ -139,6 +154,20 @@ export class AiJobCoordinatorService {
         where: { id: { in: sessionIds }, projectId: request.projectId },
       });
       if (sessions.length !== sessionIds.length) throw new Error('AI_SESSION_SCOPE_INVALID');
+      const sourceContext = await this.sourceContextInput(
+        tx,
+        request.actorId,
+        request.projectId,
+        request.sourceContextSnapshotId,
+      );
+      if (
+        sourceContext !== null &&
+        (!sameValues(sourceContext.sessionIds, sessionIds) ||
+          !sameValues(sourceContext.memoryResolutionIds, memoryIds) ||
+          !sameValues(sourceContext.actualQuestionIds, actualQuestionIds))
+      ) {
+        throw new Error('AI_CONTEXT_SNAPSHOT_MEMBERSHIP_MISMATCH');
+      }
       const sessionsById = new Map(sessions.map((session) => [session.id, session]));
       const orderedSessions = sessionIds.map((id) => {
         const session = sessionsById.get(id);
@@ -189,6 +218,7 @@ export class AiJobCoordinatorService {
           const projection = projectTrustedSpeakerRole(segment);
           return (
             segment.contentKind === 'conversation' &&
+            (sourceContext === null || sourceContext.segments.has(segment.id)) &&
             trustedRoles.includes(projection.trustedEffectiveSpeakerRole as 'elder' | 'interviewer')
           );
         });
@@ -228,6 +258,19 @@ export class AiJobCoordinatorService {
               ? segment.originalRoleAuthority
               : 'user_confirmed';
           const digest = effectiveTextDigest(text);
+          const sourceSegment = sourceContext?.segments.get(segment.id);
+          if (
+            sourceSegment !== undefined &&
+            (sourceSegment.contentKind !== segment.contentKind ||
+              sourceSegment.effectiveTextDigest !== digest ||
+              sourceSegment.roleAuthority !== roleAuthority ||
+              sourceSegment.speakerRoleRevision !== segment.speakerRoleRevision ||
+              sourceSegment.textRevision !== segment.textRevision ||
+              sourceSegment.trustedEffectiveRole !==
+                projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole)
+          ) {
+            throw new Error('AI_CONTEXT_SNAPSHOT_SEGMENT_DRIFT');
+          }
           await tx.aiJobInputSegment.create({
             data: {
               aiJobId: jobId,
@@ -254,6 +297,9 @@ export class AiJobCoordinatorService {
           });
           inputOrder += 1;
         }
+      }
+      if (sourceContext !== null && frozenSegments.length !== sourceContext.segments.size) {
+        throw new Error('AI_CONTEXT_SNAPSHOT_SEGMENT_DRIFT');
       }
 
       const resolutions = await tx.memoryResolution.findMany({
@@ -284,6 +330,10 @@ export class AiJobCoordinatorService {
           resolutionId: resolution.id,
           resolutionRevision: resolution.resolutionRevision,
         });
+        const sourceRevision = sourceContext?.memoryRevisions.get(resolution.id);
+        if (sourceRevision !== undefined && sourceRevision !== resolution.resolutionRevision) {
+          throw new Error('AI_CONTEXT_SNAPSHOT_MEMORY_DRIFT');
+        }
       }
 
       const frozenActualQuestions = await this.freezeActualQuestions(
@@ -292,6 +342,19 @@ export class AiJobCoordinatorService {
         request.projectId,
         actualQuestionIds,
       );
+      if (
+        sourceContext !== null &&
+        frozenActualQuestions.some((question) => {
+          const source = sourceContext.actualQuestions.get(question.actualQuestionId);
+          return (
+            source === undefined ||
+            source.analysisRevision !== question.analysisRevision ||
+            source.normalizedDigest !== question.normalizedDigest
+          );
+        })
+      ) {
+        throw new Error('AI_CONTEXT_SNAPSHOT_ACTUAL_QUESTION_DRIFT');
+      }
       const inputHash = sha256(
         canonicalJson({
           actualQuestions: frozenActualQuestions,
@@ -304,6 +367,7 @@ export class AiJobCoordinatorService {
           policyRevision: policy.policyRevision,
           projectId: request.projectId,
           retryOfJobId: request.retryOfJobId ?? null,
+          sourceContextSnapshotId: request.sourceContextSnapshotId ?? null,
           scopes: scopeIdentity,
           segments: frozenSegments.map(({ inputSegmentId, segmentId, sessionId, startMs }) => ({
             inputSegmentId,
@@ -787,6 +851,7 @@ export class AiJobCoordinatorService {
         projectId: request.projectId,
         retryOfJobId: request.retryOfJobId ?? null,
         sessionIds,
+        sourceContextSnapshotId: request.sourceContextSnapshotId ?? null,
         triggerDedupeKey: request.triggerDedupeKey ?? null,
         trustedRole: request.trustedRole,
         trustedRoles: [...new Set(request.trustedRoles ?? [request.trustedRole])].sort(),
@@ -816,6 +881,52 @@ export class AiJobCoordinatorService {
     };
   }
 
+  private async sourceContextInput(
+    tx: Prisma.TransactionClient,
+    actorId: string,
+    projectId: string,
+    snapshotId: string | undefined,
+  ): Promise<SourceContextInput | null> {
+    if (snapshotId === undefined) return null;
+    const snapshot = await tx.interviewContextSnapshot.findUnique({ where: { id: snapshotId } });
+    if (
+      snapshot === null ||
+      snapshot.projectId !== projectId ||
+      !(await this.eligibility.isEligible(actorId, snapshot.aiDerivedOutputId, tx))
+    ) {
+      throw new Error('AI_CONTEXT_SNAPSHOT_INELIGIBLE');
+    }
+    const [scopes, segments, memories, questions] = await Promise.all([
+      tx.aiJobSessionScope.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: snapshot.aiJobId },
+      }),
+      tx.aiJobInputSegment.findMany({ where: { aiJobId: snapshot.aiJobId } }),
+      tx.contextSnapshotMemory.findMany({ where: { contextSnapshotId: snapshot.id } }),
+      tx.aiOutputQuestionDependency.findMany({
+        where: { aiDerivedOutputId: snapshot.aiDerivedOutputId, targetKind: 'actual_question' },
+      }),
+    ]);
+    return {
+      actualQuestionIds: questions.map(({ targetId }) => targetId),
+      actualQuestions: new Map(
+        questions.map((question) => [
+          question.targetId,
+          {
+            analysisRevision: question.targetRevision,
+            normalizedDigest: question.targetDigest,
+          },
+        ]),
+      ),
+      memoryResolutionIds: memories.map(({ memoryResolutionId }) => memoryResolutionId),
+      memoryRevisions: new Map(
+        memories.map((memory) => [memory.memoryResolutionId, memory.resolutionRevision]),
+      ),
+      segments: new Map(segments.map((segment) => [segment.transcriptSegmentId, segment])),
+      sessionIds: scopes.map(({ sessionId }) => sessionId),
+    };
+  }
+
   private async cancelJob(jobId: string, code: string): Promise<void> {
     await this.prisma.aiJob.updateMany({
       data: { completedAt: new Date(), failureCode: code, status: 'cancelled' },
@@ -830,4 +941,8 @@ export class AiJobCoordinatorService {
   private async lock(tx: Prisma.TransactionClient, value: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${value}, 0))`;
   }
+}
+
+function sameValues(left: readonly string[], right: readonly string[]): boolean {
+  return [...left].sort().join('|') === [...right].sort().join('|');
 }

@@ -53,6 +53,7 @@ export interface BeginQuestionGenerationCommand {
   outputSchemaDigest: string;
   contextBuilderVersion: string;
   contextBuilderDigest: string;
+  interviewContextSnapshotId: string | null;
   modelConfigVersion: string;
   modelConfigDigest: string;
   selectionPolicyVersion: string;

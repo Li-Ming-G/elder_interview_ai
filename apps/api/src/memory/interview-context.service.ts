@@ -3,16 +3,47 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 
 import { AiJobCoordinatorService } from '../ai-runtime/ai-job-coordinator.service.js';
+import { AiOutputEligibilityService } from '../ai-runtime/ai-output-eligibility.service.js';
 import { EMPTY_MANIFEST_HASH, manifestHash } from '../ai-runtime/ai-provenance.js';
 import { PrismaService } from '../database/prisma.service.js';
-import { ActualAskedReader } from '../question-evidence/question-evidence.service.js';
-import { CurrentMemoryReader } from './memory.service.js';
+import {
+  postSessionLaneTriggerKey,
+  postSessionTriggerIdentity,
+} from '../project-foundation/post-session-coordination.identity.js';
+import {
+  ActualAskedReader,
+  type ActualAskedItem,
+} from '../question-evidence/question-evidence.service.js';
+import { CurrentMemoryReader, type CurrentMemoryItem } from './memory.service.js';
+
+export type PostSessionTerminalOutcome =
+  'succeeded' | 'unjudged' | 'failed' | 'cancelled' | 'unavailable';
+
+export interface OpeningContextProvenance {
+  actualLane: { jobId: string; outcome: PostSessionTerminalOutcome };
+  basisAnalysisTriggerIdentity: string;
+  basisSessionId: string;
+  calibrationConfirmed: boolean;
+  calibrationGateIdentity: string;
+  memoryLane: { jobId: string; outcome: PostSessionTerminalOutcome };
+}
+
+export interface FrozenOpeningContextInput {
+  actualAsked: readonly ActualAskedItem[];
+  basisSessionId: string;
+  calibrationConfirmed: boolean;
+  memories: readonly CurrentMemoryItem[];
+  projectId: string;
+  scopeSessionIds: readonly string[];
+  snapshotId: string;
+}
 
 @Injectable()
 export class InterviewContextService {
   public constructor(
     private readonly prisma: PrismaService,
     private readonly coordinator: AiJobCoordinatorService,
+    private readonly eligibility: AiOutputEligibilityService,
     private readonly memory: CurrentMemoryReader,
     private readonly actualAsked: ActualAskedReader,
   ) {}
@@ -23,6 +54,7 @@ export class InterviewContextService {
     consumerSessionId: string;
     expiresAt: Date;
     projectId: string;
+    openingProvenance?: OpeningContextProvenance;
     requestId: string;
     scopeSessionIds?: readonly string[];
     triggerDedupeKey?: string;
@@ -86,6 +118,18 @@ export class InterviewContextService {
           actualQuestionCount: job.actualQuestions.length,
           aiDerivedOutputId: outputId,
           aiJobId: job.id,
+          ...(input.openingProvenance === undefined
+            ? {}
+            : {
+                actualLaneJobId: input.openingProvenance.actualLane.jobId,
+                actualLaneOutcome: input.openingProvenance.actualLane.outcome,
+                basisAnalysisTriggerIdentity: input.openingProvenance.basisAnalysisTriggerIdentity,
+                basisSessionId: input.openingProvenance.basisSessionId,
+                calibrationConfirmed: input.openingProvenance.calibrationConfirmed,
+                calibrationGateIdentity: input.openingProvenance.calibrationGateIdentity,
+                memoryLaneJobId: input.openingProvenance.memoryLane.jobId,
+                memoryLaneOutcome: input.openingProvenance.memoryLane.outcome,
+              }),
           consumerSessionId: input.consumerSessionId,
           id: snapshotId,
           memoryCount: job.memories.length,
@@ -135,4 +179,112 @@ export class InterviewContextService {
     });
     return snapshotId;
   }
+
+  public async readForOpening(
+    actorId: string,
+    consumerSessionId: string,
+    snapshotId: string,
+  ): Promise<FrozenOpeningContextInput> {
+    const snapshot = await this.prisma.interviewContextSnapshot.findUnique({
+      where: { id: snapshotId },
+    });
+    if (
+      snapshot === null ||
+      snapshot.consumerSessionId !== consumerSessionId ||
+      snapshot.basisSessionId === null ||
+      snapshot.basisAnalysisTriggerIdentity === null ||
+      snapshot.calibrationGateIdentity === null ||
+      snapshot.calibrationConfirmed === null ||
+      snapshot.memoryLaneOutcome === null ||
+      snapshot.memoryLaneJobId === null ||
+      snapshot.actualLaneOutcome === null ||
+      snapshot.actualLaneJobId === null ||
+      !(await this.eligibility.isEligible(actorId, snapshot.aiDerivedOutputId))
+    ) {
+      throw new Error('AI_OPENING_CONTEXT_INVALID');
+    }
+    const [contextJob, memoryLaneJob, actualLaneJob, basisSession, consumerSession] =
+      await Promise.all([
+        this.prisma.aiJob.findUnique({ where: { id: snapshot.aiJobId } }),
+        this.prisma.aiJob.findUnique({ where: { id: snapshot.memoryLaneJobId } }),
+        this.prisma.aiJob.findUnique({ where: { id: snapshot.actualLaneJobId } }),
+        this.prisma.interviewSession.findUnique({
+          include: { finalization: true },
+          where: { id: snapshot.basisSessionId },
+        }),
+        this.prisma.interviewSession.findUnique({ where: { id: consumerSessionId } }),
+      ]);
+    const completedAt = basisSession?.finalization?.completedAt;
+    if (
+      contextJob?.status !== 'succeeded' ||
+      memoryLaneJob === null ||
+      actualLaneJob === null ||
+      basisSession === null ||
+      completedAt == null ||
+      consumerSession === null ||
+      basisSession.projectId !== snapshot.projectId ||
+      consumerSession.projectId !== snapshot.projectId ||
+      consumerSession.sequenceNo !== basisSession.sequenceNo + 1 ||
+      snapshot.basisAnalysisTriggerIdentity !==
+        postSessionTriggerIdentity(basisSession.id, completedAt) ||
+      memoryLaneJob.projectId !== snapshot.projectId ||
+      memoryLaneJob.jobType !== 'memory_extract' ||
+      memoryLaneJob.triggerDedupeKey !==
+        postSessionLaneTriggerKey(snapshot.basisAnalysisTriggerIdentity, 'memory_extract') ||
+      !outcomeMatchesJob(snapshot.memoryLaneOutcome, memoryLaneJob.status) ||
+      actualLaneJob.projectId !== snapshot.projectId ||
+      actualLaneJob.jobType !== 'actual_question_reconcile' ||
+      actualLaneJob.triggerDedupeKey !==
+        postSessionLaneTriggerKey(
+          snapshot.basisAnalysisTriggerIdentity,
+          'actual_question_reconcile',
+        ) ||
+      !outcomeMatchesJob(snapshot.actualLaneOutcome, actualLaneJob.status)
+    ) {
+      throw new Error('AI_OPENING_CONTEXT_PROVENANCE_INVALID');
+    }
+    const [memoryMemberships, actualMemberships, memories, actualAsked] = await Promise.all([
+      this.prisma.contextSnapshotMemory.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { contextSnapshotId: snapshot.id },
+      }),
+      this.prisma.contextSnapshotActualQuestion.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { contextSnapshotId: snapshot.id },
+      }),
+      this.memory.list(actorId, snapshot.projectId),
+      this.actualAsked.list(actorId, snapshot.projectId),
+    ]);
+    const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+    const actualById = new Map(actualAsked.map((question) => [question.id, question]));
+    const frozenMemories = memoryMemberships.map((membership) => {
+      const memory = memoryById.get(membership.memoryResolutionId);
+      if (memory === undefined || memory.resolutionRevision !== membership.resolutionRevision) {
+        throw new Error('AI_OPENING_CONTEXT_MEMORY_DRIFT');
+      }
+      return memory;
+    });
+    const frozenActual = actualMemberships.map((membership) => {
+      const question = actualById.get(membership.actualQuestionId);
+      if (question === undefined) throw new Error('AI_OPENING_CONTEXT_ACTUAL_QUESTION_DRIFT');
+      return question;
+    });
+    return {
+      actualAsked: frozenActual,
+      basisSessionId: snapshot.basisSessionId,
+      calibrationConfirmed: snapshot.calibrationConfirmed,
+      memories: frozenMemories,
+      projectId: snapshot.projectId,
+      scopeSessionIds: snapshot.calibrationConfirmed
+        ? [snapshot.basisSessionId, consumerSessionId]
+        : [snapshot.basisSessionId],
+      snapshotId: snapshot.id,
+    };
+  }
+}
+
+function outcomeMatchesJob(outcome: string, status: string): boolean {
+  if (outcome === 'succeeded' || outcome === 'unjudged') return status === 'succeeded';
+  if (outcome === 'cancelled') return status === 'cancelled';
+  return status === 'failed' || status === 'cancelled';
 }

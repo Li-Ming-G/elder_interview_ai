@@ -12,6 +12,7 @@ import {
 import { manifestHash } from '../ai-runtime/ai-provenance.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { InterviewContextService } from '../memory/interview-context.service.js';
 import { CurrentMemoryReader, type CurrentMemoryItem } from '../memory/memory.service.js';
 import { QuestionBankReader } from '../question-bank/question-bank.service.js';
 import type {
@@ -66,6 +67,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   public constructor(
     private readonly prisma: PrismaService,
     private readonly coordinator: AiJobCoordinatorService,
+    private readonly contexts: InterviewContextService,
     private readonly memories: CurrentMemoryReader,
     private readonly actualAsked: ActualAskedReader,
     private readonly bank: QuestionBankReader,
@@ -129,9 +131,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
 
   public async requestSecondSessionOpening(input: {
     actorId: string;
-    basisSessionId: string;
-    calibrationConfirmed: boolean;
     consumerSessionId: string;
+    contextSnapshotId: string;
     requestId: string;
     triggerDedupeKey: string;
   }): Promise<{ attemptId: string; replayed: boolean; requestId: string }> {
@@ -146,9 +147,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         snapshotId: state.currentSnapshotId,
       },
       {
-        scopeSessionIds: input.calibrationConfirmed
-          ? [input.basisSessionId, input.consumerSessionId]
-          : [input.basisSessionId],
+        interviewContextSnapshotId: input.contextSnapshotId,
         triggerDedupeKey: input.triggerDedupeKey,
       },
     );
@@ -172,11 +171,20 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     basisSessionId: string;
     calibrationConfirmed: boolean;
     consumerSessionId: string;
+    contextSnapshotId?: string;
     errorCode: string;
     projectId: string;
     requestId: string;
     triggerDedupeKey: string;
   }): Promise<string | null> {
+    const context =
+      input.contextSnapshotId === undefined
+        ? null
+        : await this.contexts.readForOpening(
+            input.actorId,
+            input.consumerSessionId,
+            input.contextSnapshotId,
+          );
     const job = await this.coordinator.recordRejectedSystemJob(
       {
         actorId: input.actorId,
@@ -184,9 +192,11 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         jobType: 'question_generate',
         projectId: input.projectId,
         requestId: input.requestId,
-        sessionIds: input.calibrationConfirmed
-          ? [input.basisSessionId, input.consumerSessionId]
-          : [input.basisSessionId],
+        sessionIds:
+          context?.scopeSessionIds ??
+          (input.calibrationConfirmed
+            ? [input.basisSessionId, input.consumerSessionId]
+            : [input.basisSessionId]),
         triggerDedupeKey: input.triggerDedupeKey,
         trustedRole: 'elder',
         trustedRoles: ['elder', 'interviewer'],
@@ -204,6 +214,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         contextSchemaDigest: this.contract.contextSchemaDigest,
         contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
         failureCode: input.errorCode,
+        interviewContextSnapshotId: context?.snapshotId ?? null,
         job,
         journeyBasisHash: createHash('sha256').update(input.requestId).digest('hex'),
         journeyPolicyVersion: JOURNEY_POLICY_VERSION,
@@ -221,6 +232,16 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       },
       input.requestId,
     );
+  }
+
+  public async failOrphanedSecondSessionOpening(attemptId: string): Promise<void> {
+    const attempt = await this.prisma.questionGenerationAttempt.findUnique({
+      select: { aiJobId: true },
+      where: { id: attemptId },
+    });
+    if (attempt === null) return;
+    await this.coordinator.failOrphanedSystemJob(attempt.aiJobId);
+    await this.presentations.failAttempt(attemptId, 'SYSTEM_COORDINATOR_RESTARTED');
   }
 
   private async runAutomatic(sessionId: string, segmentId: string): Promise<void> {
@@ -247,7 +268,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     requestId: string,
     basis: { presentationRevision: number; snapshotId: string | null },
     options: {
-      scopeSessionIds?: readonly string[];
+      interviewContextSnapshotId?: string;
       triggerDedupeKey?: string;
     } = {},
   ): Promise<PreparedQuestionAttempt> {
@@ -258,7 +279,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         replay.sessionId !== sessionId ||
         replayJob?.requestedBy !== actorId ||
         replay.basisPresentationRevision !== basis.presentationRevision ||
-        replay.basisSnapshotId !== basis.snapshotId
+        replay.basisSnapshotId !== basis.snapshotId ||
+        replay.interviewContextSnapshotId !== (options.interviewContextSnapshotId ?? null)
       ) {
         throw new Error('IDEMPOTENCY_KEY_REUSED');
       }
@@ -279,11 +301,22 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
 
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null) throw new Error('AI_SESSION_SCOPE_INVALID');
-    const [memories, actualAsked, generation] = await Promise.all([
-      this.memories.list(actorId, session.projectId),
-      this.actualAsked.list(actorId, session.projectId),
+    const [openingContext, generation] = await Promise.all([
+      options.interviewContextSnapshotId === undefined
+        ? null
+        : this.contexts.readForOpening(actorId, sessionId, options.interviewContextSnapshotId),
       this.presentations.generationContext(sessionId),
     ]);
+    if (openingContext !== null && openingContext.projectId !== session.projectId) {
+      throw new Error('AI_OPENING_CONTEXT_INVALID');
+    }
+    const [memories, actualAsked] =
+      openingContext === null
+        ? await Promise.all([
+            this.memories.list(actorId, session.projectId),
+            this.actualAsked.list(actorId, session.projectId),
+          ])
+        : [openingContext.memories, openingContext.actualAsked];
     const job = await this.coordinator.freeze({
       actorId,
       actualQuestionIds: actualAsked.map(({ id }) => id),
@@ -292,7 +325,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       memoryResolutionIds: memories.map(({ id }) => id),
       projectId: session.projectId,
       requestId,
-      sessionIds: options.scopeSessionIds ?? [sessionId],
+      sessionIds: openingContext?.scopeSessionIds ?? [sessionId],
+      ...(openingContext === null ? {} : { sourceContextSnapshotId: openingContext.snapshotId }),
       ...(options.triggerDedupeKey !== undefined
         ? { triggerDedupeKey: options.triggerDedupeKey }
         : attemptKind === 'automatic'
@@ -345,6 +379,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           journeyPolicyVersion: decision.journeyPolicyVersion,
           journeyReasonCodes: decision.reasonCodes,
           journeyStage: decision.stage,
+          interviewContextSnapshotId: openingContext?.snapshotId ?? null,
           modelConfigDigest: this.contract.modelConfigDigest,
           modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
           outputSchemaDigest: this.contract.outputSchemaDigest,
