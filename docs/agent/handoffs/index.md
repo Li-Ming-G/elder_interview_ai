@@ -20,4 +20,4 @@ SPEC-REPEAT-INTERVIEW-001 的项目级 repeat action、same-project next-session
 
 SPEC-CONTINUING-CONSENT-001 的同 project 持续授权、每次正式录音前版本化轻提醒、重授权/版本漂移门禁、REV-049 old REQUEST_CHANGES 与 accepted exact-head PASS/merge、CON-012 关闭及 B1/B2 精确解锁边界见 [`SPEC-CONTINUING-CONSENT-001.md`](SPEC-CONTINUING-CONSENT-001.md)。本接收只使 B1 implementation-ready；真实 covered 仍受 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001 约束，B2 继续等待 B1 runtime。
 
-DEV-008B1 的单一 repeat/continuation current-facts owner、next-session 幂等并发、全新 session 隔离、recording reminder start gate、Home unknown/online replay、production policy unavailable、真实失败历史与项目负责人审查重点见 [`DEV-008B1.md`](DEV-008B1.md)。该材料是 REV-050 PENDING 的 REVIEW 候选，不是 PASS/DONE；真实 policy 与 B2 继续独立阻塞。
+DEV-008B1 的单一 repeat/continuation current-facts owner、next-session 幂等并发、全新 session 隔离、recording reminder start gate、Home unknown/online replay、production policy unavailable、真实失败历史与项目负责人审查重点见 [`DEV-008B1.md`](DEV-008B1.md) 与 [PR #51](https://github.com/Li-Ming-G/elder_interview_ai/pull/51)。该材料是 REV-050 PENDING 的 REVIEW 候选，不是 PASS/DONE；真实 policy 与 B2 继续独立阻塞。
