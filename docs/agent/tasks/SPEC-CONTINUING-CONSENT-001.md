@@ -2,14 +2,14 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
-- 负责人：独立 docs/shared-contract 执行任务 `codex/spec-continuing-consent-001`
+- 状态：`DONE`
+- 负责人：独立 docs/shared-contract 执行任务 `codex/spec-continuing-consent-001`；治理收口 `codex/spec-continuing-consent-001-closeout`
 - 基线：`origin/main@2f7bb9632293694a0e22ed7e64adefff5fc5a57d`；main CI `31758380540` SUCCESS
-- PR：[non-Draft PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；old head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 已获项目负责人 [REQUEST_CHANGES](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288715503)（P0=0/P1=3/P2=0），正在原分支定向修复
+- PR：[PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49)；accepted head `1d241a4b8c40827a93eefe1c9825021b6859df74` / CI `31764584701` 获项目负责人 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288833214)（P0/P1/P2=0）；merge `712b4ff46acbff5168453c79b2d02375a84fa017` / main CI `31764903272` SUCCESS
 - 前置：SPEC-REPEAT-INTERVIEW-001、DEV-008A4 均已 exact-head PASS/merge；项目负责人已明确本任务产品决定
 - iteration-coach：总控已在决定前恰好完成一次独立只读 `Correction / NO-PAUSE`；本任务复用其结论，不启动第二次复核，也不写 legacy learning log
 - 输入：`00/01/02/03/04/05/08/09/10`、SPEC-REPEAT-INTERVIEW-001、DEV-008B1/B2、最新 handoff/ADR/CON、CON-012
-- 审查门禁：non-Draft PR、exact-head 全量 CI、项目负责人 GitHub 手动审查；执行 Agent 不得自宣 `PASS/DONE` 或合并
+- 审查门禁：已满足 non-Draft PR、exact-head 全量 CI、项目负责人 GitHub 手动 PASS、merge 与 main CI；DONE 仅限本任务契约范围
 
 ## 用户结果
 
@@ -56,4 +56,4 @@
 2. 将 continuing consent 与 repeat action 改为 discriminated unions，并用编译期 contract test 拒绝 status/reason/basis/version/action 及两层投影的矛盾组合。
 3. 新建独立 SPEC-CONSENT-TEXT-POLICY-001，作为真实 `covered` happy path 与 B1 端到端交付前置；执行 Agent 不代写/批准法律文本，任何 fixture 不解除真实路径失败关闭。
 
-旧 exact head、CI 和 REQUEST_CHANGES 结论永久保留。修复后任务仍为 `REVIEW`，DEV-008B1/B2 仍为 `BLOCKED`，等待项目负责人绑定新 exact head 的下一轮手动复审。
+旧 exact head `4095e570d17d8ecae94d630d62bca9ab0205917d`、CI `31762375878` 和 REQUEST_CHANGES（P1=3）永久保留。accepted head 已关闭三项 P1 并获 PASS；ADR-039 转 Accepted、CON-012 转 RESOLVED。DEV-008B1 仅转 implementation-ready，真实 `covered` 完成仍等待 SPEC-CONSENT-TEXT-POLICY-001；DEV-008B2 继续等待 B1 runtime。
