@@ -9,9 +9,15 @@ import { AudioIntegrityService } from '../../apps/api/src/audio/audio-integrity.
 import { AudioService } from '../../apps/api/src/audio/audio.service.js';
 import { LocalAudioStorageAdapter } from '../../apps/api/src/audio/local-audio-storage.adapter.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import {
+  FICTIONAL_CONTINUING_CONSENT_VERSION,
+  SyntheticConsentContinuationPolicyReader,
+} from '../../apps/api/src/project-foundation/consent-continuation.policy.js';
 import { PrismaProjectAccessReader } from '../../apps/api/src/project-foundation/prisma-project-access.reader.js';
 import { ProjectAccessService } from '../../apps/api/src/project-foundation/project-access.service.js';
 import { ProjectFoundationService } from '../../apps/api/src/project-foundation/project-foundation.service.js';
+import { RepeatInterviewDecisionService } from '../../apps/api/src/project-foundation/repeat-interview-decision.service.js';
 import { SessionCaptureService } from '../../apps/api/src/project-foundation/session-capture.service.js';
 import { SessionFinalizationService } from '../../apps/api/src/project-foundation/session-finalization.service.js';
 import { SessionSnapshotService } from '../../apps/api/src/project-foundation/session-snapshot.service.js';
@@ -40,6 +46,16 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     status: 'active',
   };
 
+  function startSession(
+    sessionId: string,
+    input: { audio_stream_id: string; mime_type: string; request_id: string },
+  ): ReturnType<ProjectFoundationService['startSession']> {
+    return projects.startSession(actor, sessionId, {
+      ...input,
+      recording_reminder_version: 'recording-reminder-v1',
+    });
+  }
+
   beforeAll(async () => {
     const databaseUrl = process.env.TEST_DATABASE_URL;
     if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
@@ -64,8 +80,24 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       integrity,
       snapshots,
       runtime,
+      new RepeatInterviewDecisionService(
+        prisma,
+        new SyntheticConsentContinuationPolicyReader(),
+        new LocalTestDeletionScopeFixtureReader(),
+      ),
     );
-    captures = new SessionCaptureService(prisma, authorization, runtime, snapshots);
+    const repeatInterviews = new RepeatInterviewDecisionService(
+      prisma,
+      new SyntheticConsentContinuationPolicyReader(),
+      new LocalTestDeletionScopeFixtureReader(),
+    );
+    captures = new SessionCaptureService(
+      prisma,
+      authorization,
+      runtime,
+      snapshots,
+      repeatInterviews,
+    );
     evidence = new CapturePcmEvidenceService(prisma);
     finalization = new SessionFinalizationService(
       prisma,
@@ -121,8 +153,8 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture(2);
     const input = { audio_stream_id: randomUUID(), mime_type: MIME, request_id: randomUUID() };
     const [first, replay] = await Promise.all([
-      projects.startSession(actor, fixture.sessionIds[0], input),
-      projects.startSession(actor, fixture.sessionIds[0], input),
+      startSession(fixture.sessionIds[0], input),
+      startSession(fixture.sessionIds[0], input),
     ]);
 
     expect(replay).toEqual(first);
@@ -177,7 +209,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       }),
     ).toBe(1);
     await expect(
-      projects.startSession(actor, fixture.sessionIds[0], {
+      startSession(fixture.sessionIds[0], {
         ...input,
         mime_type: 'audio/ogg;codecs=opus',
       }),
@@ -188,7 +220,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream0 = randomUUID();
-    const started = await projects.startSession(actor, sessionId, {
+    const started = await startSession(sessionId, {
       audio_stream_id: stream0,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -288,7 +320,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const empty = await createFixture();
     const emptySessionId = empty.sessionIds[0];
     const emptyStream = randomUUID();
-    await projects.startSession(actor, emptySessionId, {
+    await startSession(emptySessionId, {
       audio_stream_id: emptyStream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -329,7 +361,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const evidenced = await createFixture();
     const evidencedSessionId = evidenced.sessionIds[0];
     const evidencedStream = randomUUID();
-    await projects.startSession(actor, evidencedSessionId, {
+    await startSession(evidencedSessionId, {
       audio_stream_id: evidencedStream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -355,7 +387,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream0 = randomUUID();
-    const started = await projects.startSession(actor, sessionId, {
+    const started = await startSession(sessionId, {
       audio_stream_id: stream0,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -428,7 +460,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream = randomUUID();
-    const started = await projects.startSession(actor, sessionId, {
+    const started = await startSession(sessionId, {
       audio_stream_id: stream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -493,7 +525,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream = randomUUID();
-    const started = await projects.startSession(actor, sessionId, {
+    const started = await startSession(sessionId, {
       audio_stream_id: stream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -540,7 +572,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const acceptedFixture = await createFixture();
     const acceptedSessionId = acceptedFixture.sessionIds[0];
     const acceptedStream = randomUUID();
-    const acceptedStart = await projects.startSession(actor, acceptedSessionId, {
+    const acceptedStart = await startSession(acceptedSessionId, {
       audio_stream_id: acceptedStream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -584,7 +616,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream = randomUUID();
-    const started = await projects.startSession(actor, sessionId, {
+    const started = await startSession(sessionId, {
       audio_stream_id: stream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -634,7 +666,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream0 = randomUUID();
-    await projects.startSession(actor, sessionId, {
+    await startSession(sessionId, {
       audio_stream_id: stream0,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -676,7 +708,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const fixture = await createFixture();
     const sessionId = fixture.sessionIds[0];
     const stream0 = randomUUID();
-    await projects.startSession(actor, sessionId, {
+    await startSession(sessionId, {
       audio_stream_id: stream0,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -721,7 +753,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'mvp-v1',
+        consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,
@@ -759,7 +791,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const captureSessionId = fixture.sessionIds[0];
     const startSessionId = fixture.sessionIds[1];
     const stream = randomUUID();
-    const started = await projects.startSession(actor, captureSessionId, {
+    const started = await startSession(captureSessionId, {
       audio_stream_id: stream,
       mime_type: MIME,
       request_id: randomUUID(),
@@ -777,7 +809,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const barrier = holdProjectLock(fixture.projectId);
     await barrier.acquired;
     const operations = [
-      projects.startSession(actor, startSessionId, {
+      startSession(startSessionId, {
         audio_stream_id: randomUUID(),
         mime_type: MIME,
         request_id: randomUUID(),
@@ -894,7 +926,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const consent = await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'mvp-v1',
+        consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,

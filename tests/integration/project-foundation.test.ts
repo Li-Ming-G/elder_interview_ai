@@ -8,9 +8,17 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PasswordService } from '../../apps/api/src/auth/password.service.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import {
+  FICTIONAL_CONTINUING_CONSENT_VERSION,
+  SyntheticConsentContinuationPolicyReader,
+  UnavailableConsentContinuationPolicyReader,
+} from '../../apps/api/src/project-foundation/consent-continuation.policy.js';
+import { RepeatInterviewDecisionService } from '../../apps/api/src/project-foundation/repeat-interview-decision.service.js';
 
 const ORIGIN = 'http://127.0.0.1:4173';
 const PASSWORD = 'Fictional-only-Password-42!';
+const REMINDER_VERSION = 'recording-reminder-v1';
 type SupertestApp = Parameters<typeof request>[0];
 
 interface LoginBody {
@@ -45,6 +53,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
         AI_RETENTION_CLEANUP_PEPPER: 'test-only-project-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
+      { consentContinuationPolicyReader: new SyntheticConsentContinuationPolicyReader() },
     );
     await application().init();
     prisma = application().get(PrismaService);
@@ -188,6 +197,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: '00000000-0000-4000-8000-000000000111',
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: '00000000-0000-4000-8000-000000000101',
       });
     expect(earlyStart.status).toBe(409);
@@ -220,7 +230,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         consent_audio_object_id: '00000000-0000-4000-8000-000000000201',
         consent_method: 'recorded_verbal',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T08:00:00.000Z',
         request_id: randomUUID(),
@@ -236,7 +246,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T08:00:00.000Z',
         request_id: randomUUID(),
@@ -255,6 +265,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     const startPayload = {
       audio_stream_id: '00000000-0000-4000-8000-000000000112',
       mime_type: 'audio/webm;codecs=opus',
+      recording_reminder_version: REMINDER_VERSION,
       request_id: startRequestId,
     };
     const started = await listenerA
@@ -312,12 +323,14 @@ describe('project, bundled consent and interview start vertical seam', () => {
       });
     expect(secondConsent.status).toBe(201);
     const secondConsentId = (secondConsent.body as IdBody).id;
-    const driftSession = await listenerA
-      .post(`/api/v1/projects/${projectId}/sessions`)
-      .set('Origin', ORIGIN)
-      .set('X-CSRF-Token', csrfA)
-      .send({ request_id: randomUUID() });
-    const driftSessionId = (driftSession.body as IdBody).id;
+    const sessionOwner = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+    // Internal fixture only: the public legacy endpoint is first-session-only and is tested below.
+    const driftSession = await prisma.interviewSession.create({
+      data: { createdBy: sessionOwner.id, projectId, sequenceNo: 2 },
+    });
+    const driftSessionId = driftSession.id;
     await listenerA
       .post(`/api/v1/sessions/${driftSessionId}/device-check`)
       .set('Origin', ORIGIN)
@@ -330,10 +343,11 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: randomUUID(),
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: randomUUID(),
       });
     expect(driftStart.status).toBe(409);
-    expect((driftStart.body as ErrorBody).code).toBe('CONSENT_REQUIRED');
+    expect((driftStart.body as ErrorBody).code).toBe('CONSENT_REAUTHORIZATION_REQUIRED');
     expect(await prisma.audioObject.count({ where: { sessionId: driftSessionId } })).toBe(0);
     const revokeRequestId = '00000000-0000-4000-8000-000000000103';
     const revoked = await listenerA
@@ -413,7 +427,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-13T00:00:00.000Z',
         request_id: randomUUID(),
@@ -427,6 +441,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: randomUUID(),
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: randomUUID(),
       });
     expect(started.status).toBe(201);
@@ -522,7 +537,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     const consentPayload = {
       consent_audio_object_id: null,
       consent_method: 'electronic',
-      consent_text_version: 'mvp-v1',
+      consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
       consent_type: 'recording_transcription_ai',
       consented_at: '2026-08-12T12:00:00.000Z',
       request_id: consentRequestId,
@@ -562,7 +577,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
     expect((crossAction.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
   });
 
-  it('serializes concurrent session numbering', async () => {
+  it('allows the legacy endpoint to create only the first session and preserves winner replay', async () => {
     const server = application().getHttpServer() as SupertestApp;
     const listener = request.agent(server);
     const login = await listener
@@ -577,20 +592,453 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({ display_name: '虚构并发场次项目', request_id: randomUUID() });
     const projectId = (project.body as IdBody).id;
 
+    const requestIds = Array.from({ length: 5 }, () => randomUUID());
     const responses = await Promise.all(
-      Array.from({ length: 5 }, async () =>
+      requestIds.map(async (requestId) =>
         listener
           .post(`/api/v1/projects/${projectId}/sessions`)
           .set('Origin', ORIGIN)
           .set('X-CSRF-Token', csrf)
-          .send({ request_id: randomUUID() }),
+          .send({ request_id: requestId }),
       ),
     );
-    expect(responses.every((response) => response.status === 201)).toBe(true);
-    const sequenceNumbers = responses
-      .map((response) => (response.body as { sequence_no: number }).sequence_no)
-      .sort((left, right) => left - right);
-    expect(sequenceNumbers).toEqual([1, 2, 3, 4, 5]);
+    const winnerIndex = responses.findIndex((response) => response.status === 201);
+    expect(winnerIndex).toBeGreaterThanOrEqual(0);
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(1);
+    expect((responses[winnerIndex]?.body as { sequence_no: number }).sequence_no).toBe(1);
+    expect(
+      responses
+        .filter((response) => response.status === 409)
+        .every((response) => (response.body as ErrorBody).code === 'NEXT_SESSION_REQUIRED'),
+    ).toBe(true);
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'interview_session.create', requestId: { in: requestIds } },
+      }),
+    ).toBe(1);
+    expect(await prisma.idempotencyRecord.count({ where: { requestId: { in: requestIds } } })).toBe(
+      1,
+    );
+
+    const replay = await listener
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ request_id: requestIds[winnerIndex] });
+    expect(replay.status).toBe(201);
+    expect(replay.body).toEqual(responses[winnerIndex]?.body);
+
+    await prisma.interviewSession.updateMany({
+      data: { endedAt: new Date(), status: 'completed' },
+      where: { projectId },
+    });
+    const bypassRequestId = randomUUID();
+    const bypass = await listener
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ request_id: bypassRequestId });
+    expect(bypass.status).toBe(409);
+    expect((bypass.body as ErrorBody).code).toBe('NEXT_SESSION_REQUIRED');
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.idempotencyRecord.count({
+        where: { requestId: { in: [...requestIds, bypassRequestId] } },
+      }),
+    ).toBe(1);
+  });
+
+  it('uses one authoritative repeat decision for Home, next-session, and reminder-gated start', async () => {
+    const listener = request.agent(application().getHttpServer() as SupertestApp);
+    const login = await listener
+      .post('/api/v1/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: 'project-listener-a@example.test', password: PASSWORD });
+    const csrf = (login.body as LoginBody).csrf_token;
+    const actor = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+
+    async function repeatFixture(label: string): Promise<{ basisId: string; projectId: string }> {
+      const project = await prisma.elderProject.create({
+        data: { createdBy: actor.id, displayName: label, status: 'active' },
+      });
+      await prisma.projectAssignment.create({
+        data: { assignmentRole: 'interviewer', projectId: project.id, userId: actor.id },
+      });
+      await prisma.consentRecord.create({
+        data: {
+          consentMethod: 'written',
+          consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
+          consentType: 'recording_transcription_ai',
+          consentedAt: new Date('2026-08-14T00:00:00.000Z'),
+          createdBy: actor.id,
+          projectId: project.id,
+          status: 'valid',
+        },
+      });
+      const basis = await prisma.interviewSession.create({
+        data: {
+          createdBy: actor.id,
+          endedAt: new Date('2026-08-14T00:10:00.000Z'),
+          projectId: project.id,
+          sequenceNo: 1,
+          startedAt: new Date('2026-08-14T00:00:00.000Z'),
+          status: 'completed',
+        },
+      });
+      return { basisId: basis.id, projectId: project.id };
+    }
+
+    const fixture = await repeatFixture('虚构 B1 权威动作项目');
+    const home = await listener.get('/api/v1/projects').set('Origin', ORIGIN);
+    const row = (home.body as { items: Array<Record<string, unknown>> }).items.find(
+      ({ id }) => id === fixture.projectId,
+    );
+    expect(row?.repeat_interview).toMatchObject({
+      basis_sequence_no: 1,
+      basis_session_id: fixture.basisId,
+      next_sequence_no: 2,
+      primary_action: 'start_next_session',
+      reason: 'eligible',
+    });
+
+    const requestId = randomUUID();
+    const payload = {
+      basis_session_id: fixture.basisId,
+      expected_basis_sequence_no: 1,
+      request_id: requestId,
+      workflow_version: 'repeat-interview-v1',
+    };
+    const created = await listener
+      .post(`/api/v1/projects/${fixture.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(payload);
+    const replay = await listener
+      .post(`/api/v1/projects/${fixture.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(payload);
+    expect(created.status).toBe(201);
+    expect(replay.body).toEqual(created.body);
+    expect(created.body).toMatchObject({
+      basis_sequence_no: 1,
+      basis_session_id: fixture.basisId,
+      project_id: fixture.projectId,
+      request_id: requestId,
+      session: {
+        project_id: fixture.projectId,
+        recording_start_reminder: {
+          action_label: '开始访谈',
+          creates_consent_record: false,
+          requires_explicit_action: true,
+          version: REMINDER_VERSION,
+        },
+        sequence_no: 2,
+        status: 'created',
+      },
+    });
+    expect(
+      await prisma.auditLog.count({ where: { action: 'next_session.create', requestId } }),
+    ).toBe(1);
+    const changedPayload = await listener
+      .post(`/api/v1/projects/${fixture.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ ...payload, expected_basis_sequence_no: 9 });
+    expect(changedPayload.status).toBe(409);
+    expect((changedPayload.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
+    const nextSessionId = (created.body as { session: IdBody }).session.id;
+    expect(await prisma.audioObject.count({ where: { sessionId: nextSessionId } })).toBe(0);
+    expect(
+      await prisma.sessionCaptureGeneration.count({ where: { sessionId: nextSessionId } }),
+    ).toBe(0);
+    expect(await prisma.speakerStream.count({ where: { sessionId: nextSessionId } })).toBe(0);
+    expect(
+      await prisma.speakerCalibrationAttempt.count({ where: { sessionId: nextSessionId } }),
+    ).toBe(0);
+
+    await listener
+      .post(`/api/v1/sessions/${nextSessionId}/device-check`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ input_detected: true, microphone_permission: 'granted' });
+    const staleStartRequestId = randomUUID();
+    const staleStart = await listener
+      .post(`/api/v1/sessions/${nextSessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        audio_stream_id: randomUUID(),
+        mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: 'recording-reminder-v0',
+        request_id: staleStartRequestId,
+      });
+    expect(staleStart.status).toBe(409);
+    expect((staleStart.body as ErrorBody).code).toBe('RECORDING_REMINDER_VERSION_STALE');
+    expect(await prisma.audioObject.count({ where: { sessionId: nextSessionId } })).toBe(0);
+    expect(
+      await prisma.sessionCaptureGeneration.count({ where: { sessionId: nextSessionId } }),
+    ).toBe(0);
+
+    const consentCountBeforeStart = await prisma.consentRecord.count({
+      where: { projectId: fixture.projectId },
+    });
+    const startRequestId = randomUUID();
+    const startPayload = {
+      audio_stream_id: randomUUID(),
+      mime_type: 'audio/webm;codecs=opus',
+      recording_reminder_version: REMINDER_VERSION,
+      request_id: startRequestId,
+    };
+    const started = await listener
+      .post(`/api/v1/sessions/${nextSessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(startPayload);
+    const startedReplay = await listener
+      .post(`/api/v1/sessions/${nextSessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(startPayload);
+    expect(started.status).toBe(201);
+    expect(startedReplay.body).toEqual(started.body);
+    expect(await prisma.consentRecord.count({ where: { projectId: fixture.projectId } })).toBe(
+      consentCountBeforeStart,
+    );
+    const reminderDriftReplay = await listener
+      .post(`/api/v1/sessions/${nextSessionId}/start`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({ ...startPayload, recording_reminder_version: 'recording-reminder-v0' });
+    expect(reminderDriftReplay.status).toBe(409);
+    expect((reminderDriftReplay.body as ErrorBody).code).toBe('IDEMPOTENCY_PAYLOAD_MISMATCH');
+
+    const concurrentFixture = await repeatFixture('虚构 B1 并发项目');
+    const changedProject = await listener
+      .post(`/api/v1/projects/${concurrentFixture.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(payload);
+    expect(changedProject.status).toBe(409);
+    expect((changedProject.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
+    const concurrentRequestIds = [randomUUID(), randomUUID()];
+    const concurrentResponses = await Promise.all(
+      concurrentRequestIds.map((concurrentRequestId) =>
+        listener
+          .post(`/api/v1/projects/${concurrentFixture.projectId}/next-session`)
+          .set('Origin', ORIGIN)
+          .set('X-CSRF-Token', csrf)
+          .send({
+            basis_session_id: concurrentFixture.basisId,
+            expected_basis_sequence_no: 1,
+            request_id: concurrentRequestId,
+            workflow_version: 'repeat-interview-v1',
+          }),
+      ),
+    );
+    expect(concurrentResponses.map(({ status }) => status).sort()).toEqual([201, 409]);
+    const loser = concurrentResponses.find(({ status }) => status === 409);
+    const loserIndex = concurrentResponses.findIndex(({ status }) => status === 409);
+    expect((loser?.body as ErrorBody).code).toBe('NEXT_SESSION_ALREADY_EXISTS');
+    expect((loser?.body as { details: { sequence_no: number } }).details.sequence_no).toBe(2);
+    const loserReplay = await listener
+      .post(`/api/v1/projects/${concurrentFixture.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send({
+        basis_session_id: concurrentFixture.basisId,
+        expected_basis_sequence_no: 1,
+        request_id: concurrentRequestIds[loserIndex],
+        workflow_version: 'repeat-interview-v1',
+      });
+    expect(loserReplay.status).toBe(409);
+    expect(loserReplay.body).toMatchObject({
+      code: 'NEXT_SESSION_ALREADY_EXISTS',
+      details: {
+        sequence_no: 2,
+        session_id: (loser?.body as { details: { session_id: string } }).details.session_id,
+      },
+      message: 'A current interview session already exists',
+    });
+    expect(
+      await prisma.interviewSession.count({ where: { projectId: concurrentFixture.projectId } }),
+    ).toBe(2);
+  });
+
+  it('fails closed when stale Home facts drift across project, assignment, consent, restriction, or deletion', async () => {
+    const listener = request.agent(application().getHttpServer() as SupertestApp);
+    const login = await listener
+      .post('/api/v1/auth/login')
+      .set('Origin', ORIGIN)
+      .send({ email: 'project-listener-a@example.test', password: PASSWORD });
+    const csrf = (login.body as LoginBody).csrf_token;
+    const actor = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+    const deletion = application().get(LocalTestDeletionScopeFixtureReader);
+
+    async function fixture(label: string): Promise<{ basisId: string; projectId: string }> {
+      const project = await prisma.elderProject.create({
+        data: { createdBy: actor.id, displayName: label, status: 'active' },
+      });
+      await prisma.projectAssignment.create({
+        data: { assignmentRole: 'interviewer', projectId: project.id, userId: actor.id },
+      });
+      await prisma.consentRecord.create({
+        data: {
+          consentMethod: 'written',
+          consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
+          consentType: 'recording_transcription_ai',
+          consentedAt: new Date(),
+          createdBy: actor.id,
+          projectId: project.id,
+          status: 'valid',
+        },
+      });
+      const basis = await prisma.interviewSession.create({
+        data: { createdBy: actor.id, projectId: project.id, sequenceNo: 1, status: 'completed' },
+      });
+      return { basisId: basis.id, projectId: project.id };
+    }
+
+    function nextPayload(basisId: string): Record<string, unknown> {
+      return {
+        basis_session_id: basisId,
+        expected_basis_sequence_no: 1,
+        request_id: randomUUID(),
+        workflow_version: 'repeat-interview-v1',
+      };
+    }
+
+    const projectP = await fixture('虚构跨项目 P');
+    const projectQ = await fixture('虚构跨项目 Q');
+    const crossProject = await listener
+      .post(`/api/v1/projects/${projectQ.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(nextPayload(projectP.basisId));
+    expect(crossProject.status).toBe(409);
+    expect((crossProject.body as ErrorBody).code).toBe('NEXT_SESSION_BASIS_STALE');
+    expect(await prisma.interviewSession.count({ where: { projectId: projectQ.projectId } })).toBe(
+      1,
+    );
+
+    const assignmentDrift = await fixture('虚构 assignment 漂移');
+    await prisma.projectAssignment.updateMany({
+      data: { revokedAt: new Date() },
+      where: { projectId: assignmentDrift.projectId, userId: actor.id },
+    });
+    const denied = await listener
+      .post(`/api/v1/projects/${assignmentDrift.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(nextPayload(assignmentDrift.basisId));
+    expect(denied.status).toBe(404);
+    expect(
+      await prisma.interviewSession.count({ where: { projectId: assignmentDrift.projectId } }),
+    ).toBe(1);
+
+    const restrictionDrift = await fixture('虚构 restriction 漂移');
+    await prisma.elderProject.update({
+      data: { status: 'restricted', statusBeforeRestriction: 'active' },
+      where: { id: restrictionDrift.projectId },
+    });
+    const restricted = await listener
+      .post(`/api/v1/projects/${restrictionDrift.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(nextPayload(restrictionDrift.basisId));
+    expect(restricted.status).toBe(409);
+    expect((restricted.body as ErrorBody).code).toBe('PROJECT_NOT_STARTABLE');
+
+    const consentDrift = await fixture('虚构 consent 漂移');
+    await prisma.consentRecord.create({
+      data: {
+        consentMethod: 'written',
+        consentTextVersion: 'incompatible-fictional-version',
+        consentType: 'recording_transcription_ai',
+        consentedAt: new Date(),
+        createdAt: new Date(Date.now() + 1_000),
+        createdBy: actor.id,
+        projectId: consentDrift.projectId,
+        status: 'valid',
+      },
+    });
+    const reauthorization = await listener
+      .post(`/api/v1/projects/${consentDrift.projectId}/next-session`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrf)
+      .send(nextPayload(consentDrift.basisId));
+    expect(reauthorization.status).toBe(409);
+    expect((reauthorization.body as ErrorBody).code).toBe('CONSENT_REAUTHORIZATION_REQUIRED');
+    expect(
+      await prisma.interviewSession.count({ where: { projectId: consentDrift.projectId } }),
+    ).toBe(1);
+
+    const deletionDrift = await fixture('虚构 deletion 漂移');
+    deletion.blockProject(deletionDrift.projectId);
+    try {
+      const home = await listener.get('/api/v1/projects').set('Origin', ORIGIN);
+      const row = (home.body as { items: Array<Record<string, unknown>> }).items.find(
+        ({ id }) => id === deletionDrift.projectId,
+      );
+      expect(row?.repeat_interview).toMatchObject({
+        primary_action: null,
+        reason: 'project_unavailable',
+      });
+      const blockedNext = await listener
+        .post(`/api/v1/projects/${deletionDrift.projectId}/next-session`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', csrf)
+        .send(nextPayload(deletionDrift.basisId));
+      expect(blockedNext.status).toBe(409);
+      expect((blockedNext.body as ErrorBody).code).toBe('PROJECT_NOT_STARTABLE');
+
+      const checkedSession = await prisma.interviewSession.create({
+        data: {
+          createdBy: actor.id,
+          projectId: deletionDrift.projectId,
+          sequenceNo: 2,
+          status: 'device_check',
+        },
+      });
+      const blockedStart = await listener
+        .post(`/api/v1/sessions/${checkedSession.id}/start`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', csrf)
+        .send({
+          audio_stream_id: randomUUID(),
+          mime_type: 'audio/webm;codecs=opus',
+          recording_reminder_version: REMINDER_VERSION,
+          request_id: randomUUID(),
+        });
+      expect(blockedStart.status).toBe(409);
+      expect((blockedStart.body as ErrorBody).code).toBe('PROJECT_NOT_STARTABLE');
+      expect(await prisma.audioObject.count({ where: { sessionId: checkedSession.id } })).toBe(0);
+      expect(
+        await prisma.sessionCaptureGeneration.count({ where: { sessionId: checkedSession.id } }),
+      ).toBe(0);
+    } finally {
+      deletion.clear();
+    }
+
+    const unavailableDecision = new RepeatInterviewDecisionService(
+      prisma,
+      new UnavailableConsentContinuationPolicyReader(),
+      new LocalTestDeletionScopeFixtureReader(),
+    );
+    const unavailable = await unavailableDecision.read(actor.id, projectP.projectId);
+    expect(unavailable.visibility).toBe('ordinary');
+    if (unavailable.visibility === 'ordinary') {
+      expect(unavailable.projection).toMatchObject({
+        consent_continuation: { reason: 'policy_unavailable', status: 'unavailable' },
+        primary_action: null,
+        reason: 'consent_unavailable',
+      });
+    }
   });
 
   it('binds global idempotency keys and serializes start and revoke resources', async () => {
@@ -633,30 +1081,37 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T10:00:00.000Z',
         request_id: randomUUID(),
       });
     const consentId = (consent.body as IdBody).id;
 
-    const sessionResponses = await Promise.all(
-      [0, 1].map(async () => {
-        const created = await listenerA
-          .post(`/api/v1/projects/${projectId}/sessions`)
-          .set('Origin', ORIGIN)
-          .set('X-CSRF-Token', csrfA)
-          .send({ request_id: randomUUID() });
-        const sessionId = (created.body as IdBody).id;
-        await listenerA
-          .post(`/api/v1/sessions/${sessionId}/device-check`)
-          .set('Origin', ORIGIN)
-          .set('X-CSRF-Token', csrfA)
-          .send({ input_detected: true, microphone_permission: 'granted' });
-        return sessionId;
-      }),
-    );
-    const [sessionId, otherSessionId] = sessionResponses as [string, string];
+    const createdSession = await listenerA
+      .post(`/api/v1/projects/${projectId}/sessions`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ request_id: randomUUID() });
+    const sessionId = (createdSession.body as IdBody).id;
+    await listenerA
+      .post(`/api/v1/sessions/${sessionId}/device-check`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({ input_detected: true, microphone_permission: 'granted' });
+    const otherSessionOwner = await prisma.user.findUniqueOrThrow({
+      where: { email: 'project-listener-a@example.test' },
+    });
+    // Internal fixture for cross-target idempotency binding; not a production creation path.
+    const otherSession = await prisma.interviewSession.create({
+      data: {
+        createdBy: otherSessionOwner.id,
+        projectId,
+        sequenceNo: 2,
+        status: 'device_check',
+      },
+    });
+    const otherSessionId = otherSession.id;
     const startRequestIds = [
       '00000000-0000-4000-8000-000000000301',
       '00000000-0000-4000-8000-000000000302',
@@ -671,6 +1126,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
           .send({
             audio_stream_id: concurrentStreamId,
             mime_type: 'audio/webm;codecs=opus',
+            recording_reminder_version: REMINDER_VERSION,
             request_id: requestId,
           }),
       ),
@@ -691,6 +1147,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: concurrentStreamId,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: winnerRequestId,
       });
     expect(replay.body).toEqual(firstSnapshot);
@@ -702,6 +1159,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: concurrentStreamId,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: winnerRequestId,
       });
     expect((differentTarget.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
@@ -718,6 +1176,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: concurrentStreamId,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: winnerRequestId,
       });
     expect((differentActor.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
@@ -728,6 +1187,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: concurrentStreamId,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: winnerRequestId,
       });
     expect((differentAction.body as ErrorBody).code).toBe('IDEMPOTENCY_KEY_REUSED');
@@ -770,6 +1230,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         audio_stream_id: concurrentStreamId,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: REMINDER_VERSION,
         request_id: winnerRequestId,
       });
     expect(replayAfterAssignmentRevocation.status).toBe(403);
@@ -817,7 +1278,7 @@ describe('project, bundled consent and interview start vertical seam', () => {
       .send({
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-03T11:00:00.000Z',
         request_id: randomUUID(),

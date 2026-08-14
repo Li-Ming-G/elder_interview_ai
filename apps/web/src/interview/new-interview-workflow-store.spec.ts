@@ -48,6 +48,36 @@ describe('IndexedDbNewInterviewWorkflowStore', () => {
     expect(await store.getOrCreateDetachedSessionRequestId('actor-a', 'project-a')).not.toBe(first);
   });
 
+  it('freezes the complete next-session payload before networking and reuses it after reopen', async () => {
+    const factory = new IDBFactory();
+    const store = new IndexedDbNewInterviewWorkflowStore(factory);
+    const first = await store.getOrCreateNextSessionAttempt(
+      'actor-a',
+      'project-a',
+      '11111111-1111-4111-8111-111111111111',
+      1,
+    );
+    await store.markNextSessionUnknown(first);
+    const reopened = new IndexedDbNewInterviewWorkflowStore(factory);
+    const attempts = await reopened.listNextSessionAttempts('actor-a');
+    expect(attempts).toEqual([
+      {
+        ...first,
+        state: 'unknown_response',
+      },
+    ]);
+    expect(
+      await reopened.getOrCreateNextSessionAttempt(
+        'actor-a',
+        'project-a',
+        '22222222-2222-4222-8222-222222222222',
+        9,
+      ),
+    ).toEqual({ ...first, state: 'unknown_response' });
+    await reopened.acknowledgeNextSession('actor-a', 'project-a');
+    expect(await reopened.listNextSessionAttempts('actor-a')).toEqual([]);
+  });
+
   it('canonicalizes equivalent payloads without request-order guesses', () => {
     expect(canonicalWorkflowPayload({ b: 2, a: { y: 2, x: 1 } })).toBe(
       canonicalWorkflowPayload({ a: { x: 1, y: 2 }, b: 2 }),

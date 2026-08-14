@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   AuthUser,
   ProjectListOrdinaryProjection,
@@ -9,9 +9,19 @@ import type {
   SessionPrimaryAction,
 } from '@elder-interview/contracts';
 
-import type { HomeApi } from '../interview/interview-api.js';
+import type { HomeApi, NextSessionApi } from '../interview/interview-api.js';
 import { InterviewApiError } from '../interview/interview-api.js';
-import { preparationPath, reviewPath, saveFactsPath, workbenchPath } from '../interview/routes.js';
+import {
+  preparationPath,
+  reauthorizationPath,
+  reviewPath,
+  saveFactsPath,
+  workbenchPath,
+} from '../interview/routes.js';
+import {
+  IndexedDbNewInterviewWorkflowStore,
+  type NextSessionAttempt,
+} from '../interview/new-interview-workflow-store.js';
 
 interface ProjectSessions {
   items: ProjectSessionListItem[];
@@ -24,21 +34,43 @@ export function HomeShell({
   navigate,
   onAuthLost,
   onLogout,
+  workflowStore,
   user,
 }: {
-  api: HomeApi;
+  api: HomeApi & NextSessionApi;
   errorMessage?: string | null;
   navigate: (path: string) => void;
   onAuthLost: () => void;
   onLogout: () => Promise<void>;
+  workflowStore?: IndexedDbNewInterviewWorkflowStore;
   user: AuthUser;
 }): React.JSX.Element {
+  const store = useMemo(
+    () => workflowStore ?? new IndexedDbNewInterviewWorkflowStore(),
+    [workflowStore],
+  );
   const [projects, setProjects] = useState<ProjectListProjection[] | null>(null);
   const [sessions, setSessions] = useState<Record<string, ProjectSessions>>({});
   const [error, setError] = useState<string | null>(null);
+  const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
+    const resumeWhenOnline = (): void => {
+      void (async (): Promise<void> => {
+        try {
+          const pending = await store.listNextSessionAttempts(user.id);
+          if (!current || pending.length === 0) return;
+          await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
+        } catch {
+          if (current) {
+            setActionMessage('浏览器暂时无法恢复上次创建操作，请刷新后重试。');
+          }
+        }
+      })();
+    };
+    window.addEventListener('online', resumeWhenOnline);
     async function load(): Promise<void> {
       setError(null);
       try {
@@ -61,6 +93,9 @@ export function HomeShell({
             ]),
           ),
         );
+        const pending = await store.listNextSessionAttempts(user.id);
+        if (pending.length === 0) return;
+        await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
       } catch (loadError) {
         if (!current) return;
         if (loadError instanceof InterviewApiError && loadError.status === 401) {
@@ -73,8 +108,68 @@ export function HomeShell({
     void load();
     return function cleanup(): void {
       current = false;
+      window.removeEventListener('online', resumeWhenOnline);
     };
-  }, [api, onAuthLost]);
+  }, [api, navigate, onAuthLost, store, user.id]);
+
+  async function resumeNextSessionAttempt(attempt: NextSessionAttempt): Promise<void> {
+    setBusyProjectId(attempt.projectId);
+    setActionMessage('正在恢复上次创建下一次访谈的操作，不会重复创建会话。');
+    try {
+      const response = await api.createNextSession(attempt.projectId, attempt.payload);
+      assertNextSessionAck(attempt, response);
+      await store.acknowledgeNextSession(user.id, attempt.projectId);
+      navigate(preparationPath(attempt.projectId, response.session.id));
+    } catch (attemptError) {
+      if (attemptError instanceof InterviewApiError && attemptError.status === 401) {
+        onAuthLost();
+      } else if (attemptError instanceof InterviewApiError && attemptError.status === 0) {
+        await store.markNextSessionUnknown(attempt);
+        setActionMessage('暂时无法确认创建结果；网络恢复后会用同一操作继续核对。');
+      } else if (
+        attemptError instanceof Error &&
+        attemptError.message === 'NEXT_SESSION_ACK_MISMATCH'
+      ) {
+        await store.markNextSessionUnknown(attempt);
+        setActionMessage('服务端结果无法安全核对；已保留原操作，刷新后会继续权威重放。');
+      } else if (
+        attemptError instanceof InterviewApiError &&
+        attemptError.code === 'NEXT_SESSION_ALREADY_EXISTS'
+      ) {
+        const existing = parseCurrentSessionPointer(attemptError.details);
+        if (existing !== null) {
+          await store.acknowledgeNextSession(user.id, attempt.projectId);
+          navigate(preparationPath(attempt.projectId, existing.sessionId));
+        } else {
+          await store.markNextSessionUnknown(attempt);
+          setActionMessage('服务端返回的会话指针无法安全核对；已保留原操作，请刷新后重试。');
+        }
+      } else {
+        await store.acknowledgeNextSession(user.id, attempt.projectId);
+        setActionMessage('当前无法创建下一次访谈，请刷新权威项目状态后再试。');
+      }
+    } finally {
+      setBusyProjectId(null);
+    }
+  }
+
+  async function startNextSession(project: ProjectListOrdinaryProjection): Promise<void> {
+    const action = project.repeat_interview;
+    if (action?.primary_action !== 'start_next_session') {
+      return;
+    }
+    try {
+      const attempt = await store.getOrCreateNextSessionAttempt(
+        user.id,
+        project.id,
+        action.basis_session_id,
+        action.basis_sequence_no,
+      );
+      await resumeNextSessionAttempt(attempt);
+    } catch {
+      setActionMessage('浏览器无法可靠保存本次创建操作，尚未向服务端发起请求。');
+    }
+  }
 
   async function loadMore(projectId: string): Promise<void> {
     const current = sessions[projectId];
@@ -124,6 +219,11 @@ export function HomeShell({
         </div>
       </header>
       {errorMessage === null ? null : <ErrorState message={errorMessage} />}
+      {actionMessage === null ? null : (
+        <p className="workflow-message" role="status">
+          {actionMessage}
+        </p>
+      )}
       <section className="home-section" aria-labelledby="assigned-heading" aria-live="polite">
         <div className="section-heading">
           <div>
@@ -146,8 +246,10 @@ export function HomeShell({
           ) : (
             <ProjectGroup
               key={project.id}
+              busy={busyProjectId === project.id}
               navigate={navigate}
               onLoadMore={() => void loadMore(project.id)}
+              onStartNext={() => void startNextSession(project)}
               project={project}
               sessions={sessions[project.id] ?? { items: [], nextCursor: null }}
             />
@@ -156,6 +258,23 @@ export function HomeShell({
       </section>
     </HomeFrame>
   );
+}
+
+function parseCurrentSessionPointer(
+  details: Readonly<Record<string, unknown>>,
+): { sequenceNo: number; sessionId: string } | null {
+  const keys = Object.keys(details).sort();
+  if (keys.length !== 2 || keys[0] !== 'sequence_no' || keys[1] !== 'session_id') return null;
+  const sequenceNo = details.sequence_no;
+  const sessionId = details.session_id;
+  if (!Number.isSafeInteger(sequenceNo) || (sequenceNo as number) < 1) return null;
+  if (
+    typeof sessionId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(sessionId)
+  ) {
+    return null;
+  }
+  return { sequenceNo: sequenceNo as number, sessionId };
 }
 
 export function HomeFrame({ children }: { children: ReactNode }): React.JSX.Element {
@@ -211,13 +330,17 @@ export function ErrorState({ message }: { message: string }): React.JSX.Element 
 }
 
 function ProjectGroup({
+  busy,
   navigate,
   onLoadMore,
+  onStartNext,
   project,
   sessions,
 }: {
+  busy: boolean;
   navigate: (path: string) => void;
   onLoadMore: () => void;
+  onStartNext: () => void;
   project: ProjectListOrdinaryProjection;
   sessions: ProjectSessions;
 }): React.JSX.Element {
@@ -228,9 +351,32 @@ function ProjectGroup({
           <h3>{project.display_name}</h3>
           <span>项目状态：{projectStatusLabel(project.status)}</span>
         </div>
-        <StatusBadge tone={project.status === 'active' ? 'active' : 'neutral'}>
-          {projectStatusLabel(project.status)}
-        </StatusBadge>
+        <div className="project-group__actions">
+          <StatusBadge tone={project.status === 'active' ? 'active' : 'neutral'}>
+            {projectStatusLabel(project.status)}
+          </StatusBadge>
+          {project.repeat_interview?.primary_action === 'start_next_session' ? (
+            <button
+              className="button button--primary"
+              disabled={busy}
+              onClick={onStartNext}
+              type="button"
+            >
+              {busy ? '正在建立…' : '开始下一次访谈'}
+            </button>
+          ) : null}
+          {project.repeat_interview?.primary_action === 'record_formal_consent' ? (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                navigate(reauthorizationPath(project.id));
+              }}
+              type="button"
+            >
+              重新取得正式授权
+            </button>
+          ) : null}
+        </div>
       </header>
       {sessions.items.length === 0 ? (
         <div className="project-empty">这个项目还没有访谈会话。</div>
@@ -347,4 +493,20 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
     new Date(value),
   );
+}
+
+function assertNextSessionAck(
+  attempt: NextSessionAttempt,
+  response: Awaited<ReturnType<NextSessionApi['createNextSession']>>,
+): void {
+  if (
+    response.request_id !== attempt.payload.request_id ||
+    response.project_id !== attempt.projectId ||
+    response.basis_session_id !== attempt.payload.basis_session_id ||
+    response.basis_sequence_no !== attempt.payload.expected_basis_sequence_no ||
+    response.session.project_id !== attempt.projectId ||
+    response.session.sequence_no !== attempt.payload.expected_basis_sequence_no + 1
+  ) {
+    throw new Error('NEXT_SESSION_ACK_MISMATCH');
+  }
 }

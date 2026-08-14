@@ -1,6 +1,7 @@
 import type {
   ConsentResponse,
   CreateConsentRequest,
+  CreateNextSessionRequest,
   CreateProjectRequest,
   CreateServiceTermRequest,
   InterviewSessionResponse,
@@ -9,10 +10,11 @@ import type {
 } from '@elder-interview/contracts';
 
 const DATABASE_NAME = 'elder-interview-new-workflow';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const WORKFLOW_STORE = 'workflows';
 const ACTOR_INDEX = 'by-actor';
 const SESSION_ATTEMPT_STORE = 'session-attempts';
+const NEXT_SESSION_ATTEMPT_STORE = 'next-session-attempts';
 
 export type WorkflowStep =
   'project' | 'service_term' | 'session' | 'consent_audio' | 'consent' | 'start' | 'complete';
@@ -46,6 +48,14 @@ interface DetachedSessionAttempt {
   key: string;
   projectId: string;
   requestId: string;
+}
+
+export interface NextSessionAttempt {
+  actorId: string;
+  key: string;
+  payload: CreateNextSessionRequest;
+  projectId: string;
+  state: 'prepared' | 'unknown_response';
 }
 
 export class IndexedDbNewInterviewWorkflowStore {
@@ -134,6 +144,75 @@ export class IndexedDbNewInterviewWorkflowStore {
     await completion;
   }
 
+  public async getOrCreateNextSessionAttempt(
+    actorId: string,
+    projectId: string,
+    basisSessionId: string,
+    basisSequenceNo: number,
+  ): Promise<NextSessionAttempt> {
+    const database = await this.database();
+    const key = `${actorId}:${projectId}`;
+    const transaction = database.transaction(NEXT_SESSION_ATTEMPT_STORE, 'readwrite');
+    const completion = transactionComplete(transaction);
+    const store = transaction.objectStore(NEXT_SESSION_ATTEMPT_STORE);
+    const existing = await idbRequest(store.get(key) as IDBRequest<NextSessionAttempt | undefined>);
+    if (existing !== undefined) {
+      await completion;
+      return existing;
+    }
+    const requestId = globalThis.crypto.randomUUID();
+    const attempt: NextSessionAttempt = {
+      actorId,
+      key,
+      payload: {
+        basis_session_id: basisSessionId,
+        expected_basis_sequence_no: basisSequenceNo,
+        request_id: requestId,
+        workflow_version: 'repeat-interview-v1',
+      },
+      projectId,
+      state: 'prepared',
+    };
+    await idbRequest(store.put(attempt));
+    await completion;
+    return attempt;
+  }
+
+  public async listNextSessionAttempts(actorId: string): Promise<NextSessionAttempt[]> {
+    const database = await this.database();
+    const transaction = database.transaction(NEXT_SESSION_ATTEMPT_STORE, 'readonly');
+    const completion = transactionComplete(transaction);
+    const attempts = await idbRequest(
+      transaction.objectStore(NEXT_SESSION_ATTEMPT_STORE).getAll() as IDBRequest<
+        NextSessionAttempt[]
+      >,
+    );
+    await completion;
+    return attempts.filter((attempt) => attempt.actorId === actorId);
+  }
+
+  public async markNextSessionUnknown(attempt: NextSessionAttempt): Promise<void> {
+    const database = await this.database();
+    const transaction = database.transaction(NEXT_SESSION_ATTEMPT_STORE, 'readwrite');
+    const completion = transactionComplete(transaction);
+    await idbRequest(
+      transaction
+        .objectStore(NEXT_SESSION_ATTEMPT_STORE)
+        .put({ ...attempt, state: 'unknown_response' } satisfies NextSessionAttempt),
+    );
+    await completion;
+  }
+
+  public async acknowledgeNextSession(actorId: string, projectId: string): Promise<void> {
+    const database = await this.database();
+    const transaction = database.transaction(NEXT_SESSION_ATTEMPT_STORE, 'readwrite');
+    const completion = transactionComplete(transaction);
+    await idbRequest(
+      transaction.objectStore(NEXT_SESSION_ATTEMPT_STORE).delete(`${actorId}:${projectId}`),
+    );
+    await completion;
+  }
+
   public async put(workflow: NewInterviewWorkflow): Promise<void> {
     assertWorkflow(workflow);
     const database = await this.database();
@@ -159,6 +238,9 @@ export class IndexedDbNewInterviewWorkflowStore {
         }
         if (!database.objectStoreNames.contains(SESSION_ATTEMPT_STORE)) {
           database.createObjectStore(SESSION_ATTEMPT_STORE, { keyPath: 'key' });
+        }
+        if (!database.objectStoreNames.contains(NEXT_SESSION_ATTEMPT_STORE)) {
+          database.createObjectStore(NEXT_SESSION_ATTEMPT_STORE, { keyPath: 'key' });
         }
       };
       open.onerror = (): void => {

@@ -28,6 +28,7 @@ for (const viewport of [
     await expect(page.getByText('当前不可访问')).toBeVisible();
     await expect(page.getByText('受限长者真名')).toHaveCount(0);
     await expect(page.locator('[aria-live="polite"]')).toHaveCount(1);
+    await expect(page.getByRole('button', { name: '开始下一次访谈' })).toHaveCount(1);
     await expect(page.getByRole('button', { name: '查看回顾' })).toHaveCount(1);
 
     const layout = await page.evaluate(() => ({
@@ -49,6 +50,8 @@ for (const viewport of [
         .getByRole('button', { name: '新建访谈' })
         .evaluate((button) => getComputedStyle(button).transitionDuration),
     ).toBe('1e-05s');
+    await page.getByRole('button', { name: '开始下一次访谈' }).focus();
+    await expect(page.getByRole('button', { name: '开始下一次访谈' })).toBeFocused();
     await mkdir('output/playwright', { recursive: true });
     await page.screenshot({
       fullPage: true,
@@ -89,6 +92,23 @@ function apiResponse(pathname: string): unknown {
           id: PROJECT_ID,
           native_place: null,
           projection: 'ordinary',
+          repeat_interview: {
+            basis_sequence_no: 1,
+            basis_session_id: SESSION_ID,
+            consent_continuation: {
+              basis_consent_record_id: '33333333-3333-4333-8333-333333333333',
+              basis_consent_text_version: 'fictional-test-continuing-consent-v1',
+              reason: 'same_project_planned_interviews_covered',
+              required_action: 'show_recording_reminder',
+              required_consent_text_version: 'fictional-test-continuing-consent-v1',
+              status: 'covered',
+              workflow_version: 'continuing-consent-v1',
+            },
+            next_sequence_no: 2,
+            primary_action: 'start_next_session',
+            reason: 'eligible',
+            workflow_version: 'repeat-interview-v1',
+          },
           status: 'active',
           updated_at: '2026-08-12T08:00:00.000Z',
         },

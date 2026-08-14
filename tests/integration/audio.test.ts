@@ -11,6 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PasswordService } from '../../apps/api/src/auth/password.service.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import {
+  FICTIONAL_CONTINUING_CONSENT_VERSION,
+  SyntheticConsentContinuationPolicyReader,
+} from '../../apps/api/src/project-foundation/consent-continuation.policy.js';
 
 const ORIGIN = 'http://127.0.0.1:4173';
 const PASSWORD = 'Fictional-only-Audio-Password-42!';
@@ -54,6 +58,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
         AI_RETENTION_CLEANUP_PEPPER: 'test-only-audio-retention-pepper',
         DATABASE_URL: databaseUrl,
       }),
+      { consentContinuationPolicyReader: new SyntheticConsentContinuationPolicyReader() },
     );
     await application().init();
     prisma = application().get(PrismaService);
@@ -236,7 +241,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .send({
         consent_audio_object_id: audioObjectId,
         consent_method: 'recorded_verbal',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T08:00:00.000Z',
         request_id: randomUUID(),
@@ -247,6 +252,20 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       consent_method: 'recorded_verbal',
       status: 'valid',
     });
+    const crossVersionReuse = await listenerA
+      .post(`/api/v1/projects/${projectId}/consents`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', csrfA)
+      .send({
+        consent_audio_object_id: audioObjectId,
+        consent_method: 'recorded_verbal',
+        consent_text_version: 'fictional-test-incompatible-version',
+        consent_type: 'recording_transcription_ai',
+        consented_at: '2026-08-04T08:00:30.000Z',
+        request_id: randomUUID(),
+      });
+    expect(crossVersionReuse.status).toBe(409);
+    expect((crossVersionReuse.body as ErrorBody).code).toBe('CONSENT_AUDIO_VERSION_CONFLICT');
 
     const otherProjectId = await createProject(listenerA, csrfA, '虚构跨项目授权');
     await appendServiceTerm(listenerA, csrfA, otherProjectId);
@@ -257,7 +276,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .send({
         consent_audio_object_id: audioObjectId,
         consent_method: 'recorded_verbal',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T08:01:00.000Z',
         request_id: randomUUID(),
@@ -277,6 +296,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .send({
         audio_stream_id: '00000000-0000-4000-8000-000000000410',
         mime_type: MIME,
+        recording_reminder_version: 'recording-reminder-v1',
         request_id: requestId(10),
       });
     expect(started.body).toMatchObject({ status: 'recording' });
@@ -359,7 +379,7 @@ describe('audio object, immutable chunks and canonical manifest', () => {
       .send({
         consent_audio_object_id: audioObjectId,
         consent_method: 'recorded_verbal',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: FICTIONAL_CONTINUING_CONSENT_VERSION,
         consent_type: 'recording_transcription_ai',
         consented_at: '2026-08-04T09:00:00.000Z',
         request_id: randomUUID(),

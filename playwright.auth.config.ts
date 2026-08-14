@@ -21,6 +21,7 @@ export default defineConfig({
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
         AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
         DATABASE_URL: databaseUrl,
+        TEST_CONSENT_CONTINUATION_POLICY: 'synthetic-fictional-v1',
       },
       reuseExistingServer: false,
       timeout: 60_000,

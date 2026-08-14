@@ -36,6 +36,10 @@ for (const viewport of [
     await page.getByRole('button', { name: '停止并保存授权录音' }).click();
     await page.getByRole('button', { name: '确认并登记正式授权' }).click();
 
+    await expect(
+      page.getByText('本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。'),
+    ).toBeVisible();
+    await page.getByRole('button', { name: '开始访谈' }).click();
     await expect(page.locator('.calibration-gate')).toBeVisible();
     await emitCalibration(page, calibrationSnapshot('confirmed', 1));
     await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
@@ -104,7 +108,8 @@ test('real controller facts drive the complete workbench state and responsive sc
   const workbenchUrl = `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`;
 
   await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
-  const startCapture = page.getByRole('button', { name: '建立正式录音并进入校准' });
+  await page.getByRole('button', { name: '检测麦克风' }).click();
+  const startCapture = page.getByRole('button', { name: '开始访谈' });
   await expect(startCapture).toBeEnabled();
   await startCapture.click();
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
@@ -147,7 +152,7 @@ test('real controller facts drive the complete workbench state and responsive sc
     micBeforeCorrection,
   );
   await captureStateMatrix(page, 'recording');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
   expect(server.createdSessions).toBe(0);
 
   server.setState('interrupted');
@@ -156,7 +161,7 @@ test('real controller facts drive the complete workbench state and responsive sc
   await expect(page.getByRole('button', { name: '继续同一次访谈' })).toBeVisible();
   await expect(page.getByRole('button', { name: '安全结束已有音频' })).toBeVisible();
   await captureStateMatrix(page, 'interrupted');
-  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(1);
+  expect(await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')))).toBe(2);
   await expect(page).toHaveURL(new RegExp(`${workbenchUrl}$`));
 
   await page.setViewportSize({ height: 844, width: 390 });
@@ -208,7 +213,8 @@ test('dedicated calibration gate remains accessible on small screens and exits t
   test.setTimeout(90_000);
   await installWorkbenchHarness(page);
   await page.goto(`/projects/${PROJECT_ID}/interview/${SESSION_ID}/prepare`);
-  const startCapture = page.getByRole('button', { name: '建立正式录音并进入校准' });
+  await page.getByRole('button', { name: '检测麦克风' }).click();
+  const startCapture = page.getByRole('button', { name: '开始访谈' });
   await expect(startCapture).toBeEnabled();
   await startCapture.click();
   await expect(page).toHaveURL(
@@ -1020,11 +1026,24 @@ function sessionPayload(
     ended_at: ['completed', 'failed'].includes(status) ? '2026-08-08T08:30:00.000Z' : undefined,
     id: SESSION_ID,
     project_id: PROJECT_ID,
+    recording_start_reminder: ['created', 'device_check'].includes(status)
+      ? recordingStartReminder()
+      : undefined,
     sequence_no: 1,
     started_at: ['created', 'device_check'].includes(status) ? null : '2026-08-08T08:00:00.000Z',
     status,
     updated_at: '2026-08-08T08:30:00.000Z',
     ...extra,
+  };
+}
+
+function recordingStartReminder(): unknown {
+  return {
+    action_label: '开始访谈',
+    creates_consent_record: false,
+    requires_explicit_action: true,
+    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。',
+    version: 'recording-reminder-v1',
   };
 }
 

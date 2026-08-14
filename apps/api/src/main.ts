@@ -3,10 +3,18 @@ import 'reflect-metadata';
 import { ConfigValidationError, loadApiConfig } from '@elder-interview/config';
 
 import { createApplication } from './create-application.js';
+import { SyntheticConsentContinuationPolicyReader } from './project-foundation/consent-continuation.policy.js';
 
 async function main(): Promise<void> {
   const config = loadApiConfig(process.env);
-  const application = await createApplication(config);
+  const consentContinuationPolicyReader =
+    config.appEnv === 'test' &&
+    process.env.TEST_CONSENT_CONTINUATION_POLICY === 'synthetic-fictional-v1'
+      ? new SyntheticConsentContinuationPolicyReader()
+      : undefined;
+  const application = await createApplication(config, {
+    ...(consentContinuationPolicyReader === undefined ? {} : { consentContinuationPolicyReader }),
+  });
   await application.listen(config.apiPort, config.apiHost);
 }
 

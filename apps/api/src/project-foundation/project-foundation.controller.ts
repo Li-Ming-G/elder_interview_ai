@@ -1,5 +1,6 @@
 import type {
   ConsentResponse,
+  CreateNextSessionResponse,
   EvidenceFinalizationResponse,
   InterviewSessionResponse,
   ProjectListResponse,
@@ -43,6 +44,7 @@ import {
   validateCorrectTranscriptSpeakerRole,
   validatePreviewSpeakerRemap,
   validateExecuteSpeakerRemap,
+  validateNextSession,
 } from './project.validation.js';
 
 @Controller()
@@ -160,6 +162,19 @@ export class ProjectFoundationController {
       await this.actors.from(request),
       validateUuid(id),
       validateIdempotentRequest(body).request_id,
+    );
+  }
+
+  @Post('projects/:id/next-session')
+  public async createNextSession(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<CreateNextSessionResponse> {
+    return this.projects.createNextSession(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateNextSession(body),
     );
   }
 
