@@ -168,6 +168,50 @@ describe('speaker calibration causal boundary and trusted role core', () => {
     ).not.toContain('speaker_1');
   });
 
+  it('allows a provider label to be confirmed again on a replacement speaker stream', async () => {
+    const fixture = await createFixture(prisma, runtimes, actor);
+    await prisma.speakerMapping.create({
+      data: {
+        authority: 'user_confirmed',
+        createdBy: actor.id,
+        sessionId: fixture.sessionId,
+        source: 'calibration',
+        speakerProviderId: 'speaker_1',
+        speakerRole: 'interviewer',
+        speakerStreamId: fixture.runtime.speakerStreamId,
+      },
+    });
+    await prisma.speakerStream.update({
+      data: { closedAt: new Date(), status: 'closed' },
+      where: { id: fixture.runtime.speakerStreamId },
+    });
+    const replacement = await prisma.speakerStream.create({
+      data: {
+        captureGenerationId: fixture.runtime.captureGenerationId,
+        sessionId: fixture.sessionId,
+      },
+    });
+
+    await expect(
+      prisma.speakerMapping.create({
+        data: {
+          authority: 'user_confirmed',
+          createdBy: actor.id,
+          sessionId: fixture.sessionId,
+          source: 'calibration',
+          speakerProviderId: 'speaker_1',
+          speakerRole: 'interviewer',
+          speakerStreamId: replacement.id,
+        },
+      }),
+    ).resolves.toMatchObject({ speakerStreamId: replacement.id });
+    expect(
+      await prisma.speakerMapping.count({
+        where: { sessionId: fixture.sessionId, speakerProviderId: 'speaker_1' },
+      }),
+    ).toBe(2);
+  });
+
   it('classifies delayed and cross-boundary finals by the immutable half-open interval', async () => {
     const fixture = await createFixture(prisma, runtimes, actor);
     runtimes.recordFrame(fixture.runtime, frame(fixture.audioStreamId, 0));

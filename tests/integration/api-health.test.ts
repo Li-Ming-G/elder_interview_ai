@@ -67,4 +67,19 @@ describe('API and PostgreSQL integration', () => {
       request_id: response.headers['x-request-id'],
     });
   });
+
+  it('accepts a bounded archive-manifest-sized JSON body above the framework default', async () => {
+    const response = await request(getTestServer(application))
+      .post('/api/v1/auth/login')
+      .set('Origin', 'http://127.0.0.1:4173')
+      .set('Content-Type', 'application/json')
+      .send({
+        email: 'manifest-size-probe@example.test',
+        manifest: 'x'.repeat(150 * 1024),
+        password: 'Fictional-only-Password-42!',
+      })
+      .expect(401);
+
+    expect(toRecord(response.body as unknown)).toMatchObject({ code: 'INVALID_CREDENTIALS' });
+  });
 });

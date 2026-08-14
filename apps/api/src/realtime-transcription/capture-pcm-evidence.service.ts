@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import { StreamingAsrUnavailableError } from './streaming-asr.js';
+import { StreamingAsrError } from './streaming-asr.js';
 
 const ADAPTER_ACCEPT_TIMEOUT_MS = 250;
 const MAX_DURABLE_STREAM_CACHE = 1_024;
@@ -18,35 +18,31 @@ export class CapturePcmEvidenceService {
     audioStreamId: string,
     accept: (signal: AbortSignal) => Promise<TResult>,
   ): Promise<TResult> {
-    for (;;) {
-      if (this.hasDurableEvidence(audioStreamId)) return this.acceptWithinDeadline(accept);
-      const activeAttempt = this.firstEvidenceAttempts.get(audioStreamId);
-      if (activeAttempt !== undefined) {
-        try {
-          await activeAttempt;
-        } catch {
-          // The waiting frame gets its own bounded attempt after the failed leader.
-        }
-        continue;
-      }
-      const attempt = this.acceptFirst(sessionId, audioStreamId, accept);
-      this.firstEvidenceAttempts.set(audioStreamId, attempt);
-      try {
-        return await attempt;
-      } finally {
-        if (this.firstEvidenceAttempts.get(audioStreamId) === attempt) {
-          this.firstEvidenceAttempts.delete(audioStreamId);
-        }
+    const result = await this.acceptWithinDeadline(accept);
+    await this.ensureDurableEvidence(sessionId, audioStreamId);
+    return result;
+  }
+
+  private async ensureDurableEvidence(sessionId: string, audioStreamId: string): Promise<void> {
+    if (this.hasDurableEvidence(audioStreamId)) return;
+    const activeAttempt = this.firstEvidenceAttempts.get(audioStreamId);
+    if (activeAttempt !== undefined) {
+      await activeAttempt;
+      return;
+    }
+    const attempt = this.persistFirst(sessionId, audioStreamId);
+    this.firstEvidenceAttempts.set(audioStreamId, attempt);
+    try {
+      await attempt;
+    } finally {
+      if (this.firstEvidenceAttempts.get(audioStreamId) === attempt) {
+        this.firstEvidenceAttempts.delete(audioStreamId);
       }
     }
   }
 
-  private async acceptFirst<TResult>(
-    sessionId: string,
-    audioStreamId: string,
-    accept: (signal: AbortSignal) => Promise<TResult>,
-  ): Promise<TResult> {
-    const outcome = await this.prisma.$transaction(async (tx) => {
+  private async persistFirst(sessionId: string, audioStreamId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
       const location = await tx.interviewSession.findUnique({
         select: { projectId: true },
         where: { id: sessionId },
@@ -76,17 +72,14 @@ export class CapturePcmEvidenceService {
       ) {
         throw new Error('Capture evidence target is unavailable');
       }
-      if (current.firstPcmAcceptedAt !== null) return { durable: true as const };
-      const result = await this.acceptWithinDeadline(accept);
+      if (current.firstPcmAcceptedAt !== null) return;
       const persisted = await tx.sessionCaptureGeneration.updateMany({
         data: { firstPcmAcceptedAt: new Date() },
         where: { firstPcmAcceptedAt: null, id: current.id },
       });
       if (persisted.count !== 1) throw new Error('Capture evidence was not persisted');
-      return { durable: false as const, result };
     });
     this.markDurable(audioStreamId);
-    return outcome.durable ? this.acceptWithinDeadline(accept) : outcome.result;
   }
 
   private acceptWithinDeadline<TResult>(
@@ -97,7 +90,7 @@ export class CapturePcmEvidenceService {
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         controller.abort();
-        reject(new StreamingAsrUnavailableError());
+        reject(new StreamingAsrError('timeout', true, 'ASR_TIMEOUT'));
       }, ADAPTER_ACCEPT_TIMEOUT_MS);
     });
     const accepted = Promise.resolve().then(() => accept(controller.signal));
