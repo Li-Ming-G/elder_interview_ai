@@ -32,6 +32,7 @@
 | DEV-001 | 初始化工程与环境（父任务） | 总控 Agent | IN_PROGRESS | DEV-001A、DEV-001B | [父任务卡](tasks/DEV-001.md) | DEV-001B 最终加固/复审未完成，但不阻塞内部原型 |
 | DEV-001A | 工程骨架与可重复工具链 | 工程基础实现 Agent（Archimedes） | DONE | DEC-001 | [任务卡](tasks/DEV-001A.md)、`fb99560`、REV-006 | REV-006 PASS；P0/P1/P2 均为 0 |
 | DEV-001B | 身份、会话与权限基础 | 身份安全实现 Agent（dev001b_identity_security） | REVIEW | DEV-001A | [任务卡](tasks/DEV-001B.md)、`ab9628b`、HO-006 | CON-008、增强 Chromium 与独立复审阻塞最终 DONE/真实部署；不阻塞虚构身份内部原型 |
+| SEC-AUTH-PUBLIC-001 | 公共网络身份、会话与代理边界加固 | 独立执行任务 `codex/sec-auth-public-001` | IN_PROGRESS | latest `origin/main`；网页 + Cloudflare 方向已选；iteration-coach `Clear / NO-PAUSE` 恰好一次 | [任务卡](tasks/SEC-AUTH-PUBLIC-001.md)、ADR-041、CON-008、`09` §8.1A | 先 contract-first，再实现部署无关安全项；Cloudflare header/hop/origin 直连语义等待 SPEC-STAGING-DEPLOY-001 exact-head；不启用公网、不读真实凭据；最终只提交 REVIEW |
 | DEV-002 | 最小项目、服务信息、授权与会话 | 后端业务 Agent（dev002_min_project_consent） | DONE | DEV-001A、DEV-001B 内部候选 seam | [任务卡](tasks/DEV-002.md)、`f16b82a`、ADR-014/015、REV-009 | 内部虚构数据范围验收通过；CON-010 仅阻塞口头授权音频集成和真实试点 |
 | DEV-003 | 原始录音与分片上传（父任务） | 总控 Agent | DONE | DEV-003A、DEV-003B、DEV-003C | `06`、`09`、REV-010/011、PR #2 merge `bdf2910` | 内部虚构/合成音频原型完成；真实麦克风、长时、进程崩溃、多标签、真实配额、云存储和真实试点不在通过范围 |
 | DEV-003A | 浏览器采集与本地可靠分片暂存 | 音频前端 Agent（dev003a_browser_audio_buffer） | DONE | DEV-001A | [任务卡](tasks/DEV-003A.md)、`41d6104`、`134be76`、真实 Chromium E2E 2/2、REV-010 PASS | 内部虚构数据原型完成；真实麦克风、崩溃、多标签、配额、长时录音和服务端上传编排不在本任务验收范围 |

@@ -420,3 +420,15 @@
 - iteration-coach：复用总控本轮唯一独立只读 Correction，未启动第二次；其 Prompt lifecycle、SDK no-retry/fallback、provenance、隔离横评、region/secret 与 ASR 门禁修正已吸收。
   - 审查历史：REV-051（accepted contract 中 branch-local 标记 REV-050）绑定 PR #52 old exact head `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS 的 `REQUEST_CHANGES`（P0=0/P1=3/P2=0），以及 accepted exact head `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` SUCCESS 的项目负责人内容 `PASS`（P0/P1/P2=0）。old head/CI/结论永久保留；integration exact head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` SUCCESS 又获项目负责人窄 integration `PASS`（P0/P1/P2=0），PR #52 merge/main `99ce83d001ffca5075d63f60c26067a2f9f2de59` / main CI `31789810221` attempt 1 SUCCESS，故 ADR 转为 `Accepted`。
   - 已接收定向修复：以独立 deterministic semantic validator contract/reference 锁定跨数组 exactly-one/membership/duplicate 语义；以四类独立 identity/source 锁定调用 provenance；以 `llm-model-config-v1` canonical manifest/digest、sanitized warning 与 `as_requested` 判定锁定横评的 equal-effective-config。该接收未接 runtime；真实实现仍由 BLOCKED 的 DEV-LLM-PROVIDER-001 在 ASR、provider/model/region、DPA/data policy 与 secret 门禁关闭后另行受审。
+
+## ADR-041｜Cloudflare 外围准入与应用身份分离，代理 IP 默认失败关闭
+
+- 状态：`Proposed`；等待 SEC-AUTH-PUBLIC-001 非 Draft PR exact-head CI 与项目负责人安全审查，不能由实现者自行转 Accepted。
+- 背景：ADR-009 的本地应用账号、不透明 session 与资源授权仍是当前权威；网页方向已经确定为响应式 Web，部署方向为 Cloudflare。DEV-001B 只交付内部候选，staging 仍使用 local Cookie，CON-008 的匿名失败审计未形成真实关闭事实，部署层的可信代理和客户端 IP 语义尚未冻结。
+- 决定候选：`staging|production` 统一使用外部 HTTPS `__Host-` Secure Cookie；Cloudflare Access 只作外围网络准入，不创建应用 principal，不授予角色/assignment，不成为审计 actor，也不替代 session rotation/revocation。未知账号失败使用窄 `anonymous` audit actor 与用途分隔 HMAC 摘要，已知账号保持 user actor，客户端响应一致。
+- 代理边界：应用只拥有 `ClientIpResolver` 窄 port。默认实现只取 TCP 直接对端并忽略全部转发 header。只有 SPEC-STAGING-DEPLOY-001 同时冻结受信入口、origin 直连阻断、可信代理集合、唯一 IP header、hop 与异常规则后，才可新增部署 adapter；本 ADR 不选择 Tunnel/Nginx、header、CIDR 或 hop。
+- 会话边界：登录总是新建 session/CSRF，不复用请求旧 token；authenticate touch、CSRF rotate/verify 与 revoke 必须以持久 session 仍有效为条件，撤销/过期先提交时后续动作失败关闭。改密、停用、权限安全事件与管理员撤销继续撤销全部相关 session。
+- 原因：把边缘准入与应用授权分开，可保留即时停用、逐资源 assignment、审计归属和供应商可替换性；默认不信任转发 header 避免 origin 可直连或代理配置漂移时伪造 IP 绕过限流。
+- 代价：部署契约接收前，反向代理后的所有请求可能按直接代理对端聚合限流，不能宣称公网容量/公平性通过；需要后续受审 adapter 才能恢复真实客户端 IP 粒度。
+- 重新评估：跨源部署、允许绕过 Cloudflare 直连 origin、Access identity 替代应用账号、引入 OIDC，或可信代理无法形成唯一可验证入口时，重开 ADR-009/041 与 Cookie/CORS/CSRF/审计契约。
+- iteration-coach：本任务恰好一次独立只读复核为 `Clear / NO-PAUSE`；最重要不变量是任何边缘 metadata 只有在部署证明受信入口后才可成为安全上下文，且即使可信也不能授予应用身份或权限。
