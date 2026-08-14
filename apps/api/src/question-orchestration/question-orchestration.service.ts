@@ -127,6 +127,102 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     };
   }
 
+  public async requestSecondSessionOpening(input: {
+    actorId: string;
+    basisSessionId: string;
+    calibrationConfirmed: boolean;
+    consumerSessionId: string;
+    requestId: string;
+    triggerDedupeKey: string;
+  }): Promise<{ attemptId: string; replayed: boolean; requestId: string }> {
+    const state = await this.presentations.generationContext(input.consumerSessionId);
+    const prepared = await this.prepare(
+      input.actorId,
+      input.consumerSessionId,
+      'second_session_opening',
+      input.requestId,
+      {
+        presentationRevision: state.presentationRevision,
+        snapshotId: state.currentSnapshotId,
+      },
+      {
+        scopeSessionIds: input.calibrationConfirmed
+          ? [input.basisSessionId, input.consumerSessionId]
+          : [input.basisSessionId],
+        triggerDedupeKey: input.triggerDedupeKey,
+      },
+    );
+    if (!prepared.replayed) {
+      void this.complete(prepared).catch(async (error: unknown) => {
+        await this.presentations.failAttempt(
+          prepared.attemptId,
+          error instanceof Error ? error.message.slice(0, 80) : 'AI_UNAVAILABLE',
+        );
+      });
+    }
+    return {
+      attemptId: prepared.attemptId,
+      replayed: prepared.replayed,
+      requestId: input.requestId,
+    };
+  }
+
+  public async recordSecondSessionOpeningUnavailable(input: {
+    actorId: string;
+    basisSessionId: string;
+    calibrationConfirmed: boolean;
+    consumerSessionId: string;
+    errorCode: string;
+    projectId: string;
+    requestId: string;
+    triggerDedupeKey: string;
+  }): Promise<string | null> {
+    const job = await this.coordinator.recordRejectedSystemJob(
+      {
+        actorId: input.actorId,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000),
+        jobType: 'question_generate',
+        projectId: input.projectId,
+        requestId: input.requestId,
+        sessionIds: input.calibrationConfirmed
+          ? [input.basisSessionId, input.consumerSessionId]
+          : [input.basisSessionId],
+        triggerDedupeKey: input.triggerDedupeKey,
+        trustedRole: 'elder',
+        trustedRoles: ['elder', 'interviewer'],
+      },
+      input.errorCode,
+    );
+    if (job === null) return null;
+    return this.presentations.recordSystemUnavailableAttempt(
+      {
+        attemptKind: 'second_session_opening',
+        basisPresentationRevision: 0,
+        basisSnapshotId: null,
+        contextBuilderDigest: this.contract.contextBuilderDigest,
+        contextBuilderVersion: DIRECTOR_CONTEXT_BUILDER_VERSION,
+        contextSchemaDigest: this.contract.contextSchemaDigest,
+        contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
+        failureCode: input.errorCode,
+        job,
+        journeyBasisHash: createHash('sha256').update(input.requestId).digest('hex'),
+        journeyPolicyVersion: JOURNEY_POLICY_VERSION,
+        journeyReasonCodes: ['stage.hold_no_decisive_signal'],
+        journeyStage: 'rapport',
+        modelConfigDigest: this.contract.modelConfigDigest,
+        modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
+        outputSchemaDigest: this.contract.outputSchemaDigest,
+        outputSchemaVersion: DIRECTOR_OUTPUT_SCHEMA_VERSION,
+        promptBundleDigest: this.contract.promptBundleDigest,
+        promptBundleVersion: DIRECTOR_PROMPT_BUNDLE_VERSION,
+        selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
+        sessionId: input.consumerSessionId,
+        similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
+      },
+      input.requestId,
+    );
+  }
+
   private async runAutomatic(sessionId: string, segmentId: string): Promise<void> {
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (session === null || session.status !== 'recording') return;
@@ -150,6 +246,10 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     attemptKind: QuestionAttemptKind,
     requestId: string,
     basis: { presentationRevision: number; snapshotId: string | null },
+    options: {
+      scopeSessionIds?: readonly string[];
+      triggerDedupeKey?: string;
+    } = {},
   ): Promise<PreparedQuestionAttempt> {
     const replay = await this.prisma.questionGenerationAttempt.findUnique({ where: { requestId } });
     if (replay !== null) {
@@ -168,6 +268,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         attemptKind,
         basis,
         context: null,
+        consumerSessionId: sessionId,
         deadlineAt: 0,
         job: null,
         shouldContinueListening: false,
@@ -191,10 +292,12 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       memoryResolutionIds: memories.map(({ id }) => id),
       projectId: session.projectId,
       requestId,
-      sessionIds: [sessionId],
-      ...(attemptKind === 'automatic'
-        ? { triggerDedupeKey: `question:${sessionId}:${requestId}` }
-        : {}),
+      sessionIds: options.scopeSessionIds ?? [sessionId],
+      ...(options.triggerDedupeKey !== undefined
+        ? { triggerDedupeKey: options.triggerDedupeKey }
+        : attemptKind === 'automatic'
+          ? { triggerDedupeKey: `question:${sessionId}:${requestId}` }
+          : {}),
       trustedRole: 'elder',
       trustedRoles: ['elder', 'interviewer'],
     });
@@ -252,7 +355,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           sessionId,
           similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
         },
-        attemptKind === 'automatic'
+        isSystemAttempt(attemptKind)
           ? { kind: 'system', trigger: requestId }
           : { actorId, kind: 'actor' },
         requestId,
@@ -274,6 +377,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       decision.stage,
       decision.reasonCodes,
       generation,
+      sessionId,
     );
     this.contract.assertContext(context);
     return {
@@ -282,6 +386,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       attemptKind,
       basis,
       context,
+      consumerSessionId: sessionId,
       deadlineAt: persistedAttempt.createdAt.getTime() + DEADLINE_MS,
       job: frozenJob,
       replayed: false,
@@ -300,9 +405,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           deadlineAt: prepared.deadlineAt,
           job: prepared.job,
           resultKind: 'continue_listening',
-          sessionId: prepared.job.sessionIds[0] ?? '',
+          sessionId: prepared.consumerSessionId,
         },
-        prepared.attemptKind === 'automatic'
+        isSystemAttempt(prepared.attemptKind)
           ? { kind: 'system', trigger: prepared.requestId }
           : { actorId: prepared.actorId, kind: 'actor' },
         prepared.requestId,
@@ -344,9 +449,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         deadlineAt: prepared.deadlineAt,
         job: prepared.job,
         resultKind: candidate === null ? 'continue_listening' : 'suggestion',
-        sessionId: prepared.job.sessionIds[0] ?? '',
+        sessionId: prepared.consumerSessionId,
       },
-      prepared.attemptKind === 'automatic'
+      isSystemAttempt(prepared.attemptKind)
         ? { kind: 'system', trigger: prepared.requestId }
         : { actorId: prepared.actorId, kind: 'actor' },
       prepared.requestId,
@@ -361,12 +466,16 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     journeyStage: 'rapport' | 'life_outline' | 'story_depth',
     journeyReasonCodes: readonly string[],
     generation: Awaited<ReturnType<QuestionPresentationService['generationContext']>>,
+    consumerSessionId = job.sessionIds[0] ?? '',
   ): Promise<InterviewDirectorContextV1> {
-    const sessionId = job.sessionIds[0] ?? '';
     const recentSnapshots = await this.prisma.questionDisplaySnapshot.findMany({
       orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
       take: 40,
-      where: { expiresAt: { gt: new Date() }, retentionState: 'active', sessionId },
+      where: {
+        expiresAt: { gt: new Date() },
+        retentionState: 'active',
+        sessionId: consumerSessionId,
+      },
     });
     const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
     const actualById = new Map(actualAsked.map((question) => [question.id, question]));
@@ -498,11 +607,16 @@ interface PreparedQuestionAttempt {
   attemptKind: QuestionAttemptKind;
   basis: { presentationRevision: number; snapshotId: string | null };
   context: InterviewDirectorContextV1 | null;
+  consumerSessionId: string;
   deadlineAt: number;
   job: FrozenAiJob | null;
   replayed: boolean;
   requestId: string;
   shouldContinueListening: boolean;
+}
+
+function isSystemAttempt(kind: QuestionAttemptKind): boolean {
+  return kind === 'automatic' || kind === 'second_session_opening';
 }
 
 export function inferDirectorJourneySignals(

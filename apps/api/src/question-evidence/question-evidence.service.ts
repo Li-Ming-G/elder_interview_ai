@@ -113,6 +113,7 @@ export class QuestionEvidenceService {
     projectId: string;
     requestId: string;
     sessionId: string;
+    triggerDedupeKey?: string;
   }): Promise<{ analysisId: string; judgeability: 'judgeable' | 'unjudged'; published: boolean }> {
     const [session, finalization] = await Promise.all([
       this.prisma.interviewSession.findUnique({
@@ -136,6 +137,7 @@ export class QuestionEvidenceService {
       projectId: input.projectId,
       requestId: input.requestId,
       sessionIds: [input.sessionId],
+      ...(input.triggerDedupeKey === undefined ? {} : { triggerDedupeKey: input.triggerDedupeKey }),
       trustedRole: 'interviewer',
     });
     if (job.replayed) {

@@ -83,9 +83,11 @@ export class MemoryService {
   public async extract(input: {
     actorId: string;
     expiresAt: Date;
+    judgeable?: boolean;
     projectId: string;
     requestId: string;
     sessionIds: readonly string[];
+    triggerDedupeKey?: string;
   }): Promise<readonly CurrentMemoryItem[]> {
     const current = await this.current.list(input.actorId, input.projectId);
     const job = await this.coordinator.freeze({
@@ -96,16 +98,22 @@ export class MemoryService {
       projectId: input.projectId,
       requestId: input.requestId,
       sessionIds: input.sessionIds,
+      ...(input.triggerDedupeKey === undefined ? {} : { triggerDedupeKey: input.triggerDedupeKey }),
       trustedRole: 'elder',
     });
     if (job.replayed) {
       if (job.status === 'succeeded') return this.current.list(input.actorId, input.projectId);
       throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
     }
-    const claims = await this.coordinator.callProvider(job, () =>
-      this.provider.extractMemory(job.segments),
-    );
+    const claims =
+      input.judgeable === false
+        ? []
+        : await this.coordinator.callProvider(job, () => this.provider.extractMemory(job.segments));
     await this.coordinator.writeBack(job, async (tx) => {
+      if (input.judgeable === false) {
+        await tx.aiJob.update({ data: { failureCode: 'MEMORY_UNJUDGED' }, where: { id: job.id } });
+        return;
+      }
       for (const claim of claims) {
         const evidenceInputs = claim.evidenceSegmentIds.map((segmentId) => {
           const frozen = job.segments.find((segment) => segment.segmentId === segmentId);

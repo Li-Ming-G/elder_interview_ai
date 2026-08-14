@@ -51,6 +51,7 @@ export interface FrozenAiJob {
 export interface FreezeAiJobRequest {
   actorId: string;
   actualQuestionIds?: readonly string[];
+  contextBuilderVersion?: string;
   expiresAt: Date;
   jobType: AiJobType;
   memoryResolutionIds?: readonly string[];
@@ -159,7 +160,7 @@ export class AiJobCoordinatorService {
       const jobId = randomUUID();
       await tx.aiJob.create({
         data: {
-          contextBuilderVersion: 'dev-006.v1',
+          contextBuilderVersion: request.contextBuilderVersion ?? 'dev-006.v1',
           expiresAt: request.expiresAt,
           id: jobId,
           inputHash: '0'.repeat(64),
@@ -466,6 +467,73 @@ export class AiJobCoordinatorService {
     });
   }
 
+  public async failOrphanedSystemJob(jobId: string): Promise<void> {
+    await this.prisma.aiJob.updateMany({
+      data: {
+        completedAt: new Date(),
+        failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+        status: 'failed',
+      },
+      where: { id: jobId, status: { in: ['pending', 'running'] } },
+    });
+  }
+
+  public async recordRejectedSystemJob(
+    request: FreezeAiJobRequest,
+    failureCode: string,
+  ): Promise<FrozenAiJob | null> {
+    const sessionIds = [...new Set(request.sessionIds)].sort();
+    const memoryIds = [...new Set(request.memoryResolutionIds ?? [])].sort();
+    const actualQuestionIds = [...new Set(request.actualQuestionIds ?? [])];
+    const triggerDedupeKey = request.triggerDedupeKey;
+    if (triggerDedupeKey === undefined) throw new Error('AI_SYSTEM_TRIGGER_REQUIRED');
+    return this.prisma.$transaction(async (tx) => {
+      await this.lock(tx, `request:${request.requestId}`);
+      await this.lock(tx, `trigger:${triggerDedupeKey}`);
+      const existing = await tx.aiJob.findFirst({
+        where: { OR: [{ requestId: request.requestId }, { triggerDedupeKey }] },
+      });
+      if (existing !== null) return this.hydrateReplay(tx, existing.id);
+      const project = await tx.elderProject.findUnique({ where: { id: request.projectId } });
+      const sessions = await tx.interviewSession.findMany({
+        where: { id: { in: sessionIds }, projectId: request.projectId },
+      });
+      if (project === null || sessions.length !== sessionIds.length) return null;
+      const now = new Date();
+      const created = await tx.aiJob.create({
+        data: {
+          completedAt: now,
+          contextBuilderVersion: 'system-rejection-v1',
+          expiresAt: request.expiresAt,
+          failureCode: failureCode.slice(0, 80),
+          inputHash: sha256(
+            canonicalJson({ failureCode, projectId: request.projectId, sessionIds }),
+          ),
+          jobType: request.jobType,
+          modelName: 'provider-neutral-unavailable',
+          policyRevision: project.aiPolicyRevision,
+          promptVersion: 'system-rejection-v1',
+          projectId: request.projectId,
+          requestIdentityHash: this.requestIdentityHash(
+            request,
+            sessionIds,
+            memoryIds,
+            actualQuestionIds,
+          ),
+          requestId: request.requestId,
+          requestedBy: request.actorId,
+          retentionPolicyVersion: project.aiRetentionPolicyVersion,
+          retryOfJobId: request.retryOfJobId ?? null,
+          schemaVersion: 'system-rejection-v1',
+          startedAt: now,
+          status: 'cancelled',
+          triggerDedupeKey,
+        },
+      });
+      return this.hydrateReplay(tx, created.id);
+    });
+  }
+
   public async writeBack<T>(
     job: FrozenAiJob,
     write: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -689,9 +757,12 @@ export class AiJobCoordinatorService {
       job.jobType === request.jobType &&
       job.retryOfJobId === (request.retryOfJobId ?? null) &&
       job.triggerDedupeKey === (request.triggerDedupeKey ?? null) &&
+      job.contextBuilderVersion === (request.contextBuilderVersion ?? 'dev-006.v1') &&
       scopes.map(({ sessionId }) => sessionId).join('|') === sessionIds.join('|') &&
       scopes.every(
-        ({ scopeReason }) => scopeReason === `${request.jobType}:${request.trustedRole}`,
+        ({ scopeReason }) =>
+          scopeReason ===
+          `${request.jobType}:${[...new Set(request.trustedRoles ?? [request.trustedRole])].sort().join('+')}`,
       ) &&
       memories.map(({ memoryResolutionId }) => memoryResolutionId).join('|') ===
         memoryIds.join('|');
@@ -710,6 +781,7 @@ export class AiJobCoordinatorService {
       canonicalJson({
         actorId: request.actorId,
         actualQuestionIds,
+        contextBuilderVersion: request.contextBuilderVersion ?? 'dev-006.v1',
         jobType: request.jobType,
         memoryResolutionIds: memoryIds,
         projectId: request.projectId,
@@ -717,6 +789,7 @@ export class AiJobCoordinatorService {
         sessionIds,
         triggerDedupeKey: request.triggerDedupeKey ?? null,
         trustedRole: request.trustedRole,
+        trustedRoles: [...new Set(request.trustedRoles ?? [request.trustedRole])].sort(),
       }),
     );
   }

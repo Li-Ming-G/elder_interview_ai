@@ -19,10 +19,14 @@ export class InterviewContextService {
 
   public async create(input: {
     actorId: string;
+    contextBuilderVersion?: string;
     consumerSessionId: string;
     expiresAt: Date;
     projectId: string;
     requestId: string;
+    scopeSessionIds?: readonly string[];
+    triggerDedupeKey?: string;
+    trustedRoles?: readonly ('elder' | 'interviewer')[];
   }): Promise<string> {
     const [memories, questions] = await Promise.all([
       this.memory.list(input.actorId, input.projectId),
@@ -30,14 +34,19 @@ export class InterviewContextService {
     ]);
     const job = await this.coordinator.freeze({
       actorId: input.actorId,
+      ...(input.contextBuilderVersion === undefined
+        ? {}
+        : { contextBuilderVersion: input.contextBuilderVersion }),
       actualQuestionIds: questions.map(({ id }) => id),
       expiresAt: input.expiresAt,
       jobType: 'context_snapshot',
       memoryResolutionIds: memories.map(({ id }) => id),
       projectId: input.projectId,
       requestId: input.requestId,
-      sessionIds: [input.consumerSessionId],
+      sessionIds: input.scopeSessionIds ?? [input.consumerSessionId],
+      ...(input.triggerDedupeKey === undefined ? {} : { triggerDedupeKey: input.triggerDedupeKey }),
       trustedRole: 'interviewer',
+      ...(input.trustedRoles === undefined ? {} : { trustedRoles: input.trustedRoles }),
     });
     if (job.replayed) {
       const existing = await this.prisma.interviewContextSnapshot.findUnique({

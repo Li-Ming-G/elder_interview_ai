@@ -253,6 +253,82 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     });
   }
 
+  public async recordSystemUnavailableAttempt(
+    command: Omit<BeginQuestionGenerationCommand, 'bankReferences'> & { failureCode: string },
+    requestId: string,
+  ): Promise<string> {
+    return this.prisma.$transaction(async (tx) => {
+      await lock(tx, `request:${requestId}`);
+      await lock(tx, `project:${command.job.projectId}`);
+      await lock(tx, `session:${command.sessionId}`);
+      const replay = await tx.questionGenerationAttempt.findUnique({ where: { requestId } });
+      if (replay !== null) {
+        if (replay.sessionId !== command.sessionId || replay.aiJobId !== command.job.id) {
+          throw conflict('IDEMPOTENCY_KEY_REUSED');
+        }
+        return replay.id;
+      }
+      const [session, job] = await Promise.all([
+        tx.interviewSession.findUnique({ where: { id: command.sessionId } }),
+        tx.aiJob.findUnique({ where: { id: command.job.id } }),
+      ]);
+      if (
+        session === null ||
+        session.projectId !== command.job.projectId ||
+        job === null ||
+        job.requestId !== requestId ||
+        !['failed', 'cancelled'].includes(job.status)
+      ) {
+        throw new Error('AI_SYSTEM_UNAVAILABLE_BINDING_INVALID');
+      }
+      const state = await ensureState(tx, command.sessionId, command.job.policyRevision);
+      const now = new Date();
+      const attempt = await tx.questionGenerationAttempt.create({
+        data: {
+          aiJobId: command.job.id,
+          attemptKind: command.attemptKind,
+          basisPresentationRevision: state.presentationRevision,
+          basisSnapshotId: state.currentSnapshotId,
+          completedAt: now,
+          contextBuilderDigest: command.contextBuilderDigest,
+          contextBuilderVersion: command.contextBuilderVersion,
+          contextSchemaDigest: command.contextSchemaDigest,
+          contextSchemaVersion: command.contextSchemaVersion,
+          failureCode: command.failureCode.slice(0, 80),
+          journeyBasisHash: command.journeyBasisHash,
+          journeyPolicyVersion: command.journeyPolicyVersion,
+          journeyReasonCodes: [...command.journeyReasonCodes],
+          journeyStage: command.journeyStage,
+          manualIntentSequence: state.manualIntentSequence,
+          modelConfigDigest: command.modelConfigDigest,
+          modelConfigVersion: command.modelConfigVersion,
+          outputSchemaDigest: command.outputSchemaDigest,
+          outputSchemaVersion: command.outputSchemaVersion,
+          promptBundleDigest: command.promptBundleDigest,
+          promptBundleVersion: command.promptBundleVersion,
+          publicationOutcome: 'policy_blocked',
+          requestId,
+          resultKind: 'unavailable',
+          selectionPolicyVersion: command.selectionPolicyVersion,
+          sessionId: command.sessionId,
+          similarityPolicyVersion: command.similarityPolicyVersion,
+          startedAt: now,
+          status: 'failed',
+        },
+      });
+      await createEvent(tx, {
+        actorId: null,
+        aiJobId: command.job.id,
+        eventType: 'presentation_unavailable',
+        metadata: { attempt_id: attempt.id, code: command.failureCode.slice(0, 80) },
+        ownerKind: 'ai_job',
+        sessionId: command.sessionId,
+        snapshotId: state.currentSnapshotId,
+      });
+      return attempt.id;
+    });
+  }
+
   public override async publishAttemptResult(
     command: PublishQuestionAttemptCommand,
     actorOrSystem: QuestionEvidenceActorOrSystem,
