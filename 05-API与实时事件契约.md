@@ -116,7 +116,7 @@ POST   /projects/:id/restore
 
 `display_name` 必填，其余字段可空；响应返回 `id`、上述字段、`status=draft`、`created_by` 和时间戳。服务端必须在同一事务创建项目及创建者的 `interviewer` assignment。项目访问只认未撤销 assignment，不能因 `created_by` 相同直接放行。
 
-`GET /projects` 返回 `ProjectListResponse.items: ProjectListProjection[]`。普通分支为 `projection=ordinary`，只包含 `draft|ready|active|completed`、`deleted_at=null` 且 actor 仍有有效 assignment 的项目。`restricted` 且 actor 仍有有效 assignment 时不得复用 `ProjectResponse`，必须只返回以下固定最小分支：
+`GET /projects` 返回 `ProjectListResponse.items: ProjectListProjection[]`。普通分支为 `projection=ordinary`，只包含 `draft|ready|active|completed`、`deleted_at=null` 且 actor 仍有有效 assignment 的项目，并可按 §11.1 additive 返回 `repeat_interview`；字段缺失失败关闭。`restricted` 且 actor 仍有有效 assignment 时不得复用 `ProjectResponse`，必须只返回以下固定最小分支：
 
 ```json
 {
@@ -140,7 +140,7 @@ POST   /projects/:id/restore
 GET /projects/:id/sessions?cursor=<opaque>&limit=20
 ```
 
-响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；客户端不得只看“是否 completed”或本地 archive 自行改判。首页不显示或裁决录音字节数，因此 `ProjectSessionListItem.finalization` 的 Pick 不增加 `total_size_bytes`；A3 只能在普通回顾深链通过 canonical `GET /sessions/:id` 取得该字段。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
+响应为 `ProjectSessionListResponse`，按 `(created_at DESC,id DESC)` 稳定分页，单项只返回 home/list 路由所需的最小字段：`id`、`project_id`、`sequence_no`、`status`、`capture_failure_code`、`capture.status`、`created_at`、`started_at`、`ended_at`、`duration_seconds`，以及存在 finalization 时的 `finalization.recording_status|upload_status|transcript_status|failure_code|manifest_checksum`。同时由服务端按下表返回唯一 `home_state`、唯一 `primary_action` 和 `review_access=unavailable|read_only`；SPEC-REPEAT-INTERVIEW-001 另允许 §11.3 additive 返回内容无关 `post_session_analysis`。客户端不得只看“是否 completed”或本地 archive 自行改判。首页不显示或裁决录音字节数，因此 `ProjectSessionListItem.finalization` 的 Pick 不增加 `total_size_bytes`；A3 只能在普通回顾深链通过 canonical `GET /sessions/:id` 取得该字段。不得返回转录正文、memory、问题、marker note、对象键、签名 URL 或 provider payload。
 
 分页 cursor 是版本化、服务端签名的不透明 token，至少绑定 `project_id + created_at + id`，并绑定排序方向、page size 与当前过滤版本；`created_at/id` 是签发页最后一项的 keyset anchor。缺失签名、解析失败、内容篡改、过期/版本失效、跨项目复用、参数不一致或当前 assignment/项目普通可见性失效均失败关闭：非法 cursor 返回 422 `INVALID_SESSION_CURSOR`，当前资源权限失效返回 403/404；不得静默降级首页或用空列表掩盖。`restricted` 项目不提供 session page，首页只保留 §3.1 的项目级中性受限投影；`deleted`、软删除和 assignment 失效项目完全不可见。
 
@@ -158,7 +158,7 @@ GET /projects/:id/sessions?cursor=<opaque>&limit=20
 
 `processing` 不能投影“继续访谈”；它已拒绝新 PCM，回顾页显示“录音已安全保存 · 转录处理中”，只读展示当时已有转录和本机事实。`failed+read_only` 允许查看已有转录及经 fresh complete manifest 验证的本机录音，但本机删除仍只允许 session `processing|completed`，因此 failed 回顾必须灰置删除并说明需人工处理。`NO_AUDIO_CAPTURED` 没有录音/转录可回顾，不播放、不删除。`stopping` 仍可能补传 commitment，只能返回保存进度，同页离开边界继续遵循 `03` §12。
 
-该 read model 只解决 A1 的列表和路由，不改变 session 所有权或 start 门禁。首页不得从 project status、列表计数或本地状态推断“可开始”；A2 仍须依次调用正式 project/service-term/consent/session/device-check/start 接口。
+该 read model 起初只解决 A1 的列表和路由，不改变 session 所有权或 start 门禁。首页不得从 project status、列表计数或本地状态推断“可开始”；首次新 project 仍走 A2/A4 正式链路，同 project 下一次只认 §11.1 的权威 project action 并走 §11.2 workflow。
 
 ### 3.2 项目分配
 
@@ -1452,3 +1452,43 @@ runtime 必须跨新 voice 保留 session/capture 级 `no_known_gap -> known_unb
 - `POST /projects`、consent、session 的浏览器 workflow 继续以 actor/action/target-or-create identity/canonical payload 绑定首次持久 request ID。`fetch` 抛错或代理连接中断只能转为 `unknown_response`，不得轮换 ID/payload；online、页面重新 visible 与 workflow reopen 自动重放同一请求，明确 ACK 后推进。
 - create 请求不得使用会主动中止仍可能在服务端提交中的固定客户端 deadline 来制造 status=0。底层连接失败仍按 unknown response 处理；UI 不显示 request ID、payload 或“表单锁定”等实现细节。
 - 本机 archive 只在产生它的精确 origin 可见。客户端无法跨 origin 枚举 IndexedDB；因此 missing 投影只能显示当前 `location.origin` 与返回原 scheme/host/port 的诊断，不得猜测另一 origin 有无副本。
+
+## 11. Repeat Interview V1 API 契约
+
+### 11.1 Home project action
+
+`GET /projects` 的 ordinary item 可 additive 返回 `repeat_interview`，Schema 以 shared contracts 为准。rollout 中缺键必须失败关闭；DEV-008B1 完成后 ordinary item 必须显式带键。restricted item 不得出现该键或 session/basis 元数据。客户端只有在 `primary_action=start_next_session` 时显示 project 卡动作，不得用 project/session status、本地 session 数量或回顾可见性自行推断。
+
+### 11.2 创建下一次 session
+
+```text
+POST /projects/:id/next-session
+{
+  request_id,
+  basis_session_id,
+  expected_basis_sequence_no,
+  workflow_version: "repeat-interview-v1"
+}
+```
+
+成功返回 `CreateNextSessionResponse`：原 request ID、path `project_id`、basis identity/sequence 和新 `InterviewSessionResponse`。首次成功与同 ID replay 返回逐值相同的首次 response snapshot，不增加会改变响应的 `replayed` 标记。幂等 binding 固定为 actor + `next_session.create` + path project + RFC 8785 canonical payload hash；同 ID 的 actor/action/project/payload 任一不同返回 `IDEMPOTENCY_KEY_REUSED`。首次业务 row、audit 和 response snapshot 同事务保存；未知响应只能重放原 ID/payload。
+
+服务端依次锁 request、project，再按稳定顺序锁相关 session；在锁内重查 `04` §8.1 全部资格。basis 不属于 path project、sequence 不符或已不再是最新 completed 返回 `NEXT_SESSION_BASIS_STALE`；权限/assignment/restricted/deleted/deletion/consent 失败使用既有不泄密 403/404/409 分类且零 session/audit/idempotency 副作用。不同 request ID 并发时，唯一 `(project_id,sequence_no)` 与非终态 session 门禁确保至多一个 sequence+1；输家返回 `409 NEXT_SESSION_ALREADY_EXISTS`，details 只可含 path project 下已获授权的新 `session_id/sequence_no`，方便 Home 转入当前行，不创建 sequence+2。
+
+该 endpoint 只创建 `interview_session`。设备检查、start、capture、speaker calibration 使用既有 session endpoint 和全新身份；它不克隆旧 session 或触发 getUserMedia。全局 `POST /projects` 与普通首次 `POST /projects/:id/sessions` 语义不变。
+
+### 11.3 Post-session analysis projection
+
+`GET /projects/:id/sessions` 的 item 可 additive 返回 `post_session_analysis`; rollout 缺键表示 runtime 未实现，绝不等同 succeeded。内容无关状态以 shared DTO 为准。GET/list/Home/WS replay 只读，不创建或重试 job。retry 只能由受控 system coordinator 或未来明确授权的管理接口触发；本 SPEC 不新增普通倾听员 retry 按钮。
+
+会后 trigger 在 canonical completed 持久提交后产生，不在 HTTP 响应渲染时产生。两 lane 独立：memory 可 succeeded 而 actual-question unjudged/failed，反之亦然。`succeeded|unjudged|failed|cancelled|unavailable` 为 opening 可观察的 terminal；`not_started|pending|running` 非 terminal。任何 lane 状态都不修改 session status/finalization，不禁用 review/next-session，不影响新 session 的 mic/recording/ASR，也不改变 audio/transcript truth。
+
+### 11.4 Second-session opening
+
+calibration gate terminal 只满足 opening 的一个前置。若 next-session basis 的任一 analysis lane 为 `not_started|pending|running`，不得创建 generation attempt、冻结 Context、调用 provider或占用 stable request/trigger；内容无关投影为 `waiting_basis_analysis`，`request_id/attempt_id=null`。next-session、device/mic、recording、ASR、safe completion 与 review 继续运行。
+
+两个 basis lane 均 terminal 后才创建稳定 system request/trigger：`session_id + basis_analysis_trigger_identity + calibration_gate_identity`。calibration terminal attempt 使用 `speaker_stream_id + attempt_id + terminal_status`；provider unavailable 且 snapshot 明确无 attempt 时使用 `capture_generation_id + provider-unavailable policy revision`。同组合恰好一个 `second_session_opening` attempt。analysis-first 由 calibration terminal 事件协调；calibration-first 由最后一个 lane terminal 事件协调；启动恢复/刷新后由后台 reconciliation 读取持久事实重算。所有路径使用同一 request ID 与 trigger dedupe，GET/list/WS replay 只读且不触发。
+
+basis `succeeded` 的 eligible output 必须进入随后冻结的 Context；`unjudged|failed|cancelled|unavailable` 作为 terminal 如实记录，省略无法证明的本次新增 membership 后继续一次 opening，不等待无限 retry。某 lane 在 opening attempt 已提交后通过显式 retry 得到新 terminal outcome，也不得为同一 consumer session 重开 gate；新证据只按既有 future-eligibility 参与后续 session。failed/skipped/unavailable calibration gate 不得携带当前 stream trusted membership，但可消费先前 session eligible project facts。结果继续通过既有 suggestion REST 与无正文 WS 1.2 投影；不新增正文 endpoint 或第二套 history。LLM unavailable 以既有 `kind=unavailable`/failed attempt 诚实返回，不自动回退 basic 题，不阻塞 recording。页面刷新、重复 snapshot、WS resume、provider 恢复或同 response replay 不得重触发。
+
+`GET /projects/:id/sessions` 可 additive 返回 shared `second_session_opening` 内容无关投影。waiting/ready 不是 attempt；running/succeeded/failed/cancelled/unavailable 必须绑定稳定 request/attempt identity。`updated_at` 来自组成当前状态的最新持久事实，不是 GET 响应时间。字段缺失、null 或 waiting 不得被客户端当作开场已经生成。

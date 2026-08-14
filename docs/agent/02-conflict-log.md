@@ -402,6 +402,17 @@
 - 关闭证据（2026-08-12）：项目负责人对 PR #37 exact head `70167688202117364e5cab74c9a320e0a7d76742` / CI `31597563095` 手动独立审查 PASS（P0/P1/P2=0）；正式记录为 [issuecomment-5266978939](https://github.com/Li-Ming-G/elder_interview_ai/pull/37#issuecomment-5266978939)。PR 以 merge commit `60f60cb6b5c8f70c9fca9840aa6c495f6e2318d8` 合入 main，main CI `31598183784` SUCCESS。关闭条件全部满足，DEV-008A3 恢复 `READY`。
 - 历史与边界：原 Correction、方案 A、REV-044 `PENDING` 候选历史永久保留。本关闭只证明 contract-first 接缝已接收；A3 mapper/controller、IndexedDB、页面与 runtime 测试仍未实现。DEV-008A2 保持 `READY`，父 DEV-008A 保持 `IN_PROGRESS`，DEV-008D 保持 `BLOCKED`，CON-023 继续 `OPEN / NOT IMPLEMENTED / NOT VERIFIED`。
 
+### CON-030｜第二次访谈旧摘要/待确认页面与无记忆 UI 边界冲突
+
+- 状态：`RESOLVED`
+- 发现时间：2026-08-13
+- 发现者：SPEC-REPEAT-INTERVIEW-001 docs-only 契约任务
+- 涉及文件与章节：`01` §5.9/§13、`03` §9/§21、`09` 场景 B/§17、DEV-006、SPEC-REPEAT-INTERVIEW-001
+- 冲突内容：`01/03` 已明确第一版不新增记忆列表、冲突列表、摘要待确认页或第二次访谈前回顾页，但 `09` 场景 B 仍要求“查看上次摘要和待确认”，会让实现 Agent 偷增页面并把未确认/不可见派生内容当用户工作流。
+- 项目负责人本轮决定：用户所说“回顾上次对话”只指后台 AI/系统继承 current memory 与 reliable actual asked，以及已有 session 行的只读回顾；不新增摘要、待确认或记忆管理 UI。
+- 写回：`09` 场景 B 已改为 project 卡 next-session、已有 session review、后台 membership 与 opening exact once；`01` §13、`03` §21、`07` §18 和任务边界同步。
+- 关闭确认：本冲突由项目负责人当前明确指令直接裁决并完成正式文本一致化，标记 RESOLVED；这不代表 B1/B2 runtime 已实现或审查通过。
+
 ## 登记模板
 
 ```text

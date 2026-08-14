@@ -1,0 +1,49 @@
+# SPEC-REPEAT-INTERVIEW-001 候选交接
+
+## 状态与审查边界
+
+- 状态：`REVIEW`；REV-048；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) 已建立，等待 final exact-head CI 与项目负责人手动审查。
+- 分支：`codex/spec-repeat-interview-001`；base `origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`。
+- iteration-coach：复用总控已完成的唯一 `Correction / NO-PAUSE` 独立只读复核；本任务没有启动第二次。
+- 本交接不是 PASS/DONE/merge；执行 Agent 只整理人工审查包。
+
+## 已冻结
+
+1. ordinary project authoritative repeat action 与 restricted/deleted/assignment fail-closed；
+2. project next-session、session continue/review、global new-project 职责分离；
+3. stable next-session request/payload/replay、same-project basis 与 seq1→2 并发门禁；
+4. 新 session capture/audio/ASR/speaker/calibration/runtime 全隔离；
+5. stable post-analysis trigger、Memory/actual-question 生产调用与内容无关 retry projection；
+6. calibration gate 可先 waiting；basis 两 lane terminal 后才冻结 opening Context并 exact once；same-project eligible Context、降级 lane/gate 不伪造当前角色、唯一 QuestionEvidence/current/history；
+7. LLM/ASR unavailable 不阻塞 raw recording/completed/review；
+8. 无 memory UI、第二 AI/history、Prisma/migration、provider 选择或隐私/删除/retention 语义变化。
+
+## 基线缺口证据
+
+- `MemoryService.extract`：仅定义与模块导出，无生产调用；
+- `QuestionEvidenceService.reconcileActualQuestions`：仅定义，无生产调用；
+- 当前 `createSession`：同 project 最大 sequence+1，但无 repeat intent/basis payload、非终态 fence或不同 request 并发 loser 契约；
+- 当前 project read model：无 project-level next-session action；只有 session-level `primary_action`。
+
+因此后续必须同时完成 B1/B2，不能用 UI 按钮宣称继承完成。
+
+## 依赖与边界
+
+- `DEV-008B1`、`DEV-008B2` 在本 SPEC 项目负责人 PASS/merge 前 BLOCKED；
+- DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge `175e92e`；两者以该 accepted main 为基线，继续避免改写 Home/routes/styles/completion/review；
+- B2 deterministic seam 可先验收工程链路；真实 LLM/provider 与真实试点门禁保持未完成；
+- CON-023/DEV-008D 不变。
+
+## 验证与人工审查重点
+
+本地已通过：`pnpm lint`、全 workspace `pnpm typecheck`、`pnpm build`、`pnpm format:check`、contracts 定向 typecheck/build、full unit `56 files / 341 tests`、`git diff --check`，以及 changed Markdown 相对链接检查。未运行 PostgreSQL integration/auth/Chromium，因为本任务没有 runtime/Prisma/UI 改动；non-Draft PR exact-head CI 仍须跑仓库完整 verify，不能用本地结果替代。
+
+项目负责人重点审查：action eligibility、seq1→2 并发、post-analysis 非阻塞、Context membership、opening exact once、provider unavailable、A4 分界与无范围扩张。
+
+## REV-048 首轮 REQUEST_CHANGES
+
+- old exact head `99e5d317f4e5ad62444148442329114840c58293` / CI `31709711887` SUCCESS；项目负责人正式 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。永久保留，不由后续候选覆盖。
+- P1 是 calibration-first 抢跑：basis memory/actual lane 尚 pending/running 时旧契约已消费唯一 opening gate，之后成功输出永久漏入。
+- 当前候选只定向增加双前置/waiting/terminal 协调与四类顺序矩阵；next-session、录音非阻塞及其余已认可方向不变。等待新 exact-head CI/定向复审，不是 PASS/DONE。
+
+定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` 的 CI `31711566144` 已 SUCCESS：format/lint/typecheck/build；unit 56 files / 341 tests；fresh 14 migrations deploy/status；integration 14 files / 80 tests；auth 4 files / 23 tests；smoke 2 assets；Chromium 24/24 与 auth Chromium 5/5。该绿灯不覆盖 old REQUEST_CHANGES；最终治理收尾提交仍须取得自身 exact-head CI 后再交项目负责人定向复审。
