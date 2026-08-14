@@ -144,15 +144,15 @@
 
 ### CON-012｜授权音频对象跨授权文本版本复用规则未定义
 
-- 状态：`DECIDED`；等待 SPEC-CONTINUING-CONSENT-001 exact-head PASS/merge 后转 `RESOLVED`
+- 状态：`RESOLVED`；SPEC-CONTINUING-CONSENT-001 exact-head PASS/merge/main CI 与治理收口已完成
 - 发现时间：2026-08-04
 - 发现者：项目负责人（REV-010 非阻塞意见）
 - 涉及文件与章节：`04` §4.5/§4.24、`05` §3.4/§3.6、`08` 授权治理、DEV-003B
 - 冲突内容：正式契约允许授权记录追加并关联 consent audio object，但尚未明确同一个 complete consent audio object 能否关联不同 `consent_text_version` 的多条授权记录。若允许，音频中的口头文本可能与新版本不一致；若禁止，需要数据库或事务约束及测试。
 - 受影响任务：真实试点授权验收；不阻塞 DEV-003A/B 内部虚构数据原型，也不阻塞父 DEV-003 的自动上传编排。
 - 正式决定：禁止同一授权音频对象跨 `consent_text_version` 复用。任何需要新文本版本的正式重授权都必须重新录制与该版本逐字一致的完整授权音频并追加新 consent record；普通同 project 后续访谈在原文本明确覆盖未来计划内访谈且兼容性门禁通过时复用原 consent record，不新增记录或音频。
-- 候选写回：SPEC-CONTINUING-CONSENT-001 将该决定同步到 `01/03/04/05/08/09/10`、shared contract、ADR-039 与 B1/B2 门禁；不新增 Prisma/migration/runtime。缺少显式版本兼容政策、未来访谈 scope metadata 或无法证明音频/文本匹配时失败关闭并要求重新正式授权；示例 `mvp-v1` 不被猜成已覆盖未来访谈。
-- 关闭条件：候选 PR exact-head CI 全绿并获项目负责人 PASS、merge 和治理收口；在此之前本冲突保持审查门禁，DEV-008B1/B2 均为 BLOCKED。
+- 正式写回：SPEC-CONTINUING-CONSENT-001 已将决定同步到 `01/03/04/05/08/09/10`、shared contract、ADR-039 与 B1/B2 门禁；不新增 Prisma/migration/runtime。缺少显式版本兼容政策、未来访谈 scope metadata 或无法证明音频/文本匹配时失败关闭并要求重新正式授权；示例 `mvp-v1` 不被猜成已覆盖未来访谈。
+- 关闭证据：PR #49 accepted exact head `1d241a4b8c40827a93eefe1c9825021b6859df74` / CI `31764584701` 获项目负责人 PASS（P0/P1/P2=0）；merge `712b4ff46acbff5168453c79b2d02375a84fa017` / main CI `31764903272` SUCCESS。关闭只表示跨版本音频规则已确定并接收；真实正文/policy 仍由 SPEC-CONSENT-TEXT-POLICY-001 阻塞。
 
 ### CON-013｜内部 audio harness 的生产与真实试点暴露策略未定
 

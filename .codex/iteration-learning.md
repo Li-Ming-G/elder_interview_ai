@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。SPEC-DEV-008A 与 A1/A2/A3 均已 PASS/merge，父 DEV-008A 仅在统一倾听员响应式网页 A 范围 DONE；DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。统一响应式网页 A 与 DEV-008A4 已 DONE；Repeat Interview 和 Continuing Consent 两项契约已 PASS/merge/收口。DEV-008B1 仅在 fail-closed runtime 范围 READY，真实 `covered` 完成仍被 SPEC-CONSENT-TEXT-POLICY-001 阻塞；DEV-008B2 等 B1 runtime，DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/012/013/023。CON-006/007 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/013/023；正式持续授权正文与 machine policy。CON-006/007/012 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
@@ -1331,3 +1331,10 @@
 - Local retry evidence: 二次修复后首次 full unit 的既有工作台 401 异步用例等待超时（338/339），未修改该测试或产品；定向立即复跑 1/1、随后 full unit 339/339 与 build 均通过。exact-head CI 仍是最终门禁，局部时序波动必须保留事实而不能用放宽断言消失。
 - Browser CI evidence: head `cfffa8b5e5b1e1d15609ccc54438b1652bd7f88d` / CI `31665661744` 首次让 fresh integration 82/82、auth、build、smoke 全绿，普通 Chromium 19/24；失败的 3 个 Home 视口仍找旧提示，2 个 workbench 测试仍走无 session 旧准备页/后置 mic，并把独立校准与普通工作台并存。E2E 改为 current copy/no-price、session-specific recovery start、校准态排除普通 transcript/workbench、确认后进入正文；测试必须描述正式路径，不能让旧入口偶然继续存在来维持绿色。
 - Auth Chromium evidence: head `676a21d993676b9d97287b48aed1938d92b0ce3f` / CI `31666253024` 的 ordinary Chromium 24/24、auth Chromium 4/5。版本用例把无效 `mvp-v2` 当首份授权，实际测试的是 draft project，不是 consent drift；且仍造 0 超时价 ServiceTerm。夹具改为无 ServiceTerm、先有效 `mvp-v1` ready 后追加 `mvp-v2`，才准确验证 start 重验授权版本并返回 `CONSENT_REQUIRED`。
+
+### 2026-08-14 — SPEC-CONTINUING-CONSENT-001 exact-head 接收与治理收口
+
+- Evidence: PR #49 old exact head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 获项目负责人 REQUEST_CHANGES（P0=0/P1=3/P2=0）；accepted exact head `1d241a4b8c40827a93eefe1c9825021b6859df74` / CI `31764584701` 关闭三项 P1并获正式 PASS（P0/P1/P2=0），评论 `issuecomment-5288833214`。PR merge `712b4ff46acbff5168453c79b2d02375a84fa017`，main CI `31764903272` SUCCESS。
+- Decision: SPEC-CONTINUING-CONSENT-001 `REVIEW→DONE`、ADR-039 `Proposed→Accepted`、CON-012 `DECIDED→RESOLVED`。DEV-008B1 `BLOCKED→READY` 仅表示 fail-closed runtime implementation-ready；DEV-008B2 不再等待本 SPEC，但因 B1 runtime 未实现继续 `BLOCKED`。
+- Historical integrity: old head 的 REQUEST_CHANGES/P1=3 与修复内容永久保留。契约接收不使真实 `covered` 自动可达；BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001 仍要求有权主体提供并正式接收正文、版本/digest 与 machine policy。
+- Verification boundary: 本 closeout 只修改治理文档和 journal，不改业务代码、shared contract、Prisma/migration、页面、ASR/LLM、删除或部署；不启动 B1/B2，不撰写或批准正式授权正文，也不宣称真实持续授权、真实 provider 或真实试点可用。

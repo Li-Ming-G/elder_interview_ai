@@ -879,10 +879,16 @@ P2：
 
 ## REV-049｜SPEC-CONTINUING-CONSENT-001 / PR #49 项目负责人审查
 
-- 状态：`REQUEST_CHANGES / REVIEW`；P0=0、P1=3、P2=0。SPEC 保持 REVIEW、ADR-039 保持 Proposed、DEV-008B1/B2 保持 BLOCKED；不得合并或自行宣布 PASS/DONE。
+- 初轮状态：`REQUEST_CHANGES / REVIEW`；P0=0、P1=3、P2=0。SPEC 保持 REVIEW、ADR-039 保持 Proposed、DEV-008B1/B2 保持 BLOCKED；不得合并或自行宣布 PASS/DONE。
 - 审查对象：[PR #49](https://github.com/Li-Ming-G/elder_interview_ai/pull/49) exact head `4095e570d17d8ecae94d630d62bca9ab0205917d`；CI [31762375878](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31762375878) completed / SUCCESS。
 - P1-1：repeat action 没有冻结完整、确定性的冲突优先级；尤其非终态 session 与 consent reauthorization 同时出现时，必须由 session 阻断获胜，只能 `session_in_progress + primary_action=null`，不得并行暴露正式重授权 action。
 - P1-2：`ConsentContinuationProjection` 为宽接口，不能机械拒绝 status/reason/basis/version/action 矛盾组合，也未冻结与 repeat primary action/reason/basis 的交叉组合；要求改为 discriminated union 或等价机器结构并增加契约测试。
 - P1-3：仓库当前没有已审查真实授权正文/machine policy 使 covered 状态可达，不能把本 SPEC merge 描述为可完整交付 B1/B2；须建立独立 consent-text/policy 接收前置，或将 fixture 明确限定为虚构测试且真实路径继续失败关闭。执行 Agent 不得自行撰写或批准法律文本。
 - 正式评论：[issuecomment-5288715503](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288715503)。old head、CI 与 REQUEST_CHANGES 永久保留，不得被后续定向复审覆盖。
 - 定向修复边界：仅补优先级/组合反例、shared discriminated unions 与类型契约测试、独立 SPEC-CONSENT-TEXT-POLICY-001 交付门禁和直接治理记录；不重做产品方向，不实现 runtime/Prisma/UI/provider，不启动 B1/B2。
+- 定向修复内容：accepted head `1d241a4b8c40827a93eefe1c9825021b6859df74` 冻结首命中 action 优先级、session+reauthorization/null-action 反例、continuation/repeat 交叉 discriminated unions 与编译期 contract tests，并登记 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001；没有撰写或批准法律文本。
+- 最终 accepted exact head：`1d241a4b8c40827a93eefe1c9825021b6859df74`；exact-head CI [31764584701](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31764584701) completed / SUCCESS，format、lint、typecheck、unit、fresh PostgreSQL migration deploy/status、integration、auth、build、smoke、ordinary Chromium 与 auth Chromium 全矩阵通过。
+- 项目负责人手动定向复审：[PR #49 正式 PASS 评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288833214)，严格绑定 accepted exact head 与 CI，正式结论 P0=0 / P1=0 / P2=0；上一轮三项 P1 已关闭，old REQUEST_CHANGES 历史永久保留。
+- 最终状态：`PASS / DONE`；仅在 merge、main CI 与本次独立低风险治理收口完成后转为当前状态。
+- 合并与集成：PR #49 以 merge commit `712b4ff46acbff5168453c79b2d02375a84fa017` 合入 `main`；main CI [31764903272](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31764903272) completed / SUCCESS。merge parents 为 prior main `2f7bb9632293694a0e22ed7e64adefff5fc5a57d` 与 accepted head。
+- 接收边界：SPEC-CONTINUING-CONSENT-001 DONE、ADR-039 Accepted、CON-012 RESOLVED。B1 只解除契约实现前置并转为 implementation-ready；真实 `covered` 端到端完成仍由 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001 阻塞，B2 仍等待 B1 runtime。本结论不接收 runtime、Prisma/UI、真实正文、provider 或真实试点。
