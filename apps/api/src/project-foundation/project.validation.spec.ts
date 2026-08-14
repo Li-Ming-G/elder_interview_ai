@@ -8,6 +8,7 @@ import {
   validateStartSession,
   validateCorrectTranscriptSpeakerRole,
   validateExecuteSpeakerRemap,
+  validateNextSession,
   validatePreviewSpeakerRemap,
 } from './project.validation.js';
 
@@ -20,11 +21,13 @@ describe('capture lifecycle validation', () => {
       validateStartSession({
         audio_stream_id: STREAM_ID,
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: 'recording-reminder-v1',
         request_id: REQUEST_ID,
       }),
     ).toEqual({
       audio_stream_id: STREAM_ID,
       mime_type: 'audio/webm;codecs=opus',
+      recording_reminder_version: 'recording-reminder-v1',
       request_id: REQUEST_ID,
     });
     expect(
@@ -48,6 +51,14 @@ describe('capture lifecycle validation', () => {
     expect(() =>
       validateStartSession({ audio_stream_id: STREAM_ID, request_id: REQUEST_ID }),
     ).toThrow();
+    expect(
+      validateStartSession({
+        audio_stream_id: STREAM_ID,
+        mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: 'recording-reminder-v0',
+        request_id: REQUEST_ID,
+      }).recording_reminder_version,
+    ).toBe('recording-reminder-v0');
     expect(() =>
       validateReportCaptureInterrupted({
         audio_stream_id: STREAM_ID,
@@ -71,6 +82,32 @@ describe('capture lifecycle validation', () => {
         local_archive_chunk_count: -1,
         local_archive_timeline_high_water_ms: 0,
         request_id: REQUEST_ID,
+      }),
+    ).toThrow();
+  });
+
+  it('requires the current reminder version and validates the frozen next-session basis', () => {
+    expect(() =>
+      validateStartSession({
+        audio_stream_id: STREAM_ID,
+        mime_type: 'audio/webm;codecs=opus',
+        request_id: REQUEST_ID,
+      }),
+    ).toThrow();
+    expect(
+      validateNextSession({
+        basis_session_id: STREAM_ID,
+        expected_basis_sequence_no: 1,
+        request_id: REQUEST_ID,
+        workflow_version: 'repeat-interview-v1',
+      }),
+    ).toMatchObject({ basis_session_id: STREAM_ID, expected_basis_sequence_no: 1 });
+    expect(() =>
+      validateNextSession({
+        basis_session_id: STREAM_ID,
+        expected_basis_sequence_no: 0,
+        request_id: REQUEST_ID,
+        workflow_version: 'repeat-interview-v1',
       }),
     ).toThrow();
   });

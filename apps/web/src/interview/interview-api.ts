@@ -6,6 +6,8 @@ import type {
   ConfirmCaptureActiveRequest,
   ConsentResponse,
   CreateConsentRequest,
+  CreateNextSessionRequest,
+  CreateNextSessionResponse,
   CreateProjectRequest,
   CreateServiceTermRequest,
   DeviceCheckRequest,
@@ -40,6 +42,7 @@ export class InterviewApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly status: number,
+    public readonly details: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
     this.name = 'InterviewApiError';
@@ -78,6 +81,13 @@ export interface HomeApi {
     projectId: string,
     input?: { cursor?: string | null; limit?: number },
   ) => Promise<ProjectSessionListResponse>;
+}
+
+export interface NextSessionApi {
+  createNextSession: (
+    projectId: string,
+    input: CreateNextSessionRequest,
+  ) => Promise<CreateNextSessionResponse>;
 }
 
 export interface ReviewApi {
@@ -164,6 +174,7 @@ export function createInterviewApi(
   csrfToken: string,
 ): InterviewApi &
   HomeApi &
+  NextSessionApi &
   ReviewApi &
   NewInterviewApi &
   InterviewCaptureApi &
@@ -215,6 +226,8 @@ export function createInterviewApi(
       write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
     createConsent: async (projectId, input): Promise<ConsentResponse> =>
       createWrite(`/api/v1/projects/${projectId}/consents`, input),
+    createNextSession: async (projectId, input): Promise<CreateNextSessionResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/next-session`, input),
     createProject: async (input): Promise<ProjectResponse> =>
       createWrite('/api/v1/projects', input),
     createServiceTerm: async (projectId, input): Promise<ServiceTermResponse> =>
@@ -357,10 +370,22 @@ async function toApiError(response: Response): Promise<InterviewApiError> {
       typeof payload.code === 'string' ? payload.code : 'REQUEST_FAILED',
       safeMessage(payload.code),
       response.status,
+      safeDetails(payload.details),
     );
   } catch {
     return new InterviewApiError('REQUEST_FAILED', '请求未能完成，请稍后重试', response.status);
   }
+}
+
+function safeDetails(value: unknown): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(value).filter(
+        ([key]) => key !== '__proto__' && key !== 'constructor' && key !== 'prototype',
+      ),
+    ),
+  );
 }
 
 function safeMessage(code: unknown): string {

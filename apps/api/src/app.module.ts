@@ -17,6 +17,7 @@ import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
 import { createMemoryModule } from './memory/memory.module.js';
 import { createProjectFoundationModule } from './project-foundation/project-foundation.module.js';
+import type { ConsentContinuationPolicyReader } from './project-foundation/consent-continuation.policy.js';
 import { createQuestionEvidenceModule } from './question-evidence/question-evidence.module.js';
 import { createQuestionBankModule } from './question-bank/question-bank.module.js';
 import { createQuestionOrchestrationModule } from './question-orchestration/question-orchestration.module.js';
@@ -25,7 +26,7 @@ import { createTranscriptionModule } from './transcription/transcription.module.
 
 @Module({})
 export class AppModule implements NestModule {
-  public static register(config: ApiConfig): DynamicModule {
+  public static register(config: ApiConfig, overrides: AppRuntimeOverrides = {}): DynamicModule {
     const authModule = createAuthModule(config);
     const audioModule = createAudioModule(config, authModule);
     const transcriptionModule = createTranscriptionModule(config, authModule);
@@ -62,9 +63,11 @@ export class AppModule implements NestModule {
         createProjectFoundationModule(
           config,
           authModule,
+          aiRuntimeModule,
           audioModule,
           realtimeModule,
           transcriptionModule,
+          overrides.consentContinuationPolicyReader,
         ),
         questionBankModule,
         transcriptionModule,
@@ -87,4 +90,8 @@ export class AppModule implements NestModule {
       .apply(RequestIdMiddleware, OriginMiddleware, CsrfMiddleware)
       .forRoutes({ path: '*splat', method: RequestMethod.ALL });
   }
+}
+
+export interface AppRuntimeOverrides {
+  consentContinuationPolicyReader?: ConsentContinuationPolicyReader;
 }

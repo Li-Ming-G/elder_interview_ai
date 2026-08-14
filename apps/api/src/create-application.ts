@@ -6,9 +6,13 @@ import { AppModule } from './app.module.js';
 import { ApiExceptionFilter } from './http/api-exception.filter.js';
 import { JsonLogger } from './logging/json.logger.js';
 import { InterviewWsAdapter } from './realtime-transcription/interview-ws.adapter.js';
+import type { AppRuntimeOverrides } from './app.module.js';
 
-export async function createApplication(config: ApiConfig): Promise<INestApplication> {
-  const application = await NestFactory.create(AppModule.register(config), {
+export async function createApplication(
+  config: ApiConfig,
+  overrides: AppRuntimeOverrides = {},
+): Promise<INestApplication> {
+  const application = await NestFactory.create(AppModule.register(config, overrides), {
     abortOnError: false,
     bufferLogs: true,
     logger: new JsonLogger(),

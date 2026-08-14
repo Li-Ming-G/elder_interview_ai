@@ -22,6 +22,7 @@ import type {
 } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
+import { RepeatInterviewDecisionService } from './repeat-interview-decision.service.js';
 
 @Injectable()
 export class SessionCaptureService {
@@ -30,6 +31,7 @@ export class SessionCaptureService {
     private readonly authorization: ResourceAuthorizationService,
     private readonly runtime: RealtimeRuntimeService,
     private readonly snapshots: SessionSnapshotService,
+    private readonly repeatInterviews: RepeatInterviewDecisionService,
   ) {}
 
   public async confirmActive(
@@ -382,23 +384,13 @@ export class SessionCaptureService {
     actor: AuthPrincipal,
     projectId: string,
   ): Promise<void> {
-    const [project, assignment, consent] = await Promise.all([
-      tx.elderProject.findUnique({ where: { id: projectId } }),
-      tx.projectAssignment.findFirst({ where: { projectId, revokedAt: null, userId: actor.id } }),
-      tx.consentRecord.findFirst({
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        where: { consentType: 'recording_transcription_ai', projectId },
-      }),
-    ]);
+    const decision = await this.repeatInterviews.read(actor.id, projectId, tx);
     if (
       actor.status !== 'active' ||
-      project === null ||
-      project.deletedAt !== null ||
-      !['ready', 'active'].includes(project.status) ||
-      assignment === null ||
-      consent?.status !== 'valid' ||
-      consent.revokedAt !== null ||
-      consent.consentTextVersion !== 'mvp-v1'
+      decision.visibility !== 'ordinary' ||
+      !decision.projectStateAvailable ||
+      !['ready', 'active'].includes(decision.project.status) ||
+      decision.consentContinuation.status !== 'covered'
     ) {
       throw this.forbidden();
     }

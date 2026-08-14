@@ -18,6 +18,11 @@ import { SessionFinalizationService } from './session-finalization.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
 import { SpeakerCalibrationService } from './speaker-calibration.service.js';
 import { SpeakerCorrectionService } from './speaker-correction.service.js';
+import {
+  ConsentContinuationPolicyReader,
+  UnavailableConsentContinuationPolicyReader,
+} from './consent-continuation.policy.js';
+import { RepeatInterviewDecisionService } from './repeat-interview-decision.service.js';
 
 @Module({})
 // Nest requires a module token for the dynamic module returned below.
@@ -27,13 +32,15 @@ export class ProjectFoundationModule {}
 export function createProjectFoundationModule(
   config: ApiConfig,
   authModule: DynamicModule,
+  aiRuntimeModule: DynamicModule,
   audioModule: DynamicModule,
   realtimeModule: DynamicModule,
   transcriptionModule: DynamicModule,
+  consentContinuationPolicyReader?: ConsentContinuationPolicyReader,
 ): DynamicModule {
   return {
     controllers: [ProjectFoundationController],
-    imports: [authModule, audioModule, realtimeModule, transcriptionModule],
+    imports: [authModule, aiRuntimeModule, audioModule, realtimeModule, transcriptionModule],
     module: ProjectFoundationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },
@@ -41,6 +48,14 @@ export function createProjectFoundationModule(
       { provide: ProjectAccessReader, useExisting: PrismaProjectAccessReader },
       { provide: ResourceAccessAuthorizer, useExisting: ResourceAuthorizationService },
       ProjectAccessService,
+      UnavailableConsentContinuationPolicyReader,
+      consentContinuationPolicyReader === undefined
+        ? {
+            provide: ConsentContinuationPolicyReader,
+            useExisting: UnavailableConsentContinuationPolicyReader,
+          }
+        : { provide: ConsentContinuationPolicyReader, useValue: consentContinuationPolicyReader },
+      RepeatInterviewDecisionService,
       ProjectFoundationService,
       ProjectRequestActorService,
       ProjectSessionListService,

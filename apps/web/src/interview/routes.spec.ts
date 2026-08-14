@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseInterviewRoute,
   preparationPath,
+  reauthorizationPath,
   reviewPath,
   saveFactsPath,
   workbenchPath,
@@ -32,6 +33,10 @@ describe('interview routes', () => {
 
   it('parses shared new, review and save-facts shells', () => {
     expect(parseInterviewRoute('/interviews/new')).toEqual({ kind: 'new_interview' });
+    expect(parseInterviewRoute(reauthorizationPath(PROJECT_ID))).toEqual({
+      kind: 'reauthorization',
+      projectId: PROJECT_ID,
+    });
     expect(parseInterviewRoute(reviewPath(PROJECT_ID, SESSION_ID))).toEqual({
       kind: 'review',
       projectId: PROJECT_ID,

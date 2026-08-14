@@ -1,7 +1,35 @@
 import { describe, expect, it } from 'vitest';
 
 import type { InterviewSession, SessionFinalization } from '../generated/prisma/client.js';
+import {
+  RECORDING_START_REMINDER_TEXT,
+  RECORDING_START_REMINDER_VERSION,
+} from '@elder-interview/contracts';
+
 import { mapInterviewSessionSnapshot } from './project.mapper.js';
+
+describe('mapInterviewSessionSnapshot recording reminder', () => {
+  it.each(['created', 'device_check'] as const)(
+    'projects the server-owned reminder for %s',
+    (status) => {
+      expect(
+        mapInterviewSessionSnapshot(session(status), null, 0).recording_start_reminder,
+      ).toEqual({
+        action_label: '开始访谈',
+        creates_consent_record: false,
+        requires_explicit_action: true,
+        text: RECORDING_START_REMINDER_TEXT,
+        version: RECORDING_START_REMINDER_VERSION,
+      });
+    },
+  );
+
+  it('does not imply a pending acknowledgement after start', () => {
+    expect(
+      mapInterviewSessionSnapshot(session('recording'), null, 0).recording_start_reminder,
+    ).toBeUndefined();
+  });
+});
 
 describe('mapInterviewSessionSnapshot finalization bytes', () => {
   it('emits the exact safe complete AudioObject total as an explicit key', () => {

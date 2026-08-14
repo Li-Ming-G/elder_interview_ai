@@ -157,7 +157,7 @@ export function InterviewCaptureControllerHarness({
       </dl>
       <button
         data-testid="controller-start"
-        onClick={() => void run(() => runtime.controller.start())}
+        onClick={() => void run(() => runtime.controller.start('recording-reminder-v1'))}
         type="button"
       >
         Start formal capture

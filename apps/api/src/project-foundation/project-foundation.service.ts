@@ -1,11 +1,14 @@
 import type {
   ConsentResponse,
+  CreateNextSessionRequest,
+  CreateNextSessionResponse,
   CreateConsentRequest,
   CreateProjectRequest,
   CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
   ProjectListResponse,
+  ProjectListProjection,
   ProjectResponse,
   ServiceTermResponse,
   StartSessionRequest,
@@ -36,6 +39,10 @@ import {
 } from './project.mapper.js';
 import { ProjectAccessService, type ProjectAccessSnapshot } from './project-access.service.js';
 import { SessionSnapshotService } from './session-snapshot.service.js';
+import {
+  RepeatInterviewDecisionService,
+  type RepeatInterviewReadResult,
+} from './repeat-interview-decision.service.js';
 
 interface IdempotencyBinding {
   action: string;
@@ -52,8 +59,6 @@ interface InterruptedCaptureTarget {
   sessionId: string;
 }
 
-const CURRENT_CONSENT_TEXT_VERSION = 'mvp-v1';
-
 @Injectable()
 export class ProjectFoundationService {
   public constructor(
@@ -63,6 +68,7 @@ export class ProjectFoundationService {
     private readonly audioIntegrity: AudioIntegrityService,
     private readonly snapshots: SessionSnapshotService,
     private readonly runtime: RealtimeRuntimeService,
+    private readonly repeatInterviews: RepeatInterviewDecisionService,
   ) {}
 
   public async createProject(
@@ -129,13 +135,19 @@ export class ProjectFoundationService {
         status: { not: 'deleted' },
       },
     });
-    return {
-      items: projects.map((project) =>
-        project.status === 'restricted'
-          ? mapProjectListRestricted(project.id)
-          : mapProjectListOrdinary(project),
-      ),
-    };
+    const decisions = await Promise.all(
+      projects.map((project) => this.repeatInterviews.read(actor.id, project.id)),
+    );
+    const items: ProjectListProjection[] = [];
+    for (const decision of decisions) {
+      if (decision.visibility === 'hidden') continue;
+      items.push(
+        decision.visibility === 'restricted'
+          ? mapProjectListRestricted(decision.project.id)
+          : mapProjectListOrdinary(decision.project, decision.projection),
+      );
+    }
+    return { items };
   }
 
   public async getProject(actor: AuthPrincipal, projectId: string): Promise<ProjectResponse> {
@@ -250,6 +262,22 @@ export class ProjectFoundationService {
           projectId,
           input.consent_audio_object_id ?? '',
         );
+      }
+      if (input.consent_audio_object_id !== null) {
+        const conflictingAudioVersion = await transaction.consentRecord.findFirst({
+          select: { id: true },
+          where: {
+            consentAudioObjectId: input.consent_audio_object_id,
+            consentTextVersion: { not: input.consent_text_version },
+          },
+        });
+        if (conflictingAudioVersion !== null) {
+          throw new ConflictException({
+            code: 'CONSENT_AUDIO_VERSION_CONFLICT',
+            details: {},
+            message: 'Consent audio is already bound to another text version',
+          });
+        }
       }
       const previous = await transaction.consentRecord.findFirst({
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -479,13 +507,19 @@ export class ProjectFoundationService {
       ) {
         throw this.projectNotStartable();
       }
-      const last = await transaction.interviewSession.findFirst({
-        orderBy: { sequenceNo: 'desc' },
-        select: { sequenceNo: true },
+      const existing = await transaction.interviewSession.findFirst({
+        select: { id: true },
         where: { projectId },
       });
+      if (existing !== null) {
+        throw new ConflictException({
+          code: 'NEXT_SESSION_REQUIRED',
+          details: {},
+          message: 'Additional interview sessions must use the next-session workflow',
+        });
+      }
       const created = await transaction.interviewSession.create({
-        data: { createdBy: actor.id, projectId, sequenceNo: (last?.sequenceNo ?? 0) + 1 },
+        data: { createdBy: actor.id, projectId, sequenceNo: 1 },
       });
       await transaction.auditLog.create({
         data: {
@@ -499,6 +533,136 @@ export class ProjectFoundationService {
         },
       });
       const response = mapInterviewSession(created);
+      await this.writeIdempotency(transaction, requestId, binding, response);
+      return response;
+    });
+  }
+
+  public async createNextSession(
+    actor: AuthPrincipal,
+    projectId: string,
+    input: CreateNextSessionRequest,
+  ): Promise<CreateNextSessionResponse> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    const { request_id: requestId, ...payload } = input;
+    const binding: IdempotencyBinding = {
+      action: 'next_session.create',
+      actorId: actor.id,
+      createIdentity: null,
+      requestPayloadHash: createPayloadHash(payload),
+      targetId: projectId,
+      targetType: 'elder_project',
+    };
+    const replay = await this.findReplay<CreateNextSessionResponse>(requestId, binding);
+    if (replay !== null) {
+      await this.assertNextSessionReplayAuthority(actor, projectId);
+      return replay;
+    }
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${requestId}`);
+      const repeated = await this.findReplayInTransaction<CreateNextSessionResponse>(
+        transaction,
+        requestId,
+        binding,
+      );
+      if (repeated !== null) {
+        await this.assertNextSessionReplayAuthority(actor, projectId, transaction);
+        return repeated;
+      }
+      await this.lock(transaction, `project:${projectId}`);
+      const sessionIds = await transaction.interviewSession.findMany({
+        orderBy: { id: 'asc' },
+        select: { id: true },
+        where: { projectId },
+      });
+      for (const session of sessionIds) await this.lock(transaction, `session:${session.id}`);
+
+      const decision = await this.repeatInterviews.read(actor.id, projectId, transaction);
+      if (decision.visibility === 'hidden') throw this.notFound();
+      if (decision.visibility === 'restricted') throw this.projectNotStartable();
+      if (decision.projection.reason === 'session_in_progress') {
+        const existing = [...decision.sessions]
+          .filter(({ status }) =>
+            [
+              'created',
+              'device_check',
+              'recording',
+              'reconnecting',
+              'interrupted',
+              'stopping',
+              'processing',
+            ].includes(status),
+          )
+          .sort((left, right) => right.sequenceNo - left.sequenceNo)[0];
+        throw new ConflictException({
+          code: 'NEXT_SESSION_ALREADY_EXISTS',
+          details:
+            existing === undefined
+              ? {}
+              : { session_id: existing.id, sequence_no: existing.sequenceNo },
+          message: 'A current interview session already exists',
+        });
+      }
+      if (decision.projection.reason === 'consent_reauthorization_required') {
+        throw new ConflictException({
+          code: 'CONSENT_REAUTHORIZATION_REQUIRED',
+          details: {},
+          message: 'Current formal consent must be recorded again',
+        });
+      }
+      if (decision.projection.reason === 'consent_unavailable') {
+        throw new ConflictException({
+          code: 'CONSENT_POLICY_UNAVAILABLE',
+          details: {},
+          message: 'Consent continuation policy is unavailable',
+        });
+      }
+      if (
+        decision.projection.reason === 'project_unavailable' ||
+        decision.projection.reason === 'access_unavailable'
+      ) {
+        throw this.projectNotStartable();
+      }
+      if (
+        decision.projection.reason !== 'eligible' ||
+        decision.projection.basis_session_id !== input.basis_session_id ||
+        decision.projection.basis_sequence_no !== input.expected_basis_sequence_no
+      ) {
+        throw new ConflictException({
+          code: 'NEXT_SESSION_BASIS_STALE',
+          details: {},
+          message: 'The completed interview basis is no longer current',
+        });
+      }
+      const created = await transaction.interviewSession.create({
+        data: {
+          createdBy: actor.id,
+          projectId,
+          sequenceNo: decision.projection.next_sequence_no,
+        },
+      });
+      const response: CreateNextSessionResponse = {
+        basis_sequence_no: decision.projection.basis_sequence_no,
+        basis_session_id: decision.projection.basis_session_id,
+        project_id: projectId,
+        request_id: requestId,
+        session: mapInterviewSession(created),
+      };
+      await transaction.auditLog.create({
+        data: {
+          action: 'next_session.create',
+          actorId: actor.id,
+          actorType: 'user',
+          entityId: created.id,
+          entityType: 'interview_session',
+          metadata: {
+            basis_sequence_no: response.basis_sequence_no,
+            basis_session_id: response.basis_session_id,
+            project_id: projectId,
+          },
+          requestId,
+        },
+      });
       await this.writeIdempotency(transaction, requestId, binding, response);
       return response;
     });
@@ -553,16 +717,22 @@ export class ProjectFoundationService {
       action: 'interview_session.start',
       actorId: actor.id,
       createIdentity: null,
-      requestPayloadHash: null,
+      requestPayloadHash: createPayloadHash({
+        audio_stream_id: input.audio_stream_id,
+        mime_type: input.mime_type,
+        recording_reminder_version: input.recording_reminder_version,
+      }),
       targetId: sessionId,
       targetType: 'interview_session',
     };
     const existing = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (existing === null) throw this.notFound();
     await this.assertInterviewerProject(actor, existing.projectId);
+    this.assertCurrentStartAuthority(
+      await this.repeatInterviews.read(actor.id, existing.projectId),
+    );
     const replay = await this.findReplay<InterviewSessionResponse>(input.request_id, binding);
     if (replay !== null) {
-      await this.assertStartReplay(replay, input);
       return replay;
     }
     const started = await this.prisma.$transaction(async (transaction) => {
@@ -573,7 +743,6 @@ export class ProjectFoundationService {
         binding,
       );
       if (repeated !== null) {
-        await this.assertStartReplay(repeated, input, transaction);
         return repeated;
       }
       await this.lock(transaction, `project:${existing.projectId}`);
@@ -584,15 +753,19 @@ export class ProjectFoundationService {
       const project = await transaction.elderProject.findUniqueOrThrow({
         where: { id: session.projectId },
       });
-      const consent = await transaction.consentRecord.findFirst({
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        where: { consentType: 'recording_transcription_ai', projectId: project.id },
-      });
+      const currentAuthority = await this.repeatInterviews.read(actor.id, project.id, transaction);
+      this.assertCurrentStartAuthority(currentAuthority);
+      if (input.recording_reminder_version !== 'recording-reminder-v1') {
+        throw new ConflictException({
+          code: 'RECORDING_REMINDER_VERSION_STALE',
+          details: {},
+          message: 'Recording reminder version is stale',
+        });
+      }
       const gate = evaluateInterviewStartGate({
         allRequiredConsentsValid:
-          consent?.status === 'valid' &&
-          consent.revokedAt === null &&
-          consent.consentTextVersion === CURRENT_CONSENT_TEXT_VERSION,
+          currentAuthority.visibility === 'ordinary' &&
+          currentAuthority.consentContinuation.status === 'covered',
         projectStatus: project.status,
         sessionStatus: session.status,
       });
@@ -644,6 +817,7 @@ export class ProjectFoundationService {
             audio_stream_id: input.audio_stream_id,
             mime_type: input.mime_type,
             project_id: project.id,
+            recording_reminder_version: input.recording_reminder_version,
           },
           requestId: input.request_id,
         },
@@ -652,20 +826,6 @@ export class ProjectFoundationService {
       return response;
     });
     return started;
-  }
-
-  private async assertStartReplay(
-    snapshot: InterviewSessionResponse,
-    input: StartSessionRequest,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
-  ): Promise<void> {
-    if (snapshot.capture?.audio_stream_id !== input.audio_stream_id) {
-      throw this.idempotencyPayloadMismatch();
-    }
-    const audio = await db.audioObject.findUnique({
-      where: { id: snapshot.capture.audio_object_id },
-    });
-    if (audio?.mimeType !== input.mime_type) throw this.idempotencyPayloadMismatch();
   }
 
   private async replayedInterruptedCaptures(
@@ -717,11 +877,17 @@ export class ProjectFoundationService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       where: { consentType: 'recording_transcription_ai', projectId },
     });
-    if (
-      consent?.status === 'valid' &&
-      consent.revokedAt === null &&
-      consent.consentTextVersion === CURRENT_CONSENT_TEXT_VERSION
-    ) {
+    const continuation = await this.repeatInterviews.readConsentContinuation(
+      consent === null
+        ? null
+        : {
+            id: consent.id,
+            revokedAt: consent.revokedAt,
+            status: consent.status,
+            textVersion: consent.consentTextVersion,
+          },
+    );
+    if (continuation.status === 'covered') {
       await transaction.elderProject.update({
         data: { status: 'ready' },
         where: { id: projectId },
@@ -773,14 +939,20 @@ export class ProjectFoundationService {
   }
 
   private readReplay(record: IdempotencyRecord, binding: IdempotencyBinding): unknown {
+    const sameResourceBinding =
+      record.action === binding.action &&
+      record.actorId === binding.actorId &&
+      record.targetType === binding.targetType &&
+      record.targetId === binding.targetId &&
+      record.createIdentity === binding.createIdentity;
     if (
-      record.action !== binding.action ||
-      record.actorId !== binding.actorId ||
-      record.targetType !== binding.targetType ||
-      record.targetId !== binding.targetId ||
-      record.createIdentity !== binding.createIdentity ||
+      sameResourceBinding &&
+      binding.action === 'interview_session.start' &&
       record.requestPayloadHash !== binding.requestPayloadHash
     ) {
+      throw this.idempotencyPayloadMismatch();
+    }
+    if (!sameResourceBinding || record.requestPayloadHash !== binding.requestPayloadHash) {
       throw new ConflictException({
         code: 'IDEMPOTENCY_KEY_REUSED',
         details: {},
@@ -794,7 +966,12 @@ export class ProjectFoundationService {
     transaction: Prisma.TransactionClient,
     requestId: string,
     binding: IdempotencyBinding,
-    response: ConsentResponse | InterviewSessionResponse | ProjectResponse | ServiceTermResponse,
+    response:
+      | ConsentResponse
+      | CreateNextSessionResponse
+      | InterviewSessionResponse
+      | ProjectResponse
+      | ServiceTermResponse,
   ): Promise<void> {
     await transaction.idempotencyRecord.create({
       data: {
@@ -808,6 +985,48 @@ export class ProjectFoundationService {
         targetType: binding.targetType,
       },
     });
+  }
+
+  private async assertNextSessionReplayAuthority(
+    actor: AuthPrincipal,
+    projectId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    const decision = await this.repeatInterviews.read(actor.id, projectId, db);
+    if (decision.visibility === 'hidden') throw this.notFound();
+    if (
+      decision.visibility !== 'ordinary' ||
+      !decision.projectStateAvailable ||
+      decision.project.status !== 'active' ||
+      decision.consentContinuation.status !== 'covered'
+    ) {
+      throw this.projectNotStartable();
+    }
+  }
+
+  private assertCurrentStartAuthority(decision: RepeatInterviewReadResult): void {
+    if (decision.visibility === 'hidden') throw this.notFound();
+    if (
+      decision.visibility !== 'ordinary' ||
+      !decision.projectStateAvailable ||
+      !['ready', 'active'].includes(decision.project.status)
+    ) {
+      throw this.projectNotStartable();
+    }
+    if (decision.consentContinuation.status === 'unavailable') {
+      throw new ConflictException({
+        code: 'CONSENT_POLICY_UNAVAILABLE',
+        details: {},
+        message: 'Consent continuation policy is unavailable',
+      });
+    }
+    if (decision.consentContinuation.status !== 'covered') {
+      throw new ConflictException({
+        code: 'CONSENT_REAUTHORIZATION_REQUIRED',
+        details: {},
+        message: 'Current formal consent must be recorded again',
+      });
+    }
   }
 
   private projectCreateBinding(

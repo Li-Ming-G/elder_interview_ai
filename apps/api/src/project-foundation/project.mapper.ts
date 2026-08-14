@@ -4,6 +4,7 @@ import type {
   ProjectListOrdinaryProjection,
   ProjectListRestrictedProjection,
   ProjectResponse,
+  RepeatInterviewProjectActionProjection,
   ServiceTermResponse,
 } from '@elder-interview/contracts';
 
@@ -15,6 +16,7 @@ import type {
   SessionFinalization,
   ServiceTerm,
 } from '../generated/prisma/client.js';
+import { RECORDING_START_REMINDER } from './recording-start-reminder.js';
 
 export function mapProject(project: ElderProject): ProjectResponse {
   return {
@@ -31,11 +33,19 @@ export function mapProject(project: ElderProject): ProjectResponse {
   };
 }
 
-export function mapProjectListOrdinary(project: ElderProject): ProjectListOrdinaryProjection {
+export function mapProjectListOrdinary(
+  project: ElderProject,
+  repeatInterview: RepeatInterviewProjectActionProjection,
+): ProjectListOrdinaryProjection {
   if (project.status === 'restricted' || project.status === 'deleted') {
     throw new Error('Project is not ordinary');
   }
-  return { ...mapProject(project), projection: 'ordinary', status: project.status };
+  return {
+    ...mapProject(project),
+    projection: 'ordinary',
+    repeat_interview: repeatInterview,
+    status: project.status,
+  };
 }
 
 export function mapProjectListRestricted(projectId: string): ProjectListRestrictedProjection {
@@ -120,6 +130,9 @@ export function mapInterviewSessionSnapshot(
     created_by: session.createdBy,
     id: session.id,
     project_id: session.projectId,
+    ...(session.status === 'created' || session.status === 'device_check'
+      ? { recording_start_reminder: RECORDING_START_REMINDER }
+      : {}),
     sequence_no: session.sequenceNo,
     started_at: session.startedAt?.toISOString() ?? null,
     ended_at: session.endedAt?.toISOString() ?? null,

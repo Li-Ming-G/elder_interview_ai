@@ -2,12 +2,13 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`；等待项目负责人 exact-head 手动 GitHub 审查
+- 状态：`REVIEW`；accepted 内容已获项目负责人 PASS，latest-main integration 待窄复审
 - base：`origin/main@6f6363f517a6588ff4eb31aee7996b7116092c03`
 - branch：`codex/spec-llm-provider-001`
 - PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft）
-- exact head / CI：以本次 PR 元数据回填提交后的 GitHub head 与 CI run 为准；任何 CI SUCCESS 不等于 PASS
-- 正式旧审查：REV-050 绑定 `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS，项目负责人 `REQUEST_CHANGES`，P0=0/P1=3/P2=0；永久保留
+- accepted exact head / CI：`77fb3a860ccd372f1fdc3465654f86d931688a89` / `31783061076` SUCCESS；项目负责人正式 `PASS`，P0=0/P1=0/P2=0
+- 正式旧审查：branch-local REV-050 绑定 `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS，项目负责人 `REQUEST_CHANGES`，P0=0/P1=3/P2=0；永久保留
+- canonical review identity：main 的 `REV-050` 已由 DEV-008B1 占用；本任务治理索引使用 `REV-051（branch-local REV-050）`，不改 accepted LLM contract/schema/fixtures 中的历史注释
 
 ## 已冻结
 
@@ -51,10 +52,18 @@
 
 第一次数据库命令在专用数据库尚未创建时于 migration 前失败；创建后首轮 integration/auth 已全绿。为避免既有 question-bank 固定 version 在同库重跑造成 `QUESTION_BANK_VERSION_EXISTS`，最终证据改用新建空库 `elder_interview_spec_llm_001_rev050` 单次运行并全绿，没有清理共享数据、修改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
 
-PR #52 已创建且非 Draft；元数据回填提交后继续取得 exact head 与 CI run。只有项目负责人明确 PASS 后，治理 Agent 才可将任务 DONE、ADR-040 Accepted 并决定后续 provider 选择任务；执行 Agent 不得自行 merge。
+PR #52 已创建且非 Draft。accepted 内容已获项目负责人明确 PASS；由于 PR #51 与本 PR 的治理文件存在 latest-main 冲突，当前只完成机械整合并生成新的 integration exact head/CI。项目负责人完成 integration 窄复审前，任务保持 REVIEW，ADR-040 不转 Accepted，CON-031 不关闭，执行 Agent 不得 DONE 或 merge。
 
-## REV-050 定向修复交接
+## branch-local REV-050 定向修复与 accepted PASS 交接
 
 当前只允许关闭三项 P1：registry semantic reference/membership、四类 provenance identity、canonical model-config/warnings/equal-effective-config。不得重做已通过方向，不安装 SDK、不选厂商、不写真实 provider runtime/Prisma migration、不启动第二次 iteration-coach。修复完成后必须产生新的 exact head 与完整 CI SUCCESS，再由项目负责人定向复审；新绿灯不覆盖旧 REQUEST_CHANGES。
 
-三项修复已形成待审候选：新增 deterministic semantic validator contract/reference/fixtures；拆分四类 provenance 并同步共享类型与 `04/05/07/09/10`；冻结 canonical model-config manifest/digest golden vector、sanitized warnings 与 equal-effective-config 判定。当前仍是 `REVIEW / REQUEST_CHANGES pending re-review`，新 exact head/CI 在提交推送后回传；执行 Agent 不作 PASS/DONE/merge。
+三项修复已形成并通过：新增 deterministic semantic validator contract/reference/fixtures；拆分四类 provenance 并同步共享类型与 `04/05/07/09/10`；冻结 canonical model-config manifest/digest golden vector、sanitized warnings 与 equal-effective-config 判定。项目负责人已对 `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` 正式 PASS；旧 REQUEST_CHANGES 不被覆盖。
+
+## latest-main integration
+
+- PR #51 accepted head `30975626f00be0526da2d17d200fd1744b9a721c` 已以 main merge SHA `6e546853672c687c70a4112bf07d1dfe1763c75f` 合入；main CI `31785578105` attempt 2 SUCCESS，attempt 1 ordinary Chromium unknown-project 时序 flake永久保留。
+- 已证文件冲突仅 `docs/agent/01-requirement-traceability.md`、`docs/agent/04-review-report.md`、`docs/agent/handoffs/index.md`，均机械保全 DEV-008B1 与 SPEC-LLM-PROVIDER-001 双方事实。另发现 review ID 并行占用，按 canonical `REV-050`=DEV-008B1、`REV-051（branch-local REV-050）`=LLM 记录，不改 accepted LLM 技术契约。
+- integration 本地全门禁：format/lint/typecheck/build/smoke PASS；unit 61 files / 372 tests、LLM 定向 10/10、fresh PostgreSQL 14 migrations deploy/status、integration 14 files / 84 tests、auth 4 files / 23 tests、ordinary Chromium 27/27、auth Chromium 5/5 均 PASS；`git diff --check` PASS。accepted LLM semantic validator/contract tests、`docs/contracts`、synthetic-v1、v2-draft、shared contract 与 package manifest/lockfile 相对 `77fb3a8` 无差异。
+- 真实本地失败历史：第一次 migration 前的 PowerShell 空查询返回 `null`，导致新数据库未创建，migration 因目标库不存在退出；显式创建同一空库后，从 migration 开始单次全绿。首次 auth E2E 命令因新 shell 未注入 `TEST_DATABASE_URL` 在测试启动前退出；改用另一全新空库并显式注入后 5/5。两次均未修改产品代码、测试目标或共享数据。ordinary E2E 记录一次 Vite `/api/v1/auth/me` 启动窗口 `ECONNREFUSED`，27/27 仍通过，未重跑普通 E2E。
+- integration exact head 与完整 CI SUCCESS 取得后只请求项目负责人做 main integration 冲突窄复审。PR #52 继续 OPEN/REVIEW/未合并；不提前联合收口。

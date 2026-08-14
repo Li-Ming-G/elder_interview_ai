@@ -237,6 +237,22 @@ p {
   line-height: 1.45;
 }
 
+.project-group__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.recording-reminder {
+  padding: 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  overflow-wrap: anywhere;
+}
+
 .session-list {
   padding: 0 1.25rem;
 }

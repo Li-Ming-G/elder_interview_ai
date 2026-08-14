@@ -185,8 +185,11 @@ export class InterviewCaptureController {
     return () => this.listeners.delete(listener);
   }
 
-  public start(): Promise<InterviewCaptureControllerSnapshot> {
-    return this.serial(() => this.startInternal());
+  public start(recordingReminderVersion: string): Promise<InterviewCaptureControllerSnapshot> {
+    if (recordingReminderVersion !== 'recording-reminder-v1') {
+      return Promise.reject(new Error('RECORDING_REMINDER_UNAVAILABLE'));
+    }
+    return this.serial(() => this.startInternal(recordingReminderVersion));
   }
 
   public recover(
@@ -277,7 +280,9 @@ export class InterviewCaptureController {
     return this.serial(() => this.completeFrozenAudioInternal(handoff));
   }
 
-  private async startInternal(): Promise<InterviewCaptureControllerSnapshot> {
+  private async startInternal(
+    recordingReminderVersion: 'recording-reminder-v1',
+  ): Promise<InterviewCaptureControllerSnapshot> {
     if (!(await this.options.browserLock.acquire())) {
       this.patch({ phase: 'locked', lastError: 'BROWSER_CAPTURE_LOCKED' });
       throw new Error('BROWSER_CAPTURE_LOCKED');
@@ -317,6 +322,7 @@ export class InterviewCaptureController {
       const started = await this.options.api.startSession(this.options.sessionId, {
         audio_stream_id: capture.audioStreamId,
         mime_type: job.mimeType,
+        recording_reminder_version: recordingReminderVersion,
         request_id: capture.startRequestId,
       });
       assertSessionIdentity(started, this.options.projectId, this.options.sessionId);
