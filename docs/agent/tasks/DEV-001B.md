@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`（由 SEC-AUTH-PUBLIC-001 / REV-053 完成最终加固；仅应用身份/会话基础范围）
 - 负责人：身份安全实现 Agent（dev001b_identity_security）
 - 前置依赖：`DEV-001A`
 - 分支：`feature/DEV-001B-auth-session-rbac`
@@ -93,6 +93,8 @@ git status --short --branch
 - 内部原型候选已由总控提交为 `ab9628b`；该提交不代表最终安全验收通过。
 
 > 阶段说明（2026-08-03）：当前成果可作为虚构数据、非公网内部原型的固定身份 seam；任务仍为 `REVIEW`。CON-008、增强 Chromium 证据和独立复审只阻塞本任务最终 `DONE`、真实身份部署与真实试点，不阻塞边界清晰的后续内部原型任务。
+
+> 最终收口（2026-08-15）：旧 `ab9628b` / REV-007 REVIEW 与上述阶段说明永久保留。SEC-AUTH-PUBLIC-001 content `01018376002b475fd7715ca9b3cb8ee6333a3a72` / CI `31798421917`、integration `d67dd12de5010f49e5ad97733a9c33aecea0c5c5` / CI `31816652463` 均获项目负责人 PASS（P0/P1/P2=0），CON-008 RESOLVED，故本任务在应用身份/会话基础范围 DONE。该结论不包含 trusted ingress/proxy/header/origin 防直连、公网部署或真实数据许可；这些继续由 BLOCKED 的 DEV-STAGING-DEPLOY-001 承接。
 
 ### REV-007 修复状态
 

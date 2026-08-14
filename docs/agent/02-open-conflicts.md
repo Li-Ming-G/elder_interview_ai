@@ -6,7 +6,6 @@
 
 | 冲突 | 影响范围 | 当前处理方式 |
 |---|---|---|
-| CON-008 | 匿名登录失败合法审计与公共网络身份安全验收 | 2026-08-14 已纠正无证据 `RESOLVED`；SEC-AUTH-PUBLIC-001 content `0101837` / CI `31798421917` 已获项目负责人 PASS，当前等待 latest-main integration exact-head 窄复审与后续治理收口；DEV-001B 保持 REVIEW |
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
 | CON-023 | C2 删除 scope 门禁缺少可执行的 deletion_request producer/read model | C2 不造半模型，先覆盖现有 project restricted/deleted；DEV-008D 实现正式服务器删除子系统时必须回接 C2/AI 并补 scope/并发/不泄密测试。本机副本删除不关闭该冲突 |
 | CON-027 | 腾讯实时 ASR 诊断日志、音频/文本保留、处理地区与 DPA 证据不足 | 不阻塞完全虚构 DEV 验收；阻塞任何真实长者/PII 试点，须由项目负责人和数据治理角色取得一手合同/控制台证据后关闭 |

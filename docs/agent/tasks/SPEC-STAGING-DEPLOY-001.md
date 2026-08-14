@@ -2,12 +2,12 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`（REV-052；仅 docs/machine contract 范围）
 - 负责人：独立执行 Agent
 - base：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
 - branch：`codex/spec-staging-deploy-001`
-- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、OPEN）
-- 审查：高影响部署/安全契约；必须由项目负责人按 exact head 手动审查，本任务不得自行 PASS/DONE/merge
+- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、MERGED）
+- 审查：old `195c4be2` / CI `31798730203` 的 REQUEST_CHANGES（P0=0/P1=1/P2=0）永久保留；accepted `64cf94f33c957dc1a1ff74cbf49e35bd1c44698b` / CI `31808762082` 获项目负责人 PASS（P0/P1/P2=0），merge/main `751a32e1ffbae12ec639230cd3bf8482d1ff2820` / main CI `31815415871` SUCCESS
 
 ## 目标
 
@@ -45,4 +45,4 @@ changed docs 格式、链接、表格列数和 `git diff --check` 通过；完�
 
 定向修复新增的正式 manifest Schema fixtures 5/5、admission provenance fixtures 6/6 已由仓库既有 Ajv 8.20.0 机械通过；未新增依赖。首次从 root 直接 import Ajv 的 `ERR_MODULE_NOT_FOUND` 失败永久保留在交接。
 
-定向修复本地验证另有 23 文件 contract scope、21 Markdown 相对链接/表格、format/diff、lint、typecheck、build 与 372 unit PASS；所有失败/重跑历史均在交接保留。新 head 仍必须取得完整 GitHub CI SUCCESS，并由项目负责人定向复审；本地绿灯不构成 PASS。
+定向修复本地验证另有 23 文件 contract scope、21 Markdown 相对链接/表格、format/diff、lint、typecheck、build 与 372 unit PASS；所有失败/重跑历史均在交接保留。定向修复 exact head `64cf94f33c957dc1a1ff74cbf49e35bd1c44698b` 已取得完整 GitHub CI `31808762082` SUCCESS，并获项目负责人定向 PASS（P0/P1/P2=0）。任务 DONE 只表示部署契约与 machine contract 已接收；不表示安装、配置或运行 Cloudflare/Windows staging，也不许可真实数据。
