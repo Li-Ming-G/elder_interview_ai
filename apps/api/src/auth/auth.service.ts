@@ -26,6 +26,7 @@ export class AuthService implements OnModuleInit {
     email: string,
     password: string,
     ip: string,
+    requestId: string,
   ): Promise<{
     csrfToken: string;
     sessionToken: string;
@@ -36,18 +37,30 @@ export class AuthService implements OnModuleInit {
     const user = await this.prisma.user.findUnique({ where: { email } });
     const valid = await this.passwords.verify(user?.passwordHash ?? this.dummyHash, password);
     if (!reservation.allowed || user === null || !valid || user.status !== 'active') {
-      if (user !== null) {
-        await this.prisma.auditLog.create({
-          data: {
-            action: 'auth.login_failed',
-            actorId: user.id,
-            actorType: 'user',
-            entityId: user.id,
-            entityType: 'user',
-            metadata: { outcome: 'failed' },
-          },
-        });
-      }
+      await this.prisma.auditLog.create({
+        data:
+          user === null
+            ? {
+                action: 'auth.login_failed',
+                actorReference: this.throttle.anonymousActorReference(email),
+                actorType: 'anonymous',
+                entityType: 'authentication',
+                metadata: {
+                  client_ip_hash: this.throttle.auditClientIpHash(ip),
+                  outcome: 'invalid_credentials',
+                },
+                requestId,
+              }
+            : {
+                action: 'auth.login_failed',
+                actorId: user.id,
+                actorType: 'user',
+                entityId: user.id,
+                entityType: 'user',
+                metadata: { outcome: 'invalid_credentials' },
+                requestId,
+              },
+      });
       await delay(Math.max(0, 250 - (Date.now() - startedAt)));
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
@@ -65,6 +78,7 @@ export class AuthService implements OnModuleInit {
         entityId: user.id,
         entityType: 'user',
         metadata: {},
+        requestId,
       },
     });
     return {

@@ -3,7 +3,7 @@ import type { NextFunction, Response } from 'express';
 
 import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
 import type { AuthenticatedRequest } from './auth.types.js';
-import { COOKIE_LOCAL, COOKIE_PRODUCTION, parseCookie } from './auth.utils.js';
+import { parseCookie, sessionCookieName } from './auth.utils.js';
 import { SessionService } from './session.service.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -17,7 +17,7 @@ export class CsrfMiddleware implements NestMiddleware {
     private readonly sessions: SessionService,
     @Inject(API_CONFIG) config: ApiConfigValue,
   ) {
-    this.cookieName = config.appEnv === 'production' ? COOKIE_PRODUCTION : COOKIE_LOCAL;
+    this.cookieName = sessionCookieName(config.appEnv);
   }
 
   public async use(
