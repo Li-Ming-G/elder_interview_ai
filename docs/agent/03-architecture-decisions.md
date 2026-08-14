@@ -425,11 +425,12 @@
 
 - 状态：`Proposed / REVIEW`；绑定 SPEC-STAGING-DEPLOY-001。项目负责人 exact-head PASS/merge 前不得转 Accepted。
 - 背景：项目已选择网页优先、短期 Cloudflare、单台持续开机 Windows 主机和盈利后迁云，但旧 ADR-010 只延后 Nginx，未冻结公网可达与真实数据许可、Access/应用身份、proxy/IP、Windows/备份/监控/回滚边界。
-- 决定：Quick Tunnel 只用于随机 URL 的 synthetic/deidentified 远程排练；Named Tunnel + 固定 HTTPS hostname + Cloudflare Access 作为正式早期 staging。Web/API/upload/WS 共享一个 origin，唯一链为 edge/Access -> Named Tunnel -> loopback reverse proxy -> app。
+- 决定：Quick Tunnel 只用于随机 URL 的 synthetic/fictional 远程排练；Named Tunnel + 固定 HTTPS hostname + Cloudflare Access 作为正式早期 staging。Web/API/upload/WS 共享一个 origin，唯一链为 edge/Access -> Named Tunnel -> loopback reverse proxy -> app。
 - 身份：Access 只决定请求能否抵达；应用 session、role、assignment、consent、restriction/deletion、Cookie/Origin/CSRF/WS join 继续独立决定业务授权。首版禁止 Access 身份自动创建/映射应用用户。
 - 信任：origin/DB/storage/metrics 不可从 LAN/WAN 直达；入口清洗客户端 proxy headers，只信任最小 peer 链和经证明的 `CF-Connecting-IP`。DEV 正反例通过前登录限流维持 direct peer。
 - 运行：`cloudflared` 与应用栈必须无需交互登录自动恢复；关闭睡眠/休眠，显式磁盘门禁、异机加密备份/空环境恢复、主机外探针和逐层回滚。单 Windows/ISP/磁盘是 SPOF，不宣称 HA。
-- 数据：网络可达性与数据许可互不推导；Named 默认 `real_data_allowed=false`。DEV-STAGING-DEPLOY-001 只可交付 named-synthetic；真实数据继续等待身份、正式授权正文、服务器删除/备份传播、ASR/LLM 治理与 QA 全部门禁。
+- 数据：网络可达性与数据许可互不推导；正式 server-side manifest 以唯一字段 `data_mode=synthetic_only` 失败关闭，禁止 `real_data_allowed` 等平行真相源。DEV-STAGING-DEPLOY-001 只可交付 named-synthetic；真实来源即使去标识/脱敏或 provenance 不明，也在 connect/upload/persist 前零业务副作用拒绝。未来真实数据只能由新任务、数据治理决定、新版 machine contract 与项目负责人正式接收。
 - 取代关系：本 ADR 只部分取代 ADR-010 的“反向代理完全延后”，允许后续 DEV 在 synthetic staging 范围引入受审 reverse proxy/Tunnel；Redis、BullMQ、云迁移与 HA 继续延后，ADR-010 历史正文不改。
 - iteration-coach：唯一独立只读复核为 `Mode: Correction`；网络/数据双轴、双身份、WS 失效、受信 proxy、无人值守、恢复验证、外部告警与逐层回滚已吸收。
 - 依据：供应商事实只引用 staging contract §13 列出的 Cloudflare 官方文档；本 SPEC 不安装 Cloudflare、不请求 token、不部署。
+- 审查历史：项目负责人正式审查 PR #54 old exact head `195c4be2c4cd9277036e6a8759ab15e00e984a61` / CI `31798730203` SUCCESS，结论 `REQUEST_CHANGES`（P0=0/P1=1/P2=0）。唯一 P1 只针对真实来源脱敏歧义、唯一 machine authority/readiness 和入站零业务副作用拒绝；old head/CI/结论永久保留。当前 ADR 仍为 `Proposed / REVIEW`，不得因定向修复或新绿灯自行转 Accepted。

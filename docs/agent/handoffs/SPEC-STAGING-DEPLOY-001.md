@@ -7,16 +7,25 @@
 - branch：`codex/spec-staging-deploy-001`
 - PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、OPEN）
 - 首个提交 exact head / CI：`235a3df6a5431b72d21dd13820628280067a4a61` / [`31798290760`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798290760) SUCCESS
-- 最终审查 head：补写本条证据后的 GitHub PR 当前 head；必须有自己的完整 CI SUCCESS，不能复用首轮 run
+- old reviewed exact head / CI：`195c4be2c4cd9277036e6a8759ab15e00e984a61` / [`31798730203`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798730203) SUCCESS；项目负责人正式 `REQUEST_CHANGES`（P0=0/P1=1/P2=0），永久保留
+- 定向修复 head / CI：形成后补入；必须有自己的完整 CI SUCCESS，不能复用 old run
 
 ## 已冻结
 
-1. Quick 只作随机 URL 的 synthetic/deidentified 远程排练；Named 才是固定域名 staging；两者都不自动允许真实数据。
+1. Quick 只作随机 URL 的 synthetic/fictional 远程排练；Named 才是固定域名 staging；本阶段两者都只允许从源头为测试创作的虚构数据，真实来源即使去标识/脱敏也禁止。
 2. Named 单一 hostname 同源承载 Web、`/api/v1`、upload 与 `/ws/interviews`；HTTPS/WSS，HTTP 仅 edge redirect。
 3. Access 是外层可达性门禁，应用 session/role/assignment/consent/restriction 是独立业务门禁；首版无 SSO/自动账号映射。
 4. production Cookie、Origin、CSRF、WS join 不因 Access 降级；origin/LAN 直连与伪造 proxy headers 必须失败。
 5. Windows 无人登录冷启动、禁止睡眠/休眠、磁盘水位、异机加密备份、空环境恢复、外部断电监控和逐层回滚是 DEV 硬验收。
-6. 单机为 SPOF，不宣称 HA；`real_data_allowed=false`，所有身份/授权/删除/provider/QA 门禁独立保留。
+6. 单机为 SPOF，不宣称 HA；唯一服务端 machine authority 为 `data_mode=synthetic_only`，所有身份/授权/删除/provider/QA 门禁独立保留。
+
+## 项目负责人 old-head 审查与唯一 P1
+
+- 审查仓库/分支/PR：`Li-Ming-G/elder_interview_ai` / `codex/spec-staging-deploy-001` / [PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)。
+- 严格绑定 old head `195c4be2c4cd9277036e6a8759ab15e00e984a61`、CI `31798730203` SUCCESS；正式结论 `REQUEST_CHANGES`，P0=0/P1=1/P2=0。
+- 唯一 P1：`synthetic/deidentified` 与 `real_data_allowed=false` 形成解释/机器双义，可能把真实来源数据经脱敏后错误升级；缺少唯一 machine authority、readiness 机械核对及 connect/upload/persist 前零副作用拒绝。
+- 定向修复只把当前阶段统一为 synthetic/fictional only，新增正式 `staging-deployment-manifest-v1` Schema、唯一 `data_mode=synthetic_only` 和 manifest/provenance 正反 fixtures；不重写已通过的 Cloudflare/Access/WS/Windows/备份设计，不启动第二次 iteration-coach。
+- old head、CI、REQUEST_CHANGES 与 P1 永久保留。新 head/CI 只形成定向复审候选，不能自行覆盖旧结论或宣布 PASS。
 
 ## iteration-coach
 
@@ -33,6 +42,8 @@
 - 独立 PostgreSQL `elder_interview_spec_staging_001_local`：14 migrations deploy/status PASS，integration 14 files / 84 tests、auth 4 files / 23 tests PASS；
 - 隔离端口 smoke PASS；ordinary Chromium 27/27 PASS；real Web/API synthetic auth Chromium 5/5 PASS；
 - 19 个精确变更 Markdown 的相对链接与忽略 inline-code pipe 的表格列扫描 PASS；docs-only scope PASS；package manifest、lockfile、CI、代码和 migration 无改动。
+- P1 定向修复 machine contract：`staging-deployment-manifest-v1` Schema fixtures 5/5、admission provenance fixtures 6/6 PASS；使用仓库既有 `@elder-interview/api` 的 Ajv 8.20.0，未新增依赖。
+- P1 定向修复回归：23 个 Markdown/JSON contract/governance 文件 scope、21 个 Markdown 相对链接/表格列数、format、diff、lint、typecheck、build 与 61 files / 372 unit 全部 PASS；完整 integration/auth/smoke/E2E 由 new exact-head GitHub CI 继续执行。
 
 ## 失败与重跑历史
 
@@ -41,6 +52,9 @@
 3. 首次 smoke 使用默认 4173，在测试启动前因 `EADDRINUSE` 退出；未终止未知/并行进程。改用 3111/4181 后 smoke PASS，ordinary E2E 使用 4182 为 27/27。
 4. 首次 auth Chromium 隔离配置把 API 设为 3112，但现有 Vite proxy 固定指向 3101，五条均因 `ECONNREFUSED 127.0.0.1:3101` 失败；未改代码/测试。保持隔离 Web 4183、恢复正式 API 3101 后 5/5 PASS。旧 5 failures 不被绿灯覆盖。
 5. 补写首轮 PR/CI 证据后的首次组合门禁中，`format:check` 与 `git diff --check` 已通过，但 docs-only 检查直接读取 Git 默认 quoted path，中文文件名被转义并带引号，误报 10 个根目录 Markdown 为非文档后退出；这是检查器输入解析失败，不是范围污染。改用 `git -c core.quotepath=false diff --name-only` 后重跑，旧失败永久保留。
+6. P1 修复后的首次 Schema fixture 命令从仓库根直接 `import 'ajv'`，因 root package 未直接暴露该传递依赖而以 `ERR_MODULE_NOT_FOUND` 退出；未安装依赖、未改 package/lockfile。随后通过已正式声明 Ajv 8.20.0 的 `@elder-interview/api` workspace 执行相同只读 validator，Schema 5/5、admission 6/6 PASS；旧失败永久保留。
+7. P1 修复后的首次批量 Prettier 命令把 PowerShell 文件数组放在 `--` 后传递，数组被拼成一个长参数并报 `No files matching the pattern`；第一次 splatting 修正又把 tracked/untracked 两组输出保留为两个嵌套数组，因而收到两个长参数并再次同样失败。两次均未格式化或改写文件；首个组合命令的 `git diff --check` 已通过，且 code/dependency/CI diff 为空。随后把路径逐项追加为扁平数组再 splat，对同一精确文件集重跑；旧失败永久保留。
+8. 并行本地回归中的首个 Markdown 范围检查又用字符串相加拼 tracked/untracked 路径，Node 收到一个长文件名并报 `OUT_OF_SCOPE`；后续 `git diff --check` 又覆盖了该子进程非零退出码，使 shell 表面为 0。该轮 lint/typecheck/build、372 unit、Schema 5/5 与 admission 6/6 仍各自真实通过，但链接/表格不据此记绿；改用扁平数组、逐项 path delimiter join 和显式 `$LASTEXITCODE` 检查后重跑，旧失败永久保留。
 
 ## 审查重点
 

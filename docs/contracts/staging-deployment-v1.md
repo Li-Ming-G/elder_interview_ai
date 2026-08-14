@@ -12,16 +12,24 @@
 
 ## 2. 双轴环境边界
 
-网络可达性与数据许可互不推导：Tunnel 可用、HTTPS 正常、Access 登录或 CI 通过，都不能把 `real_data_allowed` 从 `false` 改为 `true`。
+网络可达性与数据许可互不推导：Tunnel 可用、HTTPS 正常、Access 登录或 CI 通过，都不能改变服务端唯一 machine authority `data_mode=synthetic_only`。
 
 | profile | 网络入口 | 身份外层 | 数据许可 | 稳定性声明 | 允许用途 |
 |---|---|---|---|---|---|
-| `local` | localhost | 无 | synthetic/deidentified only | 无公网承诺 | 本地开发与自动化 |
-| `quick-synthetic` | 每次启动随机 `*.trycloudflare.com` HTTPS | 不依赖 Access | synthetic/deidentified only | 无 SLA；临时 | 受控远程虚构排练、浏览器兼容性 |
-| `named-synthetic` | 固定 HTTPS hostname | Access deny-by-default | synthetic/deidentified only | 早期 staging；接受单机 SPOF | DEV-STAGING-DEPLOY-001 唯一可实现/验收范围 |
-| `named-real` | 与 named 相同 | Access + 应用身份 | 默认禁用 | 不由本 SPEC 解锁 | 仅所有真实数据门禁另行 PASS 后才可候选 |
+| `local` | localhost | 无 | synthetic/fictional only | 无公网承诺 | 本地开发与自动化 |
+| `quick-synthetic` | 每次启动随机 `*.trycloudflare.com` HTTPS | 不依赖 Access | synthetic/fictional only | 无 SLA；临时 | 受控远程虚构排练、浏览器兼容性 |
+| `named-synthetic` | 固定 HTTPS hostname | Access deny-by-default | synthetic/fictional only | 早期 staging；接受单机 SPOF | DEV-STAGING-DEPLOY-001 唯一可实现/验收范围 |
+| future real-data task | 与 named 相同或后续受审入口 | Access + 应用身份 | 当前不存在可选 data mode | 不由本 SPEC/DEV 解锁 | 只可由新任务、数据治理决定和项目负责人正式接收后另立新版契约 |
 
 Cloudflare 官方把 Quick Tunnel 定位为 testing/development only：每次生成随机 `trycloudflare.com` 子域名，无 SLA/uptime 保证，当前最多 200 个并发 in-flight requests，超过返回 429，且不支持 SSE。每次启动必须登记当次 URL 与精确 Origin，旧 URL/旧 Origin/旧 Cookie 随进程终止作废；不得复用为固定链接、监控目标、真实试点入口或 Named 验收证据。Quick 仅允许虚构账号、合成音频、虚构正文；不得连接真实 ASR/LLM 或加载真实备份。
+
+### 2.1 唯一 machine authority 与入站失败关闭
+
+1. `docs/contracts/staging-deployment-manifest-v1.schema.json` 是 DEV-STAGING-DEPLOY-001 的正式服务端 manifest Schema。唯一数据许可字段为 `data_mode`，当前唯一合法值为 `synthetic_only`；不得同时保存、读取或推导 `real_data_allowed`、`allow_real`、环境名、Access claim、hostname 等平行许可事实。
+2. manifest missing、Schema unknown、`data_mode` missing/unknown/invalid/非 `synthetic_only`、digest/commit/profile 不匹配或含平行许可字段时，readiness 必须机械为 false。readiness 不能由 Dashboard、Tunnel healthy、Access 登录或人工说明覆盖。
+3. 本阶段 synthetic/fictional only 表示数据从源头就是为测试创作的虚构账号、虚构正文和合成/完全虚构音频。任何来自真实长者、真实访谈、真实 PII、真实录音/转录、真实业务数据库或真实备份的数据，即使已去标识、匿名化、脱敏、截断、改名或重编码，仍是 `real-source`，不得使用；provenance 未知同样拒绝。
+4. 每个 connect、upload-init/append/complete 和 persist 入口必须先读取并验证当前服务端 manifest，再机械验证输入 provenance 为 `fictional_created_for_test`。任一验证失败时，在建立 ASR/LLM/WS 业务连接、创建 upload/object/session/row/transaction、写本地 archive 或业务存储之前拒绝，`business_side_effect_count=0`；只允许内容无关的拒绝计数，不记录 payload。
+5. `docs/contracts/fixtures/staging-deployment-manifest-v1.fixtures.json` 是正反例集合。DEV 必须以同一个生产 admission function 跑 manifest 与 provenance 反例，不得在测试里复制较宽松判断。
 
 Named 使用 remotely-managed Tunnel 和一个固定 hostname，同时承载 SPA、`/api/v1/*`、上传和 `/ws/interviews`，禁止拆成跨源 Web/API/WS。Access application 覆盖整个 hostname，deny-by-default，只允许显式 Allow；不得配置 Bypass、公共 path 或更具体的 Access application/path 造成覆盖旁路。
 
@@ -61,7 +69,7 @@ Cloudflare Access 只回答“请求能否抵达 origin”；应用会话继续�
 
 - Tunnel token/credentials、Access team/audience、数据库凭据、会话/CSRF/throttle pepper、provider secrets 均只能由 Windows 受限服务账户可读的 secret store/受限文件或进程环境注入；不得进仓库、Compose 文件、命令历史、日志、备份清单正文、PR 或截图。
 - 配置分 `quick-synthetic` 与 `named-synthetic` 两套显式 profile；不得用自动环境探测或 fallback 把 Quick 配置带入 Named。
-- 启动时验证 hostname/Origin、cookie mode、proxy trust、Access audience、数据许可、路径和 secret presence；任一缺失或矛盾即 readiness=false、零公网业务流量。
+- 启动时验证 hostname/Origin、cookie mode、proxy trust、Access audience、正式 manifest Schema、`data_mode=synthetic_only`、路径和 secret presence；任一缺失或矛盾即 readiness=false、零公网业务流量。
 - token/secret 轮换必须有撤销旧值、重启顺序、健康验证与回滚记录。疑似泄露先撤销/轮换，再调查；不得通过打印完整值诊断。
 
 ## 7. Windows 进程、睡眠、磁盘与冷启动
@@ -105,7 +113,7 @@ Cloudflare Access 只回答“请求能否抵达 origin”；应用会话继续�
 
 ## 11. 真实数据门禁
 
-`real_data_allowed=false` 是硬默认。至少以下全部有 exact-head/有权证据并由项目负责人明确放行后，才可另立任务讨论改为 true：
+`data_mode=synthetic_only` 是本 SPEC 与 DEV-STAGING-DEPLOY-001 唯一合法状态，DEV 没有修改、扩展或解释为真实数据模式的权限。未来即使以下门禁全部具备，也只能新建真实数据任务、数据治理决定与新版 machine contract，由项目负责人正式接收；不得在本任务或当前 manifest 上改成 real/true：
 
 - `DEV-001B` 身份/会话最终安全验收完成；
 - SPEC-CONSENT-TEXT-POLICY-001 正式正文与 machine policy 接收；
@@ -115,13 +123,13 @@ Cloudflare Access 只回答“请求能否抵达 origin”；应用会话继续�
 - 真实存储、备份恢复、Windows 无人值守、监控、故障/回滚和 `QA-001` 全矩阵通过；
 - 零未关闭 P0/P1，且项目负责人/独立审查对目标 exact head、环境 manifest 与试点范围明确 PASS。
 
-任一门禁未知、过期、被撤销或环境漂移，自动回到 false。Named synthetic 的成功不能替代上述任一项。
+任一门禁未知、过期、被撤销或环境漂移，继续保持 `synthetic_only`。Named synthetic 的成功不能替代上述任一项；未来是否允许真实来源脱敏数据也必须由独立数据治理决定，不能由“脱敏”字样自行升级。
 
 ## 12. DEV-STAGING-DEPLOY-001 验收矩阵
 
 | 领域 | Quick synthetic | Named synthetic | Named real-data-denied | 未来 real gate |
 |---|---|---|---|---|
-| URL/HTTPS | 随机 URL、当次 Origin、HTTPS/WSS | 固定 hostname、HTTP->HTTPS、单 Origin | 同 Named 且拒绝真实 fixture | HSTS/证书/DNS 变更与回滚另验 |
+| URL/HTTPS | 随机 URL、当次 Origin、HTTPS/WSS | 固定 hostname、HTTP->HTTPS、单 Origin | 同 Named 且拒绝任何 real-source/unknown-provenance fixture | HSTS/证书/DNS 变更与回滚另验 |
 | Web/API/WS | 同源 `/`、`/api/v1`、`/ws/interviews` | 同源、无 CORS 依赖、WS upgrade/heartbeat/reconnect/最大连接年龄 | 真实数据请求 0 side effect | 长时/edge restart/idle timeout 真机矩阵 |
 | 身份 | 应用虚构账号 | Access connector + origin JWT 复验 + 应用 session 双门禁 | Access-only/app-only/bypass/path overlap/JWKS failure 全拒绝 | 真实账号启停/assignment/consent 动态撤权 |
 | Cookie/CSRF/Origin | 当次精确 Origin | `__Host-*`、Secure/HttpOnly/Strict、写请求 CSRF | 伪 Origin/旧 Quick Origin/跨源全拒绝 | 安全复审通过 |
@@ -131,7 +139,7 @@ Cloudflare Access 只回答“请求能否抵达 origin”；应用会话继续�
 | Disk/backup | 不作为证据 | 水位告警、加密异机备份、空环境恢复与 checksum | deletion 未闭环故真实数据拒绝 | deletion 传播、RPO/RTO 正式接收 |
 | Monitor | 不承诺 SLA | 外部断电探针 + 本机分层指标/脱敏日志 | 主机/Access/Tunnel/app/DB 故障均可发现 | on-call/SLO 另定 |
 | Failure/rollback | 进程退出即撤销 | Access/DNS/Tunnel/proxy/app/config/DB 逐层演练 | 禁止用 Quick/公开 origin 降级 | 目标数据恢复与试点停机程序 |
-| Governance | 仅排练记录 | non-Draft PR、exact head、完整 CI、环境 manifest | `real_data_allowed=false` 自动测试 | 全部独立门禁 + 明确 PASS |
+| Governance | 仅排练记录 | non-Draft PR、exact head、完整 CI、正式环境 manifest | Schema 机械要求唯一 `data_mode=synthetic_only`；真实来源/来源不明在 connect/upload/persist 前零业务副作用拒绝 | 新任务 + 数据治理决定 + 新版 machine contract + 项目负责人正式接收 |
 
 ## 13. Cloudflare 官方资料
 
