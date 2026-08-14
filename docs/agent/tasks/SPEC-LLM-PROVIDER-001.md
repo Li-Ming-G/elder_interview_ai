@@ -57,7 +57,7 @@
 
 按 `09` §19 完成 JSON Schema/fixture、shared typecheck、v1 loader、定向 unit 和仓库全门禁验证；创建非 Draft PR 并取得 exact-head CI SUCCESS。任务保持 REVIEW，等待项目负责人手动审查。
 
-本地结果：format/lint/typecheck/build PASS；unit 57 files / 344 tests、定向 SPEC 5/5、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL deploy/status PASS。PR #52 已创建且非 Draft；最终 metadata head CI 仍待补齐，当前结果不构成真实 provider PASS。
+本地结果（REV-050 定向修复候选）：format/lint/typecheck/build PASS；unit 57 files / 349 tests、定向 SPEC 10/10、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL `elder_interview_spec_llm_001_rev050` deploy/status PASS。package manifest/lockfile 未改。PR #52 保持非 Draft；新 exact head/CI 待提交并取得，当前结果不构成真实 provider PASS。
 
 ## REV-050 正式 REQUEST_CHANGES
 
@@ -66,3 +66,10 @@
 - P1-2：拆分 requested model、observed response model+source、provider request ID+source、SDK response ID+source四类 provenance；同步 receipt/shared types 与 `04/05/07/09/10`。
 - P1-3：新增 `llm-model-config-v1` canonical manifest/schema、精确 digest 算法与 golden vector；冻结真实 generation/provider options，receipt/persistence 增加 sanitized warning 与 effective-config 状态，横评不得把 warning/unknown 当同配置。
 - old head/CI/REQUEST_CHANGES 永久保留；定向修复候选仍保持 REVIEW，ADR-040 Proposed/REVIEW、CON-031 OPEN，不得 PASS/DONE/merge。
+
+## REV-050 定向修复候选
+
+- P1-1：新增独立 `llm-provider-registry-semantics-v1` 与纯服务端 reference validator；全 registry 对 provider/model/config identity 去重，active binding 逐层 exactly-one，并机械核验 endpoint/region/secret/environment/data-class membership。正反 fixtures 固定缺失、重复、歧义、digest/ref 不一致与真实/境外数据 deny 的 deterministic error codes。
+- P1-2：invocation/receipt/shared/persistence candidate 拆为 requested binding model、observed response model+source、provider request ID+source、SDK response ID+source四类事实；provider request source 只允许 `provider/unavailable`，SDK response source 独立允许 `provider_origin/sdk_generated/unknown/unavailable`。
+- P1-3：新增 `llm-model-config-v1` 完整 manifest/schema 与 canonical JSON v1 规则；digest 精确覆盖 generation 和 provider options，golden vector 为 `eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0`。receipt/persistence candidate 增加 sanitized warning 分类与 config application status；横评只有相同 config identity 且所有 receipt 均 `as_requested`、无 warning 时才能标记 equal-effective-config。
+- 未接线到现有 runtime，未安装 SDK、未选择厂商、未新增 migration；formal v1 loader、deadline/retry、评测隔离和 CON-031/ASR 门禁不变。修复完成只表示等待新 exact-head 定向复审，不关闭旧 REQUEST_CHANGES。

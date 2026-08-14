@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "contract_version",
+    "semantic_contract_version",
     "artifact_status",
     "sdk",
     "routing",
@@ -14,10 +15,12 @@
     "safety",
     "prompt",
     "evaluation",
+    "model_config_manifests",
     "providers"
   ],
   "properties": {
     "contract_version": { "const": "llm-provider-registry-v1" },
+    "semantic_contract_version": { "const": "llm-provider-registry-semantics-v1" },
     "artifact_status": { "const": "candidate" },
     "sdk": {
       "type": "object",
@@ -174,6 +177,10 @@
     "providers": {
       "type": "array",
       "items": { "$ref": "#/$defs/providerProfile" }
+    },
+    "model_config_manifests": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/modelConfigManifest" }
     }
   },
   "$defs": {
@@ -181,8 +188,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "provider_id",
-        "provider_model_id",
+        "requested_provider_id",
+        "requested_provider_model_id",
         "model_config_version",
         "model_config_digest",
         "endpoint_origin",
@@ -192,8 +199,8 @@
         "environment_scope"
       ],
       "properties": {
-        "provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
-        "provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "requested_provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "requested_provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
         "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
         "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "endpoint_origin": { "type": "string", "format": "uri", "pattern": "^https://" },
@@ -262,10 +269,10 @@
     "modelProfile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider_model_id", "model_configs"],
+      "required": ["provider_model_id", "model_config_refs"],
       "properties": {
         "provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
-        "model_configs": {
+        "model_config_refs": {
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/modelConfig" }
@@ -279,6 +286,17 @@
       "properties": {
         "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
         "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "modelConfigManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_config_digest", "manifest"],
+      "properties": {
+        "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "manifest": {
+          "$ref": "https://elder-interview.example/schemas/llm-model-config-v1.schema.json"
+        }
       }
     },
     "processingRegion": {

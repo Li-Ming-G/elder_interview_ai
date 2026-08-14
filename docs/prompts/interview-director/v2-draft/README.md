@@ -13,6 +13,6 @@
 
 ## 发布流程
 
-`draft` 可反复修改。准备比较时，从一个 exact Git head 冻结 system/task 字节、正式 Context/Output Schema、model-config policy 和 digest，形成新的 immutable `candidate`。candidate 必须运行固定 `docs/evaluations/interview-director/synthetic-v1/cases.json`，且多模型使用同一冻结输入。任何文字修改都产生新 candidate/digest，不能覆盖旧 candidate。
+`draft` 可反复修改。准备比较时，从一个 exact Git head 冻结 system/task 字节、正式 Context/Output Schema，以及通过 `docs/contracts/llm-model-config-v1.schema.json` 的完整 canonical model-config manifest/digest，形成新的 immutable `candidate`。candidate 必须运行固定 `docs/evaluations/interview-director/synthetic-v1/cases.json`，且多模型使用同一冻结输入。任何文字或 config 修改都产生新 candidate/digest，不能覆盖旧 candidate；warning/unknown receipt 不得冒充相同有效配置。
 
 只有项目负责人接收 candidate、评测证据、exact head 和 CI 后，才能新增 immutable formal v2 bundle。formal v2 与 runtime loader 切换仍需单独受审；不得重命名本目录来绕过门禁，也不得覆盖 v1。

@@ -1,4 +1,8 @@
-import type { LlmProviderCallReceiptV1, LlmProviderRegistryV1 } from './index.js';
+import type {
+  LlmModelConfigManifestV1,
+  LlmProviderCallReceiptV1,
+  LlmProviderRegistryV1,
+} from './index.js';
 
 type AssertTrue<Value extends true> = Value;
 type AssertFalse<Value extends false> = Value;
@@ -6,6 +10,7 @@ type IsAssignable<Candidate, Contract> = Candidate extends Contract ? true : fal
 
 type DefaultRegistry = {
   contract_version: 'llm-provider-registry-v1';
+  semantic_contract_version: 'llm-provider-registry-semantics-v1';
   artifact_status: 'candidate';
   sdk: {
     family: 'vercel_ai_sdk';
@@ -54,6 +59,7 @@ type DefaultRegistry = {
     artifact_target: 'isolated_evaluation_artifact';
     prohibited_publish_targets: readonly ['question_current', 'question_history'];
   };
+  model_config_manifests: [];
   providers: [];
 };
 
@@ -87,10 +93,47 @@ export type DraftCannotBecomeRuntimeLoadable = AssertFalse<
   >
 >;
 
+type CanonicalModelConfig = {
+  schema_version: 'llm-model-config-v1';
+  canonicalization_version: 'llm-model-config-canonical-json-v1';
+  model_config_version: 'synthetic-comparison-v1';
+  generation: {
+    temperature: 0.2;
+    max_output_tokens: 256;
+    top_p: 1;
+    top_k: null;
+    presence_penalty: 0;
+    frequency_penalty: 0;
+    seed: 42;
+    stop_sequences: [];
+    reasoning: { mode: 'disabled'; effort: null; budget_tokens: null };
+    response_format: 'json_schema';
+    tools: 'none';
+  };
+  provider_options: Record<string, never>;
+};
+
+export type CanonicalModelConfigIsAccepted = AssertTrue<
+  IsAssignable<CanonicalModelConfig, LlmModelConfigManifestV1>
+>;
+export type ReasoningModeCannotMixEffortAndBudget = AssertFalse<
+  IsAssignable<
+    Omit<CanonicalModelConfig, 'generation'> & {
+      generation: Omit<CanonicalModelConfig['generation'], 'reasoning'> & {
+        reasoning: { mode: 'effort'; effort: 'high'; budget_tokens: 1024 };
+      };
+    },
+    LlmModelConfigManifestV1
+  >
+>;
+
 type ProviderReceipt = {
   schema_version: 'llm-provider-call-receipt-v1';
-  provider_id: 'provider-a';
-  provider_model_id: 'model-a';
+  requested_provider_id: 'provider-a';
+  requested_provider_model_id: 'requested-model-a';
+  observed_response_model_id: 'observed-model-a-revision';
+  observed_response_model_id_source: 'provider_origin';
+  model_config_schema_version: 'llm-model-config-v1';
   model_config_version: 'model-config-v1';
   model_config_digest: 'digest';
   sdk_core_package: 'ai';
@@ -103,6 +146,9 @@ type ProviderReceipt = {
   provider_request_id: 'provider-request-1';
   provider_request_id_source: 'provider';
   sdk_response_id: 'sdk-response-1';
+  sdk_response_id_source: 'provider_origin';
+  config_application_status: 'as_requested';
+  warnings: [];
   token_usage: { input_tokens: 10; output_tokens: 5; total_tokens: 15 };
   latency_ms: 100;
   status: 'succeeded';
@@ -116,10 +162,35 @@ type ProviderReceipt = {
 export type ProviderReceiptIsAccepted = AssertTrue<
   IsAssignable<ProviderReceipt, LlmProviderCallReceiptV1>
 >;
-export type SdkGeneratedIdCannotMasqueradeAsProviderId = AssertFalse<
+export type RequestedAndObservedModelCannotShareOneField = AssertFalse<
+  IsAssignable<Omit<ProviderReceipt, 'requested_provider_model_id'>, LlmProviderCallReceiptV1>
+>;
+export type ProviderRequestCannotBeSdkGenerated = AssertFalse<
   IsAssignable<
     Omit<ProviderReceipt, 'provider_request_id_source'> & {
       provider_request_id_source: 'sdk_generated';
+    },
+    LlmProviderCallReceiptV1
+  >
+>;
+export type SdkGeneratedResponseIdIsExplicit = AssertTrue<
+  IsAssignable<
+    Omit<ProviderReceipt, 'sdk_response_id_source'> & {
+      sdk_response_id_source: 'sdk_generated';
+    },
+    LlmProviderCallReceiptV1
+  >
+>;
+export type WarningCannotClaimAsRequested = AssertFalse<
+  IsAssignable<
+    Omit<ProviderReceipt, 'warnings'> & {
+      warnings: [
+        {
+          classification: 'ignored_setting';
+          setting_path: '/generation/seed';
+          sanitized_code: 'SEED_IGNORED';
+        },
+      ];
     },
     LlmProviderCallReceiptV1
   >

@@ -1,5 +1,6 @@
 {
   "contract_version": "llm-provider-registry-v1",
+  "semantic_contract_version": "llm-provider-registry-semantics-v1",
   "artifact_status": "candidate",
   "sdk": {
     "family": "vercel_ai_sdk",
@@ -48,5 +49,6 @@
     "artifact_target": "isolated_evaluation_artifact",
     "prohibited_publish_targets": ["question_current", "question_history"]
   },
+  "model_config_manifests": [],
   "providers": []
 }

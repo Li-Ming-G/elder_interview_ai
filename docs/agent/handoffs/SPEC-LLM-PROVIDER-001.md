@@ -44,15 +44,17 @@
 本地最终验证（均为 contract/spec、现有 runtime 回归或 synthetic fixture，不构成真实 LLM/ASR provider PASS）：
 
 - `pnpm format:check`、`pnpm lint`、`pnpm typecheck`、`pnpm build`：PASS；
-- `pnpm test:unit`：57 files / 344 tests PASS；定向 SPEC：5/5 PASS；
-- 独立 PostgreSQL `elder_interview_spec_llm_001`：14 migrations deploy/status PASS，integration 14 files / 82 tests PASS，auth 4 files / 23 tests PASS；
+- `pnpm test:unit`：57 files / 349 tests PASS；REV-050 定向 SPEC：10/10 PASS；
+- 独立 PostgreSQL `elder_interview_spec_llm_001_rev050`：14 migrations deploy/status PASS，integration 14 files / 82 tests PASS，auth 4 files / 23 tests PASS；
 - `pnpm test:smoke`：PASS；普通 Chromium E2E 27/27 PASS；真实 Web/API synthetic auth E2E 5/5 PASS；
 - `git diff --check`：PASS；package manifest/lockfile 未改，未安装 `ai` 或 provider package。
 
-第一次数据库命令在专用数据库尚未创建时于 migration 前失败；随后显式创建隔离数据库并完成上述全套数据库门禁，没有改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
+第一次数据库命令在专用数据库尚未创建时于 migration 前失败；创建后首轮 integration/auth 已全绿。为避免既有 question-bank 固定 version 在同库重跑造成 `QUESTION_BANK_VERSION_EXISTS`，最终证据改用新建空库 `elder_interview_spec_llm_001_rev050` 单次运行并全绿，没有清理共享数据、修改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
 
 PR #52 已创建且非 Draft；元数据回填提交后继续取得 exact head 与 CI run。只有项目负责人明确 PASS 后，治理 Agent 才可将任务 DONE、ADR-040 Accepted 并决定后续 provider 选择任务；执行 Agent 不得自行 merge。
 
 ## REV-050 定向修复交接
 
 当前只允许关闭三项 P1：registry semantic reference/membership、四类 provenance identity、canonical model-config/warnings/equal-effective-config。不得重做已通过方向，不安装 SDK、不选厂商、不写真实 provider runtime/Prisma migration、不启动第二次 iteration-coach。修复完成后必须产生新的 exact head 与完整 CI SUCCESS，再由项目负责人定向复审；新绿灯不覆盖旧 REQUEST_CHANGES。
+
+三项修复已形成待审候选：新增 deterministic semantic validator contract/reference/fixtures；拆分四类 provenance 并同步共享类型与 `04/05/07/09/10`；冻结 canonical model-config manifest/digest golden vector、sanitized warnings 与 equal-effective-config 判定。当前仍是 `REVIEW / REQUEST_CHANGES pending re-review`，新 exact head/CI 在提交推送后回传；执行 Agent 不作 PASS/DONE/merge。

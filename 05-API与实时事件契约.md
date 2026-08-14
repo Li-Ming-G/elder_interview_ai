@@ -1545,8 +1545,9 @@ start 的 idempotency payload hash 纳入 `recording_reminder_version`。相同 
 ```ts
 interface LlmProviderInvocationV1 {
   frozen_input_digest: string;
-  provider_id: string;
-  provider_model_id: string;
+  requested_provider_id: string;
+  requested_provider_model_id: string;
+  model_config_schema_version: 'llm-model-config-v1';
   model_config_version: string;
   model_config_digest: string;
   prompt_bundle_version: string;
@@ -1560,6 +1561,12 @@ interface LlmProviderInvocationV1 {
 }
 ```
 
-adapter 实际调用还接收不可持久化的服务端 `AbortSignal` 和 secret handle。AI SDK options 固定 `maxRetries=0`，不提供 tools、fallback provider/model 或 Gateway routing。结果必须返回结构化 output 加 `LlmProviderCallReceiptV1`：真实 provider/model/model-config、SDK core/provider package 精确版本、direct connection、data region、provider request ID（可空但必须带来源）、SDK response ID、sanitized token usage、latency、warning/error 分类。不能证明 request ID 来自厂商时不得标记为 `provider`。
+adapter 实际调用还接收不可持久化的服务端 `AbortSignal`、已通过 `llm-provider-registry-semantics-v1` 的 resolved binding、完整 `llm-model-config-v1` manifest 和 secret handle。AI SDK options 固定 `maxRetries=0`，不提供 tools、fallback provider/model 或 Gateway routing。
 
-正式 coordinator 只解析 registry 的唯一 active binding；无 binding 或任一后端门禁失败返回既有 provider unavailable/失败关闭结果，不尝试其他 provider。comparison evaluator 可循环显式选择的 bindings，但每个 invocation 都使用同一 frozen input identity，且 receipt/output 只写评测工件，不调用 QuestionEvidence writer。
+结果必须返回结构化 output 加 `LlmProviderCallReceiptV1`，四类 provenance 不得混用：requested provider/model；observed response model+`provider_origin|sdk_normalized|unknown|unavailable`；provider request ID+`provider|unavailable`；SDK response ID+`provider_origin|sdk_generated|unknown|unavailable`。另记录 model-config identity/digest、SDK core/provider package 精确版本、direct connection、data region、sanitized token/latency、config application status、sanitized warnings 与 error 分类。不能证明来源时使用 `unknown|unavailable`，不得把 requested model 当 observed model，或把 SDK ID 冒充 provider request ID。
+
+warning classification 只允许 `unsupported_setting|ignored_setting|adjusted_setting|provider_warning_other|warning_visibility_unavailable`，只带 setting path 与稳定 sanitized code。`as_requested` 必须零 warning；前三类使 status=`diverged`，后两类使 status=`unknown`。不保存 provider warning 原文、header 或敏感值。
+
+正式 coordinator 先执行 registry JSON Schema，再执行独立 deterministic semantic validator；只有 active binding exactly-one 命中 provider→model→config manifest，且 endpoint/region/secret/environment/data-class membership 与 digest 全成立才可调用。无 binding 或任一门禁失败返回既有 provider unavailable/失败关闭结果，不尝试其他 provider。
+
+comparison evaluator 可循环显式选择的 bindings，但每个 invocation 都使用同一 frozen input identity 与同一 model-config version/digest。只有所有 receipt `config_application_status=as_requested` 且 warnings 为空时才可标 `equal_effective_config=true`；warning、unknown 或 config identity 不同必须分组/排除。receipt/output 只写评测工件，不调用 QuestionEvidence writer。

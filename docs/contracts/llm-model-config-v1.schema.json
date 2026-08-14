@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/llm-model-config-v1.schema.json",
+  "title": "LlmModelConfigV1",
+  "$comment": "CANDIDATE for SPEC-LLM-PROVIDER-001 / REV-050. The SHA-256 digest covers this entire manifest after llm-model-config-canonical-json-v1 serialization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "canonicalization_version",
+    "model_config_version",
+    "generation",
+    "provider_options"
+  ],
+  "properties": {
+    "schema_version": { "const": "llm-model-config-v1" },
+    "canonicalization_version": { "const": "llm-model-config-canonical-json-v1" },
+    "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "temperature",
+        "max_output_tokens",
+        "top_p",
+        "top_k",
+        "presence_penalty",
+        "frequency_penalty",
+        "seed",
+        "stop_sequences",
+        "reasoning",
+        "response_format",
+        "tools"
+      ],
+      "properties": {
+        "temperature": { "type": ["number", "null"], "minimum": 0, "maximum": 2 },
+        "max_output_tokens": { "type": "integer", "minimum": 1, "maximum": 32768 },
+        "top_p": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1 },
+        "top_k": { "type": ["integer", "null"], "minimum": 1, "maximum": 1000 },
+        "presence_penalty": { "type": ["number", "null"], "minimum": -2, "maximum": 2 },
+        "frequency_penalty": { "type": ["number", "null"], "minimum": -2, "maximum": 2 },
+        "seed": {
+          "type": ["integer", "null"],
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "stop_sequences": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+        },
+        "reasoning": { "$ref": "#/$defs/reasoning" },
+        "response_format": { "const": "json_schema" },
+        "tools": { "const": "none" }
+      }
+    },
+    "provider_options": {
+      "type": "object",
+      "propertyNames": { "type": "string", "minLength": 1, "maxLength": 80 },
+      "additionalProperties": {
+        "type": "object",
+        "description": "Sanitized provider namespace options. Secrets, headers and credentials are forbidden."
+      }
+    }
+  },
+  "$defs": {
+    "reasoning": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "effort", "budget_tokens"],
+          "properties": {
+            "mode": { "const": "disabled" },
+            "effort": { "type": "null" },
+            "budget_tokens": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "effort", "budget_tokens"],
+          "properties": {
+            "mode": { "const": "effort" },
+            "effort": { "enum": ["minimal", "low", "medium", "high"] },
+            "budget_tokens": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "effort", "budget_tokens"],
+          "properties": {
+            "mode": { "const": "budget" },
+            "effort": { "type": "null" },
+            "budget_tokens": { "type": "integer", "minimum": 1, "maximum": 32768 }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "fixture_version": "llm-model-config-v1-fixtures-v1",
+  "golden_vectors": [
+    {
+      "case_id": "synthetic-comparison-v1",
+      "manifest": {
+        "schema_version": "llm-model-config-v1",
+        "canonicalization_version": "llm-model-config-canonical-json-v1",
+        "model_config_version": "synthetic-comparison-v1",
+        "generation": {
+          "temperature": 0.2,
+          "max_output_tokens": 256,
+          "top_p": 1,
+          "top_k": null,
+          "presence_penalty": 0,
+          "frequency_penalty": 0,
+          "seed": 42,
+          "stop_sequences": [],
+          "reasoning": { "mode": "disabled", "effort": null, "budget_tokens": null },
+          "response_format": "json_schema",
+          "tools": "none"
+        },
+        "provider_options": {}
+      },
+      "canonical_json": "{\"canonicalization_version\":\"llm-model-config-canonical-json-v1\",\"generation\":{\"frequency_penalty\":0,\"max_output_tokens\":256,\"presence_penalty\":0,\"reasoning\":{\"budget_tokens\":null,\"effort\":null,\"mode\":\"disabled\"},\"response_format\":\"json_schema\",\"seed\":42,\"stop_sequences\":[],\"temperature\":0.2,\"tools\":\"none\",\"top_k\":null,\"top_p\":1},\"model_config_version\":\"synthetic-comparison-v1\",\"provider_options\":{},\"schema_version\":\"llm-model-config-v1\"}",
+      "sha256": "eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0"
+    }
+  ],
+  "schema_cases": [
+    {
+      "case_id": "valid-effort-reasoning",
+      "expected_valid": true,
+      "manifest": {
+        "schema_version": "llm-model-config-v1",
+        "canonicalization_version": "llm-model-config-canonical-json-v1",
+        "model_config_version": "synthetic-effort-v1",
+        "generation": {
+          "temperature": null,
+          "max_output_tokens": 512,
+          "top_p": null,
+          "top_k": null,
+          "presence_penalty": null,
+          "frequency_penalty": null,
+          "seed": null,
+          "stop_sequences": ["<END>"],
+          "reasoning": { "mode": "effort", "effort": "medium", "budget_tokens": null },
+          "response_format": "json_schema",
+          "tools": "none"
+        },
+        "provider_options": { "synthetic": { "responseDetail": "minimal" } }
+      }
+    },
+    {
+      "case_id": "invalid-reasoning-mixed-effort-and-budget",
+      "expected_valid": false,
+      "manifest": {
+        "schema_version": "llm-model-config-v1",
+        "canonicalization_version": "llm-model-config-canonical-json-v1",
+        "model_config_version": "invalid-reasoning-v1",
+        "generation": {
+          "temperature": 0,
+          "max_output_tokens": 256,
+          "top_p": 1,
+          "top_k": null,
+          "presence_penalty": 0,
+          "frequency_penalty": 0,
+          "seed": 42,
+          "stop_sequences": [],
+          "reasoning": { "mode": "effort", "effort": "high", "budget_tokens": 1024 },
+          "response_format": "json_schema",
+          "tools": "none"
+        },
+        "provider_options": {}
+      }
+    },
+    {
+      "case_id": "invalid-provider-default-by-omission",
+      "expected_valid": false,
+      "manifest": {
+        "schema_version": "llm-model-config-v1",
+        "canonicalization_version": "llm-model-config-canonical-json-v1",
+        "model_config_version": "invalid-omission-v1",
+        "generation": {
+          "temperature": 0.2,
+          "top_p": 1,
+          "top_k": null,
+          "presence_penalty": 0,
+          "frequency_penalty": 0,
+          "seed": 42,
+          "stop_sequences": [],
+          "reasoning": { "mode": "disabled", "effort": null, "budget_tokens": null },
+          "response_format": "json_schema",
+          "tools": "none"
+        },
+        "provider_options": {}
+      }
+    }
+  ]
+}

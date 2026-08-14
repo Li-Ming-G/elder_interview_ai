@@ -2,13 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://elder-interview.example/schemas/llm-provider-call-receipt-v1.json",
   "title": "LlmProviderCallReceiptV1",
-  "$comment": "CANDIDATE for SPEC-LLM-PROVIDER-001. The receipt carries sanitized provenance, never secrets or full prompt/context/output.",
+  "$comment": "CANDIDATE for SPEC-LLM-PROVIDER-001 / REV-050. Requested and observed model identities, provider request ID and SDK response ID are four distinct provenance facts.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "provider_id",
-    "provider_model_id",
+    "requested_provider_id",
+    "requested_provider_model_id",
+    "observed_response_model_id",
+    "observed_response_model_id_source",
+    "model_config_schema_version",
     "model_config_version",
     "model_config_digest",
     "sdk_core_package",
@@ -21,6 +24,9 @@
     "provider_request_id",
     "provider_request_id_source",
     "sdk_response_id",
+    "sdk_response_id_source",
+    "config_application_status",
+    "warnings",
     "token_usage",
     "latency_ms",
     "status",
@@ -32,8 +38,13 @@
   ],
   "properties": {
     "schema_version": { "const": "llm-provider-call-receipt-v1" },
-    "provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
-    "provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "requested_provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "requested_provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "observed_response_model_id": { "type": ["string", "null"], "minLength": 1, "maxLength": 160 },
+    "observed_response_model_id_source": {
+      "enum": ["provider_origin", "sdk_normalized", "unknown", "unavailable"]
+    },
+    "model_config_schema_version": { "const": "llm-model-config-v1" },
     "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
     "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "sdk_core_package": { "const": "ai" },
@@ -44,8 +55,17 @@
     "endpoint_origin": { "type": "string", "format": "uri", "pattern": "^https://" },
     "data_region": { "type": "string", "minLength": 1, "maxLength": 80 },
     "provider_request_id": { "type": ["string", "null"], "minLength": 1, "maxLength": 160 },
-    "provider_request_id_source": { "enum": ["provider", "sdk_generated", "unavailable"] },
+    "provider_request_id_source": { "enum": ["provider", "unavailable"] },
     "sdk_response_id": { "type": ["string", "null"], "minLength": 1, "maxLength": 160 },
+    "sdk_response_id_source": {
+      "enum": ["provider_origin", "sdk_generated", "unknown", "unavailable"]
+    },
+    "config_application_status": { "enum": ["as_requested", "diverged", "unknown"] },
+    "warnings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/warning" }
+    },
     "token_usage": {
       "type": "object",
       "additionalProperties": false,
@@ -67,11 +87,111 @@
   "allOf": [
     {
       "if": {
+        "properties": { "observed_response_model_id_source": { "const": "unavailable" } },
+        "required": ["observed_response_model_id_source"]
+      },
+      "then": { "properties": { "observed_response_model_id": { "type": "null" } } },
+      "else": {
+        "properties": { "observed_response_model_id": { "type": "string", "minLength": 1 } }
+      }
+    },
+    {
+      "if": {
         "properties": { "provider_request_id_source": { "const": "provider" } },
         "required": ["provider_request_id_source"]
       },
       "then": { "properties": { "provider_request_id": { "type": "string", "minLength": 1 } } },
       "else": { "properties": { "provider_request_id": { "type": "null" } } }
+    },
+    {
+      "if": {
+        "properties": { "sdk_response_id_source": { "const": "unavailable" } },
+        "required": ["sdk_response_id_source"]
+      },
+      "then": { "properties": { "sdk_response_id": { "type": "null" } } },
+      "else": { "properties": { "sdk_response_id": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "config_application_status": { "const": "as_requested" },
+            "warnings": { "maxItems": 0 }
+          }
+        },
+        {
+          "properties": {
+            "config_application_status": { "const": "diverged" },
+            "warnings": {
+              "minItems": 1,
+              "contains": {
+                "properties": {
+                  "classification": {
+                    "enum": ["unsupported_setting", "ignored_setting", "adjusted_setting"]
+                  }
+                },
+                "required": ["classification"]
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "config_application_status": { "const": "unknown" },
+            "warnings": {
+              "minItems": 1,
+              "contains": {
+                "properties": {
+                  "classification": {
+                    "enum": ["provider_warning_other", "warning_visibility_unavailable"]
+                  }
+                },
+                "required": ["classification"]
+              }
+            }
+          }
+        }
+      ]
     }
-  ]
+  ],
+  "$defs": {
+    "warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "setting_path", "sanitized_code"],
+      "properties": {
+        "classification": {
+          "enum": [
+            "unsupported_setting",
+            "ignored_setting",
+            "adjusted_setting",
+            "provider_warning_other",
+            "warning_visibility_unavailable"
+          ]
+        },
+        "setting_path": {
+          "type": ["string", "null"],
+          "pattern": "^/(generation|provider_options)(/.*)?$",
+          "maxLength": 240
+        },
+        "sanitized_code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,79}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": ["unsupported_setting", "ignored_setting", "adjusted_setting"]
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": { "properties": { "setting_path": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    }
+  }
 }

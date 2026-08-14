@@ -1,0 +1,129 @@
+{
+  "fixture_version": "llm-provider-call-receipt-v1-fixtures-v1",
+  "base_receipt": {
+    "schema_version": "llm-provider-call-receipt-v1",
+    "requested_provider_id": "synthetic-provider",
+    "requested_provider_model_id": "synthetic-requested-model",
+    "observed_response_model_id": "synthetic-observed-model-revision",
+    "observed_response_model_id_source": "provider_origin",
+    "model_config_schema_version": "llm-model-config-v1",
+    "model_config_version": "synthetic-comparison-v1",
+    "model_config_digest": "eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0",
+    "sdk_core_package": "ai",
+    "sdk_core_version": "7.0.65",
+    "sdk_provider_package": "@ai-sdk/synthetic",
+    "sdk_provider_package_version": "1.0.0",
+    "connection_mode": "direct_vendor",
+    "endpoint_origin": "https://synthetic.invalid",
+    "data_region": "synthetic-test-region",
+    "provider_request_id": "provider-request-1",
+    "provider_request_id_source": "provider",
+    "sdk_response_id": "sdk-response-1",
+    "sdk_response_id_source": "provider_origin",
+    "config_application_status": "as_requested",
+    "warnings": [],
+    "token_usage": { "input_tokens": 100, "output_tokens": 20, "total_tokens": 120 },
+    "latency_ms": 123,
+    "status": "succeeded",
+    "error_code": null,
+    "started_at": "2026-08-14T00:00:00Z",
+    "completed_at": "2026-08-14T00:00:00.123Z",
+    "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "output_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "cases": [
+    {
+      "case_id": "valid-as-requested-no-warning",
+      "patches": [],
+      "expected_valid": true
+    },
+    {
+      "case_id": "valid-diverged-ignored-setting",
+      "patches": [
+        { "op": "replace", "path": "/config_application_status", "value": "diverged" },
+        {
+          "op": "add",
+          "path": "/warnings/-",
+          "value": {
+            "classification": "ignored_setting",
+            "setting_path": "/generation/seed",
+            "sanitized_code": "SEED_IGNORED"
+          }
+        }
+      ],
+      "expected_valid": true
+    },
+    {
+      "case_id": "valid-unknown-warning-visibility",
+      "patches": [
+        { "op": "replace", "path": "/config_application_status", "value": "unknown" },
+        {
+          "op": "add",
+          "path": "/warnings/-",
+          "value": {
+            "classification": "warning_visibility_unavailable",
+            "setting_path": null,
+            "sanitized_code": "WARNINGS_UNAVAILABLE"
+          }
+        }
+      ],
+      "expected_valid": true
+    },
+    {
+      "case_id": "invalid-as-requested-with-warning",
+      "patches": [
+        {
+          "op": "add",
+          "path": "/warnings/-",
+          "value": {
+            "classification": "adjusted_setting",
+            "setting_path": "/generation/temperature",
+            "sanitized_code": "TEMPERATURE_ADJUSTED"
+          }
+        }
+      ],
+      "expected_valid": false
+    },
+    {
+      "case_id": "invalid-diverged-with-generic-warning-only",
+      "patches": [
+        { "op": "replace", "path": "/config_application_status", "value": "diverged" },
+        {
+          "op": "add",
+          "path": "/warnings/-",
+          "value": {
+            "classification": "provider_warning_other",
+            "setting_path": null,
+            "sanitized_code": "OTHER_WARNING"
+          }
+        }
+      ],
+      "expected_valid": false
+    },
+    {
+      "case_id": "invalid-provider-request-unavailable-but-present",
+      "patches": [
+        { "op": "replace", "path": "/provider_request_id_source", "value": "unavailable" }
+      ],
+      "expected_valid": false
+    },
+    {
+      "case_id": "invalid-sdk-response-unavailable-but-present",
+      "patches": [
+        { "op": "replace", "path": "/sdk_response_id_source", "value": "unavailable" }
+      ],
+      "expected_valid": false
+    },
+    {
+      "case_id": "invalid-observed-model-unavailable-but-present",
+      "patches": [
+        {
+          "op": "replace",
+          "path": "/observed_response_model_id_source",
+          "value": "unavailable"
+        }
+      ],
+      "expected_valid": false
+    }
+  ]
+}
