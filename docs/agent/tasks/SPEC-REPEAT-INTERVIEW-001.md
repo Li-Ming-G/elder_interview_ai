@@ -66,3 +66,8 @@
 - merge commit parents 精确为 prior main `869556a2ae6616a3a236251371054fd28bee7059` 与 accepted head `8d4a26263db7b75dd22469f767240d705d3ce5fe`，merge tree 与 accepted head tree 相同。
 - DEV-008A4 / PR #44 accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 已获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。A4 与本 SPEC 依赖均已关闭；B1/B2 已机械转为 `READY`。
 - 本任务仅冻结 docs/shared-contract 契约；DEV-008B1/B2 现为 `READY` 但尚未实现。真实 LLM/provider、privacy/deletion/retention、DEV-008D/CON-023 与真实试点不由本结论完成。
+
+## 后续治理状态（2026-08-14）
+
+- DEV-008B1 后续已在 REV-050 接收的 fail-closed runtime 范围 `DONE`；SPEC-CONSENT-TEXT-POLICY-001 继续 `BLOCKED`，所以真实持续授权正文、真实 `covered` 与真实试点仍不可用。
+- DEV-008B2 只转为 implementation-ready 的 `READY`，当前未启动；真实 LLM/provider、privacy/deletion/retention、DEV-008D/CON-023 门禁不因本更新关闭。

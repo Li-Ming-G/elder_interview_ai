@@ -54,10 +54,10 @@
 
 - old exact head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 获 [REQUEST_CHANGES](https://github.com/Li-Ming-G/elder_interview_ai/pull/49#issuecomment-5288715503)（P0=0/P1=3/P2=0）；该历史永久保留。
 - accepted head 的定向修复关闭三项 P1，随后 PASS、merge 与 main CI 完成；SPEC `REVIEW→DONE`、ADR-039 `Proposed→Accepted`、CON-012 `DECIDED→RESOLVED`。
-- DEV-008B1 `BLOCKED→READY` 只表示可开始 fail-closed runtime 实现；在 SPEC-CONSENT-TEXT-POLICY-001 正式接收前不得 `DONE`、启用真实 covered 或宣称真实持续授权可用。
-- DEV-008B2 不再等待本 SPEC，但因 B1 runtime 尚未实现保持 `BLOCKED`；B1 完成后才重评 implementation readiness。
+- 历史转换：本 SPEC 收口时 DEV-008B1 `BLOCKED→READY` 只表示可开始 fail-closed runtime 实现；这不曾解除 SPEC-CONSENT-TEXT-POLICY-001 对真实 covered 的独立门禁。
+- DEV-008B1 已在 fail-closed runtime 范围 PASS/merge/治理收口为 `DONE`；DEV-008B2 因此前置完成仅转为 implementation-ready 的 `READY`，当前未启动。真实 covered 仍由 SPEC-CONSENT-TEXT-POLICY-001 阻塞。
 
 ## 仍未完成
 
-- SPEC-CONSENT-TEXT-POLICY-001、真实授权正文/scope metadata、B1/B2 runtime、数据库约束、页面和完整 `09` §§17-18 实现验收均未完成。
-- 本 closeout 不启动 B1/B2，不处理正式授权正文，也不改变真实 provider、删除、retention、ServiceTerm 或真实试点门禁。
+- SPEC-CONSENT-TEXT-POLICY-001、真实授权正文/scope metadata、B2 runtime 与完整 `09` §17 post-analysis 实现验收均未完成；B1 只在已接收的 fail-closed runtime 范围完成，不含真实 covered。
+- 本次联合治理 closeout 不启动 B2，不处理正式授权正文，也不改变真实 provider、删除、retention、ServiceTerm 或真实试点门禁。

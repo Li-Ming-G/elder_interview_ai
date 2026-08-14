@@ -2,13 +2,13 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立执行 Agent
 - base：`origin/main@6f6363f517a6588ff4eb31aee7996b7116092c03`
 - branch：`codex/spec-llm-provider-001`
-- PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft、OPEN、未合并；accepted 内容已 PASS，latest-main integration 待窄复审）
+- PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft、MERGED）
 - 前置决定：项目负责人已选择 Vercel AI SDK、厂商直连、正式单 active provider/model、隔离多模型横评；不使用 Gateway/LiteLLM
-- 审查：高影响契约任务；只由项目负责人对非 Draft PR exact head/CI 手动给结论。执行 Agent 不得 PASS/DONE/merge
+- 审查：高影响契约任务；项目负责人已分别对 accepted content 与 latest-main integration exact head 给出 PASS，P0/P1/P2=0
 
 ## 目标
 
@@ -55,7 +55,7 @@
 
 ## 验收
 
-按 `09` §19 完成 JSON Schema/fixture、shared typecheck、v1 loader、定向 unit 和仓库全门禁验证；创建非 Draft PR 并取得 exact-head CI SUCCESS。accepted 内容已获项目负责人手动 PASS；任务仍保持 REVIEW，等待 latest-main integration 冲突窄复审。
+按 `09` §19 完成 JSON Schema/fixture、shared typecheck、v1 loader、定向 unit 和仓库全门禁验证；创建非 Draft PR 并取得 exact-head CI SUCCESS。accepted 内容与 latest-main integration 均已获项目负责人手动 PASS；PR 已合并且 final main CI SUCCESS，本任务仅在契约范围 `DONE`。
 
 accepted 内容本地结果：format/lint/typecheck/build PASS；unit 57 files / 349 tests、定向 SPEC 10/10、integration 14 files / 82 tests、auth 4 files / 23 tests、smoke、Chromium E2E 27/27、auth E2E 5/5 均 PASS；14 migrations 在隔离 PostgreSQL `elder_interview_spec_llm_001_rev050` deploy/status PASS。package manifest/lockfile 未改。accepted exact head `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` SUCCESS 已获项目负责人 PASS，P0/P1/P2=0；不构成真实 provider PASS。
 
@@ -65,14 +65,14 @@ accepted 内容本地结果：format/lint/typecheck/build PASS；unit 57 files /
 - P1-1：补 active binding → exactly one provider/model/config 与 endpoint/region/secret/environment/data-class membership 的 deterministic semantic validator；重复 identity/缺失/歧义全部 fail closed，并用正反 fixtures 固定。
 - P1-2：拆分 requested model、observed response model+source、provider request ID+source、SDK response ID+source四类 provenance；同步 receipt/shared types 与 `04/05/07/09/10`。
 - P1-3：新增 `llm-model-config-v1` canonical manifest/schema、精确 digest 算法与 golden vector；冻结真实 generation/provider options，receipt/persistence 增加 sanitized warning 与 effective-config 状态，横评不得把 warning/unknown 当同配置。
-- old head/CI/REQUEST_CHANGES 永久保留；定向修复候选仍保持 REVIEW，ADR-040 Proposed/REVIEW、CON-031 OPEN，不得 PASS/DONE/merge。
+- old head/CI/REQUEST_CHANGES 永久保留；在该初轮审查时点，定向修复候选仍保持 REVIEW，ADR-040 Proposed/REVIEW、CON-031 OPEN，不得 PASS/DONE/merge。后续 accepted/integration PASS 与最终治理转换见下文，不覆盖本历史快照。
 
 ## branch-local REV-050 定向修复与正式 PASS
 
 - P1-1：新增独立 `llm-provider-registry-semantics-v1` 与纯服务端 reference validator；全 registry 对 provider/model/config identity 去重，active binding 逐层 exactly-one，并机械核验 endpoint/region/secret/environment/data-class membership。正反 fixtures 固定缺失、重复、歧义、digest/ref 不一致与真实/境外数据 deny 的 deterministic error codes。
 - P1-2：invocation/receipt/shared/persistence candidate 拆为 requested binding model、observed response model+source、provider request ID+source、SDK response ID+source四类事实；provider request source 只允许 `provider/unavailable`，SDK response source 独立允许 `provider_origin/sdk_generated/unknown/unavailable`。
 - P1-3：新增 `llm-model-config-v1` 完整 manifest/schema 与 canonical JSON v1 规则；digest 精确覆盖 generation 和 provider options，golden vector 为 `eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0`。receipt/persistence candidate 增加 sanitized warning 分类与 config application status；横评只有相同 config identity 且所有 receipt 均 `as_requested`、无 warning 时才能标记 equal-effective-config。
-- 未接线到现有 runtime，未安装 SDK、未选择厂商、未新增 migration；formal v1 loader、deadline/retry、评测隔离和 CON-031/ASR 门禁不变。
+- 未接线到现有 runtime，未安装 SDK、未选择厂商、未新增 migration；formal v1 loader、deadline/retry、评测隔离不变。在该 accepted-content 审查时点 CON-031/ASR 门禁仍未转换；最终 closeout 只将 CON-031 的“provider-neutral 契约未冻结”冲突收口，真实厂商/model/region、DPA/retention/training/跨境、ASR、secret 与 runtime 门禁继续保留。
 - 项目负责人对 exact head `77fb3a860ccd372f1fdc3465654f86d931688a89` / exact-head CI `31783061076` SUCCESS 正式定向复审 `PASS`，P0=0/P1=0/P2=0；旧 `b7ae9a4` REQUEST_CHANGES 历史永久保留。
-- PR #51 已以 `6e546853672c687c70a4112bf07d1dfe1763c75f` 合入 main；main CI `31785578105` attempt 2 SUCCESS，attempt 1 ordinary Chromium unknown-project 时序 flake永久保留。当前只机械整合 accepted LLM 内容并保全 DEV-008B1/LLM 双方治理事实；canonical review 编号记为 `REV-051（branch-local REV-050）`。integration exact head/CI 与项目负责人窄复审前，本任务保持 REVIEW，ADR-040 Proposed/REVIEW、CON-031 OPEN，PR #52 不得 merge。
-- integration 本地全门禁已通过：unit 372、LLM 定向 10、fresh PostgreSQL integration 84/auth 23、ordinary Chromium 27、auth Chromium 5，以及 format/lint/typecheck/build/smoke/migration/diff-check；accepted LLM 技术契约与 dependency files 相对 `77fb3a8` 无差异。具体环境失败历史见交接。
+- PR #51 已以 `6e546853672c687c70a4112bf07d1dfe1763c75f` 合入 main；main CI `31785578105` attempt 2 SUCCESS，attempt 1 ordinary Chromium unknown-project 时序 flake永久保留。accepted LLM 内容随后机械整合到 head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a`，CI `31787175381` SUCCESS，并获项目负责人窄 integration PASS（P0/P1/P2=0）；canonical review 编号为 `REV-051（branch-local REV-050）`。PR #52 已 merge 为 main `99ce83d001ffca5075d63f60c26067a2f9f2de59`，main CI `31789810221` attempt 1 SUCCESS；本任务 `REVIEW→DONE`，ADR-040 `Proposed/REVIEW→Accepted`。
+- integration 本地全门禁已通过：unit 372、LLM 定向 10、fresh PostgreSQL integration 84/auth 23、ordinary Chromium 27、auth Chromium 5，以及 format/lint/typecheck/build/smoke/migration/diff-check；accepted LLM 技术契约与 dependency files 相对 `77fb3a8` 无差异。integration head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` SUCCESS 获项目负责人窄 integration PASS（P0/P1/P2=0）；PR #52 merge/main `99ce83d001ffca5075d63f60c26067a2f9f2de59`，main CI `31789810221` attempt 1 SUCCESS。具体环境失败历史见交接。

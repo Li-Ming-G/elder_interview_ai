@@ -408,7 +408,7 @@
 
 ## ADR-040｜LLM 采用应用内 AI SDK 直连、单 active binding 与隔离横评
 
-- 状态：`Proposed / REVIEW`；accepted 内容虽已获项目负责人 PASS，但 latest-main integration exact head/CI 与冲突窄复审尚未完成，不得转 Accepted。
+- 状态：`Accepted`；accepted content 与 latest-main integration exact head/CI 均获项目负责人 PASS，PR #52 已合并且 main CI 成功。
 - 背景：DEV-007B 已以 deterministic local/test Director 验证唯一 Context/Output Schema、单 Director、共享 8 秒 deadline 与同输入 retry，但 staging/production 仍 provider unavailable。项目负责人需要随时调整 Prompt、比较不同模型，同时不希望在当前阶段部署 Gateway/LiteLLM 或把横评结果混入业务历史。
 - 决定：TypeScript 应用内使用 Vercel AI SDK Core 与 direct provider packages；不使用 Vercel AI Gateway，不部署 LiteLLM。正式 generation attempt 冻结唯一 active provider/model/model-config，registry 只查找显式 binding，不承担 fallback/order/shadow routing。AI SDK `maxRetries=0`，项目既有 primary/最多一次 same-input retry 与 8 秒绝对 deadline/abort 是唯一调用编排。
 - Prompt：采用 `draft -> immutable candidate -> fixed synthetic/deidentified evaluation -> immutable formal+digest -> explicit active switch`。当前 formal/runtime v1 不覆盖，`v2-draft` 不可加载。Prompt 需要新字段/枚举时必须先变更正式 Context/Output Schema。
@@ -418,5 +418,5 @@
 - 代价：短期内仍没有真实 LLM；每个 provider 需维护独立 profile/合规证据，Prompt promotion 与横评增加治理步骤。换取 retry/fallback 单一真相、供应商可替换、Prompt 可控试验、真实 provenance 和评测/业务数据严格隔离。
 - 不做：真实 provider、在线 Prompt 管理、第二 critic、LiteLLM、Gateway、题库重做、DEV-007/008 流、真实数据横评、Prisma/migration 或 formal v2 切换。
 - iteration-coach：复用总控本轮唯一独立只读 Correction，未启动第二次；其 Prompt lifecycle、SDK no-retry/fallback、provenance、隔离横评、region/secret 与 ASR 门禁修正已吸收。
-  - 审查历史：REV-051（accepted contract 中 branch-local 标记 REV-050）绑定 PR #52 old exact head `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS 的 `REQUEST_CHANGES`（P0=0/P1=3/P2=0），以及 accepted exact head `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` SUCCESS 的项目负责人 `PASS`（P0/P1/P2=0）。old head/CI/结论永久保留；latest-main integration 仍待窄复审。ADR 继续 `Proposed / REVIEW`，不得提前 Accepted。
-  - 定向修复候选：以独立 deterministic semantic validator contract/reference 锁定跨数组 exactly-one/membership/duplicate 语义；以四类独立 identity/source 锁定调用 provenance；以 `llm-model-config-v1` canonical manifest/digest、sanitized warning 与 `as_requested` 判定锁定横评的 equal-effective-config。该候选未接 runtime，等待新 exact-head 项目负责人定向复审。
+  - 审查历史：REV-051（accepted contract 中 branch-local 标记 REV-050）绑定 PR #52 old exact head `b7ae9a428530be92a95a5fb9d2fc6cc2fd2c5ede` / CI `31769677989` SUCCESS 的 `REQUEST_CHANGES`（P0=0/P1=3/P2=0），以及 accepted exact head `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` SUCCESS 的项目负责人内容 `PASS`（P0/P1/P2=0）。old head/CI/结论永久保留；integration exact head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` SUCCESS 又获项目负责人窄 integration `PASS`（P0/P1/P2=0），PR #52 merge/main `99ce83d001ffca5075d63f60c26067a2f9f2de59` / main CI `31789810221` attempt 1 SUCCESS，故 ADR 转为 `Accepted`。
+  - 已接收定向修复：以独立 deterministic semantic validator contract/reference 锁定跨数组 exactly-one/membership/duplicate 语义；以四类独立 identity/source 锁定调用 provenance；以 `llm-model-config-v1` canonical manifest/digest、sanitized warning 与 `as_requested` 判定锁定横评的 equal-effective-config。该接收未接 runtime；真实实现仍由 BLOCKED 的 DEV-LLM-PROVIDER-001 在 ASR、provider/model/region、DPA/data policy 与 secret 门禁关闭后另行受审。

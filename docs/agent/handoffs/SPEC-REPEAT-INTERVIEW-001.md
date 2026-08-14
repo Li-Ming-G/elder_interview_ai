@@ -57,3 +57,8 @@
 - closeout 从该最新 `origin/main` 建立，只修改 SPEC/B1/B2 task、task board、traceability、ADR-038、REV-048 current/history/index、handoff/log/index 等治理 Markdown；无业务代码、shared contract、Prisma/migration、测试、页面、路由、样式、Prompt 或 provider 改动。
 - closeout 分支 `codex/spec-repeat-interview-001-closeout` 已通过 `pnpm.cmd format:check`、`git diff --check`、12 文件精确范围、变更 Markdown 相对链接、受影响表格列数、accepted-head ancestry/merge parents/tree identity 检查。
 - B1/B2 仅机械转为 `READY`；生产 caller、runtime、真实 LLM/provider、privacy/deletion/retention、DEV-008D/CON-023 与真实试点均继续未实现或未验收。
+
+## 后续状态更新（2026-08-14）
+
+- DEV-008B1 后续已由 REV-050 在 fail-closed runtime 范围 PASS/merge，并完成联合治理收口为 `DONE`；该结论不包含真实持续授权正文或真实 `covered`。
+- DEV-008B2 只因 B1 前置完成转为 implementation-ready 的 `READY`，当前未启动；真实 provider、privacy/deletion/retention、DEV-008D/CON-023 与真实试点门禁仍未完成。

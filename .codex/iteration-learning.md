@@ -2,10 +2,10 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。统一响应式网页 A 与 DEV-008A4 已 DONE；Repeat Interview 和 Continuing Consent 两项契约已 PASS/merge/收口。DEV-008B1 仅在 fail-closed runtime 范围 READY，真实 `covered` 完成仍被 SPEC-CONSENT-TEXT-POLICY-001 阻塞；DEV-008B2 等 B1 runtime，DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
-- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈拟采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。统一响应式网页 A 与 DEV-008A4 已 DONE；Repeat Interview、Continuing Consent 与 LLM Provider 三项契约已 PASS/merge/收口。DEV-008B1 仅在 fail-closed runtime 范围 DONE，真实 `covered` 完成仍被 SPEC-CONSENT-TEXT-POLICY-001 阻塞；DEV-008B2 仅转 READY 且未启动。DEV-LLM-PROVIDER-001、DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
+- Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。LLM provider-neutral 契约已接受 Vercel AI SDK direct-provider、单 active binding、no fallback、共享 deadline/abort 与隔离横评；真实 runtime/active binding 尚未实现。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
-- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM/对象存储最终供应商；CON-008/013/023；正式持续授权正文与 machine policy。CON-006/007/012 原日志已 RESOLVED 并从开放索引移除；补转录由 HARDEN-ASR-001 后置。
+- Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM provider/model/region/DPA/data policy 与对象存储最终供应商；CON-008/013/023；正式持续授权正文与 machine policy。CON-006/007/012/031 原日志已 RESOLVED 并从开放索引移除；其中 CON-031 只关闭 provider-neutral 契约未冻结，真实 LLM 外部门禁由 BLOCKED 的 DEV-LLM-PROVIDER-001 继续承接。补转录由 HARDEN-ASR-001 后置。
 
 ## Adopted Decisions
 
