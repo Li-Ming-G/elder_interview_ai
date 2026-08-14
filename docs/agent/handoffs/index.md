@@ -19,3 +19,5 @@ DEV-008A4 的授权前当前页麦克风、正式流独立校准、自动收尾�
 SPEC-REPEAT-INTERVIEW-001 的项目级 repeat action、same-project next-session、完成后双分析、calibration/basis 双前置 opening exact once、REV-048 old REQUEST_CHANGES 与 final exact-head PASS/merge 历史见 [`SPEC-REPEAT-INTERVIEW-001.md`](SPEC-REPEAT-INTERVIEW-001.md)。本接收只机械解锁 DEV-008B1/B2，不代表其 runtime、真实 provider 或真实试点已完成。
 
 SPEC-CONTINUING-CONSENT-001 的同 project 持续授权、每次正式录音前版本化轻提醒、重授权/版本漂移门禁、REV-049 old REQUEST_CHANGES 与 accepted exact-head PASS/merge、CON-012 关闭及 B1/B2 精确解锁边界见 [`SPEC-CONTINUING-CONSENT-001.md`](SPEC-CONTINUING-CONSENT-001.md)。本接收只使 B1 implementation-ready；真实 covered 仍受 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001 约束，B2 继续等待 B1 runtime。
+
+SPEC-LLM-PROVIDER-001 的 Vercel AI SDK direct-provider、单 active binding、Prompt draft/candidate/formal、隔离 synthetic 横评、真实 provenance 与 region/secret fail-closed REVIEW 包见 [`SPEC-LLM-PROVIDER-001.md`](SPEC-LLM-PROVIDER-001.md)。本交接不包含真实 provider/runtime/密钥/formal v2，等待项目负责人 exact-head 手动审查。

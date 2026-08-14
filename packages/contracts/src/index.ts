@@ -937,3 +937,172 @@ export interface InterviewWsErrorPayload {
   code: string;
   reset_required?: boolean;
 }
+
+/**
+ * SPEC-LLM-PROVIDER-001 candidate shared contract. It is not a runtime
+ * configuration authority until the task's exact head is accepted.
+ */
+export const LLM_PROVIDER_REGISTRY_VERSION = 'llm-provider-registry-v1' as const;
+export const LLM_PROVIDER_CALL_RECEIPT_VERSION = 'llm-provider-call-receipt-v1' as const;
+
+export type LlmProviderDataClass = 'synthetic' | 'deidentified' | 'real_interview';
+
+export interface LlmProviderActiveBindingV1 {
+  provider_id: string;
+  provider_model_id: string;
+  model_config_version: string;
+  model_config_digest: string;
+  endpoint_origin: string;
+  data_region: string;
+  secret_reference: string;
+  data_class: LlmProviderDataClass;
+  environment_scope: 'development' | 'test' | 'production';
+}
+
+export interface LlmProviderModelConfigV1 {
+  model_config_version: string;
+  model_config_digest: string;
+}
+
+export interface LlmProviderModelProfileV1 {
+  provider_model_id: string;
+  model_configs: LlmProviderModelConfigV1[];
+}
+
+export interface LlmProviderProcessingRegionV1 {
+  data_region: string;
+  jurisdiction: 'domestic' | 'foreign';
+}
+
+export type LlmProviderRealInterviewPolicyV1 =
+  | {
+      allowed: false;
+      authorization_policy_version: null;
+      provider_terms_review_id: null;
+      data_retention_review_id: null;
+      training_use: 'deny';
+      foreign_processing_allowed: false;
+      cross_border_decision_id: null;
+    }
+  | {
+      allowed: true;
+      authorization_policy_version: string;
+      provider_terms_review_id: string;
+      data_retention_review_id: string;
+      training_use: 'deny';
+      foreign_processing_allowed: false;
+      cross_border_decision_id: null;
+    }
+  | {
+      allowed: true;
+      authorization_policy_version: string;
+      provider_terms_review_id: string;
+      data_retention_review_id: string;
+      training_use: 'deny';
+      foreign_processing_allowed: true;
+      cross_border_decision_id: string;
+    };
+
+export interface LlmProviderProfileV1 {
+  provider_id: string;
+  provider_package: string;
+  provider_package_version: string;
+  model_allowlist: LlmProviderModelProfileV1[];
+  endpoint_origins: string[];
+  processing_regions: LlmProviderProcessingRegionV1[];
+  secret_references: string[];
+  environment_scopes: Array<'development' | 'test' | 'production'>;
+  allowed_data_classes: LlmProviderDataClass[];
+  real_interview_policy: LlmProviderRealInterviewPolicyV1;
+}
+
+export interface LlmProviderRegistryV1 {
+  contract_version: typeof LLM_PROVIDER_REGISTRY_VERSION;
+  artifact_status: 'candidate';
+  sdk: {
+    family: 'vercel_ai_sdk';
+    core_package: 'ai';
+    verified_version: '7.0.65';
+    verified_on: '2026-08-14';
+    license: 'Apache-2.0';
+    node_engine: '>=22';
+    dependency_policy: 'exact_reviewed_versions';
+    max_retries: 0;
+    structured_output: 'output_object_json_schema';
+  };
+  routing: {
+    connection_mode: 'direct_vendor';
+    gateway_enabled: false;
+    litellm_enabled: false;
+    fallback_enabled: false;
+    shadow_traffic_enabled: false;
+    active_binding: LlmProviderActiveBindingV1 | null;
+  };
+  runtime: {
+    absolute_deadline_ms: 8000;
+    coordinator_same_input_retry_max: 1;
+    abort_required: true;
+    late_result_writeback: 'deny';
+    formal_attempt_active_binding_count: 1;
+  };
+  safety: {
+    configuration_authority: 'server_only';
+    secret_injection: 'server_reference_only';
+    real_interview_data_default: 'deny';
+    foreign_real_content_default: 'deny';
+    unknown_configuration: 'fail_closed';
+    asr_provider_pass_required: 'DEV-ASR-PROVIDER-001';
+  };
+  prompt: {
+    active_formal_bundle: 'interview-director-prompt-v1';
+    editable_draft_path: 'docs/prompts/interview-director/v2-draft';
+    draft_runtime_loadable: false;
+    lifecycle: readonly ['draft', 'candidate', 'formal', 'active'];
+    schema_first: true;
+  };
+  evaluation: {
+    allowed_data_classes: readonly ['synthetic', 'deidentified'];
+    frozen_inputs_required: true;
+    artifact_target: 'isolated_evaluation_artifact';
+    prohibited_publish_targets: readonly ['question_current', 'question_history'];
+  };
+  providers: LlmProviderProfileV1[];
+}
+
+export type LlmProviderRequestIdentityV1 =
+  | {
+      provider_request_id: string;
+      provider_request_id_source: 'provider';
+    }
+  | {
+      provider_request_id: null;
+      provider_request_id_source: 'sdk_generated' | 'unavailable';
+    };
+
+export type LlmProviderCallReceiptV1 = LlmProviderRequestIdentityV1 & {
+  schema_version: typeof LLM_PROVIDER_CALL_RECEIPT_VERSION;
+  provider_id: string;
+  provider_model_id: string;
+  model_config_version: string;
+  model_config_digest: string;
+  sdk_core_package: 'ai';
+  sdk_core_version: string;
+  sdk_provider_package: string;
+  sdk_provider_package_version: string;
+  connection_mode: 'direct_vendor';
+  endpoint_origin: string;
+  data_region: string;
+  sdk_response_id: string | null;
+  token_usage: {
+    input_tokens: number | null;
+    output_tokens: number | null;
+    total_tokens: number | null;
+  };
+  latency_ms: number;
+  status: 'succeeded' | 'failed' | 'aborted' | 'timeout';
+  error_code: string | null;
+  started_at: string;
+  completed_at: string;
+  input_digest: string;
+  output_digest: string | null;
+};

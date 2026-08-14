@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/llm-provider-registry-v1.json",
+  "title": "LlmProviderRegistryV1",
+  "$comment": "CANDIDATE for SPEC-LLM-PROVIDER-001. Not runtime authority until exact-head acceptance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "artifact_status",
+    "sdk",
+    "routing",
+    "runtime",
+    "safety",
+    "prompt",
+    "evaluation",
+    "providers"
+  ],
+  "properties": {
+    "contract_version": { "const": "llm-provider-registry-v1" },
+    "artifact_status": { "const": "candidate" },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "core_package",
+        "verified_version",
+        "verified_on",
+        "license",
+        "node_engine",
+        "dependency_policy",
+        "max_retries",
+        "structured_output"
+      ],
+      "properties": {
+        "family": { "const": "vercel_ai_sdk" },
+        "core_package": { "const": "ai" },
+        "verified_version": { "const": "7.0.65" },
+        "verified_on": { "const": "2026-08-14" },
+        "license": { "const": "Apache-2.0" },
+        "node_engine": { "const": ">=22" },
+        "dependency_policy": { "const": "exact_reviewed_versions" },
+        "max_retries": { "const": 0 },
+        "structured_output": { "const": "output_object_json_schema" }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_mode",
+        "gateway_enabled",
+        "litellm_enabled",
+        "fallback_enabled",
+        "shadow_traffic_enabled",
+        "active_binding"
+      ],
+      "properties": {
+        "connection_mode": { "const": "direct_vendor" },
+        "gateway_enabled": { "const": false },
+        "litellm_enabled": { "const": false },
+        "fallback_enabled": { "const": false },
+        "shadow_traffic_enabled": { "const": false },
+        "active_binding": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/activeBinding" }
+          ]
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "absolute_deadline_ms",
+        "coordinator_same_input_retry_max",
+        "abort_required",
+        "late_result_writeback",
+        "formal_attempt_active_binding_count"
+      ],
+      "properties": {
+        "absolute_deadline_ms": { "const": 8000 },
+        "coordinator_same_input_retry_max": { "const": 1 },
+        "abort_required": { "const": true },
+        "late_result_writeback": { "const": "deny" },
+        "formal_attempt_active_binding_count": { "const": 1 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuration_authority",
+        "secret_injection",
+        "real_interview_data_default",
+        "foreign_real_content_default",
+        "unknown_configuration",
+        "asr_provider_pass_required"
+      ],
+      "properties": {
+        "configuration_authority": { "const": "server_only" },
+        "secret_injection": { "const": "server_reference_only" },
+        "real_interview_data_default": { "const": "deny" },
+        "foreign_real_content_default": { "const": "deny" },
+        "unknown_configuration": { "const": "fail_closed" },
+        "asr_provider_pass_required": { "const": "DEV-ASR-PROVIDER-001" }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_formal_bundle",
+        "editable_draft_path",
+        "draft_runtime_loadable",
+        "lifecycle",
+        "schema_first"
+      ],
+      "properties": {
+        "active_formal_bundle": { "const": "interview-director-prompt-v1" },
+        "editable_draft_path": { "const": "docs/prompts/interview-director/v2-draft" },
+        "draft_runtime_loadable": { "const": false },
+        "lifecycle": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "draft" },
+            { "const": "candidate" },
+            { "const": "formal" },
+            { "const": "active" }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "schema_first": { "const": true }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_data_classes",
+        "frozen_inputs_required",
+        "artifact_target",
+        "prohibited_publish_targets"
+      ],
+      "properties": {
+        "allowed_data_classes": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "synthetic" },
+            { "const": "deidentified" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "frozen_inputs_required": { "const": true },
+        "artifact_target": { "const": "isolated_evaluation_artifact" },
+        "prohibited_publish_targets": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "question_current" },
+            { "const": "question_history" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/providerProfile" }
+    }
+  },
+  "$defs": {
+    "activeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_model_id",
+        "model_config_version",
+        "model_config_digest",
+        "endpoint_origin",
+        "data_region",
+        "secret_reference",
+        "data_class",
+        "environment_scope"
+      ],
+      "properties": {
+        "provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "endpoint_origin": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "data_region": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "secret_reference": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+        "data_class": { "enum": ["synthetic", "deidentified", "real_interview"] },
+        "environment_scope": { "enum": ["development", "test", "production"] }
+      }
+    },
+    "providerProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_package",
+        "provider_package_version",
+        "model_allowlist",
+        "endpoint_origins",
+        "processing_regions",
+        "secret_references",
+        "environment_scopes",
+        "allowed_data_classes",
+        "real_interview_policy"
+      ],
+      "properties": {
+        "provider_id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "provider_package": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "provider_package_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "model_allowlist": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/modelProfile" }
+        },
+        "endpoint_origins": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "format": "uri", "pattern": "^https://" }
+        },
+        "processing_regions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/processingRegion" }
+        },
+        "secret_references": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" }
+        },
+        "environment_scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["development", "test", "production"] }
+        },
+        "allowed_data_classes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["synthetic", "deidentified", "real_interview"] }
+        },
+        "real_interview_policy": { "$ref": "#/$defs/realInterviewPolicy" }
+      }
+    },
+    "modelProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_model_id", "model_configs"],
+      "properties": {
+        "provider_model_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "model_configs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/modelConfig" }
+        }
+      }
+    },
+    "modelConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_config_version", "model_config_digest"],
+      "properties": {
+        "model_config_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "model_config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "processingRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_region", "jurisdiction"],
+      "properties": {
+        "data_region": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "jurisdiction": { "enum": ["domestic", "foreign"] }
+      }
+    },
+    "realInterviewPolicy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowed",
+            "authorization_policy_version",
+            "provider_terms_review_id",
+            "data_retention_review_id",
+            "training_use",
+            "foreign_processing_allowed",
+            "cross_border_decision_id"
+          ],
+          "properties": {
+            "allowed": { "const": false },
+            "authorization_policy_version": { "type": "null" },
+            "provider_terms_review_id": { "type": "null" },
+            "data_retention_review_id": { "type": "null" },
+            "training_use": { "const": "deny" },
+            "foreign_processing_allowed": { "const": false },
+            "cross_border_decision_id": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowed",
+            "authorization_policy_version",
+            "provider_terms_review_id",
+            "data_retention_review_id",
+            "training_use",
+            "foreign_processing_allowed",
+            "cross_border_decision_id"
+          ],
+          "properties": {
+            "allowed": { "const": true },
+            "authorization_policy_version": { "type": "string", "minLength": 1 },
+            "provider_terms_review_id": { "type": "string", "minLength": 1 },
+            "data_retention_review_id": { "type": "string", "minLength": 1 },
+            "training_use": { "const": "deny" },
+            "foreign_processing_allowed": { "const": false },
+            "cross_border_decision_id": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowed",
+            "authorization_policy_version",
+            "provider_terms_review_id",
+            "data_retention_review_id",
+            "training_use",
+            "foreign_processing_allowed",
+            "cross_border_decision_id"
+          ],
+          "properties": {
+            "allowed": { "const": true },
+            "authorization_policy_version": { "type": "string", "minLength": 1 },
+            "provider_terms_review_id": { "type": "string", "minLength": 1 },
+            "data_retention_review_id": { "type": "string", "minLength": 1 },
+            "training_use": { "const": "deny" },
+            "foreign_processing_allowed": { "const": true },
+            "cross_border_decision_id": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

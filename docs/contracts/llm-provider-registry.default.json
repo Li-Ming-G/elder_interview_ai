@@ -1,0 +1,52 @@
+{
+  "contract_version": "llm-provider-registry-v1",
+  "artifact_status": "candidate",
+  "sdk": {
+    "family": "vercel_ai_sdk",
+    "core_package": "ai",
+    "verified_version": "7.0.65",
+    "verified_on": "2026-08-14",
+    "license": "Apache-2.0",
+    "node_engine": ">=22",
+    "dependency_policy": "exact_reviewed_versions",
+    "max_retries": 0,
+    "structured_output": "output_object_json_schema"
+  },
+  "routing": {
+    "connection_mode": "direct_vendor",
+    "gateway_enabled": false,
+    "litellm_enabled": false,
+    "fallback_enabled": false,
+    "shadow_traffic_enabled": false,
+    "active_binding": null
+  },
+  "runtime": {
+    "absolute_deadline_ms": 8000,
+    "coordinator_same_input_retry_max": 1,
+    "abort_required": true,
+    "late_result_writeback": "deny",
+    "formal_attempt_active_binding_count": 1
+  },
+  "safety": {
+    "configuration_authority": "server_only",
+    "secret_injection": "server_reference_only",
+    "real_interview_data_default": "deny",
+    "foreign_real_content_default": "deny",
+    "unknown_configuration": "fail_closed",
+    "asr_provider_pass_required": "DEV-ASR-PROVIDER-001"
+  },
+  "prompt": {
+    "active_formal_bundle": "interview-director-prompt-v1",
+    "editable_draft_path": "docs/prompts/interview-director/v2-draft",
+    "draft_runtime_loadable": false,
+    "lifecycle": ["draft", "candidate", "formal", "active"],
+    "schema_first": true
+  },
+  "evaluation": {
+    "allowed_data_classes": ["synthetic", "deidentified"],
+    "frozen_inputs_required": true,
+    "artifact_target": "isolated_evaluation_artifact",
+    "prohibited_publish_targets": ["question_current", "question_history"]
+  },
+  "providers": []
+}

@@ -1537,3 +1537,29 @@ DEV-008B1 runtime 接入后，`POST /sessions/:id/start` 请求必须增加 `rec
 服务端在创建 interview audio object 前动态重查 actor、assignment、project restriction/deletion、current consent candidate、scope/version compatibility、device-check 与当前 reminder version。consent 不再 covered 返回 409 `CONSENT_REAUTHORIZATION_REQUIRED`；提醒字段缺失/不匹配返回 409 `RECORDING_REMINDER_VERSION_STALE` 并要求刷新 snapshot。两者均不得创建 audio object、capture generation、ASR/AI job、consent record 或 consent audio。
 
 start 的 idempotency payload hash 纳入 `recording_reminder_version`。相同 request ID/payload 的未知响应或 replay 返回首次 start 结果；同 ID 改 reminder version 继续按既有 payload mismatch 拒绝。成功只表示本次 formal recording 已开始；`creates_consent_record=false` 是不变量，start/replay/双击/刷新均不得追加或更新 consent。
+
+## 13. LLM Provider Adapter V1 内部 port
+
+本节是服务端内部 machine contract 的业务语义，不新增公共 REST/WS 路径。浏览器和公共请求不得传 provider/model/endpoint/region/secret。
+
+```ts
+interface LlmProviderInvocationV1 {
+  frozen_input_digest: string;
+  provider_id: string;
+  provider_model_id: string;
+  model_config_version: string;
+  model_config_digest: string;
+  prompt_bundle_version: string;
+  prompt_bundle_digest: string;
+  context_schema_version: string;
+  context_schema_digest: string;
+  output_schema_version: string;
+  output_schema_digest: string;
+  deadline_at: string;
+  call_kind: 'primary' | 'same_input_retry' | 'evaluation';
+}
+```
+
+adapter 实际调用还接收不可持久化的服务端 `AbortSignal` 和 secret handle。AI SDK options 固定 `maxRetries=0`，不提供 tools、fallback provider/model 或 Gateway routing。结果必须返回结构化 output 加 `LlmProviderCallReceiptV1`：真实 provider/model/model-config、SDK core/provider package 精确版本、direct connection、data region、provider request ID（可空但必须带来源）、SDK response ID、sanitized token usage、latency、warning/error 分类。不能证明 request ID 来自厂商时不得标记为 `provider`。
+
+正式 coordinator 只解析 registry 的唯一 active binding；无 binding 或任一后端门禁失败返回既有 provider unavailable/失败关闭结果，不尝试其他 provider。comparison evaluator 可循环显式选择的 bindings，但每个 invocation 都使用同一 frozen input identity，且 receipt/output 只写评测工件，不调用 QuestionEvidence writer。

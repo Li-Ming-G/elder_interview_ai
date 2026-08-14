@@ -405,3 +405,16 @@
 - 确定性修订：repeat action 按 access/project → non-terminal session → no completed → consent unavailable → reauthorization → eligible 的固定优先级取首个命中；非终态 session 与 reauthorization 同时成立时只能 `session_in_progress/null action`。shared contracts 使用交叉 discriminated unions 机械约束 continuation 与 repeat reason/action/basis。
 - 可交付前置：真实 `covered` 状态须等待独立 SPEC-CONSENT-TEXT-POLICY-001 接收有权主体提供的正式正文、版本/digest 与 machine scope。Agent 不代写或批准法律文本；local/test fixture 如未来采用，只能显式虚构且生产/真实路径继续失败关闭。
 - 审查历史：old head `4095e570d17d8ecae94d630d62bca9ab0205917d` / CI `31762375878` 的 REV-049 REQUEST_CHANGES（P1=3）永久保留；accepted head `1d241a4b8c40827a93eefe1c9825021b6859df74` / CI `31764584701` 关闭三项 P1 并获 PASS。Accepted 只接收契约方向；真实 `covered` 仍依赖 BLOCKED 的 SPEC-CONSENT-TEXT-POLICY-001，runtime 尚未实现。
+
+## ADR-040｜LLM 采用应用内 AI SDK 直连、单 active binding 与隔离横评
+
+- 状态：`Proposed / REVIEW`；只有项目负责人对 SPEC-LLM-PROVIDER-001 非 Draft PR exact head/CI 手动 PASS 后才能转 Accepted。
+- 背景：DEV-007B 已以 deterministic local/test Director 验证唯一 Context/Output Schema、单 Director、共享 8 秒 deadline 与同输入 retry，但 staging/production 仍 provider unavailable。项目负责人需要随时调整 Prompt、比较不同模型，同时不希望在当前阶段部署 Gateway/LiteLLM 或把横评结果混入业务历史。
+- 决定：TypeScript 应用内使用 Vercel AI SDK Core 与 direct provider packages；不使用 Vercel AI Gateway，不部署 LiteLLM。正式 generation attempt 冻结唯一 active provider/model/model-config，registry 只查找显式 binding，不承担 fallback/order/shadow routing。AI SDK `maxRetries=0`，项目既有 primary/最多一次 same-input retry 与 8 秒绝对 deadline/abort 是唯一调用编排。
+- Prompt：采用 `draft -> immutable candidate -> fixed synthetic/deidentified evaluation -> immutable formal+digest -> explicit active switch`。当前 formal/runtime v1 不覆盖，`v2-draft` 不可加载。Prompt 需要新字段/枚举时必须先变更正式 Context/Output Schema。
+- 横评：同一轮把完全相同的冻结 Context/Prompt candidate/Schema/model-config policy 发给显式选择的模型。输出、token、latency 和 provenance 只进入隔离 evaluation artifact，不写 QuestionEvidence current/history，不自动选择 winner 或成为 fallback；题库可空/不用，后端 stage 仍权威。
+- 安全：provider/model/config/endpoint/region/data-class allowlist 与 secret reference 仅后端注入，真实访谈内容默认 deny，任一未知 fail closed。provider request ID、SDK response ID 来源分离，真实 provider/model/config/package/token/latency/region/direct mode 可复盘，禁止用 `local-test` 补缺。未决定境外处理前不得发送真实内容。
+- 依赖：真实 runtime 开工等待 `DEV-ASR-PROVIDER-001` 正式 PASS，并另需项目负责人选择实际 provider/model/region/data policy；本 SPEC 不安装 SDK、不索取密钥、不调用 provider。`ai@7.0.65`/Apache-2.0/Node>=22 只是 2026-08-14 核验基线，后续实现重新核验并 exact pin。
+- 代价：短期内仍没有真实 LLM；每个 provider 需维护独立 profile/合规证据，Prompt promotion 与横评增加治理步骤。换取 retry/fallback 单一真相、供应商可替换、Prompt 可控试验、真实 provenance 和评测/业务数据严格隔离。
+- 不做：真实 provider、在线 Prompt 管理、第二 critic、LiteLLM、Gateway、题库重做、DEV-007/008 流、真实数据横评、Prisma/migration 或 formal v2 切换。
+- iteration-coach：复用总控本轮唯一独立只读 Correction，未启动第二次；其 Prompt lifecycle、SDK no-retry/fallback、provenance、隔离横评、region/secret 与 ASR 门禁修正已吸收。
