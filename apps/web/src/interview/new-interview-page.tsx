@@ -420,7 +420,7 @@ export function NewInterviewPage({
       }
     }
     const frozen = attempt;
-    const response = await runCreate(
+    await runCreate(
       frozen,
       workflow,
       () => api.createConsent(projectId, frozen.payload),
@@ -433,13 +433,6 @@ export function NewInterviewPage({
         };
       },
     );
-    if (response !== null) {
-      await startFormalCapture({
-        ...workflow,
-        consentAttempt: acknowledged(frozen, response),
-        step: 'start',
-      });
-    }
   }
 
   async function createSession(): Promise<void> {
@@ -488,15 +481,20 @@ export function NewInterviewPage({
     ) {
       return;
     }
-    if (!beginAction()) return;
     const workflow = current;
     const projectAck = workflow.projectAttempt?.response;
     const sessionAck = workflow.sessionAttempt?.response;
     if (projectAck == null || sessionAck == null) return;
     const projectId = projectAck.id;
     const sessionId = sessionAck.id;
+    const reminder = sessionAck.recording_start_reminder;
+    if (reminder === undefined) {
+      showMessage('暂时无法核对本次录音提醒，请刷新权威会话信息后再开始。');
+      return;
+    }
+    if (!beginAction()) return;
     try {
-      const snapshot = await captureController(projectId, sessionId).start();
+      const snapshot = await captureController(projectId, sessionId).start(reminder.version);
       if (snapshot.phase !== 'active') throw new Error('FORMAL_CAPTURE_NOT_ACTIVE');
       await save({ ...workflow, status: 'complete', step: 'complete' });
       navigate(workbenchPath(projectId, sessionId), true);
@@ -647,7 +645,11 @@ export function NewInterviewPage({
           />
         ) : null}
         {workflow.step === 'start' ? (
-          <StartStep busy={busy} onStart={() => void startFormalCapture()} />
+          <StartStep
+            busy={busy}
+            onStart={() => void startFormalCapture()}
+            reminder={workflow.sessionAttempt?.response?.recording_start_reminder}
+          />
         ) : null}
         {workflow.step === 'complete' ? <p aria-busy="true">正在打开说话人校准…</p> : null}
         {message === null ? null : (
@@ -859,14 +861,33 @@ function SessionStep({
   );
 }
 
-function StartStep({ busy, onStart }: { busy: boolean; onStart: () => void }): React.JSX.Element {
+function StartStep({
+  busy,
+  onStart,
+  reminder,
+}: {
+  busy: boolean;
+  onStart: () => void;
+  reminder: InterviewSessionResponse['recording_start_reminder'];
+}): React.JSX.Element {
   return (
     <div>
       <p className="context-label">第 4 步 · 授权已登记</p>
-      <h2>建立正式录音并进入说话人校准</h2>
-      <p>正式录音与实时转录通道建立后，系统会先显示独立的说话人校准页。</p>
-      <button className="button button--primary" disabled={busy} onClick={onStart} type="button">
-        {busy ? '正在建立正式录音…' : '重试建立正式录音'}
+      <h2>开始本次访谈前，请再次向长者说明</h2>
+      {reminder === undefined ? (
+        <p className="inline-error" role="alert">
+          暂时无法核对服务端录音提醒，当前不能开始访谈。
+        </p>
+      ) : (
+        <p className="recording-reminder">{reminder.text}</p>
+      )}
+      <button
+        className="button button--primary"
+        disabled={busy || reminder === undefined || !reminder.requires_explicit_action}
+        onClick={onStart}
+        type="button"
+      >
+        {busy ? '正在建立正式录音…' : (reminder?.action_label ?? '开始访谈')}
       </button>
     </div>
   );

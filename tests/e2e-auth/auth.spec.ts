@@ -102,12 +102,12 @@ test('authenticated browser start fails closed after consent version, withdrawal
       let consent = await write(`/projects/${projectId}/consents`, {
         consent_audio_object_id: null,
         consent_method: 'electronic',
-        consent_text_version: 'mvp-v1',
+        consent_text_version: 'fictional-test-continuing-consent-v1',
         consent_type: 'recording_transcription_ai',
         consented_at: new Date().toISOString(),
         request_id: crypto.randomUUID(),
       });
-      if (consentTextVersion !== 'mvp-v1') {
+      if (consentTextVersion !== 'fictional-test-continuing-consent-v1') {
         consent = await write(`/projects/${projectId}/consents`, {
           consent_audio_object_id: null,
           consent_method: 'electronic',
@@ -132,6 +132,7 @@ test('authenticated browser start fails closed after consent version, withdrawal
         body: JSON.stringify({
           audio_stream_id: crypto.randomUUID(),
           mime_type: 'audio/webm;codecs=opus',
+          recording_reminder_version: 'recording-reminder-v1',
           request_id: crypto.randomUUID(),
         }),
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
@@ -146,15 +147,15 @@ test('authenticated browser start fails closed after consent version, withdrawal
     // Electronic consent is an API-only test fixture here; the ordinary product UI exposes only recorded verbal.
     const version = await prepare('version', 'mvp-v2');
     const versionStart = await start(version.sessionId);
-    const withdrawn = await prepare('withdrawn', 'mvp-v1');
+    const withdrawn = await prepare('withdrawn', 'fictional-test-continuing-consent-v1');
     await write(`/consents/${withdrawn.consentId}/revoke`, { request_id: crypto.randomUUID() });
     const withdrawnStart = await start(withdrawn.sessionId);
-    const assignment = await prepare('assignment', 'mvp-v1');
+    const assignment = await prepare('assignment', 'fictional-test-continuing-consent-v1');
     return { assignment, version, versionStart, withdrawn, withdrawnStart };
   });
 
   expect(scenarios.versionStart).toEqual({
-    body: expect.objectContaining({ code: 'CONSENT_REQUIRED' }),
+    body: expect.objectContaining({ code: 'CONSENT_REAUTHORIZATION_REQUIRED' }),
     status: 409,
   });
   expect(scenarios.withdrawnStart).toEqual({
@@ -181,6 +182,7 @@ test('authenticated browser start fails closed after consent version, withdrawal
       body: JSON.stringify({
         audio_stream_id: crypto.randomUUID(),
         mime_type: 'audio/webm;codecs=opus',
+        recording_reminder_version: 'recording-reminder-v1',
         request_id: crypto.randomUUID(),
       }),
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
@@ -313,7 +315,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
     await write(`/projects/${projectId}/consents`, {
       consent_audio_object_id: null,
       consent_method: 'electronic',
-      consent_text_version: 'mvp-v1',
+      consent_text_version: 'fictional-test-continuing-consent-v1',
       consent_type: 'recording_transcription_ai',
       consented_at: new Date().toISOString(),
     });
@@ -327,6 +329,7 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
     await write(`/sessions/${id}/start`, {
       audio_stream_id: audioStreamId,
       mime_type: 'audio/webm;codecs=opus',
+      recording_reminder_version: 'recording-reminder-v1',
       request_id: crypto.randomUUID(),
     });
     return { audioStreamId, sessionId: id };

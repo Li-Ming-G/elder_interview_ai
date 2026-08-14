@@ -4,6 +4,7 @@ import type {
   CreateServiceTermRequest,
   DeviceCheckRequest,
   StartSessionRequest,
+  CreateNextSessionRequest,
   ConfirmCaptureActiveRequest,
   ReportCaptureInterruptedRequest,
   AbandonEmptyCaptureRequest,
@@ -85,10 +86,26 @@ export function validateIdempotentRequest(body: Record<string, unknown>): Idempo
 }
 
 export function validateStartSession(body: Record<string, unknown>): StartSessionRequest {
+  const recordingReminderVersion = requiredText(body.recording_reminder_version, 80);
   return {
     audio_stream_id: validateUuid(body.audio_stream_id),
     mime_type: validateMimeType(body.mime_type),
+    recording_reminder_version: recordingReminderVersion as NonNullable<
+      StartSessionRequest['recording_reminder_version']
+    >,
     request_id: validateUuid(body.request_id),
+  };
+}
+
+export function validateNextSession(body: Record<string, unknown>): CreateNextSessionRequest {
+  if (body.workflow_version !== 'repeat-interview-v1') throw validationError();
+  const expectedBasisSequenceNo = nonnegativeInteger(body.expected_basis_sequence_no);
+  if (expectedBasisSequenceNo < 1) throw validationError();
+  return {
+    basis_session_id: validateUuid(body.basis_session_id),
+    expected_basis_sequence_no: expectedBasisSequenceNo,
+    request_id: validateUuid(body.request_id),
+    workflow_version: 'repeat-interview-v1',
   };
 }
 

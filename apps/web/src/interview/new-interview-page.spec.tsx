@@ -10,11 +10,15 @@ import type { InterviewSessionResponse, ProjectResponse } from '@elder-interview
 import { InterviewApiError, type NewInterviewApi } from './interview-api.js';
 import type { AudioCaptureSnapshot } from '../audio/browser-audio-recorder.js';
 import type { ConsentCapture } from './browser-consent-capture.js';
+import type { InterviewCaptureControllerSnapshot } from './interview-capture-controller.js';
 import { NewInterviewPage } from './new-interview-page.js';
 import { IndexedDbNewInterviewWorkflowStore } from './new-interview-workflow-store.js';
 
 const ACTOR_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '20000000-0000-4000-8000-000000000001';
+const RECORDING_START_REMINDER_VERSION = 'recording-reminder-v1' as const;
+const RECORDING_START_REMINDER_TEXT =
+  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。' as const;
 
 describe('NewInterviewPage', () => {
   afterEach(() => {
@@ -142,12 +146,80 @@ describe('NewInterviewPage', () => {
       false,
     );
   });
+
+  it('shows the server reminder and waits for the explicit start action', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put({
+      ...workflow,
+      consentAttempt: {
+        payload: {
+          consent_audio_object_id: '30000000-0000-4000-8000-000000000001',
+          consent_method: 'recorded_verbal',
+          consent_text_version: 'fictional-test-continuing-consent-v1',
+          consent_type: 'recording_transcription_ai',
+          consented_at: '2026-08-12T00:00:00.000Z',
+          request_id: '30000000-0000-4000-8000-000000000002',
+        },
+        requestId: '30000000-0000-4000-8000-000000000002',
+        response: {
+          consent_audio_object_id: '30000000-0000-4000-8000-000000000001',
+          consent_method: 'recorded_verbal',
+          consent_text_version: 'fictional-test-continuing-consent-v1',
+          consent_type: 'recording_transcription_ai',
+          consented_at: '2026-08-12T00:00:00.000Z',
+          created_at: '2026-08-12T00:00:00.000Z',
+          created_by: ACTOR_ID,
+          id: '30000000-0000-4000-8000-000000000003',
+          project_id: PROJECT_ID,
+          revoked_at: null,
+          status: 'valid',
+        },
+        state: 'acknowledged',
+      },
+      consentAudioJobId: '30000000-0000-4000-8000-000000000004',
+      consentAudioObjectId: '30000000-0000-4000-8000-000000000001',
+      projectAttempt: {
+        payload: {
+          approximate_age: null,
+          birth_year: null,
+          current_city: null,
+          display_name: 'Fictional elder',
+          native_place: null,
+          request_id: '20000000-0000-4000-8000-000000000002',
+        },
+        requestId: '20000000-0000-4000-8000-000000000002',
+        response: projectResponse('Fictional elder'),
+        state: 'acknowledged',
+      },
+      sessionAttempt: {
+        payload: { request_id: '40000000-0000-4000-8000-000000000002' },
+        requestId: '40000000-0000-4000-8000-000000000002',
+        response: sessionResponse('device_check'),
+        state: 'acknowledged',
+      },
+      step: 'start',
+    });
+    const start = vi.fn(() => Promise.resolve({ phase: 'active' } as never));
+
+    renderPage(fakeApi(), { captureStart: start, workflowStore });
+
+    expect(await screen.findByText(RECORDING_START_REMINDER_TEXT)).toBeTruthy();
+    expect(start).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(RECORDING_START_REMINDER_VERSION);
+    });
+  });
 });
 
 function renderPage(
   api: MockApi,
   options: {
     capture?: ConsentCapture;
+    captureStart?: (
+      recordingReminderVersion: string,
+    ) => Promise<InterviewCaptureControllerSnapshot>;
     navigate?: (path: string, replace?: boolean) => void;
     strict?: boolean;
     workflowStore?: IndexedDbNewInterviewWorkflowStore;
@@ -164,7 +236,7 @@ function renderPage(
       actorId={ACTOR_ID}
       api={api}
       captureController={() => ({
-        start: vi.fn(() => Promise.resolve({ phase: 'active' } as never)),
+        start: options.captureStart ?? vi.fn(() => Promise.resolve({ phase: 'active' } as never)),
       })}
       checkMicrophone={() =>
         Promise.resolve({ inputDetected: true as const, permission: 'granted' as const })
@@ -238,6 +310,13 @@ function sessionResponse(status: InterviewSessionResponse['status']): InterviewS
     ended_at: null,
     id: '40000000-0000-4000-8000-000000000001',
     project_id: PROJECT_ID,
+    recording_start_reminder: {
+      action_label: '开始访谈',
+      creates_consent_record: false,
+      requires_explicit_action: true,
+      text: RECORDING_START_REMINDER_TEXT,
+      version: RECORDING_START_REMINDER_VERSION,
+    },
     sequence_no: 1,
     started_at: null,
     status,

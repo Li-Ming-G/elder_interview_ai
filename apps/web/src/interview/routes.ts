@@ -20,7 +20,13 @@ export interface NewInterviewRoute {
   kind: 'new_interview';
 }
 
-export type InterviewRoute = PreparationRoute | WorkbenchRoute | ReviewRoute | NewInterviewRoute;
+export interface ReauthorizationRoute {
+  kind: 'reauthorization';
+  projectId: string;
+}
+
+export type InterviewRoute =
+  PreparationRoute | WorkbenchRoute | ReviewRoute | NewInterviewRoute | ReauthorizationRoute;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -35,6 +41,9 @@ export function parseInterviewRoute(pathname: string): InterviewRoute | null {
 
   if (segments.length === 4 && segments[3] === 'prepare') {
     return { kind: 'preparation', projectId: segments[1], sessionId: null };
+  }
+  if (segments.length === 4 && segments[3] === 'reauthorize') {
+    return { kind: 'reauthorization', projectId: segments[1] };
   }
 
   if (segments.length !== 5 || !isUuid(segments[3])) return null;
@@ -59,6 +68,10 @@ export function preparationPath(projectId: string, sessionId?: string): string {
 
 export function workbenchPath(projectId: string, sessionId: string): string {
   return `/projects/${projectId}/interview/${sessionId}/workbench`;
+}
+
+export function reauthorizationPath(projectId: string): string {
+  return `/projects/${projectId}/interview/reauthorize`;
 }
 
 export function reviewPath(projectId: string, sessionId: string): string {

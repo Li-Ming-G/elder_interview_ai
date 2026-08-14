@@ -7,6 +7,7 @@ import { PreparationPage } from './interview/preparation-page.js';
 import { parseInterviewRoute } from './interview/routes.js';
 import { WorkbenchShell } from './interview/workbench-shell.js';
 import { NewInterviewPage } from './interview/new-interview-page.js';
+import { ReauthorizationRoute } from './interview/reauthorization-route.js';
 import { createBrowserInterviewCaptureController } from './interview/browser-interview-capture-controller.js';
 import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
 import { ErrorState, HomeFrame, HomeShell } from './home/home-shell.js';
@@ -230,6 +231,10 @@ export function App(): React.JSX.Element {
         navigate={navigate}
       />
     );
+  }
+
+  if (route?.kind === 'reauthorization') {
+    return <ReauthorizationRoute navigate={navigate} />;
   }
 
   if (route?.kind === 'review') {

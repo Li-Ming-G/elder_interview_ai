@@ -25,10 +25,12 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     await screen.findByRole('heading', { name: '继续建立正式录音' });
     expect(screen.queryByText(/服务说明|价格|费用|预计时长/)).toBeNull();
     expect(screen.queryByRole('button', { name: /麦克风|设备检查/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '建立正式录音并进入校准' }));
+    expect(screen.getByText(/本次仍会录音、转录并由 AI 辅助分析/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
     await waitFor(() => {
       expect(api.captureStart).toHaveBeenCalledTimes(1);
     });
+    expect(api.captureStart).toHaveBeenCalledWith('recording-reminder-v1');
     expect(navigate).toHaveBeenCalledWith(
       `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`,
     );
@@ -38,9 +40,7 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     const api = createApi({ session: { ...SESSION, status: 'created' } });
     renderPage(api);
     expect(await screen.findByText(/待设备检查/)).toBeTruthy();
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: '建立正式录音并进入校准' }).disabled,
-    ).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
     expect(api.deviceCheck).not.toHaveBeenCalled();
   });
 
@@ -48,9 +48,7 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     const api = createApi({ consents: [{ ...CONSENT, status: 'revoked' }] });
     renderPage(api);
     expect(await screen.findByText('最新正式授权当前无效。')).toBeTruthy();
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: '建立正式录音并进入校准' }).disabled,
-    ).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
   });
 });
 
@@ -122,6 +120,13 @@ const SESSION: InterviewSessionResponse = {
   ended_at: null,
   id: SESSION_ID,
   project_id: PROJECT_ID,
+  recording_start_reminder: {
+    action_label: '开始访谈',
+    creates_consent_record: false,
+    requires_explicit_action: true,
+    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。',
+    version: 'recording-reminder-v1',
+  },
   sequence_no: 1,
   started_at: null,
   status: 'device_check',

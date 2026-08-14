@@ -6,6 +6,8 @@ import type {
   ConfirmCaptureActiveRequest,
   ConsentResponse,
   CreateConsentRequest,
+  CreateNextSessionRequest,
+  CreateNextSessionResponse,
   CreateProjectRequest,
   CreateServiceTermRequest,
   DeviceCheckRequest,
@@ -78,6 +80,13 @@ export interface HomeApi {
     projectId: string,
     input?: { cursor?: string | null; limit?: number },
   ) => Promise<ProjectSessionListResponse>;
+}
+
+export interface NextSessionApi {
+  createNextSession: (
+    projectId: string,
+    input: CreateNextSessionRequest,
+  ) => Promise<CreateNextSessionResponse>;
 }
 
 export interface ReviewApi {
@@ -164,6 +173,7 @@ export function createInterviewApi(
   csrfToken: string,
 ): InterviewApi &
   HomeApi &
+  NextSessionApi &
   ReviewApi &
   NewInterviewApi &
   InterviewCaptureApi &
@@ -215,6 +225,8 @@ export function createInterviewApi(
       write(`/api/v1/sessions/${sessionId}/capture/confirm-active`, request),
     createConsent: async (projectId, input): Promise<ConsentResponse> =>
       createWrite(`/api/v1/projects/${projectId}/consents`, input),
+    createNextSession: async (projectId, input): Promise<CreateNextSessionResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/next-session`, input),
     createProject: async (input): Promise<ProjectResponse> =>
       createWrite('/api/v1/projects', input),
     createServiceTerm: async (projectId, input): Promise<ServiceTermResponse> =>

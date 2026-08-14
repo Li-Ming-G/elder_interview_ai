@@ -10,9 +10,12 @@ import { canonicalAudioManifestChecksum } from '../../apps/api/src/audio/audio-m
 import { AudioService } from '../../apps/api/src/audio/audio.service.js';
 import { LocalAudioStorageAdapter } from '../../apps/api/src/audio/local-audio-storage.adapter.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import { SyntheticConsentContinuationPolicyReader } from '../../apps/api/src/project-foundation/consent-continuation.policy.js';
 import { PrismaProjectAccessReader } from '../../apps/api/src/project-foundation/prisma-project-access.reader.js';
 import { ProjectAccessService } from '../../apps/api/src/project-foundation/project-access.service.js';
 import { ProjectFoundationService } from '../../apps/api/src/project-foundation/project-foundation.service.js';
+import { RepeatInterviewDecisionService } from '../../apps/api/src/project-foundation/repeat-interview-decision.service.js';
 import { SessionFinalizationService } from '../../apps/api/src/project-foundation/session-finalization.service.js';
 import { SessionSnapshotService } from '../../apps/api/src/project-foundation/session-snapshot.service.js';
 import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
@@ -76,7 +79,7 @@ describe('session finalization PostgreSQL orchestration', () => {
     await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'mvp-v1',
+        consentTextVersion: 'fictional-test-continuing-consent-v1',
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,
@@ -303,6 +306,11 @@ describe('session finalization PostgreSQL orchestration', () => {
       new AudioIntegrityService(new LocalAudioStorageAdapter(config)),
       new SessionSnapshotService(prisma),
       new RealtimeRuntimeService(),
+      new RepeatInterviewDecisionService(
+        prisma,
+        new SyntheticConsentContinuationPolicyReader(),
+        new LocalTestDeletionScopeFixtureReader(),
+      ),
     );
     const session = await prisma.interviewSession.create({
       data: {
@@ -673,7 +681,7 @@ describe('session finalization PostgreSQL orchestration', () => {
     await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: 'mvp-v1',
+        consentTextVersion: 'fictional-test-continuing-consent-v1',
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,

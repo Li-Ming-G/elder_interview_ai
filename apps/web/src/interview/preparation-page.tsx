@@ -55,7 +55,15 @@ export function PreparationPage({
     setActionError(null);
     try {
       const sessionId = loadState.data.session.id;
-      const capture = await captureController(sessionId).start();
+      const reminder = loadState.data.session.recording_start_reminder;
+      if (reminder === undefined) {
+        throw new InterviewApiError(
+          'RECORDING_REMINDER_UNAVAILABLE',
+          '暂时无法核对本次录音提醒，请重新加载后再试',
+          409,
+        );
+      }
+      const capture = await captureController(sessionId).start(reminder.version);
       if (capture.phase !== 'active') {
         throw new InterviewApiError('UNEXPECTED_SESSION_STATE', '服务端未确认正式录音已开始', 409);
       }
@@ -89,6 +97,7 @@ export function PreparationPage({
     (project.status === 'ready' || project.status === 'active') &&
     consentReady &&
     session?.status === 'device_check' &&
+    session.recording_start_reminder !== undefined &&
     !submitting;
 
   return (
@@ -121,13 +130,22 @@ export function PreparationPage({
           label="已有会话"
           state={session?.status === 'device_check' ? 'ready' : 'blocked'}
         />
+        {session?.recording_start_reminder === undefined ? (
+          <p className="inline-error" role="alert">
+            暂时无法核对服务端录音提醒，当前不能开始访谈。
+          </p>
+        ) : (
+          <p className="recording-reminder">{session.recording_start_reminder.text}</p>
+        )}
         <button
           className="button button--primary"
           disabled={!canResume}
           onClick={() => void startInterview()}
           type="button"
         >
-          {submitting ? '正在建立正式录音…' : '建立正式录音并进入校准'}
+          {submitting
+            ? '正在建立正式录音…'
+            : (session?.recording_start_reminder?.action_label ?? '开始访谈')}
         </button>
         {actionError === null ? null : (
           <p className="inline-error" role="alert">

@@ -41,7 +41,7 @@ describe('InterviewCaptureController', () => {
 
   it('orders lock, one microphone stream, atomic start, archive, confirm, then realtime', async () => {
     const harness = createHarness();
-    const result = await harness.controller.start();
+    const result = await harness.controller.start('recording-reminder-v1');
 
     expect(result.phase).toBe('active');
     expect(harness.events).toEqual([
@@ -58,6 +58,7 @@ describe('InterviewCaptureController', () => {
     expect(harness.api.startSession.mock.calls[0]?.[1]).toMatchObject({
       audio_stream_id: 'id-1',
       mime_type: MIME,
+      recording_reminder_version: 'recording-reminder-v1',
       request_id: 'id-2',
     });
   });
@@ -65,9 +66,11 @@ describe('InterviewCaptureController', () => {
   it('makes duplicate start and a lost start response reuse the formal job identity', async () => {
     const harness = createHarness();
     harness.api.startSession.mockRejectedValueOnce(new Error('NETWORK_UNAVAILABLE'));
-    await expect(harness.controller.start()).rejects.toThrow('NETWORK_UNAVAILABLE');
-    await harness.controller.start();
-    await harness.controller.start();
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'NETWORK_UNAVAILABLE',
+    );
+    await harness.controller.start('recording-reminder-v1');
+    await harness.controller.start('recording-reminder-v1');
 
     expect(harness.api.startSession).toHaveBeenCalledTimes(2);
     expect(harness.api.startSession.mock.calls[0]?.[1]).toEqual(
@@ -79,7 +82,9 @@ describe('InterviewCaptureController', () => {
 
   it('does not request a microphone or start the server when another tab owns the lock', async () => {
     const harness = createHarness({ lockAvailable: false });
-    await expect(harness.controller.start()).rejects.toThrow('BROWSER_CAPTURE_LOCKED');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'BROWSER_CAPTURE_LOCKED',
+    );
     expect(harness.getUserMedia).not.toHaveBeenCalled();
     expect(harness.api.startSession).not.toHaveBeenCalled();
   });
@@ -88,7 +93,7 @@ describe('InterviewCaptureController', () => {
     const harness = createHarness({
       getUserMediaFailure: new DOMException('denied', 'NotAllowedError'),
     });
-    await expect(harness.controller.start()).rejects.toThrow('denied');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow('denied');
     expect(harness.api.startSession).not.toHaveBeenCalled();
     expect(harness.api.reportCaptureInterrupted).not.toHaveBeenCalled();
     expect(harness.controller.snapshot.phase).toBe('failed');
@@ -105,7 +110,9 @@ describe('InterviewCaptureController', () => {
     } as unknown as MediaStream);
     harness.api.startSession.mockRejectedValueOnce(new Error('START_RESPONSE_LOST'));
 
-    await expect(harness.controller.start()).rejects.toThrow('START_RESPONSE_LOST');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'START_RESPONSE_LOST',
+    );
     expect(stop).toHaveBeenCalledTimes(1);
     expect(harness.controller.snapshot.lastError).toBe('START_RESPONSE_LOST');
     expect(harness.events).toContain('lock.release');
@@ -118,14 +125,18 @@ describe('InterviewCaptureController', () => {
       storageStartFailures: [new Error('AUDIO_BUFFER_CANARY_FAILED')],
     });
 
-    await expect(harness.controller.start()).rejects.toThrow('AUDIO_BUFFER_CANARY_FAILED');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'AUDIO_BUFFER_CANARY_FAILED',
+    );
     expect(harness.getUserMedia).not.toHaveBeenCalled();
     expect(harness.api.startSession).not.toHaveBeenCalled();
     const nextOwner = new SessionBrowserLock(SESSION_ID, { locks });
     await expect(nextOwner.acquire()).resolves.toBe(true);
     await nextOwner.release();
 
-    await expect(harness.controller.start()).resolves.toMatchObject({ phase: 'active' });
+    await expect(harness.controller.start('recording-reminder-v1')).resolves.toMatchObject({
+      phase: 'active',
+    });
     await harness.controller.stopAndFreeze();
   });
 
@@ -137,7 +148,9 @@ describe('InterviewCaptureController', () => {
         throw new Error('AUDIO_CAPTURE_UNSUPPORTED');
       },
     });
-    await expect(mimeHarness.controller.start()).rejects.toThrow('AUDIO_CAPTURE_UNSUPPORTED');
+    await expect(mimeHarness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'AUDIO_CAPTURE_UNSUPPORTED',
+    );
     expect(mimeHarness.getUserMedia).not.toHaveBeenCalled();
     expect(mimeHarness.api.startSession).not.toHaveBeenCalled();
     const afterMimeFailure = new SessionBrowserLock(SESSION_ID, { locks: mimeLocks });
@@ -150,7 +163,9 @@ describe('InterviewCaptureController', () => {
       browserLock: new SessionBrowserLock(SESSION_ID, { locks: writeLocks }),
       jobs,
     });
-    await expect(writeHarness.controller.start()).rejects.toThrow('LOCAL_JOB_WRITE_FAILED');
+    await expect(writeHarness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'LOCAL_JOB_WRITE_FAILED',
+    );
     expect(writeHarness.getUserMedia).not.toHaveBeenCalled();
     expect(writeHarness.api.startSession).not.toHaveBeenCalled();
     const afterWriteFailure = new SessionBrowserLock(SESSION_ID, { locks: writeLocks });
@@ -160,7 +175,9 @@ describe('InterviewCaptureController', () => {
 
   it('reports capture_start_failed when local runtime cannot start after atomic start', async () => {
     const harness = createHarness({ runtimeStartFailure: new Error('RECORDER_START_FAILED') });
-    await expect(harness.controller.start()).rejects.toThrow('RECORDER_START_FAILED');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'RECORDER_START_FAILED',
+    );
     expect(harness.api.reportCaptureInterrupted).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({ generation_no: 0, reason: 'capture_start_failed' }),
@@ -170,8 +187,10 @@ describe('InterviewCaptureController', () => {
   it('retries the same confirm request without acquiring a second stream', async () => {
     const harness = createHarness();
     harness.api.confirmCaptureActive.mockRejectedValueOnce(new Error('NETWORK_UNAVAILABLE'));
-    await expect(harness.controller.start()).rejects.toThrow('NETWORK_UNAVAILABLE');
-    await harness.controller.start();
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'NETWORK_UNAVAILABLE',
+    );
+    await harness.controller.start('recording-reminder-v1');
 
     expect(harness.getUserMedia).toHaveBeenCalledTimes(1);
     expect(harness.api.startSession).toHaveBeenCalledTimes(1);
@@ -186,7 +205,9 @@ describe('InterviewCaptureController', () => {
     harness.api.confirmCaptureActive.mockRejectedValueOnce(
       new InterviewApiError('CONSENT_REQUIRED', 'consent revoked', 409),
     );
-    await expect(harness.controller.start()).rejects.toThrow('consent revoked');
+    await expect(harness.controller.start('recording-reminder-v1')).rejects.toThrow(
+      'consent revoked',
+    );
     expect(harness.runtimes[0]?.interrupt).toHaveBeenCalledTimes(1);
     expect(harness.api.reportCaptureInterrupted).toHaveBeenCalledWith(
       SESSION_ID,
@@ -196,7 +217,7 @@ describe('InterviewCaptureController', () => {
 
   it('persists one page-recovery report and never auto-requests the microphone', async () => {
     const shared = createHarness();
-    const active = await shared.controller.start();
+    const active = await shared.controller.start('recording-reminder-v1');
     const refreshed = createHarness({
       checkpoint: checkpoint(active.audioStreamId as string),
       jobs: shared.jobs,
@@ -224,7 +245,7 @@ describe('InterviewCaptureController', () => {
 
   it('resumes the same job/object with cumulative archive high-water and a new generation', async () => {
     const harness = createHarness();
-    const started = await harness.controller.start();
+    const started = await harness.controller.start('recording-reminder-v1');
     harness.runtimes[0]?.input.onCaptureFailure('microphone_ended');
     await eventually(() => {
       expect(harness.controller.snapshot.phase).toBe('interrupted');
@@ -256,7 +277,7 @@ describe('InterviewCaptureController', () => {
 
   it('reports and releases a resumed generation when microphone acquisition fails', async () => {
     const harness = createHarness();
-    const started = await harness.controller.start();
+    const started = await harness.controller.start('recording-reminder-v1');
     harness.runtimes[0]?.input.onCaptureFailure('microphone_ended');
     await eventually(() => {
       expect(harness.controller.snapshot.phase).toBe('interrupted');
@@ -423,7 +444,7 @@ describe('InterviewCaptureController', () => {
 
   it('generation-fences a delayed failure from the previous runtime', async () => {
     const harness = createHarness();
-    const started = await harness.controller.start();
+    const started = await harness.controller.start('recording-reminder-v1');
     const oldRuntime = harness.runtimes[0];
     oldRuntime?.input.onCaptureFailure('microphone_ended');
     await eventually(() => {
@@ -462,7 +483,7 @@ describe('InterviewCaptureController', () => {
     ['local_archive_failed', 'local_archive_failed'],
   ])('reports %s without rewriting the archive fact', async (expected, runtimeReason) => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     harness.runtimes[0]?.input.onCaptureFailure(runtimeReason);
     await eventually(() => {
       expect(harness.api.reportCaptureInterrupted).toHaveBeenCalledWith(
@@ -475,7 +496,7 @@ describe('InterviewCaptureController', () => {
 
   it('maps realtime authority loss to auth_lost but keeps ordinary ASR failure independent', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     harness.runtimes[0]?.input.onRealtimeState(realtime('asr'));
     await Promise.resolve();
     expect(harness.api.reportCaptureInterrupted).not.toHaveBeenCalled();
@@ -492,7 +513,7 @@ describe('InterviewCaptureController', () => {
 
   it('strictly ACKs delivery while retaining archive and stable request IDs', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     await harness.controller.flushDelivery();
 
     expect(harness.api.uploadInterviewChunk).toHaveBeenCalledTimes(1);
@@ -504,7 +525,7 @@ describe('InterviewCaptureController', () => {
 
   it('freezes stable stop/complete IDs and commitments from immutable archive', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     await harness.controller.flushDelivery();
     const first = await harness.controller.stopAndFreeze();
     const second = await harness.controller.stopAndFreeze();
@@ -532,7 +553,7 @@ describe('InterviewCaptureController', () => {
 
   it('marks the formal local job complete only after an exact complete manifest ACK', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     const handoff = await harness.controller.stopAndFreeze();
     harness.api.completeInterviewAudio.mockResolvedValue({
       chunk_count: 1,
@@ -573,7 +594,7 @@ describe('InterviewCaptureController', () => {
 
   it('rechecks only persisted server facts and preserves the last snapshot on a network failure', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     const recording = session('recording', capture('active', 0, 'id-1'));
     harness.api.getSession.mockResolvedValueOnce(recording);
 
@@ -591,7 +612,7 @@ describe('InterviewCaptureController', () => {
 
   it('stops local capture and fails closed when a read-only verification loses authority', async () => {
     const harness = createHarness();
-    await harness.controller.start();
+    await harness.controller.start('recording-reminder-v1');
     harness.api.getSession.mockRejectedValueOnce(
       new InterviewApiError('AUTH_REQUIRED', '登录已失效，请重新登录', 401),
     );
