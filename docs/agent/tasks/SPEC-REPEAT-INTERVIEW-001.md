@@ -2,13 +2,13 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`
+- 状态：`DONE`
 - 负责人：独立 docs-only 契约任务 `codex/spec-repeat-interview-001`
 - 基线：`origin/main@2f29cc7ef66563aebd2cd3d293606a5de6c20ca6`
-- 审查：`REV-048`；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) exact-head CI + 项目负责人 GitHub 手动审查
+- 审查：`REV-048`；non-Draft [PR #46](https://github.com/Li-Ming-G/elder_interview_ai/pull/46) accepted exact head `8d4a26263db7b75dd22469f767240d705d3ce5fe` / CI `31715348528` 获项目负责人 GitHub 手动审查 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5287945749)，P0/P1=0；merge `54fb814e44ab2a405f78133e480d467577dbc7b8` / main CI `31757442056` SUCCESS
 - 前置决定：项目负责人已明确首版响应式网页方向并授权真实可重复使用流程；不得重开战略方向
 - iteration-coach：总控已对本轮执行恰好一次独立只读复核，结论 `Correction / NO-PAUSE`；本任务复用该结论，未启动第二次复核
-- 依赖边界：DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge `175e92e`；B1/B2 runtime 仍须等待本 SPEC PASS/merge，且不得改 A4 runtime/UI
+- 依赖边界：DEV-008A4 / PR #44 已在 exact head `3824da7` PASS 并 merge `175e92e`；本 SPEC 已 exact-head PASS/merge，DEV-008B1/B2 机械转为 `READY`，但 runtime 仍未实现，且不得改 A4 runtime/UI
 
 ## 用户结果
 
@@ -41,7 +41,7 @@
 
 - `09` §17 全矩阵被冻结；本任务只验证文档一致性、shared contract typecheck/build、format/lint/diff/link/命名证据；
 - 不修改业务实现、Prisma/migration、页面/routes/styles、A4 completion/review/unknown-response、真实模型/provider；
-- non-Draft PR exact head CI 全绿后提交人工审查包，保持 `REVIEW`；执行 Agent 不得 PASS/DONE/merge。
+- non-Draft PR exact head CI 全绿并取得项目负责人 PASS 后才可合并；本任务已满足该门禁并完成治理收口。
 
 ## 项目负责人审查重点
 
@@ -57,10 +57,12 @@
 - 项目负责人代审严格绑定 old exact head `99e5d317f4e5ad62444148442329114840c58293`、CI `31709711887` SUCCESS，正式结论 `REQUEST_CHANGES`，P0=0/P1=1；[评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5281848055)。该 old-head 结论永久保留。
 - 唯一 P1：calibration gate 可能在 basis post-analysis pending/running 时抢跑并消费 exact-once opening，导致之后成功的 memory/actual 输出永久缺席第二次开场。
 - 定向修复：next-session/mic/recording/ASR/review 继续不等 AI；opening 在两 lane terminal 前只派生 waiting 且不创建 job/attempt/Context；两 lane terminal 后用 basis analysis trigger + calibration gate stable identity 至多一次冻结/触发；`unjudged|failed|cancelled|unavailable` 明确为诚实 terminal；`09` §17 增加 analysis-first/calibration-first/单 lane 降级/刷新重放并发矩阵。
-- 当前仍为 `REVIEW`。定向修复内容 head `0623b5ff7c8af1669fcf6b79ed72a3b4c66f1eaa` / CI `31711566144` SUCCESS；治理收尾后的最终 exact head 仍须自身 CI 与项目负责人定向复审，不得用 old CI 或本修复自宣 PASS/DONE/merge。
+- 定向复审严格绑定 accepted exact head `8d4a26263db7b75dd22469f767240d705d3ce5fe` / CI `31715348528` SUCCESS；项目负责人正式 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/46#issuecomment-5287945749)，P0/P1=0。定向修复关闭唯一 P1，old REQUEST_CHANGES 历史不被覆盖。
 
-## 当前验证候选
+## 最终验收与接收
 
-- PASS：`pnpm lint`、workspace typecheck/build、format check、contracts typecheck/build、full unit `56 files / 341 tests`、`git diff --check`、changed Markdown 相对链接；
-- runtime/PostgreSQL/auth/Chromium 未做本地专项，因为本任务无业务/Prisma/UI 改动；仍等待 non-Draft PR exact-head 完整 CI；
-- DEV-008A4 / PR #44 accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 已获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。A4 依赖已关闭；B1/B2 仍因本 SPEC 未 PASS/merge 保持 BLOCKED。
+- accepted exact head `8d4a26263db7b75dd22469f767240d705d3ce5fe`，tree `a9df0737de73602c25c6384da2acdd13e449c037`；exact-head CI [31715348528](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31715348528) completed / SUCCESS，覆盖 format/lint/typecheck/build、unit、fresh PostgreSQL migration deploy/status、integration、auth、smoke、ordinary Chromium 与 auth Chromium。
+- 项目负责人正式手动审查结论为 PASS，P0/P1=0；PR #46 以 merge commit `54fb814e44ab2a405f78133e480d467577dbc7b8` 合入 `main`，main CI [31757442056](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31757442056) completed / SUCCESS，verify 3m30s。
+- merge commit parents 精确为 prior main `869556a2ae6616a3a236251371054fd28bee7059` 与 accepted head `8d4a26263db7b75dd22469f767240d705d3ce5fe`，merge tree 与 accepted head tree 相同。
+- DEV-008A4 / PR #44 accepted exact head `3824da7c48f9f63b4ca71b0fb56f459d8c24fa7d` / CI `31711325876` 已获项目负责人 PASS（P0/P1/P2=0），merge `175e92e3bda76f4b180e85519e3bf8e62c356311` / main CI `31712044809` SUCCESS。A4 与本 SPEC 依赖均已关闭；B1/B2 已机械转为 `READY`。
+- 本任务仅冻结 docs/shared-contract 契约；DEV-008B1/B2 现为 `READY` 但尚未实现。真实 LLM/provider、privacy/deletion/retention、DEV-008D/CON-023 与真实试点不由本结论完成。

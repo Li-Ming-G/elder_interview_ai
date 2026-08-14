@@ -15,3 +15,5 @@ DEV-008A2 的四 create 权威幂等、正式口头授权入口、离页麦克�
 DEV-008A3 的只读回顾、本机完整 archive 播放、原子本机副本删除、隐私边界、REV-046 exact-head PASS/merge 与 `70b8fe8`/`f491d99` 历史见 [`DEV-008A3.md`](DEV-008A3.md)。A1/A2/A3 与父 DEV-008A 仅在响应式网页 A 范围 DONE；DEV-008D/CON-023、server deletion、导出、PWA/App、ASR/LLM 与 DEV-007 继续独立。
 
 DEV-008A4 的授权前当前页麦克风、正式流独立校准、自动收尾、unknown create 恢复、严格同源回顾重投影、REV-047 exact-head PASS/merge 与旧全绿但用户发现缺口历史见 [`DEV-008A4.md`](DEV-008A4.md)。本接收不完成真实 ASR/provider、server deletion、DEV-008D/CON-023 或真实试点。
+
+SPEC-REPEAT-INTERVIEW-001 的项目级 repeat action、same-project next-session、完成后双分析、calibration/basis 双前置 opening exact once、REV-048 old REQUEST_CHANGES 与 final exact-head PASS/merge 历史见 [`SPEC-REPEAT-INTERVIEW-001.md`](SPEC-REPEAT-INTERVIEW-001.md)。本接收只机械解锁 DEV-008B1/B2，不代表其 runtime、真实 provider 或真实试点已完成。
