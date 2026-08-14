@@ -222,7 +222,7 @@ MVP 只接受 `consent_type=recording_transcription_ai` 的捆绑授权。创建
 }
 ```
 
-创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
+创建成功时服务端追加一条 `status=valid` 记录，不修改历史。`recorded_verbal` 必须提供已属于本项目、`purpose=consent`、`status=complete` 且 manifest/分片均通过存储校验的授权音频对象 ID；校验与授权追加使用同一 project 资源锁。对象不存在、跨项目、用途不符、未完成、缺片或存储校验失败统一返回 409 `CONSENT_AUDIO_NOT_VERIFIED`，不得创建授权记录。同一音频对象已被任一 consent record 关联且请求的 `consent_text_version` 不同，稳定返回 409 `CONSENT_AUDIO_VERSION_MISMATCH`；禁止用新 request ID 绕过。`electronic`、`written` 必须为 `null`。探索期仅使用虚构数据时可以使用 `electronic` 或 `written`；真实试点仍按 `03` 的口头授权和 `09` 发布门禁验收。
 
 `GET /projects/:id/consents` 属于普通 prepare/detail 读取，要求当前有效 assignment、项目未软删除且状态不是 `restricted|deleted`；失败不得返回授权文本版本、方式、时间、操作者、音频对象 ID 或任何历史记录。中性首页占位不能调用或嵌入本接口结果。
 
@@ -292,7 +292,7 @@ GET  /sessions/:id/evidence-finalization
 
 仅两项均满足时把 `created -> device_check`；失败保持 `created` 并返回可操作错误。
 
-`POST /sessions/:id/start` 请求为 `{ "request_id": "uuid", "mime_type": "audio/webm;codecs=opus", "audio_stream_id": "uuid" }`。服务端在固定资源锁内重新读取 assignment、项目状态、当前已说明服务条款、最新有效捆绑授权和 session 状态；只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时，才在同一事务创建并绑定该 session 唯一 `purpose=interview` audio object、创建 generation 0 `preparing`、转为 `recording` 并写 `started_at`，然后返回统一 snapshot。不得另行调用 audio init 创建 interview object。相同 `request_id`、actor、session 和 payload 返回首次结果；同 key 不同 MIME/stream 返回 `IDEMPOTENCY_PAYLOAD_MISMATCH`。门禁失败不得创建对象、generation、ASR 或 AI 任务。
+`POST /sessions/:id/start` 基础请求包含 `request_id`、`mime_type` 与 `audio_stream_id`；Continuing Consent runtime 接入后的完整请求还必须包含 §12.3 `recording_reminder_version`。服务端在固定资源锁内重新读取 assignment、项目状态、§12 当前适用捆绑授权、提醒版本和 session 状态；ServiceTerm 不参与普通门禁。只有项目为 `ready|active`、session 为 `device_check` 且门禁全部满足时，才在同一事务创建并绑定该 session 唯一 `purpose=interview` audio object、创建 generation 0 `preparing`、转为 `recording` 并写 `started_at`，然后返回统一 snapshot。不得另行调用 audio init 创建 interview object。相同 `request_id`、actor、session 和 payload 返回首次结果；同 key 不同 MIME/stream/reminder version 返回 `IDEMPOTENCY_PAYLOAD_MISMATCH`。门禁失败不得创建对象、generation、ASR、AI 或 consent 记录。
 
 `POST /sessions/:id/capture/confirm-active` 请求为 `{ "request_id", "generation_no", "audio_stream_id" }`。仅当前 generation `preparing`、session `recording|reconnecting` 且完整门禁仍有效时幂等转为 `active`。页面必须在 MediaRecorder 已 recording、本地 active checkpoint 已持久化后调用；成功响应前不得宣布正在采集。
 
@@ -644,7 +644,7 @@ POST /sessions/:id/speaker-calibrations
 }
 ```
 
-只允许当前有效 auth session、assignment、最新授权、项目未受限、session 为 `recording|reconnecting` 且 speaker stream 当前 active。begin/retry 只适用于该流 `not_started|failed|skipped`；已经 confirmed 时返回当前 snapshot，不创建重新校准 attempt，本轮角色变更走 C2 人工修正。服务端必须把 begin marker 插入当前 producer 的 PCM 串行泵：在 marker 前全部已排队帧处理完成、后续帧尚未处理时，以服务端下一期望 sequence 与 generation timeline offset，在 marker 回调的同一数据库事务中提交 attempt 与半开区间起点；提交后才允许后续帧继续并返回 canonical snapshot。同一流已有 collecting 时相同业务目标返回当前 snapshot，不创建第二个控制范围。没有可用 producer、stream 已更换、事务失败或 marker 在有界时间内无法提交时失败关闭，不创建 attempt。
+只允许当前有效 auth session、assignment、§12 当前适用授权、项目未受限、session 为 `recording|reconnecting` 且 speaker stream 当前 active。begin/retry 只适用于该流 `not_started|failed|skipped`；已经 confirmed 时返回当前 snapshot，不创建重新校准 attempt，本轮角色变更走 C2 人工修正。服务端必须把 begin marker 插入当前 producer 的 PCM 串行泵：在 marker 前全部已排队帧处理完成、后续帧尚未处理时，以服务端下一期望 sequence 与 generation timeline offset，在 marker 回调的同一数据库事务中提交 attempt 与半开区间起点；提交后才允许后续帧继续并返回 canonical snapshot。同一流已有 collecting 时相同业务目标返回当前 snapshot，不创建第二个控制范围。没有可用 producer、stream 已更换、事务失败或 marker 在有界时间内无法提交时失败关闭，不创建 attempt。
 
 完成 attempt：
 
@@ -1150,7 +1150,7 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 1. upgrade 必须携带允许列表内的 `Origin` 和有效不透明 session Cookie；缺失或错误时在 upgrade 前以 HTTP 401/403 拒绝，不返回 Cookie、token、Origin 白名单或业务正文；
 2. 浏览器 WebSocket API 不能设置任意请求头，因此 CSRF token 由首个 `session.join.payload.csrf_token` 携带；该 token 只能停留在内存，日志和错误不得记录；
 3. `session.join.payload` 必须包含 `audio_stream_id`；首次加入不带恢复字段，重连可带 `event_stream_id` 与 `resume_after_server_sequence`，二者必须同时出现；
-4. join 时验证 CSRF 与当前 auth session 绑定、当前有效 assignment、项目为 `active`、最新捆绑授权有效、会话存在且未删除；
+4. join 时验证 CSRF 与当前 auth session 绑定、当前有效 assignment、项目为 `active`、§12 当前适用捆绑授权 covered、会话存在且未删除；
 5. `recording|reconnecting` 可成为主动 PCM producer；`stopping|processing` 只允许恢复已有下行事件，不接受新帧；其他状态返回 `SESSION_NOT_STREAMABLE`；
 6. 同一 session 同时只允许一个主动 PCM producer；第二条生产连接返回 `SESSION_STREAM_ALREADY_ACTIVE`；断线后相同 `audio_stream_id` 可在事件保留窗口内恢复；
 7. join 前不得创建 ASR stream、接收 PCM 或返回转录正文。
@@ -1177,7 +1177,7 @@ B1 所有上行和下行消息均采用 UTF-8 JSON，单条消息序列化后不
 
 连接建立后客户端每 15 秒发送一次 `heartbeat`；服务端返回 `heartbeat.ack`。连续 45 秒未收到任何有效客户端消息时，服务端以 `JOIN_TIMEOUT`（尚未 join）或 `HEARTBEAT_TIMEOUT` 关闭连接。首个 `session.join` 的 5 秒限制优先适用。
 
-已 join 连接处理 `heartbeat` 或 `event.ack` 前，必须重新验证当前 auth session、有效 assignment、项目状态、最新授权和 session 当前允许的 produce/resume-only 模式。`stopping|processing` 的 resume-only 连接仍可 ACK/replay；权限撤销或资源门禁失效时即使没有继续发送音频，也必须失败关闭并释放 producer。
+已 join 连接处理 `heartbeat` 或 `event.ack` 前，必须重新验证当前 auth session、有效 assignment、项目状态、§12 当前适用授权和 session 当前允许的 produce/resume-only 模式。`stopping|processing` 的 resume-only 连接仍可 ACK/replay；权限撤销、授权版本/范围不再适用或资源门禁失效时，即使没有继续发送音频也必须失败关闭并释放 producer。
 
 `session.ready.payload` 至少包含：
 
@@ -1428,8 +1428,8 @@ runtime 必须跨新 voice 保留 session/capture 级 `no_known_gap -> known_unb
 ### 10.1 普通 ready/start/current gate
 
 - `POST /projects/:id/service-terms` 与 `GET /projects/:id/service-terms` 保留原契约和历史语义，但普通倾听员首次访谈不调用、不展示，也不创建占位记录。
-- project `draft → ready` 只要求当前版本 `recording_transcription_ai` consent 有效且未撤回；ServiceTerm 不再是普通 ready 条件。
-- `/sessions/:id/start` 与 capture resume/current gate 不再查询或要求 current ServiceTerm；仍必须在资源锁内重新验证 active actor、有效 assignment、项目未 restricted/deleted、当前版本 consent 有效未撤回，以及 session 已有服务端 `device_check`。
+- project `draft → ready` 只要求 §12 当前适用的 `recording_transcription_ai` consent covered；ServiceTerm 不再是普通 ready 条件。
+- `/sessions/:id/start` 与 capture resume/current gate 不再查询或要求 current ServiceTerm；仍必须在资源锁内重新验证 active actor、有效 assignment、项目未 restricted/deleted、§12 consent continuation covered、当前 recording reminder version，以及 session 已有服务端 `device_check`。
 - draft session 继续允许在 consent 前创建。`device-check` 成功可幂等返回已有 `device_check`，但客户端不得据此把新页面本地麦克风状态初始化为 passed。
 
 ### 10.2 校准与普通正文
@@ -1492,3 +1492,48 @@ calibration gate terminal 只满足 opening 的一个前置。若 next-session b
 basis `succeeded` 的 eligible output 必须进入随后冻结的 Context；`unjudged|failed|cancelled|unavailable` 作为 terminal 如实记录，省略无法证明的本次新增 membership 后继续一次 opening，不等待无限 retry。某 lane 在 opening attempt 已提交后通过显式 retry 得到新 terminal outcome，也不得为同一 consumer session 重开 gate；新证据只按既有 future-eligibility 参与后续 session。failed/skipped/unavailable calibration gate 不得携带当前 stream trusted membership，但可消费先前 session eligible project facts。结果继续通过既有 suggestion REST 与无正文 WS 1.2 投影；不新增正文 endpoint 或第二套 history。LLM unavailable 以既有 `kind=unavailable`/failed attempt 诚实返回，不自动回退 basic 题，不阻塞 recording。页面刷新、重复 snapshot、WS resume、provider 恢复或同 response replay 不得重触发。
 
 `GET /projects/:id/sessions` 可 additive 返回 shared `second_session_opening` 内容无关投影。waiting/ready 不是 attempt；running/succeeded/failed/cancelled/unavailable 必须绑定稳定 request/attempt identity。`updated_at` 来自组成当前状态的最新持久事实，不是 GET 响应时间。字段缺失、null 或 waiting 不得被客户端当作开场已经生成。
+
+## 12. Continuing Consent V1 API 契约
+
+### 12.1 Project 与 session 投影
+
+ordinary project 的 `repeat_interview` 可 additive 返回 `consent_continuation`，精确字段与枚举以 shared contracts 为准。`covered` 时 required action 为 `show_recording_reminder`，且满足其他 repeat 条件后主动作才是 `start_next_session`；明确需要重授权且 project 仍 ordinary 可读、正式重授权入口可用时主动作只能是 `record_formal_consent`；revoked/restricted、policy/reader unavailable 或字段缺失时无普通动作。restricted projection 不返回该对象。
+
+`GET /sessions/:id`、device-check 与尚未成功 start 的 session snapshot 可 additive 返回服务端权威 `recording_start_reminder`：
+
+```json
+{
+  "version": "recording-reminder-v1",
+  "text": "本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。",
+  "action_label": "开始访谈",
+  "requires_explicit_action": true,
+  "creates_consent_record": false
+}
+```
+
+服务端拥有 version、text 与 action label，客户端必须逐值显示，不能用本地旧文案补缺。shared DTO 在 contract-first rollout 期间保持 optional 只为兼容现有 producer；DEV-008B1 完成后相关 ordinary projection/snapshot 必须显式返回，缺失时客户端禁用 start 并刷新权威 snapshot。
+
+### 12.2 next-session 与正式重授权
+
+`POST /projects/:id/next-session` 在既有锁内重算 `consent_continuation`。covered 才可创建；ordinary project 的 `reauthorization_required` 稳定返回 409 `CONSENT_REAUTHORIZATION_REQUIRED` 且零 session/idempotency-success/audit 业务副作用，客户端回到现有完整 `recorded_verbal` 流程。revoked/restricted 继续使用既有不泄密拒绝，不通过本错误泄露 reauthorization 细节。完成新的、版本匹配的 consent 后必须重新 GET project action，再以新的 next-session request 发起；不得把失败的旧请求改绑新 consent 或将轻提醒当授权。
+
+普通时间间隔、有效 assignment 内更换倾听员或设备变化不触发重授权。设备变化只影响当前页面 mic/device check。revoked/expired、版本不兼容、processing purpose/access subject/provider region/public-or-training expansion、future interviews 未覆盖分别映射 shared reason；policy 无法读取时使用既有非泄密 unavailable 分类并失败关闭。
+
+现有示例 `mvp-v1` 没有被本 SPEC 认定为覆盖未来计划内访谈。只有经审查的正式文本与服务端 machine policy 显式标记该 scope 后，才可返回 covered；否则即使 consent status=valid 且版本字符串相同也必须 `future_interviews_not_covered` 或 `policy_unavailable`，不得由客户端猜测。
+
+### 12.3 start、版本漂移与幂等
+
+DEV-008B1 runtime 接入后，`POST /sessions/:id/start` 请求必须增加 `recording_reminder_version`：
+
+```json
+{
+  "request_id": "uuid",
+  "mime_type": "audio/webm;codecs=opus",
+  "audio_stream_id": "uuid",
+  "recording_reminder_version": "recording-reminder-v1"
+}
+```
+
+服务端在创建 interview audio object 前动态重查 actor、assignment、project restriction/deletion、current consent candidate、scope/version compatibility、device-check 与当前 reminder version。consent 不再 covered 返回 409 `CONSENT_REAUTHORIZATION_REQUIRED`；提醒字段缺失/不匹配返回 409 `RECORDING_REMINDER_VERSION_STALE` 并要求刷新 snapshot。两者均不得创建 audio object、capture generation、ASR/AI job、consent record 或 consent audio。
+
+start 的 idempotency payload hash 纳入 `recording_reminder_version`。相同 request ID/payload 的未知响应或 replay 返回首次 start 结果；同 ID 改 reminder version 继续按既有 payload mismatch 拒绝。成功只表示本次 formal recording 已开始；`creates_consent_record=false` 是不变量，start/replay/双击/刷新均不得追加或更新 consent。

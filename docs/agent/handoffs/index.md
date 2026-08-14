@@ -17,3 +17,5 @@ DEV-008A3 的只读回顾、本机完整 archive 播放、原子本机副本删�
 DEV-008A4 的授权前当前页麦克风、正式流独立校准、自动收尾、unknown create 恢复、严格同源回顾重投影、REV-047 exact-head PASS/merge 与旧全绿但用户发现缺口历史见 [`DEV-008A4.md`](DEV-008A4.md)。本接收不完成真实 ASR/provider、server deletion、DEV-008D/CON-023 或真实试点。
 
 SPEC-REPEAT-INTERVIEW-001 的项目级 repeat action、same-project next-session、完成后双分析、calibration/basis 双前置 opening exact once、REV-048 old REQUEST_CHANGES 与 final exact-head PASS/merge 历史见 [`SPEC-REPEAT-INTERVIEW-001.md`](SPEC-REPEAT-INTERVIEW-001.md)。本接收只机械解锁 DEV-008B1/B2，不代表其 runtime、真实 provider 或真实试点已完成。
+
+SPEC-CONTINUING-CONSENT-001 的同 project 持续授权、每次正式录音前版本化轻提醒、重授权/版本漂移门禁、CON-012 候选决定与 B1/B2 新阻塞关系见 [`SPEC-CONTINUING-CONSENT-001.md`](SPEC-CONTINUING-CONSENT-001.md)。该候选保持 REVIEW；项目负责人 exact-head PASS/merge/治理收口前不得启动 B1/B2。

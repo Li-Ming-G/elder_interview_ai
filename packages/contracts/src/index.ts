@@ -75,16 +75,47 @@ export type RepeatInterviewActionReason =
   | 'no_completed_session'
   | 'session_in_progress'
   | 'project_unavailable'
+  | 'consent_reauthorization_required'
   | 'consent_unavailable'
   | 'access_unavailable';
 
+export type ConsentContinuationStatus = 'covered' | 'reauthorization_required' | 'unavailable';
+
+export type ConsentContinuationReason =
+  | 'same_project_planned_interviews_covered'
+  | 'consent_missing'
+  | 'consent_revoked'
+  | 'consent_expired'
+  | 'consent_text_version_incompatible'
+  | 'processing_purpose_expanded'
+  | 'access_scope_expanded'
+  | 'provider_processing_region_expanded'
+  | 'public_or_training_use_expanded'
+  | 'future_interviews_not_covered'
+  | 'policy_unavailable';
+
+export interface ConsentContinuationProjection {
+  status: ConsentContinuationStatus;
+  reason: ConsentContinuationReason;
+  basis_consent_record_id: string | null;
+  basis_consent_text_version: string | null;
+  required_consent_text_version: string | null;
+  required_action: 'show_recording_reminder' | 'record_formal_consent' | null;
+  workflow_version: 'continuing-consent-v1';
+}
+
 export interface RepeatInterviewProjectActionProjection {
-  primary_action: 'start_next_session' | null;
+  primary_action: 'start_next_session' | 'record_formal_consent' | null;
   reason: RepeatInterviewActionReason;
   basis_session_id: string | null;
   basis_sequence_no: number | null;
   next_sequence_no: number | null;
   workflow_version: 'repeat-interview-v1';
+  /**
+   * SPEC-CONTINUING-CONSENT-001 contract-first seam. Absence is fail-closed.
+   * DEV-008B1 must emit it before enabling either repeat-interview action.
+   */
+  consent_continuation?: ConsentContinuationProjection;
 }
 
 export interface ProjectListRestrictedProjection {
@@ -188,6 +219,23 @@ export interface InterviewSessionResponse {
   updated_at: string;
   capture?: SessionCaptureSnapshot | null;
   finalization?: SessionFinalizationSnapshot | null;
+  /**
+   * Server-owned notice shown verbatim before every formal recording start.
+   * Absence is fail-closed once the continuing-consent workflow is enabled.
+   */
+  recording_start_reminder?: RecordingStartReminderProjection;
+}
+
+export const RECORDING_START_REMINDER_VERSION = 'recording-reminder-v1' as const;
+export const RECORDING_START_REMINDER_TEXT =
+  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。' as const;
+
+export interface RecordingStartReminderProjection {
+  version: typeof RECORDING_START_REMINDER_VERSION;
+  text: typeof RECORDING_START_REMINDER_TEXT;
+  action_label: '开始访谈';
+  requires_explicit_action: true;
+  creates_consent_record: false;
 }
 
 export type CaptureGenerationStatus =
@@ -381,6 +429,8 @@ export interface StopSessionRequest extends IdempotentRequest {
 export interface StartSessionRequest extends IdempotentRequest {
   mime_type: string;
   audio_stream_id: string;
+  /** Contract-first rollout seam; DEV-008B1 runtime must require this field. */
+  recording_reminder_version?: typeof RECORDING_START_REMINDER_VERSION;
 }
 
 export interface ConfirmCaptureActiveRequest extends IdempotentRequest {

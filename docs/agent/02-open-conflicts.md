@@ -1,13 +1,13 @@
 # 当前开放冲突索引
 
-本文件是 `02-conflict-log.md` 的快速入口。完整冲突记录仍保存在原日志中；状态以原记录中的 `OPEN`、`RESOLVED` 或 `DEFERRED` 为准。
+本文件是 `02-conflict-log.md` 的快速入口。完整冲突记录仍保存在原日志中；本索引同时保留已决定但尚未完成接收门禁的 `DECIDED` 条目。
 
-## OPEN
+## OPEN / DECIDED
 
 | 冲突 | 影响范围 | 当前处理方式 |
 |---|---|---|
 | CON-008 | production 用户来源启停与最终安全验收 | DEV-001B 保持 REVIEW；不阻塞内部虚构身份原型 |
-| CON-012 | consent audio object 跨 `consent_text_version` 复用规则 | 真实试点前确认并固化约束与测试 |
+| CON-012 | consent audio object 跨 `consent_text_version` 复用规则 | `DECIDED`：禁止跨版本复用；等待 SPEC-CONTINUING-CONSENT-001 exact-head PASS/merge/治理收口后移出本索引 |
 | CON-013 | 内部 audio harness 的生产启用限制 | 生产或真实试点前移除或严格限制查询参数入口 |
 | CON-023 | C2 删除 scope 门禁缺少可执行的 deletion_request producer/read model | C2 不造半模型，先覆盖现有 project restricted/deleted；DEV-008D 实现正式服务器删除子系统时必须回接 C2/AI 并补 scope/并发/不泄密测试。本机副本删除不关闭该冲突 |
 | CON-027 | 腾讯实时 ASR 诊断日志、音频/文本保留、处理地区与 DPA 证据不足 | 不阻塞完全虚构 DEV 验收；阻塞任何真实长者/PII 试点，须由项目负责人和数据治理角色取得一手合同/控制台证据后关闭 |
