@@ -104,7 +104,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           replay.aiJobId !== command.job.id ||
           replay.sessionId !== command.sessionId ||
           replay.basisPresentationRevision !== command.basisPresentationRevision ||
-          replay.basisSnapshotId !== command.basisSnapshotId
+          replay.basisSnapshotId !== command.basisSnapshotId ||
+          replay.interviewContextSnapshotId !== command.interviewContextSnapshotId
         ) {
           throw conflict('IDEMPOTENCY_KEY_REUSED');
         }
@@ -116,6 +117,14 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           status: replay.status === 'pending' ? 'pending' : 'running',
           frozenInputHash: command.job.inputHash,
         };
+      }
+      if (
+        command.attemptKind === 'second_session_opening' &&
+        (await tx.questionGenerationAttempt.findFirst({
+          where: { attemptKind: 'second_session_opening', sessionId: command.sessionId },
+        })) !== null
+      ) {
+        throw conflict('SECOND_SESSION_OPENING_CONSUMED');
       }
       const session = await tx.interviewSession.findUnique({ where: { id: command.sessionId } });
       if (session === null || session.projectId !== command.job.projectId) {
@@ -172,6 +181,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           journeyPolicyVersion: command.journeyPolicyVersion,
           journeyReasonCodes: [...command.journeyReasonCodes],
           journeyStage: command.journeyStage,
+          interviewContextSnapshotId: command.interviewContextSnapshotId,
           contextBuilderDigest: command.contextBuilderDigest,
           contextBuilderVersion: command.contextBuilderVersion,
           contextSchemaDigest: command.contextSchemaDigest,
@@ -217,6 +227,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           basisPresentationRevision: command.basisPresentationRevision,
           basisSnapshotId: command.basisSnapshotId,
           journeyBasisHash: command.journeyBasisHash,
+          interviewContextSnapshotId: command.interviewContextSnapshotId,
           manualIntentSequence,
           versions: {
             contextBuilder: [command.contextBuilderVersion, command.contextBuilderDigest],
@@ -250,6 +261,91 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         status: 'running',
         frozenInputHash,
       };
+    });
+  }
+
+  public async recordSystemUnavailableAttempt(
+    command: Omit<BeginQuestionGenerationCommand, 'bankReferences'> & { failureCode: string },
+    requestId: string,
+  ): Promise<string> {
+    return this.prisma.$transaction(async (tx) => {
+      await lock(tx, `request:${requestId}`);
+      await lock(tx, `project:${command.job.projectId}`);
+      await lock(tx, `session:${command.sessionId}`);
+      const replay = await tx.questionGenerationAttempt.findUnique({ where: { requestId } });
+      if (replay !== null) {
+        if (
+          replay.sessionId !== command.sessionId ||
+          replay.aiJobId !== command.job.id ||
+          replay.interviewContextSnapshotId !== command.interviewContextSnapshotId
+        ) {
+          throw conflict('IDEMPOTENCY_KEY_REUSED');
+        }
+        return replay.id;
+      }
+      const consumed = await tx.questionGenerationAttempt.findFirst({
+        where: { attemptKind: 'second_session_opening', sessionId: command.sessionId },
+      });
+      if (consumed !== null) return consumed.id;
+      const [session, job] = await Promise.all([
+        tx.interviewSession.findUnique({ where: { id: command.sessionId } }),
+        tx.aiJob.findUnique({ where: { id: command.job.id } }),
+      ]);
+      if (
+        session === null ||
+        session.projectId !== command.job.projectId ||
+        job === null ||
+        job.requestId !== requestId ||
+        !['failed', 'cancelled'].includes(job.status)
+      ) {
+        throw new Error('AI_SYSTEM_UNAVAILABLE_BINDING_INVALID');
+      }
+      const state = await ensureState(tx, command.sessionId, command.job.policyRevision);
+      const now = new Date();
+      const attempt = await tx.questionGenerationAttempt.create({
+        data: {
+          aiJobId: command.job.id,
+          attemptKind: command.attemptKind,
+          basisPresentationRevision: state.presentationRevision,
+          basisSnapshotId: state.currentSnapshotId,
+          completedAt: now,
+          contextBuilderDigest: command.contextBuilderDigest,
+          contextBuilderVersion: command.contextBuilderVersion,
+          contextSchemaDigest: command.contextSchemaDigest,
+          contextSchemaVersion: command.contextSchemaVersion,
+          failureCode: command.failureCode.slice(0, 80),
+          journeyBasisHash: command.journeyBasisHash,
+          interviewContextSnapshotId: command.interviewContextSnapshotId,
+          journeyPolicyVersion: command.journeyPolicyVersion,
+          journeyReasonCodes: [...command.journeyReasonCodes],
+          journeyStage: command.journeyStage,
+          manualIntentSequence: state.manualIntentSequence,
+          modelConfigDigest: command.modelConfigDigest,
+          modelConfigVersion: command.modelConfigVersion,
+          outputSchemaDigest: command.outputSchemaDigest,
+          outputSchemaVersion: command.outputSchemaVersion,
+          promptBundleDigest: command.promptBundleDigest,
+          promptBundleVersion: command.promptBundleVersion,
+          publicationOutcome: 'policy_blocked',
+          requestId,
+          resultKind: 'unavailable',
+          selectionPolicyVersion: command.selectionPolicyVersion,
+          sessionId: command.sessionId,
+          similarityPolicyVersion: command.similarityPolicyVersion,
+          startedAt: now,
+          status: 'failed',
+        },
+      });
+      await createEvent(tx, {
+        actorId: null,
+        aiJobId: command.job.id,
+        eventType: 'presentation_unavailable',
+        metadata: { attempt_id: attempt.id, code: command.failureCode.slice(0, 80) },
+        ownerKind: 'ai_job',
+        sessionId: command.sessionId,
+        snapshotId: state.currentSnapshotId,
+      });
+      return attempt.id;
     });
   }
 

@@ -16,6 +16,7 @@ import { ResourceAuthorizationService } from '../auth/resource-authorization.ser
 import { PrismaService } from '../database/prisma.service.js';
 import type { InterviewSession, SessionCaptureGeneration } from '../generated/prisma/client.js';
 import { ProjectAccessService } from './project-access.service.js';
+import { PostSessionCoordinationService } from './post-session-coordination.service.js';
 
 const CURSOR_VERSION = 1;
 const FILTER_VERSION = 'home-session-v1';
@@ -48,6 +49,7 @@ export class ProjectSessionListService {
     private readonly prisma: PrismaService,
     private readonly access: ProjectAccessService,
     private readonly authorization: ResourceAuthorizationService,
+    private readonly postSession: PostSessionCoordinationService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
@@ -80,7 +82,12 @@ export class ProjectSessionListService {
       },
     });
     const hasMore = sessions.length > query.limit;
-    const items = sessions.slice(0, query.limit).map((session) => projectSessionListItem(session));
+    const items = await Promise.all(
+      sessions.slice(0, query.limit).map(async (session) => {
+        const coordination = await this.postSession.project(session);
+        return projectSessionListItem(session, coordination);
+      }),
+    );
     const last = sessions[Math.min(sessions.length, query.limit) - 1];
     return {
       items,
@@ -157,7 +164,13 @@ export class ProjectSessionListService {
   }
 }
 
-export function projectSessionListItem(session: ListedSession): ProjectSessionListItem {
+export function projectSessionListItem(
+  session: ListedSession,
+  coordination: Awaited<ReturnType<PostSessionCoordinationService['project']>> = {
+    postSessionAnalysis: null,
+    secondSessionOpening: null,
+  },
+): ProjectSessionListItem {
   const capture = session.captureGenerations[0] ?? null;
   const manifestChecksum =
     session.finalization?.audioStatus === 'complete'
@@ -194,6 +207,12 @@ export function projectSessionListItem(session: ListedSession): ProjectSessionLi
     primary_action: projection.primaryAction,
     project_id: session.projectId,
     review_access: projection.reviewAccess,
+    ...(coordination.postSessionAnalysis === null
+      ? {}
+      : { post_session_analysis: coordination.postSessionAnalysis }),
+    ...(coordination.secondSessionOpening === null
+      ? {}
+      : { second_session_opening: coordination.secondSessionOpening }),
     sequence_no: session.sequenceNo,
     started_at: session.startedAt?.toISOString() ?? null,
     status: session.status,
