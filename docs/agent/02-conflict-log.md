@@ -416,17 +416,18 @@
 
 ### CON-031｜真实 LLM 厂商、处理地区与境外数据依据尚未选择
 
-- 状态：`OPEN`
+- 状态：`RESOLVED`（只关闭 provider-neutral 契约未冻结的冲突；真实厂商/region/DPA/ASR/secret/runtime 外部门禁保持未满足）
 - 发现时间：2026-08-14
 - 发现者：SPEC-LLM-PROVIDER-001 独立执行 Agent
 - 涉及文件与章节：`00` §10/§14、`01` §16、`02` §19、`07` §17/§19、`08` §10/§20-21、`09` §19、ADR-040
-- 冲突内容：项目负责人已选择 Vercel AI SDK direct-provider 架构，但明确没有选择第一家真实 LLM provider/model/data region，也未决定是否允许向境外厂商发送真实访谈内容。现有授权兼容政策同样把供应商处理地区扩大视为重授权条件。
-- 受影响任务：不阻塞 SPEC-LLM-PROVIDER-001 的 docs/shared contract、v2 draft 和 offline synthetic/deidentified evaluation；阻塞任何真实 LLM runtime provider 选择、真实内容调用、境外数据发送和真实 provider PASS。`DEV-ASR-PROVIDER-001` 未正式 PASS 仍是独立前置。
+- 冲突内容：项目负责人已选择 Vercel AI SDK direct-provider 架构，但当时尚未冻结在真实 provider/model/data region 未选择时，registry、active binding、data-class、endpoint、secret、retry/deadline、provenance、Prompt 发布与隔离横评应如何确定性失败关闭。真实厂商/地区/境外处理依据同时仍未决定。
+- 受影响任务：原冲突不阻塞 SPEC 的 docs/shared contract、v2 draft 和 offline synthetic/deidentified evaluation，但要求先冻结上述 provider-neutral 失败关闭契约；任何真实 LLM runtime provider 选择、真实内容调用、境外数据发送和真实 provider PASS 继续受独立外部门禁约束。`DEV-ASR-PROVIDER-001` 未正式 PASS 仍是独立前置。
 - 临时处理：registry 无 provider、active binding=null，真实访谈内容与境外真实内容 default deny；secret/endpoint/region/allowlist 任一未知 fail closed。不得索取密钥或用 SDK/provider 可用性推断授权。
 - 需要谁决策：项目负责人 + 数据治理/适用法务；在实际厂商官方 retention/training/region/DPA、账号/endpoint/model、成本与授权兼容证据齐全后选择。
-- 最终决定：未定。
-- 需要同步修改的文件：关闭时新增实际 provider profile、精确 dependency pins、真实 runtime task、`00/01/02/04/05/07/08/09/10`、ADR、任务板、追踪、测试和授权兼容政策。
-- 关闭条件：`DEV-ASR-PROVIDER-001` 已正式 PASS；项目负责人明确 provider/model/region；数据治理接收真实数据处理依据和所需重授权；profile/config/test/secret injection 全部 fail-closed 并通过 exact-head 审查。关闭 CON-031 不自动等于 runtime 实现 PASS。
+- 最终决定：SPEC-LLM-PROVIDER-001 已冻结 empty registry/no active binding/real-data deny、Schema + semantic validator、单 active binding、no SDK retry/fallback、共享 deadline/abort、四类 provenance、immutable model config、Prompt 生命周期与隔离横评；在未选真实厂商时继续确定性失败关闭。真实 runtime 由 contract-derived `DEV-LLM-PROVIDER-001` 承接并保持 `BLOCKED`。
+- 需要同步修改的文件：本 SPEC 已同步 `00/01/02/04/05/07/08/09/10`、ADR-040、任务板、追踪、审查与交接；后续实际 provider profile、精确 dependency pins、migration/runtime/test、secret injection 和授权兼容政策只能在 DEV-LLM-PROVIDER-001 门禁关闭后另行受审。
+- 关闭确认：accepted content `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` 与 latest-main integration `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` 均获项目负责人 PASS（P0/P1/P2=0）；PR #52 merge/main `99ce83d001ffca5075d63f60c26067a2f9f2de59` / main CI `31789810221` attempt 1 SUCCESS。故只就“provider-neutral 契约未冻结”标记 RESOLVED，并保持不在开放索引中。
+- 外部门禁：`DEV-ASR-PROVIDER-001` 正式 PASS、provider/model/region 选择、DPA/retention/training/跨境与所需重授权接收、真实 secret injection、runtime/migration/真实 provider 验收均未完成；关闭 CON-031 不自动等于其中任何一项 PASS，也不允许发送真实访谈内容。
 
 ## 登记模板
 

@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`；accepted 内容已获项目负责人 PASS，latest-main integration 待窄复审
+- 状态：`DONE`；accepted 内容与 latest-main integration 均获项目负责人 PASS，PR #52 已合并且 final main CI 成功
 - base：`origin/main@6f6363f517a6588ff4eb31aee7996b7116092c03`
 - branch：`codex/spec-llm-provider-001`
 - PR：[PR #52](https://github.com/Li-Ming-G/elder_interview_ai/pull/52)（非 Draft）
@@ -37,7 +37,7 @@
 - receipt 是否区分 provider ID 和 SDK generated ID；
 - v2 draft 是否不可加载，formal v1 是否保持；
 - synthetic evaluation 是否通过正式 Context Schema、没有 business writer target；
-- CON-031 是否诚实保留真实厂商/region/境外处理未决；
+- CON-031 是否只就 provider-neutral 契约未冻结的冲突关闭，并诚实保留真实厂商/model/region、DPA/retention/training/跨境与 runtime 未决；
 - scope 是否未越界到 runtime/provider/007/008/真实数据。
 
 ## 验证
@@ -52,7 +52,7 @@
 
 第一次数据库命令在专用数据库尚未创建时于 migration 前失败；创建后首轮 integration/auth 已全绿。为避免既有 question-bank 固定 version 在同库重跑造成 `QUESTION_BANK_VERSION_EXISTS`，最终证据改用新建空库 `elder_interview_spec_llm_001_rev050` 单次运行并全绿，没有清理共享数据、修改测试目标或产品代码。普通 E2E WebServer 启动窗口记录一次 `/api/v1/auth/me` 代理 `ECONNREFUSED`，27/27 用例仍通过，未形成失败或重跑。
 
-PR #52 已创建且非 Draft。accepted 内容已获项目负责人明确 PASS；由于 PR #51 与本 PR 的治理文件存在 latest-main 冲突，当前只完成机械整合并生成新的 integration exact head/CI。项目负责人完成 integration 窄复审前，任务保持 REVIEW，ADR-040 不转 Accepted，CON-031 不关闭，执行 Agent 不得 DONE 或 merge。
+PR #52 为非 Draft。accepted 内容已获项目负责人明确 PASS；与 PR #51 的 latest-main 冲突只做机械整合，integration head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` SUCCESS 又获项目负责人窄 integration PASS（P0/P1/P2=0）。PR 已 merge 为 main `99ce83d001ffca5075d63f60c26067a2f9f2de59`，main CI `31789810221` attempt 1 SUCCESS；任务 `REVIEW→DONE`、ADR-040 `Proposed/REVIEW→Accepted`。
 
 ## branch-local REV-050 定向修复与 accepted PASS 交接
 
@@ -66,4 +66,11 @@ PR #52 已创建且非 Draft。accepted 内容已获项目负责人明确 PASS�
 - 已证文件冲突仅 `docs/agent/01-requirement-traceability.md`、`docs/agent/04-review-report.md`、`docs/agent/handoffs/index.md`，均机械保全 DEV-008B1 与 SPEC-LLM-PROVIDER-001 双方事实。另发现 review ID 并行占用，按 canonical `REV-050`=DEV-008B1、`REV-051（branch-local REV-050）`=LLM 记录，不改 accepted LLM 技术契约。
 - integration 本地全门禁：format/lint/typecheck/build/smoke PASS；unit 61 files / 372 tests、LLM 定向 10/10、fresh PostgreSQL 14 migrations deploy/status、integration 14 files / 84 tests、auth 4 files / 23 tests、ordinary Chromium 27/27、auth Chromium 5/5 均 PASS；`git diff --check` PASS。accepted LLM semantic validator/contract tests、`docs/contracts`、synthetic-v1、v2-draft、shared contract 与 package manifest/lockfile 相对 `77fb3a8` 无差异。
 - 真实本地失败历史：第一次 migration 前的 PowerShell 空查询返回 `null`，导致新数据库未创建，migration 因目标库不存在退出；显式创建同一空库后，从 migration 开始单次全绿。首次 auth E2E 命令因新 shell 未注入 `TEST_DATABASE_URL` 在测试启动前退出；改用另一全新空库并显式注入后 5/5。两次均未修改产品代码、测试目标或共享数据。ordinary E2E 记录一次 Vite `/api/v1/auth/me` 启动窗口 `ECONNREFUSED`，27/27 仍通过，未重跑普通 E2E。
-- integration exact head 与完整 CI SUCCESS 取得后只请求项目负责人做 main integration 冲突窄复审。PR #52 继续 OPEN/REVIEW/未合并；不提前联合收口。
+- integration exact head `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` 与完整 CI `31787175381` SUCCESS 已取得，项目负责人窄 integration 复审 PASS（P0/P1/P2=0）。PR #52 已 merge 为 main `99ce83d001ffca5075d63f60c26067a2f9f2de59`，main CI `31789810221` attempt 1 SUCCESS。后续真实 runtime 交给 BLOCKED 的 `DEV-LLM-PROVIDER-001`；本交接未安装 SDK、未实现 provider/runtime、未选择 provider/model/region、未索取密钥，`v2-draft` 仍不可加载。
+
+## 联合治理收口（2026-08-14）
+
+- 基线：`origin/main@99ce83d001ffca5075d63f60c26067a2f9f2de59`；SPEC `REVIEW→DONE`、ADR-040 `Proposed/REVIEW→Accepted`、REQ-019 契约范围完成。CON-031 只就 provider-neutral 契约未冻结的冲突 `RESOLVED`，并保持不在开放索引中。
+- 新建 contract-derived `DEV-LLM-PROVIDER-001` 并保持 `BLOCKED`；未启动实现，也未修改 runtime、SDK/provider dependency、Prisma/migration、正式 contract、Prompt、evaluation 或密钥配置。
+- 本地门禁：`pnpm format:check`、`pnpm lint`、`pnpm typecheck`、changed Markdown 相对链接/表列一致性与 `git diff --check` 均 PASS。首次并行启动三个 pnpm 命令时，依赖尚未链接完成而发生一次 Windows `EBUSY`；改为串行后全部通过，未修改测试目标、manifest 或 lockfile。
+- 真实 provider/model/region、DPA/retention/training/跨境与重授权依据、DEV-ASR-PROVIDER-001、secret injection、migration/runtime 与真实 provider 验收继续是独立门禁；`v2-draft` 仍不可加载。
