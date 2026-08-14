@@ -1570,3 +1570,14 @@ warning classification 只允许 `unsupported_setting|ignored_setting|adjusted_s
 正式 coordinator 先执行 registry JSON Schema，再执行独立 deterministic semantic validator；只有 active binding exactly-one 命中 provider→model→config manifest，且 endpoint/region/secret/environment/data-class membership 与 digest 全成立才可调用。无 binding 或任一门禁失败返回既有 provider unavailable/失败关闭结果，不尝试其他 provider。
 
 comparison evaluator 可循环显式选择的 bindings，但每个 invocation 都使用同一 frozen input identity 与同一 model-config version/digest。只有所有 receipt `config_application_status=as_requested` 且 warnings 为空时才可标 `equal_effective_config=true`；warning、unknown 或 config identity 不同必须分组/排除。receipt/output 只写评测工件，不调用 QuestionEvidence writer。
+
+## 14. Staging HTTP 与 WebSocket 入口契约
+
+- 对外唯一 origin 为 `https://<fixed-host>`；页面、`/api/v1/*`、upload 和 `wss://<fixed-host>/ws/interviews` 不使用跨源 cookie/CORS。Quick 只把 `<fixed-host>` 替换为当次随机 hostname，其他应用契约不变。
+- `__Host-elder_interview_session`、Origin/CSRF 与 §5.5 WS upgrade/join 规则原样保留。Access token/cookie 不可作为应用 session、CSRF、role 或 assignment。
+- reverse proxy 必须正确处理 HTTP upgrade、足够的 WS idle timeout 与既有 heartbeat；Cloudflare/connector/proxy 重启只触发断线和既有重连，不创建第二 session/generation/final。服务端还要在不长于 Access session duration 的最大连接年龄到期时发起可恢复关闭，下一次 upgrade 重新执行 Access JWT 与应用 join 门禁。
+- 外部 `/health` 只能返回无敏感信息的 liveness；业务 readiness 必须同时证明 DB、storage、migration status、app 与正式服务端 manifest 的唯一 `data_mode=synthetic_only`，missing/unknown/invalid/其他值或平行许可字段均未 ready、返回 503 且禁止新访谈。不得通过 health 暴露版本、路径、secret、账号或数据量。
+- session/connect、upload init/append/complete 与任一业务 persist 必须在建立连接、分配对象或开启写事务前，验证当前 manifest 及 `fixture_provenance=fictional_created_for_test`。真实来源即使去标识/脱敏、真实数据库/备份或 provenance 不明，统一返回失败关闭错误且 `business_side_effect_count=0`；不得创建 session/upload/object/row、本机 archive 或 provider 调用。
+- 上传 body/time limit 必须覆盖现有分片契约且有上界；拒绝必须返回公共错误壳并让客户端保留/重试本机作业。API/WS/upload 禁止 edge/proxy cache。
+- `CF-Connecting-IP` 只有在请求经整条受信链且入口头已清洗时可用于登录限流/审计。任何直连或伪造头不得改变当前 direct-peer 安全语义。
+- 公网业务 HTTP/WS 在 origin 必须复验 `Cf-Access-Jwt-Assertion` 的签名、issuer/team、audience 与 expiry；只把结果作为外层可达性布尔值，不把 email/subject/group 映射为应用用户。独立内部 health listener 不承载业务 route。

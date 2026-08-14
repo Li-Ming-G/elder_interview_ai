@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/contracts/staging-deployment-manifest-v1.schema.json",
+  "title": "StagingDeploymentManifestV1",
+  "description": "Formal server-side manifest for DEV-STAGING-DEPLOY-001 named synthetic staging. data_mode is the only machine authority for data admission.",
+  "x-contract-status": "formal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "deployment_id",
+    "profile",
+    "data_mode",
+    "commit_sha",
+    "config_digest",
+    "deployed_at",
+    "components",
+    "data_paths"
+  ],
+  "properties": {
+    "contract_version": { "const": "staging-deployment-manifest-v1" },
+    "deployment_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+    },
+    "profile": { "const": "named-synthetic" },
+    "data_mode": { "const": "synthetic_only" },
+    "commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "config_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "deployed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "runtime",
+        "reverse_proxy",
+        "app",
+        "database",
+        "cloudflared"
+      ],
+      "properties": {
+        "os": { "type": "string", "minLength": 1 },
+        "runtime": { "type": "string", "minLength": 1 },
+        "reverse_proxy": { "type": "string", "minLength": 1 },
+        "app": { "type": "string", "minLength": 1 },
+        "database": { "type": "string", "minLength": 1 },
+        "cloudflared": { "type": "string", "minLength": 1 }
+      }
+    },
+    "data_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}
