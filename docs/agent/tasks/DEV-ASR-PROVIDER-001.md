@@ -3,6 +3,7 @@
 - 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面/目标 Android 正式链路与受控故障闭环已完成；等待实际账单核对、最新 exact-head CI 与项目负责人手动审查）
 - 当前 closeout 分支：`codex/dev-asr-provider-001-closeout`
 - 当前 exact base：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
+- 当前审查入口：[non-Draft PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57)；exact final head/CI 以 PR 最新 metadata 为准
 - 历史候选：`codex/dev-asr-provider-001@af99d9129c74e7db5b877aeef43f6d99f248b50c`、non-Draft PR #45、CI run `31706282385` SUCCESS；旧工作树保持只读且未清理
 - 审查边界：执行 Agent 只交付 non-Draft PR 与 exact-head 证据，不自宣 PASS/DONE、不合并
 

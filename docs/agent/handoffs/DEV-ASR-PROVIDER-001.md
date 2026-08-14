@@ -5,7 +5,7 @@
 - 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面正常链路、受控故障闭环与目标 Android 正式链路均已完成；等待实际账单与项目负责人 exact-head 手动审查），不是 PASS/DONE。
 - 当前 closeout 分支：`codex/dev-asr-provider-001-closeout`；exact base `origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`。
 - 历史候选保持：`codex/dev-asr-provider-001@af99d9129c74e7db5b877aeef43f6d99f248b50c`、non-Draft PR #45、CI `31706282385` SUCCESS；旧工作树只读核对，未覆盖、清理或删除。
-- 新 closeout non-Draft PR 的 exact final head/CI 以该 PR 最新 metadata 为准；项目负责人尚未完成绑定该 head 的手动审查；不得合并。
+- 新 closeout [non-Draft PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57) 的 exact final head/CI 以该 PR 最新 metadata 为准；项目负责人尚未完成绑定该 head 的手动审查；不得合并。
 - 上一轮因 Codex usage limit 发生环境中断；该记录不是实现失败、验收失败或通过结论。本轮从原工作树继续，没有重建或丢弃修改。
 
 ## 已形成的实现候选
