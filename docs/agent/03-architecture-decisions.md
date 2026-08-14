@@ -423,7 +423,7 @@
 
 ## ADR-041｜早期 staging 采用 Quick/Named 分层、Access 外门与单机 Windows synthetic 边界
 
-- 状态：`Proposed / REVIEW`；绑定 SPEC-STAGING-DEPLOY-001。项目负责人 exact-head PASS/merge 前不得转 Accepted。
+- 状态：`Accepted`；REV-052 绑定 PR #54 accepted exact head `64cf94f33c957dc1a1ff74cbf49e35bd1c44698b` / CI `31808762082`，项目负责人正式 PASS（P0/P1/P2=0）；merge/main `751a32e1ffbae12ec639230cd3bf8482d1ff2820` / main CI `31815415871` SUCCESS。
 - 背景：项目已选择网页优先、短期 Cloudflare、单台持续开机 Windows 主机和盈利后迁云，但旧 ADR-010 只延后 Nginx，未冻结公网可达与真实数据许可、Access/应用身份、proxy/IP、Windows/备份/监控/回滚边界。
 - 决定：Quick Tunnel 只用于随机 URL 的 synthetic/fictional 远程排练；Named Tunnel + 固定 HTTPS hostname + Cloudflare Access 作为正式早期 staging。Web/API/upload/WS 共享一个 origin，唯一链为 edge/Access -> Named Tunnel -> loopback reverse proxy -> app。
 - 身份：Access 只决定请求能否抵达；应用 session、role、assignment、consent、restriction/deletion、Cookie/Origin/CSRF/WS join 继续独立决定业务授权。首版禁止 Access 身份自动创建/映射应用用户。
@@ -433,17 +433,18 @@
 - 取代关系：本 ADR 只部分取代 ADR-010 的“反向代理完全延后”，允许后续 DEV 在 synthetic staging 范围引入受审 reverse proxy/Tunnel；Redis、BullMQ、云迁移与 HA 继续延后，ADR-010 历史正文不改。
 - iteration-coach：唯一独立只读复核为 `Mode: Correction`；网络/数据双轴、双身份、WS 失效、受信 proxy、无人值守、恢复验证、外部告警与逐层回滚已吸收。
 - 依据：供应商事实只引用 staging contract §13 列出的 Cloudflare 官方文档；本 SPEC 不安装 Cloudflare、不请求 token、不部署。
-- 审查历史：项目负责人正式审查 PR #54 old exact head `195c4be2c4cd9277036e6a8759ab15e00e984a61` / CI `31798730203` SUCCESS，结论 `REQUEST_CHANGES`（P0=0/P1=1/P2=0）。唯一 P1 只针对真实来源脱敏歧义、唯一 machine authority/readiness 和入站零业务副作用拒绝；old head/CI/结论永久保留。当前 ADR 仍为 `Proposed / REVIEW`，不得因定向修复或新绿灯自行转 Accepted。
+- 审查历史：项目负责人正式审查 PR #54 old exact head `195c4be2c4cd9277036e6a8759ab15e00e984a61` / CI `31798730203` SUCCESS，结论 `REQUEST_CHANGES`（P0=0/P1=1/P2=0）。唯一 P1 只针对真实来源脱敏歧义、唯一 machine authority/readiness 和入站零业务副作用拒绝；old head/CI/结论永久保留。定向修复 exact head `64cf94f33c957dc1a1ff74cbf49e35bd1c44698b` / CI `31808762082` 获项目负责人 PASS（P0/P1/P2=0），随后 merge/main 与 main CI 成功，故 ADR 转为 `Accepted`。接收只覆盖 docs/machine contract，不表示 Cloudflare/Windows 已部署或真实数据获许可。
 
 ## ADR-042｜Cloudflare 外围准入与应用身份分离，代理 IP 默认失败关闭
 
 - 编号保全：SEC-AUTH-PUBLIC-001 已获项目负责人 PASS 的 branch-local content head `01018376002b475fd7715ca9b3cb8ee6333a3a72` 中原编号为 `ADR-041`；latest-main 已由 SPEC-STAGING-DEPLOY-001 占用 canonical ADR-041。本 integration 只把该既有内容机械映射为唯一 canonical `ADR-042`，原提交、别名、字节语义、CI `31798421917` 与审查历史永久保留。
-- 状态：`Proposed / REVIEW`；原 content head 已获项目负责人手动 PASS（P0/P1/P2=0），当前等待 PR #55 latest-main integration exact-head CI 与窄复审，不能由实现者自行转 Accepted。
-- 背景：ADR-009 的本地应用账号、不透明 session 与资源授权仍是当前权威；网页方向已经确定为响应式 Web，部署方向为 Cloudflare。DEV-001B 只交付内部候选，CON-008 的匿名失败审计尚未治理收口；受信代理和客户端 IP 的部署实现尚未完成。
-- 决定候选：`staging|production` 统一使用外部 HTTPS `__Host-` Secure Cookie；Cloudflare Access 只作外围网络准入，不创建应用 principal，不授予角色/assignment，不成为审计 actor，也不替代 session rotation/revocation。未知账号失败使用窄 `anonymous` audit actor 与用途分隔 HMAC 摘要，已知账号保持 user actor，客户端响应一致。
+- 状态：`Accepted`；REV-053 绑定 PR #55 content `01018376002b475fd7715ca9b3cb8ee6333a3a72` / CI `31798421917` 与 latest-main integration `d67dd12de5010f49e5ad97733a9c33aecea0c5c5` / CI `31816652463`，项目负责人两次均正式 PASS（P0/P1/P2=0）；merge/main `8bcf65b2575841277ca7f885cdb783d57494b01e` / main CI `31817732960` SUCCESS。
+- 背景：ADR-009 的本地应用账号、不透明 session 与资源授权仍是当前权威；网页方向已经确定为响应式 Web，部署方向为 Cloudflare。DEV-001B 原先只交付内部候选，CON-008 的匿名失败审计已由本决定的 accepted runtime 收口；受信代理和客户端 IP 的部署实现仍未完成。
+- 决定：`staging|production` 统一使用外部 HTTPS `__Host-` Secure Cookie；Cloudflare Access 只作外围网络准入，不创建应用 principal，不授予角色/assignment，不成为审计 actor，也不替代 session rotation/revocation。未知账号失败使用窄 `anonymous` audit actor 与用途分隔 HMAC 摘要，已知账号保持 user actor，客户端响应一致。
 - 代理边界：应用只拥有 `ClientIpResolver` 窄 port。runtime 默认实现继续只取 TCP 直接对端并忽略全部转发 header。ADR-041/SPEC-STAGING-DEPLOY-001 的接收不等于受信入口已实现；只有 DEV-STAGING-DEPLOY-001 完成 origin 直连阻断、可信代理集合、唯一 IP header、hop 与异常规则并通过 exact-head 审查后，才可另行受审新增部署 adapter。本 ADR 不实现或选择该 adapter。
 - 会话边界：登录总是新建 session/CSRF，不复用请求旧 token；authenticate touch、CSRF rotate/verify 与 revoke 必须以持久 session 仍有效为条件，撤销/过期先提交时后续动作失败关闭。改密、停用、权限安全事件与管理员撤销继续撤销全部相关 session。
 - 原因：把边缘准入与应用授权分开，可保留即时停用、逐资源 assignment、审计归属和供应商可替换性；默认不信任转发 header 避免 origin 可直连或代理配置漂移时伪造 IP 绕过限流。
 - 代价：部署实现接收前，反向代理后的所有请求可能按直接代理对端聚合限流，不能宣称公网容量/公平性通过；需要后续受审 adapter 才能恢复真实客户端 IP 粒度。
 - 重新评估：跨源部署、允许绕过 Cloudflare 直连 origin、Access identity 替代应用账号、引入 OIDC，或可信代理无法形成唯一可验证入口时，重开 ADR-009/042 与 Cookie/CORS/CSRF/审计契约。
 - iteration-coach：SEC 任务恰好一次独立只读复核为 `Clear / NO-PAUSE`；最重要不变量是任何边缘 metadata 只有在部署证明受信入口后才可成为安全上下文，且即使可信也不能授予应用身份或权限。本 integration 不重复复核。
+- 审查历史：branch-local ADR-041、content PASS、canonical ADR-042 的机械编号映射与 integration PASS 全部永久保留；Accepted 只接收应用身份/会话、匿名失败审计与 direct-peer fail-closed seam。trusted ingress、可信 proxy/header/hop、origin 防直连、公网容量与真实数据许可仍未实现，不由本 ADR 状态关闭。

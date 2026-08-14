@@ -3,13 +3,13 @@
 ## 基本信息
 
 - 状态：`BLOCKED`
-- 前置契约：SPEC-STAGING-DEPLOY-001 尚在 `REVIEW`
+- 前置契约：SPEC-STAGING-DEPLOY-001 与 SEC-AUTH-PUBLIC-001 已在各自接收范围 `DONE`；trusted-ingress runtime 尚未实现
 - 输入：`docs/contracts/staging-deployment-v1.md`、`02` §20、`03` §23、`05` §14、`06` §18、`08` §22、`09` §20、`10` §17、ADR-041
 - 负责人：未分配
 
 ## 目标
 
-在 SPEC exact-head PASS/merge 后，以独立非 Draft PR 实现并验收固定 hostname 的 Named Cloudflare Tunnel + Access + 单台 Windows synthetic staging。实现结果只证明 `named-synthetic`，不证明真实数据或生产可用。
+后续取得独立实施授权和部署资源后，以独立非 Draft PR 实现并验收固定 hostname 的 Named Cloudflare Tunnel + Access + 单台 Windows synthetic staging。实现结果只证明 `named-synthetic`，不证明真实数据或生产可用。
 
 ## 合同派生范围
 
@@ -30,10 +30,12 @@
 - 不用 Quick Tunnel 作为稳定入口、回滚方案或 Named 验收证据；
 - 不把 Access 接成应用 SSO，不自动创建/映射本地用户；
 - 不安装真实 ASR/LLM secret，不发送真实访谈内容；
-- 不关闭 DEV-001B、SPEC-CONSENT-TEXT-POLICY-001、DEV-008D/CON-023、DEV-ASR-PROVIDER-001/CON-027、DEV-LLM-PROVIDER-001 或 QA-001；
+- 不扩大 DEV-001B/SEC-AUTH-PUBLIC-001 已接收的应用身份/会话范围，也不关闭 SPEC-CONSENT-TEXT-POLICY-001、DEV-008D/CON-023、DEV-ASR-PROVIDER-001/CON-027、DEV-LLM-PROVIDER-001 或 QA-001；
 - 若 Windows/容器运行时无法在无人登录后自动恢复，任务失败关闭，不得降级为人工启动后宣称通过。
 - 本 DEV 无权把字段改为 real/true、扩展真实数据模式或自行接收真实来源脱敏数据。未来解锁必须新任务、数据治理决定、新版 machine contract 与项目负责人正式接收。
 
 ## 验收与状态
 
 按 `09` §20 全矩阵与仓库完整 CI 执行，环境证据绑定精确 deployment manifest 和 commit。项目负责人/被明确改派的独立审查者给出 exact-head 结论前保持 `REVIEW`；即便 DONE，也只表示 Named synthetic staging 范围完成。真实数据必须另立新任务并逐项满足 `docs/contracts/staging-deployment-v1.md` §11、形成数据治理决定与新版 machine contract，再由项目负责人正式接收。
+
+当前继续 `BLOCKED`：尚无独立实施授权与部署资源，也没有实现或验收 Cloudflare Tunnel/Access、trusted proxy/header/hop、origin 防直连、Windows 无人值守、备份恢复、监控回滚。不得因上游 DONE 宣称已部署、转 REVIEW/DONE，或放宽唯一 `data_mode=synthetic_only` 与真实来源数据禁令。

@@ -103,6 +103,8 @@
 - 当前候选决定（SEC-AUTH-PUBLIC-001）：采用方案 A 的窄版本，为 `audit_log.actor_type` 增加仅限认证安全事件的 `anonymous`；未知账号失败使用用途分隔 HMAC 身份摘要作为 `actor_reference`，`actor_id/entity_id` 为空，metadata 只含统一失败分类与不可逆客户端 IP 摘要。已知用户失败仍用 user actor；客户端响应不可区分。Cloudflare Access 不成为 audit actor 或应用身份来源。
 - 关闭条件：SEC-AUTH-PUBLIC-001 非 Draft PR 的 exact head 完整 CI 成功，项目负责人对数据迁移、匿名摘要最小化、登录/限流/会话/代理反例手动安全审查 PASS，并将结论写回；此前 CON-008 与 DEV-001B 均保持 REVIEW，不得自行转 RESOLVED/DONE。
 - latest-main integration 事实（2026-08-14）：项目负责人已对 PR #55 content head `01018376002b475fd7715ca9b3cb8ee6333a3a72` / CI `31798421917` 正式手动 PASS（P0/P1/P2=0）；GitHub APPROVE 因 integration 403 未写入。PR #54 merge 后发生 ADR 编号碰撞，故 content 中 branch-local ADR-041 机械映射为 canonical ADR-042，并以 `main@751a32e1` 形成新 integration head。该映射不改写旧提交/审查历史；new integration exact-head 复审与后续治理收口前，本冲突和 DEV-001B 仍保持 REVIEW。
+- 最终状态（2026-08-15）：`RESOLVED`。项目负责人进一步对 integration exact head `d67dd12de5010f49e5ad97733a9c33aecea0c5c5` / CI `31816652463` 正式 PASS（P0/P1/P2=0）；PR #55 merge/current main `8bcf65b2575841277ca7f885cdb783d57494b01e` / main CI `31817732960` SUCCESS。故接收窄 `anonymous` actor、用途分隔 HMAC 摘要、数据库 shape 约束与失败不泄露反例，DEV-001B/SEC-AUTH-PUBLIC-001 在应用身份/会话范围 DONE。旧 `a9cf1c5` 无证据误关、REV-007/`ab9628b` REVIEW 与 content/integration 双 PASS 历史均永久保留。
+- 关闭边界：本 RESOLVED 不代表 Cloudflare trusted ingress、可信 proxy/header/hop、origin 防直连、公网容量或真实数据已实现/许可；这些仍由 BLOCKED 的 DEV-STAGING-DEPLOY-001 独立实现和验收，runtime 当前继续 direct peer、忽略转发 header。
 
 ### CON-009｜最小项目、授权与会话 API 缺少关键业务契约
 

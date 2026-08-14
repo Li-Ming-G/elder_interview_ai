@@ -2,13 +2,14 @@
 
 ## 基本信息
 
-- 状态：`REVIEW`；不得自行 PASS/DONE/merge
+- 状态：`DONE`（REV-052；仅 docs/machine contract 范围）
 - base：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
 - branch：`codex/spec-staging-deploy-001`
-- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、OPEN）
+- PR：[PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)（非 Draft、MERGED）
 - 首个提交 exact head / CI：`235a3df6a5431b72d21dd13820628280067a4a61` / [`31798290760`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798290760) SUCCESS
 - old reviewed exact head / CI：`195c4be2c4cd9277036e6a8759ab15e00e984a61` / [`31798730203`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31798730203) SUCCESS；项目负责人正式 `REQUEST_CHANGES`（P0=0/P1=1/P2=0），永久保留
-- 定向修复 head / CI：形成后补入；必须有自己的完整 CI SUCCESS，不能复用 old run
+- 定向修复 accepted head / CI：`64cf94f33c957dc1a1ff74cbf49e35bd1c44698b` / [`31808762082`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31808762082) SUCCESS；项目负责人正式 PASS（P0/P1/P2=0）
+- merge/main：`751a32e1ffbae12ec639230cd3bf8482d1ff2820` / [`31815415871`](https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/31815415871) SUCCESS
 
 ## 已冻结
 
@@ -68,4 +69,4 @@
 
 ## 下一步
 
-项目负责人对本任务 non-Draft PR exact head + 完整 CI 手动审查。若 PASS/merge，再把 SPEC 转 DONE、ADR-041 转 Accepted，并将 DEV-STAGING-DEPLOY-001 转 READY；此前 DEV 保持 BLOCKED。
+本 SPEC、ADR-041 与 REQ-020 已在契约范围收口。DEV-STAGING-DEPLOY-001 继续 `BLOCKED`，等待独立实施授权、部署资源及 trusted ingress/proxy/header/origin 防直连、Tunnel/Access/Windows/备份恢复/监控的实现与 exact-head 验收；不得将契约 DONE 外推为已部署或真实数据获许可。
