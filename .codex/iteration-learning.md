@@ -2,7 +2,7 @@
 
 ## Current Snapshot
 - Product goal: 帮助倾听员可靠完成长者人生故事访谈，保存可追溯的原始资料，并由 AI 提供跨会话记忆和候选追问；MVP 不自动生成完整传记。
-- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。统一响应式网页 A、DEV-008A4 与 DEV-008B1/B2 已在各自 accepted fail-closed/provider-neutral 范围 DONE；Repeat Interview、Continuing Consent、LLM Provider、Staging Deployment SPEC 与 SEC-AUTH-PUBLIC 已 PASS/merge/收口，DEV-001B 在应用身份/会话基础范围 DONE。DEV-STAGING-DEPLOY-001 继续 BLOCKED，尚无公网部署且 trusted ingress/proxy/header/origin 防直连未实现。真实 `covered` 完成仍被 SPEC-CONSENT-TEXT-POLICY-001 阻塞；DEV-LLM-PROVIDER-001、DEV-008D 继续 BLOCKED，CON-023 继续 OPEN。真实授权文本/长者 PII 试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 ASR/LLM 与生产部署后置。
+- Current stage: 探索期 MVP 核心纵向链路验证；DEV-005/006/007A/007B 的 fake/synthetic 工程链路已完成，父 DEV-007 暂停在聚合验收且不作为 008A 前置。统一响应式网页 A、DEV-008A4、DEV-008B1/B2 与 DEV-ASR-PROVIDER-001 已在各自 accepted 范围 DONE；Repeat Interview、Continuing Consent、LLM Provider、Staging Deployment SPEC 与 SEC-AUTH-PUBLIC 已 PASS/merge/收口，DEV-001B 在应用身份/会话基础范围 DONE。DEV-STAGING-DEPLOY-001 继续 BLOCKED，尚无公网部署且 trusted ingress/proxy/header/origin 防直连未实现。真实 `covered` 完成仍被 SPEC-CONSENT-TEXT-POLICY-001 阻塞；DEV-LLM-PROVIDER-001 仅解除 ASR 工程依赖后仍因 provider/model/region/data-policy/secret/migration 等独立门禁 BLOCKED，DEV-008D 继续 BLOCKED，CON-023/027 继续 OPEN。真实授权文本/长者 PII/真实数据试点、正式题库、补转录、云存储、iPhone Safari、PWA/App、真实 LLM 与生产部署后置。
 - Architecture: 模块化单体；Node 24.18、pnpm 11.15 workspace、React/Vite、NestJS、Prisma 7/PostgreSQL；录音、ASR、AI 三链路解耦；正式访谈采用 session-scoped 单流 controller、浏览器 archive/delivery 分离和持久 capture generation。LLM provider-neutral 契约已接受 Vercel AI SDK direct-provider、单 active binding、no fallback、共享 deadline/abort 与隔离横评；真实 runtime/active binding 尚未实现。
 - Constraints: 原始录音、原始转录和原始授权记录不可覆盖；AI/ASR 故障不得影响原始录音；AI 结论必须回链确定态转录；不得提前实现 MVP 外功能。
 - Open questions: “拾光”是否为正式品牌名；真实 ASR 数据处理与 CON-027；LLM provider/model/region/DPA/data policy 与对象存储最终供应商；CON-013/023；正式持续授权正文与 machine policy。CON-006/007/008/012/031 原日志已 RESOLVED 并从开放索引移除；其中 CON-008 只关闭匿名失败审计/应用身份基础，不关闭 trusted ingress 或部署，CON-031 只关闭 provider-neutral 契约未冻结。真实 LLM 外部门禁由 BLOCKED 的 DEV-LLM-PROVIDER-001 继续承接，部署边界由 BLOCKED 的 DEV-STAGING-DEPLOY-001 承接。补转录由 HARDEN-ASR-001 后置。
@@ -1356,3 +1356,12 @@
 - Parent/dependency audit: 仓库没有 canonical DEV-008B 父任务，不新增治理实体；历史 DEV-008 继续 `CANCELLED`，DEV-008A 继续网页 A 范围 `DONE`，DEV-008D 与 SPEC-CONSENT-TEXT-POLICY-001 继续 `BLOCKED`。真实 continuing-consent `covered` 仍不可达。
 - Verification boundary: 本 closeout 只修改 board/trace/review/task/handoff/index/journal，不改 apps/packages/contracts/schema/migrations/dependencies，不宣称真实 LLM/provider、正式授权正文、真实数据、公网部署或真实试点完成，也不启动 #57。
 - Command history: 一次只读 parent/status/handoff 机械核对组合命令已输出所需证据但进程返回 exit 1；该命令未修改文件。随后用更窄的只读命令复核出同一结论，未因此暂停、放宽或扩大任何任务状态。
+
+### 2026-08-15 — DEV-ASR-PROVIDER-001 exact-head 接收与治理收口
+
+- Evidence: accepted content `5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` 的项目负责人 PASS 永久保留；latest-main integration `27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261` 获正式窄复审 PASS（P0/P1/P2=0），评论 `issuecomment-5296422732`；implementation merge/main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS。
+- Decision: DEV-ASR-PROVIDER-001 `REVIEW→DONE`，仅接收 REV-055 记录的工程实现与既有虚构证据。该结论只解除 DEV-LLM-PROVIDER-001 的 ASR 工程依赖；真实 LLM 仍受 provider/model/region/data-policy、DPA/retention/training/跨境与重授权、secret、exact pins/migration/provenance、完整验证和独立审查门禁。
+- Historical integrity: old accepted content、latest-main integration 与 merge/main 三层事实独立保留；更旧 `af99d9129c74e7db5b877aeef43f6d99f248b50c` 继续独占 provider/replay/desktop/Android 虚构实证，不冒充当前 fresh evidence。全部旧失败与审查历史不改写。
+- Remaining boundary: actual billing/SKU unknown，历史约 2403 秒/CNY 0.668 只是估算；CON-027 继续 OPEN。真实长者、PII、真实数据、公网、生产部署与生产试点继续禁止。
+- Verification boundary: 本 closeout 只修改 board/trace/task/handoff/review/index/journal，不改 apps/packages/contracts/schema/migrations/dependencies，不连接腾讯、不上传 PCM、不产生新 provider 费用。沿用本任务开工前已完成的唯一 iteration-coach 只读复核，不启动第二次。
+- Local validation history: 首轮 full unit 为 407/408，既有 `workbench-shell` completed 标题焦点断言读取时 activeElement 仍为 body；未改产品或测试。原样定向复跑 39/39、随后 full unit 408/408 PASS；format、lint、typecheck、build、diff-check 均 PASS。首轮失败永久保留，exact-head CI 仍为最终门禁。

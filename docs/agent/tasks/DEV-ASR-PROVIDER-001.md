@@ -1,17 +1,17 @@
 # DEV-ASR-PROVIDER-001｜腾讯实时 ASR V2 adapter v2 实现与真实验收
 
-- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面/目标 Android 正式链路与受控故障闭环已完成；等待实际账单核对、最新 exact-head CI 与项目负责人手动审查）
-- 当前 closeout 分支：`codex/dev-asr-provider-001-closeout`
-- 当前 latest-main integration base：`origin/main@f2707ff09be2723812aff1a6bc4cfd0e33ab841b`；accepted ASR content head `5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` / 项目负责人 PASS（P0/P1/P2=0）永久保留
-- 当前审查入口：[non-Draft PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57)；exact final head/CI 以 PR 最新 metadata 为准
+- 状态：`DONE`（仅限已接收工程实现与既有虚构证据；actual billing/SKU unknown、CON-027 OPEN，真实长者/PII/真实数据/公网/生产试点继续禁止）
+- 治理 closeout 分支：`codex/dev-asr-provider-001-governance-closeout`；implementation merge/main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS
+- accepted content：`5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` / 项目负责人 PASS（P0/P1/P2=0）；latest-main integration：`27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261` / 正式 PASS（P0/P1/P2=0），均永久保留
+- 审查入口：[PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57)、[正式 PASS 评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/57#issuecomment-5296422732)、[REV-055](../reviews/REV-055.md)
 - 历史候选：`codex/dev-asr-provider-001@af99d9129c74e7db5b877aeef43f6d99f248b50c`、non-Draft PR #45、CI run `31706282385` SUCCESS；旧工作树保持只读且未清理
-- 审查边界：执行 Agent 只交付 non-Draft PR 与 exact-head 证据，不自宣 PASS/DONE、不合并
+- 关闭边界：DONE 只接收工程实现与既有证据，不把旧 provider/replay/desktop/Android 证据冒充 fresh；不关闭账单、数据治理、真实数据或生产试点门禁
 
 ## latest-main integration（2026-08-15）
 
 - 已把 accepted ASR content `5271b52` 人工合入 final main `f2707ff09be2723812aff1a6bc4cfd0e33ab841b`；main 的 PR #54/#55/#56/#58/#59、REV-052/053/054、ADR-041/042、SEC auth、DEV-008B2 与 staging machine contract 事实均保留。PR #59 head `5e9d6eda` / CI `31822686412` SUCCESS，final main `f2707ff` / CI `31823015620` SUCCESS。
 - main 已有 17 个 migration；删除遗留 session-wide speaker index 的 ASR migration 机械顺延为 `20260815120000_drop_legacy_speaker_mapping_session_unique`，成为第 18 个。SEC 两个 migration 与 B2 第 17 个 migration 保持原名、原顺序、原内容。
-- accepted content PASS 与 integration 窄复审分层：accepted `5271b52` / CI `31800257197` / P0/P1/P2=0 不被重写；integration 使用 canonical `REV-055`，继续 `REVIEW`，等待 new exact-head CI 与授权独立复审，不得自行 PASS/DONE/merge。
+- accepted content PASS 与 integration 窄复审分层：accepted `5271b52` / CI `31800257197` / P0/P1/P2=0 不被重写；canonical REV-055 接收 integration `27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261`，正式 PASS 评论 `5296422732`，P0/P1/P2=0；merge/main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS。
 - 本任务开工前已有恰好一次 iteration-coach。latest-main integration 属同一 closeout 任务；一次误启动的第二复核在用户纠正后立即中断，未产出或采纳任何结论，后续不再启动。
 - integration 本地矩阵：format/lint/typecheck/build/diff PASS；unit 66 files / 408 tests，fresh PostgreSQL integration 15 files / 94 tests，auth 4 files / 26 tests；smoke、普通 Chromium 27/27、auth Chromium 5/5；18 migrations fresh/repeat/status；正式 R4 300000ms 1/1（296 chunks、单一 audio object、两代 capture/stream、pending=0、manifest/audio complete、session completed、sticky degraded）全部通过。
 - 机械无漂移证明：accepted ASR 非重叠代码/测试 33 blobs 与 `5271b52` 完全一致；main 非重叠内容 66 blobs 与 `f2707ff` 完全一致。两个运行时/测试重叠文件只组合 B2 post-session notification、direct-peer forged-header 401 负例与原 accepted ASR 变更。

@@ -1,11 +1,11 @@
-# DEV-ASR-PROVIDER-001｜腾讯实时 ASR V2 adapter v2 REVIEW 交接
+# DEV-ASR-PROVIDER-001｜腾讯实时 ASR V2 adapter v2 DONE 交接
 
 ## 状态与 Git 身份
 
-- 状态：`REVIEW`（真实 provider、同 PCM 三次 replay、桌面正常链路、受控故障闭环与目标 Android 正式链路均已完成；等待实际账单与项目负责人 exact-head 手动审查），不是 PASS/DONE。
-- 当前 closeout 分支：`codex/dev-asr-provider-001-closeout`；exact base `origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`。
+- 状态：`DONE`，仅限已接收工程实现与既有虚构证据。actual billing/SKU unknown、CON-027 OPEN，真实长者/PII/真实数据/公网/生产试点继续禁止。
+- 治理 closeout 分支：`codex/dev-asr-provider-001-governance-closeout`；exact base `origin/main@dd45f5e0f8cc24b764830b596f9a7c59fcc62e75`。
 - 历史候选保持：`codex/dev-asr-provider-001@af99d9129c74e7db5b877aeef43f6d99f248b50c`、non-Draft PR #45、CI `31706282385` SUCCESS；旧工作树只读核对，未覆盖、清理或删除。
-- 新 closeout [non-Draft PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57) 的 exact final head/CI 以该 PR 最新 metadata 为准；项目负责人尚未完成绑定该 head 的手动审查；不得合并。
+- implementation [PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57) 已以 integration head `27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261` 获正式 PASS（P0/P1/P2=0）并 merge 为 main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS。
 - 上一轮因 Codex usage limit 发生环境中断；该记录不是实现失败、验收失败或通过结论。本轮从原工作树继续，没有重建或丢弃修改。
 
 ## 已形成的实现候选
@@ -146,7 +146,7 @@
 - 项目负责人已对 PR #57 accepted ASR content exact head `5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` 正式手动 PASS，P0/P1/P2=0。该审查事实永久保留；它不等于后续 integration head 已自动 PASS。
 - 本轮人工整合 final main `f2707ff09be2723812aff1a6bc4cfd0e33ab841b` / CI `31823015620` SUCCESS。保留 PR #54/#55/#56/#58/#59、REV-052/053/054 与 ADR alias 历史；PR #59 head `5e9d6eda` / CI `31822686412` SUCCESS。SEC auth/direct-peer、B2 coordinator/migration 与 staging synthetic-only contract 未被 ASR 覆盖。
 - ASR migration 从 branch-local `20260814122000` 机械顺延为 `20260815120000_drop_legacy_speaker_mapping_session_unique`，在 SEC migration #15/#16 与 B2 migration #17 后成为第 18 个；只删除遗留 `speaker_mapping_current_key`，stream-scoped replacement 不变。
-- canonical 集成复审编号为 `REV-055`；本任务此前没有 branch-local ASR review 编号，因此没有需要重映射的 alias。accepted content PASS 与 integration `REVIEW` 并存，待 new exact-head CI 与授权独立窄复审；PR #57 保持 OPEN/non-Draft，不自行 PASS/DONE/merge。
+- canonical 集成复审编号为 `REV-055`；本任务此前没有 branch-local ASR review 编号，因此没有需要重映射的 alias。accepted content PASS 与 integration PASS 分层保留：integration `27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261` 获正式窄复审 PASS（P0/P1/P2=0），评论 `5296422732`；merge/main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS。
 - 本 closeout 开工前已完成唯一一次 iteration-coach。latest-main integration 属同一任务；执行窗口曾误启动第二复核，收到项目负责人纠正后立即中断，未取得、未采用任何输出，也未据此修改计划或实现。
 - 本轮不建立腾讯连接、不上传 PCM、不产生新 provider 费用；旧 provider/replay/desktop/Android 证据继续严格绑定 `af99d91`。actual billing/SKU 仍 unknown，CON-027 继续 OPEN，真实长者/PII、真实数据与生产试点继续禁止。
 
@@ -165,3 +165,12 @@
 - R4 首次错误附加 `--project=chromium`，因正式配置唯一项目为 `desktop-chromium-formal-route` 而在用例开始前退出；去掉错误参数后正式 300 秒用例 1/1 PASS。
 - 首次 speaker index 只读 SQL 查询使用错误表名而返回空；随后一次组合 PowerShell 命令又因引号未闭合在执行前退出。改用实际 `speaker_mapping` 表名与简化 quoting 后机械确认 stream-scoped indexes 存在、遗留 index 不存在。
 - integration/R4 仍输出既有 pg `client.query while already executing` deprecation warning；断言均通过，未扩大范围处理。
+
+## governance closeout（2026-08-15）
+
+- REV-055 永久分层记录 accepted content `5271b52` / CI `31800257197` / owner PASS，latest-main integration `27f1c84` / CI `31824839261` / 正式 PASS 评论 `5296422732` / P0/P1/P2=0，以及 implementation merge/main `dd45f5e` / CI `31825548551` SUCCESS；任一较旧审查、失败或 CI 历史均未覆盖。
+- 历史 `af99d91` 仍独占 provider/replay/desktop/Android 虚构实证；本 closeout 没有建立腾讯连接、上传 PCM 或产生费用，旧证据不冒充当前 fresh evidence。
+- actual billing/SKU 仍 unknown；CON-027 继续 OPEN。真实长者、PII、真实数据、公网、生产部署与生产试点继续禁止。
+- DEV-LLM-PROVIDER-001 仅解除 ASR 工程依赖，仍受 provider/model/region/data-policy、DPA/retention/training/跨境与重授权、secret、exact pins/migration/provenance、完整 runtime 验证与独立审查门禁。
+- 本交接只更新治理、交接与 journal；不修改 apps/packages/contracts/schema/migrations/dependencies。
+- 本地治理验证：format、lint、typecheck、build、diff-check PASS；full unit 首轮 407/408，既有 completed 标题焦点断言读取到 body，未改产品/测试，原样定向复跑 39/39、随后 full unit 408/408 PASS。首轮失败永久保留；exact-head CI 为最终门禁。
