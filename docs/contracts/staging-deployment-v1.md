@@ -1,6 +1,6 @@
 # Staging Deployment V1 契约
 
-状态：`CANDIDATE / REVIEW`。本文件由 `SPEC-STAGING-DEPLOY-001` 冻结；在项目负责人对非 Draft PR exact head 给出正式结论前，不得视为已接收，不得据此部署真实数据。
+状态：`ACCEPTED / CONTRACT ONLY`。`SPEC-STAGING-DEPLOY-001` 已由项目负责人按 non-Draft PR exact head 正式接收并转为 `DONE`，ADR-041 已转为 `Accepted`；该结论只接收 docs/machine contract，不代表 `DEV-STAGING-DEPLOY-001` 已就绪或完成，不代表已部署公网、已实现 trusted proxy/header/origin 防直连，也不许可任何真实来源数据。
 
 ## 1. 目标与非目标
 

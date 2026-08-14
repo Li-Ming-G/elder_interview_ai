@@ -1365,3 +1365,10 @@
 - Remaining boundary: actual billing/SKU unknown，历史约 2403 秒/CNY 0.668 只是估算；CON-027 继续 OPEN。真实长者、PII、真实数据、公网、生产部署与生产试点继续禁止。
 - Verification boundary: 本 closeout 只修改 board/trace/task/handoff/review/index/journal，不改 apps/packages/contracts/schema/migrations/dependencies，不连接腾讯、不上传 PCM、不产生新 provider 费用。沿用本任务开工前已完成的唯一 iteration-coach 只读复核，不启动第二次。
 - Local validation history: 首轮 full unit 为 407/408，既有 `workbench-shell` completed 标题焦点断言读取时 activeElement 仍为 body；未改产品或测试。原样定向复跑 39/39、随后 full unit 408/408 PASS；format、lint、typecheck、build、diff-check 均 PASS。首轮失败永久保留，exact-head CI 仍为最终门禁。
+
+### 2026-08-15 — DOC-STAGING-STATUS-SYNC-001 机械状态同步
+
+- Drift: staging contract 页首仍写 `CANDIDATE / REVIEW`，`10` §17(3) 仍把 SPEC 接收后自动转 DEV `READY` 写成规则；两处均落后于 REV-052 已接收的 SPEC `DONE`、ADR-041 `Accepted` 与 DEV 持续 `BLOCKED` 事实。
+- Correction: 仅把页首改为 `ACCEPTED / CONTRACT ONLY`，并把 DEV 启动前置精确写为项目负责人明确实施授权、目标 Windows 主机、非秘密资源标识、受控 secret 注入路径、异机备份与外部监控目标；同步 board/REQ-020/REV-052/handoff 的同一现行状态，不新增技术决定或审查结论。
+- Preserved boundary: 唯一 machine authority 仍是 `data_mode=synthetic_only`；没有安装或部署 Cloudflare、没有公网、没有 trusted proxy/header/origin 防直连、没有真实数据许可，DEV-STAGING-DEPLOY-001 继续 `BLOCKED`。本任务未运行 iteration-coach，未实现 preflight/runtime，未接触 token、secret 或真实数据。
+- Local validation history: `pnpm format:check` PASS。首个精确范围检查因 Git 默认把中文路径输出为八进制转义而误报 scope mismatch；未修改文件，随后以 `git -c core.quotepath=false diff --name-only` 保持同一 7 文件白名单重跑，精确范围、`git diff --check`、7 个 Markdown 相对链接及 4 个受影响表格列数均 PASS。首次误报永久保留；exact-head CI 仍是合并门禁。
