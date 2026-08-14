@@ -2,12 +2,21 @@
 
 ## 基本信息
 
-- 状态：`IN_PROGRESS`
+- 状态：`REVIEW`
 - 分支：`codex/sec-auth-public-001`
 - 基线：`origin/main@1eb26b2f0f6f56d72b9646f3c5e876ad4cbb4228`
+- PR：[非 Draft PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55)
+- 候选提交：contract `84b009e23ce26cbdc45ff1c3d414d5a2cf961647`；runtime `02dc367`
 - 负责人：独立 SEC-AUTH-PUBLIC-001 执行任务
 - 审查：项目负责人 GitHub 手动 exact-head 安全审查；实现者不得自宣 PASS/DONE/merge
 - iteration-coach：恰好一次独立只读复核，结论 `Clear / NO-PAUSE`
+
+## 当前证据
+
+- 本地 format/lint/typecheck、unit 382/382、build、生产依赖审计、diff check 通过；
+- 空 PostgreSQL 从零应用 16 个迁移、status、重复 deploy/status 通过；integration 84/84、auth 26/26；
+- smoke、普通 Chromium 27/27、auth Chromium 5/5 通过；auth Chromium 首次启动曾因前序门禁短暂占用本地 3101 端口失败，端口自动释放后 clean rerun 通过，旧失败永久保留；
+- PR exact-head CI 与项目负责人手动安全审查待定；当前不等于 PASS/DONE，不允许合并或启用公网。
 
 ## 目标
 

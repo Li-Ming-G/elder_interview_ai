@@ -7,6 +7,7 @@
 | 任务 | 最新审查 | 绑定提交 / PR | 结论 | 当前边界或未关闭意见 |
 |---|---|---|---|---|
 | DEV-001B | REV-007 | `ab9628b` | REVIEW | CON-008、增强 Chromium 与独立复审仍影响最终加固；不阻塞内部虚构身份原型 |
+| SEC-AUTH-PUBLIC-001 | 待项目负责人 exact-head 安全审查 | [PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55) / contract `84b009e` / runtime `02dc367` | REVIEW | 本地完整门禁已通过；PR exact-head CI 和项目负责人结论待定。ADR-041 保持 Proposed，CON-008/DEV-001B 保持 REVIEW；不得由实现者自宣 PASS/DONE/merge |
 | DEV-002 | REV-009 | `f16b82a` | DONE | 仅内部虚构项目/授权/会话；CON-010 不允许真实口头授权音频试点 |
 | DEV-003 | REV-011 | PR #2 / `1aa643a` | DONE | 仅内部合成音频；真实麦克风、长时、云存储、真实试点未覆盖 |
 | DEV-004A | REV-012 | PR #3 / `917f888` | DONE | 仅确定态转录证据核心；真实 ASR、实时事件和真实试点未覆盖 |
