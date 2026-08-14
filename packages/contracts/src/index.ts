@@ -937,3 +937,271 @@ export interface InterviewWsErrorPayload {
   code: string;
   reset_required?: boolean;
 }
+
+/**
+ * SPEC-LLM-PROVIDER-001 candidate shared contract. It is not a runtime
+ * configuration authority until the task's exact head is accepted.
+ */
+export const LLM_PROVIDER_REGISTRY_VERSION = 'llm-provider-registry-v1' as const;
+export const LLM_PROVIDER_REGISTRY_SEMANTICS_VERSION =
+  'llm-provider-registry-semantics-v1' as const;
+export const LLM_PROVIDER_CALL_RECEIPT_VERSION = 'llm-provider-call-receipt-v1' as const;
+export const LLM_MODEL_CONFIG_SCHEMA_VERSION = 'llm-model-config-v1' as const;
+export const LLM_MODEL_CONFIG_CANONICALIZATION_VERSION =
+  'llm-model-config-canonical-json-v1' as const;
+
+export type LlmProviderDataClass = 'synthetic' | 'deidentified' | 'real_interview';
+export type LlmProviderEnvironmentScope = 'development' | 'test' | 'production';
+export type LlmJsonValue = null | boolean | number | string | LlmJsonValue[] | LlmJsonObject;
+export interface LlmJsonObject {
+  [key: string]: LlmJsonValue;
+}
+
+export interface LlmProviderActiveBindingV1 {
+  requested_provider_id: string;
+  requested_provider_model_id: string;
+  model_config_version: string;
+  model_config_digest: string;
+  endpoint_origin: string;
+  data_region: string;
+  secret_reference: string;
+  data_class: LlmProviderDataClass;
+  environment_scope: LlmProviderEnvironmentScope;
+}
+
+export interface LlmModelConfigReferenceV1 {
+  model_config_version: string;
+  model_config_digest: string;
+}
+
+export interface LlmProviderModelProfileV1 {
+  provider_model_id: string;
+  model_config_refs: LlmModelConfigReferenceV1[];
+}
+
+export interface LlmProviderProcessingRegionV1 {
+  data_region: string;
+  jurisdiction: 'domestic' | 'foreign';
+}
+
+export type LlmProviderRealInterviewPolicyV1 =
+  | {
+      allowed: false;
+      authorization_policy_version: null;
+      provider_terms_review_id: null;
+      data_retention_review_id: null;
+      training_use: 'deny';
+      foreign_processing_allowed: false;
+      cross_border_decision_id: null;
+    }
+  | {
+      allowed: true;
+      authorization_policy_version: string;
+      provider_terms_review_id: string;
+      data_retention_review_id: string;
+      training_use: 'deny';
+      foreign_processing_allowed: false;
+      cross_border_decision_id: null;
+    }
+  | {
+      allowed: true;
+      authorization_policy_version: string;
+      provider_terms_review_id: string;
+      data_retention_review_id: string;
+      training_use: 'deny';
+      foreign_processing_allowed: true;
+      cross_border_decision_id: string;
+    };
+
+export interface LlmProviderProfileV1 {
+  provider_id: string;
+  provider_package: string;
+  provider_package_version: string;
+  model_allowlist: LlmProviderModelProfileV1[];
+  endpoint_origins: string[];
+  processing_regions: LlmProviderProcessingRegionV1[];
+  secret_references: string[];
+  environment_scopes: LlmProviderEnvironmentScope[];
+  allowed_data_classes: LlmProviderDataClass[];
+  real_interview_policy: LlmProviderRealInterviewPolicyV1;
+}
+
+export type LlmModelConfigReasoningV1 =
+  | { mode: 'disabled'; effort: null; budget_tokens: null }
+  | {
+      mode: 'effort';
+      effort: 'minimal' | 'low' | 'medium' | 'high';
+      budget_tokens: null;
+    }
+  | { mode: 'budget'; effort: null; budget_tokens: number };
+
+export interface LlmModelConfigManifestV1 {
+  schema_version: typeof LLM_MODEL_CONFIG_SCHEMA_VERSION;
+  canonicalization_version: typeof LLM_MODEL_CONFIG_CANONICALIZATION_VERSION;
+  model_config_version: string;
+  generation: {
+    temperature: number | null;
+    max_output_tokens: number;
+    top_p: number | null;
+    top_k: number | null;
+    presence_penalty: number | null;
+    frequency_penalty: number | null;
+    seed: number | null;
+    stop_sequences: string[];
+    reasoning: LlmModelConfigReasoningV1;
+    response_format: 'json_schema';
+    tools: 'none';
+  };
+  provider_options: Record<string, LlmJsonObject>;
+}
+
+export interface LlmModelConfigManifestRecordV1 {
+  model_config_digest: string;
+  manifest: LlmModelConfigManifestV1;
+}
+
+export interface LlmProviderRegistryV1 {
+  contract_version: typeof LLM_PROVIDER_REGISTRY_VERSION;
+  semantic_contract_version: typeof LLM_PROVIDER_REGISTRY_SEMANTICS_VERSION;
+  artifact_status: 'candidate';
+  sdk: {
+    family: 'vercel_ai_sdk';
+    core_package: 'ai';
+    verified_version: '7.0.65';
+    verified_on: '2026-08-14';
+    license: 'Apache-2.0';
+    node_engine: '>=22';
+    dependency_policy: 'exact_reviewed_versions';
+    max_retries: 0;
+    structured_output: 'output_object_json_schema';
+  };
+  routing: {
+    connection_mode: 'direct_vendor';
+    gateway_enabled: false;
+    litellm_enabled: false;
+    fallback_enabled: false;
+    shadow_traffic_enabled: false;
+    active_binding: LlmProviderActiveBindingV1 | null;
+  };
+  runtime: {
+    absolute_deadline_ms: 8000;
+    coordinator_same_input_retry_max: 1;
+    abort_required: true;
+    late_result_writeback: 'deny';
+    formal_attempt_active_binding_count: 1;
+  };
+  safety: {
+    configuration_authority: 'server_only';
+    secret_injection: 'server_reference_only';
+    real_interview_data_default: 'deny';
+    foreign_real_content_default: 'deny';
+    unknown_configuration: 'fail_closed';
+    asr_provider_pass_required: 'DEV-ASR-PROVIDER-001';
+  };
+  prompt: {
+    active_formal_bundle: 'interview-director-prompt-v1';
+    editable_draft_path: 'docs/prompts/interview-director/v2-draft';
+    draft_runtime_loadable: false;
+    lifecycle: readonly ['draft', 'candidate', 'formal', 'active'];
+    schema_first: true;
+  };
+  evaluation: {
+    allowed_data_classes: readonly ['synthetic', 'deidentified'];
+    frozen_inputs_required: true;
+    artifact_target: 'isolated_evaluation_artifact';
+    prohibited_publish_targets: readonly ['question_current', 'question_history'];
+  };
+  model_config_manifests: LlmModelConfigManifestRecordV1[];
+  providers: LlmProviderProfileV1[];
+}
+
+export type LlmObservedResponseModelIdentityV1 =
+  | {
+      observed_response_model_id: string;
+      observed_response_model_id_source: 'provider_origin' | 'sdk_normalized' | 'unknown';
+    }
+  | {
+      observed_response_model_id: null;
+      observed_response_model_id_source: 'unavailable';
+    };
+
+export type LlmProviderRequestIdentityV1 =
+  | {
+      provider_request_id: string;
+      provider_request_id_source: 'provider';
+    }
+  | {
+      provider_request_id: null;
+      provider_request_id_source: 'unavailable';
+    };
+
+export type LlmSdkResponseIdentityV1 =
+  | {
+      sdk_response_id: string;
+      sdk_response_id_source: 'provider_origin' | 'sdk_generated' | 'unknown';
+    }
+  | {
+      sdk_response_id: null;
+      sdk_response_id_source: 'unavailable';
+    };
+
+export type LlmProviderSettingWarningClassificationV1 =
+  | 'unsupported_setting'
+  | 'ignored_setting'
+  | 'adjusted_setting'
+  | 'provider_warning_other'
+  | 'warning_visibility_unavailable';
+
+export type LlmProviderSettingWarningV1 =
+  | {
+      classification: 'unsupported_setting' | 'ignored_setting' | 'adjusted_setting';
+      setting_path: string;
+      sanitized_code: string;
+    }
+  | {
+      classification: 'provider_warning_other' | 'warning_visibility_unavailable';
+      setting_path: string | null;
+      sanitized_code: string;
+    };
+
+export type LlmProviderConfigApplicationV1 =
+  | { config_application_status: 'as_requested'; warnings: [] }
+  | {
+      config_application_status: 'diverged';
+      warnings: [LlmProviderSettingWarningV1, ...LlmProviderSettingWarningV1[]];
+    }
+  | {
+      config_application_status: 'unknown';
+      warnings: [LlmProviderSettingWarningV1, ...LlmProviderSettingWarningV1[]];
+    };
+
+export type LlmProviderCallReceiptV1 = LlmObservedResponseModelIdentityV1 &
+  LlmProviderRequestIdentityV1 &
+  LlmSdkResponseIdentityV1 &
+  LlmProviderConfigApplicationV1 & {
+    schema_version: typeof LLM_PROVIDER_CALL_RECEIPT_VERSION;
+    requested_provider_id: string;
+    requested_provider_model_id: string;
+    model_config_schema_version: typeof LLM_MODEL_CONFIG_SCHEMA_VERSION;
+    model_config_version: string;
+    model_config_digest: string;
+    sdk_core_package: 'ai';
+    sdk_core_version: string;
+    sdk_provider_package: string;
+    sdk_provider_package_version: string;
+    connection_mode: 'direct_vendor';
+    endpoint_origin: string;
+    data_region: string;
+    token_usage: {
+      input_tokens: number | null;
+      output_tokens: number | null;
+      total_tokens: number | null;
+    };
+    latency_ms: number;
+    status: 'succeeded' | 'failed' | 'aborted' | 'timeout';
+    error_code: string | null;
+    started_at: string;
+    completed_at: string;
+    input_digest: string;
+    output_digest: string | null;
+  };

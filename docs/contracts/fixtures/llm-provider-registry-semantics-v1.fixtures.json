@@ -1,0 +1,262 @@
+{
+  "fixture_version": "llm-provider-registry-semantics-v1-fixtures-v1",
+  "patch_contract": "RFC6902-add-replace-remove-copy",
+  "base_registry": {
+    "contract_version": "llm-provider-registry-v1",
+    "semantic_contract_version": "llm-provider-registry-semantics-v1",
+    "artifact_status": "candidate",
+    "sdk": {
+      "family": "vercel_ai_sdk",
+      "core_package": "ai",
+      "verified_version": "7.0.65",
+      "verified_on": "2026-08-14",
+      "license": "Apache-2.0",
+      "node_engine": ">=22",
+      "dependency_policy": "exact_reviewed_versions",
+      "max_retries": 0,
+      "structured_output": "output_object_json_schema"
+    },
+    "routing": {
+      "connection_mode": "direct_vendor",
+      "gateway_enabled": false,
+      "litellm_enabled": false,
+      "fallback_enabled": false,
+      "shadow_traffic_enabled": false,
+      "active_binding": {
+        "requested_provider_id": "synthetic-provider",
+        "requested_provider_model_id": "synthetic-model",
+        "model_config_version": "synthetic-comparison-v1",
+        "model_config_digest": "eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0",
+        "endpoint_origin": "https://synthetic.invalid",
+        "data_region": "synthetic-foreign-region",
+        "secret_reference": "SYNTHETIC_PROVIDER_API_KEY",
+        "data_class": "synthetic",
+        "environment_scope": "test"
+      }
+    },
+    "runtime": {
+      "absolute_deadline_ms": 8000,
+      "coordinator_same_input_retry_max": 1,
+      "abort_required": true,
+      "late_result_writeback": "deny",
+      "formal_attempt_active_binding_count": 1
+    },
+    "safety": {
+      "configuration_authority": "server_only",
+      "secret_injection": "server_reference_only",
+      "real_interview_data_default": "deny",
+      "foreign_real_content_default": "deny",
+      "unknown_configuration": "fail_closed",
+      "asr_provider_pass_required": "DEV-ASR-PROVIDER-001"
+    },
+    "prompt": {
+      "active_formal_bundle": "interview-director-prompt-v1",
+      "editable_draft_path": "docs/prompts/interview-director/v2-draft",
+      "draft_runtime_loadable": false,
+      "lifecycle": ["draft", "candidate", "formal", "active"],
+      "schema_first": true
+    },
+    "evaluation": {
+      "allowed_data_classes": ["synthetic", "deidentified"],
+      "frozen_inputs_required": true,
+      "artifact_target": "isolated_evaluation_artifact",
+      "prohibited_publish_targets": ["question_current", "question_history"]
+    },
+    "model_config_manifests": [
+      {
+        "model_config_digest": "eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0",
+        "manifest": {
+          "schema_version": "llm-model-config-v1",
+          "canonicalization_version": "llm-model-config-canonical-json-v1",
+          "model_config_version": "synthetic-comparison-v1",
+          "generation": {
+            "temperature": 0.2,
+            "max_output_tokens": 256,
+            "top_p": 1,
+            "top_k": null,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
+            "seed": 42,
+            "stop_sequences": [],
+            "reasoning": { "mode": "disabled", "effort": null, "budget_tokens": null },
+            "response_format": "json_schema",
+            "tools": "none"
+          },
+          "provider_options": {}
+        }
+      }
+    ],
+    "providers": [
+      {
+        "provider_id": "synthetic-provider",
+        "provider_package": "@ai-sdk/synthetic",
+        "provider_package_version": "1.0.0",
+        "model_allowlist": [
+          {
+            "provider_model_id": "synthetic-model",
+            "model_config_refs": [
+              {
+                "model_config_version": "synthetic-comparison-v1",
+                "model_config_digest": "eb9639c9ae5dd8e76547d8756c402717df75fb5b310f316babb5715ad6c583d0"
+              }
+            ]
+          }
+        ],
+        "endpoint_origins": ["https://synthetic.invalid"],
+        "processing_regions": [
+          { "data_region": "synthetic-foreign-region", "jurisdiction": "foreign" }
+        ],
+        "secret_references": ["SYNTHETIC_PROVIDER_API_KEY"],
+        "environment_scopes": ["test"],
+        "allowed_data_classes": ["synthetic"],
+        "real_interview_policy": {
+          "allowed": false,
+          "authorization_policy_version": null,
+          "provider_terms_review_id": null,
+          "data_retention_review_id": null,
+          "training_use": "deny",
+          "foreign_processing_allowed": false,
+          "cross_border_decision_id": null
+        }
+      }
+    ]
+  },
+  "cases": [
+    { "case_id": "valid-exact-binding", "patches": [], "expected_error_codes": [] },
+    {
+      "case_id": "duplicate-provider-identity",
+      "patches": [{ "op": "copy", "from": "/providers/0", "path": "/providers/-" }],
+      "expected_error_codes": ["ACTIVE_PROVIDER_NOT_EXACTLY_ONE", "DUPLICATE_PROVIDER_IDENTITY"]
+    },
+    {
+      "case_id": "missing-active-provider",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/requested_provider_id", "value": "missing-provider" }
+      ],
+      "expected_error_codes": ["ACTIVE_PROVIDER_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "duplicate-model-identity",
+      "patches": [
+        {
+          "op": "copy",
+          "from": "/providers/0/model_allowlist/0",
+          "path": "/providers/0/model_allowlist/-"
+        }
+      ],
+      "expected_error_codes": ["ACTIVE_MODEL_NOT_EXACTLY_ONE", "DUPLICATE_MODEL_IDENTITY"]
+    },
+    {
+      "case_id": "missing-active-model",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/requested_provider_model_id", "value": "missing-model" }
+      ],
+      "expected_error_codes": ["ACTIVE_MODEL_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "duplicate-model-config-identity",
+      "patches": [
+        { "op": "copy", "from": "/model_config_manifests/0", "path": "/model_config_manifests/-" }
+      ],
+      "expected_error_codes": [
+        "ACTIVE_MODEL_CONFIG_NOT_EXACTLY_ONE",
+        "DUPLICATE_MODEL_CONFIG_IDENTITY",
+        "MODEL_CONFIG_REFERENCE_NOT_EXACTLY_ONE"
+      ]
+    },
+    {
+      "case_id": "duplicate-model-config-reference",
+      "patches": [
+        {
+          "op": "copy",
+          "from": "/providers/0/model_allowlist/0/model_config_refs/0",
+          "path": "/providers/0/model_allowlist/0/model_config_refs/-"
+        }
+      ],
+      "expected_error_codes": ["ACTIVE_MODEL_CONFIG_NOT_EXACTLY_ONE", "DUPLICATE_MODEL_CONFIG_REFERENCE"]
+    },
+    {
+      "case_id": "unresolved-model-config-reference",
+      "patches": [
+        {
+          "op": "replace",
+          "path": "/providers/0/model_allowlist/0/model_config_refs/0/model_config_digest",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expected_error_codes": ["ACTIVE_MODEL_CONFIG_NOT_EXACTLY_ONE", "MODEL_CONFIG_REFERENCE_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "manifest-digest-mismatch",
+      "patches": [
+        {
+          "op": "replace",
+          "path": "/model_config_manifests/0/model_config_digest",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expected_error_codes": [
+        "ACTIVE_MODEL_CONFIG_NOT_EXACTLY_ONE",
+        "MODEL_CONFIG_DIGEST_MISMATCH",
+        "MODEL_CONFIG_REFERENCE_NOT_EXACTLY_ONE"
+      ]
+    },
+    {
+      "case_id": "endpoint-not-member",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/endpoint_origin", "value": "https://other.invalid" }
+      ],
+      "expected_error_codes": ["ACTIVE_ENDPOINT_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "region-not-member",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/data_region", "value": "missing-region" }
+      ],
+      "expected_error_codes": ["ACTIVE_REGION_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "duplicate-region-identity",
+      "patches": [
+        {
+          "op": "add",
+          "path": "/providers/0/processing_regions/-",
+          "value": { "data_region": "synthetic-foreign-region", "jurisdiction": "domestic" }
+        }
+      ],
+      "expected_error_codes": ["ACTIVE_REGION_NOT_EXACTLY_ONE", "DUPLICATE_REGION_IDENTITY"]
+    },
+    {
+      "case_id": "secret-reference-not-member",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/secret_reference", "value": "MISSING_API_KEY" }
+      ],
+      "expected_error_codes": ["ACTIVE_SECRET_REFERENCE_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "environment-not-member",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/environment_scope", "value": "production" }
+      ],
+      "expected_error_codes": ["ACTIVE_ENVIRONMENT_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "data-class-not-member",
+      "patches": [
+        { "op": "replace", "path": "/routing/active_binding/data_class", "value": "deidentified" }
+      ],
+      "expected_error_codes": ["ACTIVE_DATA_CLASS_NOT_EXACTLY_ONE"]
+    },
+    {
+      "case_id": "foreign-real-interview-policy-denied",
+      "patches": [
+        { "op": "add", "path": "/providers/0/allowed_data_classes/-", "value": "real_interview" },
+        { "op": "replace", "path": "/routing/active_binding/data_class", "value": "real_interview" }
+      ],
+      "expected_error_codes": [
+        "ACTIVE_FOREIGN_PROCESSING_POLICY_DENIED",
+        "ACTIVE_REAL_INTERVIEW_POLICY_DENIED"
+      ]
+    }
+  ]
+}

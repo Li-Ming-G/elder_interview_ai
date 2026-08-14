@@ -414,6 +414,20 @@
 - 写回：`09` 场景 B 已改为 project 卡 next-session、已有 session review、后台 membership 与 opening exact once；`01` §13、`03` §21、`07` §18 和任务边界同步。
 - 关闭确认：本冲突由项目负责人当前明确指令直接裁决并完成正式文本一致化，标记 RESOLVED；这不代表 B1/B2 runtime 已实现或审查通过。
 
+### CON-031｜真实 LLM 厂商、处理地区与境外数据依据尚未选择
+
+- 状态：`OPEN`
+- 发现时间：2026-08-14
+- 发现者：SPEC-LLM-PROVIDER-001 独立执行 Agent
+- 涉及文件与章节：`00` §10/§14、`01` §16、`02` §19、`07` §17/§19、`08` §10/§20-21、`09` §19、ADR-040
+- 冲突内容：项目负责人已选择 Vercel AI SDK direct-provider 架构，但明确没有选择第一家真实 LLM provider/model/data region，也未决定是否允许向境外厂商发送真实访谈内容。现有授权兼容政策同样把供应商处理地区扩大视为重授权条件。
+- 受影响任务：不阻塞 SPEC-LLM-PROVIDER-001 的 docs/shared contract、v2 draft 和 offline synthetic/deidentified evaluation；阻塞任何真实 LLM runtime provider 选择、真实内容调用、境外数据发送和真实 provider PASS。`DEV-ASR-PROVIDER-001` 未正式 PASS 仍是独立前置。
+- 临时处理：registry 无 provider、active binding=null，真实访谈内容与境外真实内容 default deny；secret/endpoint/region/allowlist 任一未知 fail closed。不得索取密钥或用 SDK/provider 可用性推断授权。
+- 需要谁决策：项目负责人 + 数据治理/适用法务；在实际厂商官方 retention/training/region/DPA、账号/endpoint/model、成本与授权兼容证据齐全后选择。
+- 最终决定：未定。
+- 需要同步修改的文件：关闭时新增实际 provider profile、精确 dependency pins、真实 runtime task、`00/01/02/04/05/07/08/09/10`、ADR、任务板、追踪、测试和授权兼容政策。
+- 关闭条件：`DEV-ASR-PROVIDER-001` 已正式 PASS；项目负责人明确 provider/model/region；数据治理接收真实数据处理依据和所需重授权；profile/config/test/secret injection 全部 fail-closed 并通过 exact-head 审查。关闭 CON-031 不自动等于 runtime 实现 PASS。
+
 ## 登记模板
 
 ```text

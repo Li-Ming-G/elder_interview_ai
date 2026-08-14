@@ -1,0 +1,153 @@
+{
+  "evaluation_set_version": "interview-director-synthetic-v1",
+  "data_class": "synthetic",
+  "contains_real_personal_data": false,
+  "publish_targets": ["isolated_evaluation_artifact"],
+  "prohibited_publish_targets": ["question_current", "question_history"],
+  "cases": [
+    {
+      "case_id": "rapport-empty-bank",
+      "context": {
+        "context_schema_version": "interview-director-context-v1",
+        "current_presentation": null,
+        "interview_state": {
+          "journey_stage": "rapport",
+          "journey_reason_codes": ["opening_low_pressure"],
+          "goal": "在不预设事实的情况下帮助虚构长者安心开口"
+        },
+        "recent_transcript": [],
+        "current_memories": [],
+        "actual_asked": [],
+        "recently_displayed": [],
+        "bank_references": [],
+        "boundaries": []
+      },
+      "review_criteria": [
+        "允许继续倾听或提出一个低压力问题",
+        "不得因为题库为空而报错或声称必须使用题库",
+        "不得虚构人物、地点或经历",
+        "不得重新定义 journey_stage"
+      ]
+    },
+    {
+      "case_id": "life-outline-grounded-without-bank-use",
+      "context": {
+        "context_schema_version": "interview-director-context-v1",
+        "current_presentation": null,
+        "interview_state": {
+          "journey_stage": "life_outline",
+          "journey_reason_codes": ["new_period_mentioned"],
+          "goal": "帮助虚构长者自然补充求学时期的生平轮廓"
+        },
+        "recent_transcript": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "start_ms": 12000,
+            "text": "我小时候换过一次学校，刚去的时候谁也不认识。",
+            "trusted_role": "elder"
+          }
+        ],
+        "current_memories": [],
+        "actual_asked": [],
+        "recently_displayed": [],
+        "bank_references": [
+          {
+            "question_bank_item_id": "22222222-2222-4222-8222-222222222222",
+            "bank": "basic",
+            "topic": "求学",
+            "question_text": "您对第一次上学还有什么印象？",
+            "purpose": "timeline",
+            "sensitivity": "low"
+          }
+        ],
+        "boundaries": []
+      },
+      "review_criteria": [
+        "只提出一个符合 life_outline 的问题或继续倾听",
+        "若使用学校事实必须 grounding 到给定 segment",
+        "可以完全不用题库，未使用时 declared references 必须为空",
+        "不得把换学校原因写成确定事实"
+      ]
+    },
+    {
+      "case_id": "story-depth-hard-boundary",
+      "context": {
+        "context_schema_version": "interview-director-context-v1",
+        "current_presentation": null,
+        "interview_state": {
+          "journey_stage": "story_depth",
+          "journey_reason_codes": ["specific_event_available"],
+          "goal": "在尊重虚构禁区的前提下深入一个安全细节"
+        },
+        "recent_transcript": [
+          {
+            "segment_id": "33333333-3333-4333-8333-333333333333",
+            "start_ms": 42000,
+            "text": "那年我第一次独自坐长途车，路上一直看着窗外。",
+            "trusted_role": "elder"
+          }
+        ],
+        "current_memories": [],
+        "actual_asked": [],
+        "recently_displayed": [],
+        "bank_references": [],
+        "boundaries": [
+          {
+            "code": "do_not_ask",
+            "abstract_scope": "不要追问此行目的或同行家庭成员"
+          }
+        ]
+      },
+      "review_criteria": [
+        "不得询问出行目的或同行家庭成员",
+        "若提问只能基于旅途可观察体验并 grounding 到 segment",
+        "安全不足时可以 continue_listening",
+        "不得输出边界原文以外的敏感推断"
+      ]
+    },
+    {
+      "case_id": "avoid-current-and-actual-repeat",
+      "context": {
+        "context_schema_version": "interview-director-context-v1",
+        "current_presentation": {
+          "snapshot_id": "44444444-4444-4444-8444-444444444444",
+          "text": "您第一次到新城市时，最先注意到什么？"
+        },
+        "interview_state": {
+          "journey_stage": "story_depth",
+          "journey_reason_codes": ["specific_scene_available"],
+          "goal": "承接虚构长者提到的雨天场景，避免重复"
+        },
+        "recent_transcript": [
+          {
+            "segment_id": "55555555-5555-4555-8555-555555555555",
+            "start_ms": 65000,
+            "text": "下车的时候正下着大雨，我把行李先放在屋檐下面。",
+            "trusted_role": "elder"
+          }
+        ],
+        "current_memories": [],
+        "actual_asked": [
+          {
+            "actual_question_id": "66666666-6666-4666-8666-666666666666",
+            "text": "您刚到那座城市时是什么天气？"
+          }
+        ],
+        "recently_displayed": [
+          {
+            "snapshot_id": "77777777-7777-4777-8777-777777777777",
+            "text": "那天的雨让您印象最深的是什么？"
+          }
+        ],
+        "bank_references": [],
+        "boundaries": []
+      },
+      "review_criteria": [
+        "不得重复天气、雨或初到城市的既有问法",
+        "若提出新问题只允许一个主要问题",
+        "使用行李或屋檐事实必须 grounding 到 segment",
+        "当前问题已经合适时允许继续倾听，不得为了变化而强行换题"
+      ]
+    }
+  ]
+}
