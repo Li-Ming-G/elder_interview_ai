@@ -68,8 +68,8 @@ test('formal preparation route preserves one archive across explicit recovery an
     });
   });
 
-  const { csrfToken, projectId } = await loginAndCreateFormalProject(page);
-  await page.goto(`/projects/${projectId}/interview/prepare`);
+  const { csrfToken, projectId, sessionId } = await loginAndCreateFormalProject(page);
+  await page.goto(`/projects/${projectId}/interview/${sessionId}/prepare`);
   await expect(page.getByRole('button', { name: '检测麦克风' })).toBeVisible();
   expect((await browserEvidence(page)).getUserMedia).toHaveLength(0);
 
@@ -79,16 +79,21 @@ test('formal preparation route preserves one archive across explicit recovery an
   expect(preparationMedia.getUserMedia).toHaveLength(1);
   expect(preparationMedia.mediaRecorders).toHaveLength(0);
 
-  const preparationPath = new URL(page.url()).pathname;
-  const sessionId = preparationPath.split('/')[4];
-  if (sessionId === undefined) throw new Error('Formal preparation did not bind a session');
   const localJobId = `interview-capture:${sessionId}`;
 
   await page.getByRole('button', { name: '开始访谈' }).click();
   await expect(page).toHaveURL(
     new RegExp(`/projects/${projectId}/interview/${sessionId}/workbench$`),
   );
+  const confirmSpeakers = page.getByRole('button', { name: '确认说话人' });
+  await expect(confirmSpeakers).toBeEnabled({ timeout: 20_000 });
+  await confirmSpeakers.click();
   await expect(page.getByRole('button', { name: '结束访谈' })).toBeVisible();
+  await page.evaluate(() => {
+    const release = Reflect.get(globalThis, '__dev005r4ReleasePcmGate') as (() => void) | undefined;
+    if (release === undefined) throw new Error('R4 PCM gate is unavailable');
+    release();
+  });
   await expect.poll(async () => (await browserEvidence(page)).mediaRecorders.length).toBe(1);
   await expect
     .poll(async () => (await browserEvidence(page)).wsAudioFrames.length)
@@ -144,7 +149,15 @@ test('formal preparation route preserves one archive across explicit recovery an
   });
 
   await page.getByRole('button', { name: '继续同一次访谈' }).click();
+  const recoveryConfirmSpeakers = page.getByRole('button', { name: '确认说话人' });
+  await expect(recoveryConfirmSpeakers).toBeEnabled({ timeout: 20_000 });
+  await recoveryConfirmSpeakers.click();
   await expect(page.getByRole('button', { name: '结束访谈' })).toBeVisible({ timeout: 20_000 });
+  await page.evaluate(() => {
+    const release = Reflect.get(globalThis, '__dev005r4ReleasePcmGate') as (() => void) | undefined;
+    if (release === undefined) throw new Error('R4 recovery PCM gate is unavailable');
+    release();
+  });
   await expect.poll(async () => (await browserEvidence(page)).mediaRecorders.length).toBe(1);
   await expect
     .poll(async () => (await browserEvidence(page)).wsAudioFrames.length)
@@ -259,7 +272,9 @@ test('formal preparation route preserves one archive across explicit recovery an
   expect(terminal).toMatchObject({
     audioObjectCount: 1,
     audioStatus: 'complete',
-    finalizationTranscriptStatus: 'drained',
+    // The deterministic realtime fixture deliberately fails sequence 2. V2 keeps
+    // recording alive and therefore must preserve that known gap as sticky degraded.
+    finalizationTranscriptStatus: 'degraded',
     sessionStatus: 'completed',
   });
   expect(terminal.generationCount).toBe(2);
@@ -316,7 +331,7 @@ function assertOneStreamFeedsArchiveAndPcm(evidence: BrowserEvidence): void {
 
 async function loginAndCreateFormalProject(
   page: Page,
-): Promise<{ csrfToken: string; projectId: string }> {
+): Promise<{ csrfToken: string; projectId: string; sessionId: string }> {
   await page.goto('/');
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
@@ -325,8 +340,8 @@ async function loginAndCreateFormalProject(
   );
   await page.locator('form button[type="submit"]').click();
   const login = (await (await loginResponse).json()) as { csrf_token: string };
-  await expect(page.getByRole('heading', { name: '已登录' })).toBeVisible();
-  const projectId = await page.evaluate(async (csrfToken) => {
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
+  const { projectId, sessionId } = await page.evaluate(async (csrfToken) => {
     async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
       const createRequest =
         path === '/projects' || /^\/projects\/[^/]+\/(service-terms|consents|sessions)$/.test(path);
@@ -360,14 +375,15 @@ async function loginAndCreateFormalProject(
     await write(`/projects/${id}/consents`, {
       consent_audio_object_id: null,
       consent_method: 'electronic',
-      consent_text_version: 'mvp-v1',
+      consent_text_version: 'fictional-test-continuing-consent-v1',
       consent_type: 'recording_transcription_ai',
       consented_at: new Date().toISOString(),
     });
-    return id;
+    const session = await write(`/projects/${id}/sessions`);
+    return { projectId: id, sessionId: String(session.id) };
   }, login.csrf_token);
   acceptanceProjectIds.add(projectId);
-  return { csrfToken: login.csrf_token, projectId };
+  return { csrfToken: login.csrf_token, projectId, sessionId };
 }
 
 async function browserEvidence(page: Page): Promise<BrowserEvidence> {
@@ -442,6 +458,15 @@ async function installNativeMediaEvidence(page: Page): Promise<void> {
       this: WebSocket,
       data: string | ArrayBufferLike | Blob | ArrayBufferView,
     ) => void;
+    let holdFailureFrame = true;
+    const heldFrames: Array<{
+      data: string | ArrayBufferLike | Blob | ArrayBufferView;
+      socket: WebSocket;
+    }> = [];
+    Reflect.set(globalThis, '__dev005r4ReleasePcmGate', () => {
+      holdFailureFrame = false;
+      for (const frame of heldFrames.splice(0)) nativeSend.call(frame.socket, frame.data);
+    });
     WebSocket.prototype.send = function send(
       data: string | ArrayBufferLike | Blob | ArrayBufferView,
     ): void {
@@ -457,6 +482,10 @@ async function installNativeMediaEvidence(page: Page): Promise<void> {
             type?: unknown;
           };
           if (message.type === 'audio.frame' && message.payload !== undefined) {
+            if (holdFailureFrame && Number(message.payload.sequence_no) >= 2) {
+              heldFrames.push({ data, socket: this });
+              return;
+            }
             evidence.wsAudioFrames.push({
               audioStreamId: String(message.payload.audio_stream_id),
               endMs: Number(message.payload.end_ms),
@@ -492,7 +521,7 @@ async function localEvidence(
   return page.evaluate(
     async ({ jobId, targetSessionId }): Promise<LocalEvidence> => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
-        const open = indexedDB.open('elder-interview-audio-buffer', 4);
+        const open = indexedDB.open('elder-interview-audio-buffer');
         open.onerror = (): void => {
           reject(open.error ?? new Error('IndexedDB open failed'));
         };
@@ -646,8 +675,14 @@ async function cleanupAcceptanceProject(projectId: string): Promise<void> {
         where: { finalization: sessionWhere },
       });
       await tx.sessionFinalization.deleteMany({ where: sessionWhere });
+      await tx.aiJob.deleteMany({ where: { projectId } });
+      await tx.speakerCalibrationAttemptSegment.deleteMany({
+        where: { attempt: { session: { projectId } } },
+      });
+      await tx.speakerCalibrationAttempt.deleteMany({ where: sessionWhere });
       await tx.transcriptSegment.deleteMany({ where: { session: { projectId } } });
       await tx.speakerMapping.deleteMany({ where: { session: { projectId } } });
+      await tx.speakerStream.deleteMany({ where: { session: { projectId } } });
       await tx.consentRecord.deleteMany({ where: { projectId } });
       await tx.audioChunk.deleteMany({ where: { audioObject: { projectId } } });
       await tx.sessionCaptureGeneration.deleteMany({ where: { session: { projectId } } });

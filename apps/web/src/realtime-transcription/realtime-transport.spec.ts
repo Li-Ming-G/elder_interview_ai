@@ -213,6 +213,26 @@ describe('RealtimeTranscriptionTransport', () => {
     expect(classifyError(code)).toBe(kind);
   });
 
+  it('stops realtime frame delivery on ASR unavailable without overwriting it as a session gap', async () => {
+    const socket = new FakeSocket();
+    const { transport, states } = harness([socket]);
+    transport.connect();
+    socket.open();
+    socket.message(server('session.ready', 0, { resumed: false }));
+    expect(await transport.sendSyntheticFrame(1)).toBe(true);
+
+    socket.message(server('asr.status', 1, { code: 'ASR_UNAVAILABLE', status: 'unavailable' }));
+
+    expect(latest(states)).toMatchObject({
+      connection: 'unavailable',
+      errorCode: 'ASR_UNAVAILABLE',
+      failureKind: 'asr',
+    });
+    expect(socket.readyState).toBe(3);
+    expect(await transport.sendSyntheticFrame(2)).toBe(false);
+    expect(messages(socket).filter(({ type }) => type === 'audio.frame')).toHaveLength(1);
+  });
+
   it.each([
     ['INVALID_CSRF_TOKEN', 4401, 'auth'],
     ['FORBIDDEN', 4403, 'permission'],

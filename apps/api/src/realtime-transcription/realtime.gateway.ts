@@ -23,7 +23,11 @@ import {
   RealtimeRuntimeService,
   type SessionRuntime,
 } from './realtime-runtime.service.js';
-import { StreamingAsrAdapter, StreamingAsrUnavailableError } from './streaming-asr.js';
+import {
+  StreamingAsrAdapter,
+  StreamingAsrError,
+  type StreamingAsrResult,
+} from './streaming-asr.js';
 
 const NIL_UUID = '00000000-0000-4000-8000-000000000000';
 
@@ -188,6 +192,7 @@ export class RealtimeTranscriptionGateway {
     }
 
     let runtime: SessionRuntime;
+    let acceptedPcmEvidenceLost = false;
     let replay: readonly { envelope: InterviewWsServerEnvelope<InterviewWsServerType, unknown> }[] =
       [];
     if (resumeRequested) {
@@ -232,6 +237,7 @@ export class RealtimeTranscriptionGateway {
         state.queue,
         joinAccess.timelineOffsetMs,
       );
+      acceptedPcmEvidenceLost = existing === null && joinAccess.acceptedPcmEvidenceExists;
     }
     if (mode === 'produce') {
       if (runtime.producer !== null && runtime.producer !== client) {
@@ -283,6 +289,44 @@ export class RealtimeTranscriptionGateway {
         this.runtimes.append(runtime, 'speaker.calibration.updated', calibration),
       );
     }
+    if (mode === 'produce' && !resumeRequested) {
+      void this.openAsr(runtime, acceptedPcmEvidenceLost).catch(() => {
+        this.runtimes.publish(runtime, 'asr.status', {
+          code: 'ASR_UNAVAILABLE',
+          status: 'unavailable',
+        });
+      });
+    }
+  }
+
+  private async openAsr(runtime: SessionRuntime, acceptedPcmEvidenceLost: boolean): Promise<void> {
+    await this.adapter.open({
+      initialSpeakerStreamId: runtime.speakerStreamId,
+      onAttempt: (identity) => {
+        this.runtimes.bindAsrAttempt(runtime, identity);
+        return Promise.resolve();
+      },
+      onResult: (result) => this.ingestAsrResult(runtime, result),
+      onStatus: () => {
+        this.runtimes.publish(runtime, 'asr.status', {
+          code: 'ASR_UNAVAILABLE',
+          status: 'unavailable',
+        });
+      },
+      rotateSpeakerStream: async () => {
+        const speakerStreamId = await this.runtimes.rotateSpeakerStream(runtime);
+        this.runtimes.publishCalibration(
+          runtime,
+          await this.calibrationSnapshots.get(runtime.sessionId),
+        );
+        return speakerStreamId;
+      },
+      sessionId: runtime.sessionId,
+    });
+    if (acceptedPcmEvidenceLost) {
+      this.adapter.markCoverageGap(runtime.sessionId, 'evidence_lost', null, null);
+    }
+    this.runtimes.publish(runtime, 'asr.status', { status: 'connected' });
   }
 
   private async frame(
@@ -318,97 +362,94 @@ export class RealtimeTranscriptionGateway {
     runtime.pendingFrames += 1;
     runtime.pendingBytes += 3200;
     try {
-      const results = await this.captureEvidence.acceptAndPersist(
+      await this.captureEvidence.acceptAndPersist(
         runtime.sessionId,
         runtime.audioStreamId,
         (signal) => this.adapter.accept({ frame, sessionId: runtime.sessionId, signal }),
       );
       if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
-      for (const result of results) {
-        const sessionTimelineResult = {
-          ...mapAsrResultToSessionTimeline(result, runtime.timelineOffsetMs),
-          speakerStreamId: runtime.speakerStreamId,
-        };
-        const persisted = await this.ingestion.ingest(sessionTimelineResult);
-        if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
-        if (persisted.kind === 'interim') {
-          this.sendStored(
-            client,
-            this.runtimes.append(runtime, 'asr.interim', {
-              content_kind: persisted.contentKind,
-              end_ms: sessionTimelineResult.endMs,
-              finality: 'interim',
-              hypothesis_id: sessionTimelineResult.ingestKey,
-              revision: frame.sequence_no,
-              start_ms: sessionTimelineResult.startMs,
-              text: sessionTimelineResult.text,
-            }),
-          );
-        } else if (!runtime.publishedFinalSegmentIds.has(persisted.segment.id)) {
-          runtime.publishedFinalSegmentIds.add(persisted.segment.id);
-          const speakerRole = projectTrustedSpeakerRole(persisted.segment);
-          this.sendStored(
-            client,
-            this.runtimes.append(runtime, 'asr.final', {
-              end_ms: persisted.segment.endMs,
-              finality: 'final',
-              segment_id: persisted.segment.id,
-              effective_speaker_role: speakerRole.effectiveSpeakerRole,
-              speaker_provider_id: persisted.segment.speakerProviderId,
-              speaker_role: persisted.segment.originalSpeakerRole,
-              speaker_role_authority: persisted.segment.originalRoleAuthority,
-              speaker_role_revision: persisted.segment.speakerRoleRevision,
-              speaker_stream_id: persisted.segment.speakerStreamId,
-              content_kind: persisted.segment.contentKind,
-              start_ms: persisted.segment.startMs,
-              text: persisted.segment.originalText,
-              trusted_effective_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
-              trusted_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
-            }),
-          );
-          if (persisted.segment.contentKind === 'conversation') {
-            this.runtimes.notifyFinalized({
-              segmentId: persisted.segment.id,
-              sessionId: runtime.sessionId,
-            });
-          }
-          const label = persisted.segment.speakerProviderId;
-          if (
-            label !== null &&
-            persisted.segment.contentKind === 'speaker_calibration' &&
-            !runtime.publishedCalibrationLabels.has(label)
-          ) {
-            runtime.publishedCalibrationLabels.add(label);
-            this.sendStored(
-              client,
-              this.runtimes.append(
-                runtime,
-                'speaker.calibration.updated',
-                await this.calibrationSnapshots.get(runtime.sessionId),
-              ),
-            );
-          }
-        }
-      }
-      if (!this.runtimes.isProducerLeaseCurrent(runtime, client, producerLease)) return;
       this.runtimes.recordFrame(runtime, frame);
       this.audioAck(client, runtime);
     } catch (error) {
-      if (error instanceof StreamingAsrUnavailableError) {
-        this.sendStored(
-          client,
-          this.runtimes.append(runtime, 'asr.status', {
-            code: 'ASR_UNAVAILABLE',
-            status: 'unavailable',
-          }),
-        );
-        this.fail(client, state, 'ASR_UNAVAILABLE', 4503);
+      this.adapter.markCoverageGap(
+        runtime.sessionId,
+        'evidence_lost',
+        frame.sequence_no,
+        frame.sequence_no,
+      );
+      if (error instanceof StreamingAsrError) {
+        this.runtimes.publish(runtime, 'asr.status', {
+          code: 'ASR_UNAVAILABLE',
+          status: 'unavailable',
+        });
         return;
       }
       throw error;
     } finally {
       runtime.pendingFrames -= 1;
       runtime.pendingBytes -= 3200;
+    }
+  }
+
+  private async ingestAsrResult(
+    runtime: SessionRuntime,
+    result: StreamingAsrResult,
+  ): Promise<void> {
+    if (!this.runtimes.isAsrAttemptCurrent(runtime, result)) return;
+    const sessionTimelineResult = {
+      ...mapAsrResultToSessionTimeline(result, runtime.timelineOffsetMs),
+      speakerStreamId: result.speakerStreamId,
+    };
+    const persisted = await this.ingestion.ingest(sessionTimelineResult);
+    if (!this.runtimes.isAsrAttemptCurrent(runtime, result)) return;
+    if (persisted.kind === 'interim') {
+      this.runtimes.publish(runtime, 'asr.interim', {
+        content_kind: persisted.contentKind,
+        end_ms: sessionTimelineResult.endMs,
+        finality: 'interim',
+        hypothesis_id: sessionTimelineResult.ingestKey,
+        revision: Math.max(0, Math.floor(sessionTimelineResult.endMs / 100)),
+        start_ms: sessionTimelineResult.startMs,
+        text: sessionTimelineResult.text,
+      });
+      return;
+    }
+    if (runtime.publishedFinalSegmentIds.has(persisted.segment.id)) return;
+    runtime.publishedFinalSegmentIds.add(persisted.segment.id);
+    const speakerRole = projectTrustedSpeakerRole(persisted.segment);
+    this.runtimes.publish(runtime, 'asr.final', {
+      content_kind: persisted.segment.contentKind,
+      effective_speaker_role: speakerRole.effectiveSpeakerRole,
+      end_ms: persisted.segment.endMs,
+      finality: 'final',
+      segment_id: persisted.segment.id,
+      speaker_provider_id: persisted.segment.speakerProviderId,
+      speaker_role: persisted.segment.originalSpeakerRole,
+      speaker_role_authority: persisted.segment.originalRoleAuthority,
+      speaker_role_revision: persisted.segment.speakerRoleRevision,
+      speaker_stream_id: persisted.segment.speakerStreamId,
+      start_ms: persisted.segment.startMs,
+      text: persisted.segment.originalText,
+      trusted_effective_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
+      trusted_speaker_role: speakerRole.trustedEffectiveSpeakerRole,
+    });
+    if (persisted.segment.contentKind === 'conversation') {
+      this.runtimes.notifyFinalized({
+        segmentId: persisted.segment.id,
+        sessionId: runtime.sessionId,
+      });
+    }
+    const label = persisted.segment.speakerProviderId;
+    if (
+      label !== null &&
+      persisted.segment.contentKind === 'speaker_calibration' &&
+      !runtime.publishedCalibrationLabels.has(label)
+    ) {
+      runtime.publishedCalibrationLabels.add(label);
+      this.runtimes.publishCalibration(
+        runtime,
+        await this.calibrationSnapshots.get(runtime.sessionId),
+      );
     }
   }
 
@@ -442,9 +483,10 @@ export class RealtimeTranscriptionGateway {
     if (code === 'INVALID_CSRF_TOKEN' || code === 'AUTH_REQUIRED')
       this.fail(client, state, code, 4401);
     else if (code === 'SESSION_NOT_STREAMABLE') this.fail(client, state, code, 4408);
-    else if (code === 'FORBIDDEN' || code === 'NOT_FOUND')
+    else if (code === 'FORBIDDEN' || code === 'NOT_FOUND') {
+      if (state.sessionId !== null) void this.adapter.cancel(state.sessionId);
       this.fail(client, state, 'FORBIDDEN', 4403);
-    else this.fail(client, state, 'REALTIME_UNAVAILABLE', 4500);
+    } else this.fail(client, state, 'REALTIME_UNAVAILABLE', 4500);
   }
 
   private fail(

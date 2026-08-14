@@ -1,8 +1,10 @@
 import WebSocket from 'ws';
 
 const action = process.argv[2];
-if (!['arm', 'inspect', 'setup', 'summary'].includes(action)) {
-  throw new Error('Expected arm, inspect, setup, or summary');
+if (
+  !['arm', 'confirm', 'end', 'inspect', 'microphone', 'setup', 'start', 'summary'].includes(action)
+) {
+  throw new Error('Expected arm, confirm, end, inspect, microphone, setup, start, or summary');
 }
 
 const targetsResponse = await fetch('http://127.0.0.1:9222/json/list');
@@ -30,6 +32,7 @@ socket.on('message', (data) => {
   const waiter = pending.get(message.id);
   if (waiter === undefined) return;
   pending.delete(message.id);
+  clearTimeout(waiter.timer);
   if (message.error === undefined) waiter.resolve(message.result);
   else waiter.reject(new Error(message.error.message ?? 'CDP command failed'));
 });
@@ -38,7 +41,11 @@ function command(method, params = {}) {
   const id = nextId;
   nextId += 1;
   return new Promise((resolve, reject) => {
-    pending.set(id, { reject, resolve });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`CDP command timed out: ${method}`));
+    }, 10_000);
+    pending.set(id, { reject, resolve, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
 }
@@ -63,15 +70,86 @@ if (action === 'arm') {
   process.stdout.write(
     `${JSON.stringify({ action, ...(await evaluate(pageEvidenceExpression())) })}\n`,
   );
+} else if (action === 'confirm') {
+  const confirmed = await evaluate(`(async () => {
+    const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '确认说话人');
+    if (button === undefined || button.disabled) return false;
+    button.click();
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      if (document.body.textContent.includes('说话人已确认')) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  })()`);
+  process.stdout.write(`${JSON.stringify({ action, confirmed })}\n`);
+} else if (action === 'end') {
+  const ended = await evaluate(`(async () => {
+    const end = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '结束访谈');
+    if (end === undefined || end.disabled) throw new Error('end button unavailable');
+    end.click();
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const confirm = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '确认结束');
+      if (confirm !== undefined && !confirm.disabled) {
+        confirm.click();
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  })()`);
+  process.stdout.write(`${JSON.stringify({ action, ended })}\n`);
+} else if (action === 'microphone') {
+  const microphone = await evaluate(`(async () => {
+    const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '检测麦克风');
+    if (button === undefined) throw new Error('microphone button missing');
+    button.click();
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      const start = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '开始访谈');
+      if (start !== undefined && !start.disabled) return { startEnabled: true };
+      const error = document.querySelector('[role="alert"]');
+      if (error !== null) return { errorVisible: true, startEnabled: false };
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return { startEnabled: false, timedOut: true };
+  })()`);
+  process.stdout.write(`${JSON.stringify({ action, ...microphone })}\n`);
+} else if (action === 'start') {
+  const started = await evaluate(`(async () => {
+    const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent.trim() === '开始访谈');
+    if (button === undefined || button.disabled) throw new Error('start button unavailable');
+    button.click();
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      if (/\\/interview\\/[^/]+\\/workbench$/.test(location.pathname)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  })()`);
+  process.stdout.write(`${JSON.stringify({ action, started })}\n`);
 } else if (action === 'setup') {
   await command('Page.addScriptToEvaluateOnNewDocument', { source: evidenceInitSource() });
   const setup = await evaluate(`(async () => {
-    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store', credentials: 'same-origin' });
-    if (!csrfResponse.ok) throw new Error('csrf:' + csrfResponse.status);
-    const csrf = (await csrfResponse.json()).csrf_token;
+    let csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store', credentials: 'same-origin' });
+    let csrf;
+    if (csrfResponse.ok) {
+      csrf = (await csrfResponse.json()).csrf_token;
+    } else {
+      const loginResponse = await fetch('/api/v1/auth/login', {
+        body: JSON.stringify({ email: 'listener-a@example.test', password: 'Fictional-only-Password-42!' }),
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+      if (!loginResponse.ok) throw new Error('login:' + loginResponse.status);
+      csrf = (await loginResponse.json()).csrf_token;
+    }
     async function write(path, body) {
+      const requestBody = { ...body, request_id: crypto.randomUUID() };
       const response = await fetch('/api/v1' + path, {
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: JSON.stringify(requestBody),
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         method: 'POST',
@@ -86,7 +164,7 @@ if (action === 'arm') {
     });
     await write('/projects/' + project.id + '/consents', {
       consent_audio_object_id: null, consent_method: 'electronic',
-      consent_text_version: 'dev005r4-android-fictional-v1',
+      consent_text_version: 'mvp-v1',
       consent_type: 'recording_transcription_ai', consented_at: new Date().toISOString(),
     });
     return { projectId: project.id };
@@ -120,6 +198,7 @@ if (action === 'arm') {
         height: page.height,
         local: r4State.local,
         orientation: page.orientation,
+        safeFlags: page.safeFlags,
         server: r4State.server,
         url: page.url,
         visibility: page.visibility,
@@ -133,6 +212,7 @@ if (action === 'arm') {
 }
 
 socket.close();
+process.exit(0);
 
 function pageEvidenceExpression() {
   return `(() => ({
@@ -143,6 +223,12 @@ function pageEvidenceExpression() {
     height: innerHeight,
     orientation: screen.orientation?.type ?? null,
     permission: 'permissions' in navigator ? 'queryable' : 'unavailable',
+    safeFlags: {
+      calibrationCollecting: document.body.textContent.includes('正在确认说话人'),
+      recording: document.body.textContent.includes('正在录音'),
+      speakerConfirmed: document.body.textContent.includes('说话人已确认'),
+      transcriptionUnavailable: document.body.textContent.includes('转录暂不可用') || document.body.textContent.includes('转录服务暂不可用'),
+    },
     title: document.title,
     url: location.href,
     visibility: document.visibilityState,
@@ -161,7 +247,7 @@ function r4StateExpression() {
     let database;
     try {
       database = await new Promise((resolve, reject) => {
-        const open = indexedDB.open('elder-interview-audio-buffer', 4);
+        const open = indexedDB.open('elder-interview-audio-buffer');
         open.onerror = () => reject(open.error ?? new Error('IndexedDB open failed'));
         open.onsuccess = () => resolve(open.result);
       });

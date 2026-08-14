@@ -24,7 +24,6 @@ import { SessionSnapshotService } from '../../apps/api/src/project-foundation/se
 import { CapturePcmEvidenceService } from '../../apps/api/src/realtime-transcription/capture-pcm-evidence.service.js';
 import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
 import { DeterministicStreamingAsrFake } from '../../apps/api/src/realtime-transcription/streaming-asr.js';
-import { TranscriptIngestionService } from '../../apps/api/src/transcription/transcript-ingestion.service.js';
 
 const MIME = 'audio/webm;codecs=opus';
 
@@ -104,7 +103,6 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       authorization,
       runtime,
       new DeterministicStreamingAsrFake(),
-      new TranscriptIngestionService(prisma, config),
       snapshots,
     );
     audio = new AudioService(prisma, authorization, integrity, storage);
@@ -600,16 +598,16 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
       expected_chunk_count: 1,
       request_id: randomUUID(),
     });
-    releaseFirst?.();
-    await acceptedEvidence;
     await within(stopAfterAccepted, 1_000);
+    releaseFirst?.();
+    await expect(acceptedEvidence).rejects.toThrow('Capture evidence target is unavailable');
     expect(
       (
         await prisma.sessionCaptureGeneration.findUniqueOrThrow({
           where: { audioStreamId: acceptedStream },
         })
       ).firstPcmAcceptedAt,
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it('keeps later frames off database locks and lets stop finish while the adapter is blocked', async () => {

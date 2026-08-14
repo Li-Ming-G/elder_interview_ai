@@ -39,13 +39,9 @@ describe('RealtimeTranscriptionGateway serialization', () => {
 
   it('binds the requested session to an error raised during join authorization', async () => {
     const sessionId = randomUUID();
-    const gateway = createGateway(
-      new CountingAdapter(),
-      'produce',
-      undefined,
-      undefined,
-      undefined,
-      () => Promise.reject(new ForbiddenException({ code: 'FORBIDDEN' })),
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(adapter, 'produce', undefined, undefined, undefined, () =>
+      Promise.reject(new ForbiddenException({ code: 'FORBIDDEN' })),
     );
     const client = new FakeSocket();
     gateway.handleConnection(client as unknown as WebSocket, request());
@@ -58,6 +54,7 @@ describe('RealtimeTranscriptionGateway serialization', () => {
       session_id: sessionId,
       type: 'error',
     });
+    expect(adapter.openCalls).toBe(0);
   });
 
   it('serializes concurrent frames on one connection', async () => {
@@ -268,7 +265,7 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     second.close(1000);
   });
 
-  it('publishes unavailable without ACK or ingestion when the local fake faults', async () => {
+  it('publishes degraded ASR without closing the recording socket when the local fake faults', async () => {
     const runtimes = new RealtimeRuntimeService();
     let ingestionCalls = 0;
     const gateway = createGateway(new DeterministicStreamingAsrFake(), 'produce', runtimes, () => {
@@ -297,20 +294,58 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
 
     client.receive(frame(sessionId, audioStreamId, 2));
-    await client.waitClosed();
-    expect(client.closeCode).toBe(4503);
+    await waitFor(() =>
+      client.sent.some(
+        ({ payload, type }) => type === 'asr.status' && payload.status === 'unavailable',
+      ),
+    );
+    expect(client.readyState).toBe(client.OPEN);
     expect(ingestionCalls).toBe(3);
     expect(runtimes.find(sessionId)?.highestAudioSequenceAcked).toBe(1);
     expect(client.sent.filter(({ type }) => type === 'audio.ack')).toHaveLength(2);
-    expect(client.sent.slice(-2).map(({ type }) => type)).toEqual(['asr.status', 'error']);
+    expect(client.sent.some(({ type }) => type === 'error')).toBe(false);
+  });
+
+  it('marks sticky evidence loss when a runtime is rebuilt after persisted PCM acceptance', async () => {
+    const adapter = new CountingAdapter();
+    const gateway = createGateway(
+      adapter,
+      'produce',
+      new RealtimeRuntimeService(),
+      undefined,
+      undefined,
+      () =>
+        Promise.resolve({
+          acceptedPcmEvidenceExists: true,
+          captureGenerationId: randomUUID(),
+          mode: 'produce',
+          timelineOffsetMs: 12_300,
+        }),
+    );
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, randomUUID()));
+
+    await waitFor(() => adapter.coverageGaps.length === 1);
+    expect(adapter.coverageGaps).toEqual([
+      {
+        endSequence: null,
+        reason: 'evidence_lost',
+        sessionId,
+        startSequence: null,
+      },
+    ]);
+    client.close(1000);
   });
 
   it.each(['heartbeat', 'event.ack'] as const)(
     'rechecks resources for %s and releases a revoked producer',
     async (messageType) => {
       const runtimes = new RealtimeRuntimeService();
+      const adapter = new CountingAdapter();
       let allowed = true;
-      const gateway = createGateway(new CountingAdapter(), 'produce', runtimes, undefined, () =>
+      const gateway = createGateway(adapter, 'produce', runtimes, undefined, () =>
         allowed
           ? Promise.resolve('produce')
           : Promise.reject(
@@ -328,6 +363,7 @@ describe('RealtimeTranscriptionGateway serialization', () => {
       expect(client.closeCode).toBe(4403);
       expect(client.sent.at(-1)?.payload).toEqual({ code: 'FORBIDDEN' });
       await waitFor(() => runtimes.find(sessionId)?.producer === null);
+      expect(adapter.cancelCalls).toBe(1);
     },
   );
 
@@ -430,6 +466,7 @@ function createGateway(
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
   assertJoin: () => Promise<RealtimeJoinAccess> = () =>
     Promise.resolve({
+      acceptedPcmEvidenceExists: false,
       captureGenerationId: mode === 'produce' ? randomUUID() : null,
       mode,
       timelineOffsetMs: mode === 'produce' ? 0 : null,
@@ -469,21 +506,88 @@ function createGateway(
 }
 
 class CountingAdapter extends StreamingAsrAdapter {
+  public cancelCalls = 0;
   public calls = 0;
   public maximumConcurrent = 0;
+  public openCalls = 0;
+  public readonly coverageGaps: Array<{
+    endSequence: number | null;
+    reason: string;
+    sessionId: string;
+    startSequence: number | null;
+  }> = [];
   private concurrent = 0;
 
   public constructor(private readonly delayMs = 10) {
     super();
   }
 
-  public async accept(): Promise<readonly []> {
+  public open(): Promise<void> {
+    this.openCalls += 1;
+    return Promise.resolve();
+  }
+
+  public async accept(): Promise<{
+    acceptedThroughSequence: number;
+    attemptId: string;
+    providerNamespaceId: string;
+    providerRequestId: string;
+    scope: 'attempt';
+    speakerStreamId: string;
+  }> {
     this.calls += 1;
     this.concurrent += 1;
     this.maximumConcurrent = Math.max(this.maximumConcurrent, this.concurrent);
     await new Promise((resolve) => setTimeout(resolve, this.delayMs));
     this.concurrent -= 1;
-    return [];
+    return {
+      acceptedThroughSequence: this.calls - 1,
+      attemptId: '00000000-0000-4000-8000-000000000091',
+      providerNamespaceId: 'counting-namespace',
+      providerRequestId: 'counting-request',
+      scope: 'attempt',
+      speakerStreamId: '00000000-0000-4000-8000-000000000092',
+    };
+  }
+
+  public cancel(): Promise<void> {
+    this.cancelCalls += 1;
+    return Promise.resolve();
+  }
+
+  public completeness(): ReturnType<StreamingAsrAdapter['completeness']> {
+    return {
+      clearAuthority: 'HARDEN-ASR-001',
+      completeCaptureCoverageProven: true,
+      scope: 'session_capture',
+      status: 'no_known_gap',
+      stickyDegraded: false,
+      unbackfilledGaps: [],
+    };
+  }
+
+  public drainAndClose(): ReturnType<StreamingAsrAdapter['drainAndClose']> {
+    return Promise.resolve({
+      acceptedThroughSequence: this.calls - 1,
+      attemptId: '00000000-0000-4000-8000-000000000091',
+      completedAt: new Date().toISOString(),
+      providerFinalObserved: true,
+      providerNamespaceId: 'counting-namespace',
+      providerRequestId: 'counting-request',
+      resultsIngested: true,
+      scope: 'attempt',
+      speakerStreamId: '00000000-0000-4000-8000-000000000092',
+      terminalThroughSequence: this.calls - 1,
+    });
+  }
+
+  public markCoverageGap(
+    sessionId: string,
+    reason: string,
+    startSequence: number | null,
+    endSequence: number | null,
+  ): void {
+    this.coverageGaps.push({ endSequence, reason, sessionId, startSequence });
   }
 }
 

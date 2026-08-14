@@ -7,6 +7,7 @@ import { PrismaService } from '../database/prisma.service.js';
 export type RealtimeSessionMode = 'produce' | 'resume-only';
 
 export interface RealtimeJoinAccess {
+  acceptedPcmEvidenceExists: boolean;
   captureGenerationId: string | null;
   mode: RealtimeSessionMode;
   timelineOffsetMs: number | null;
@@ -40,11 +41,17 @@ export class RealtimeAccessService {
     }
     const mode = await this.assertFrame(actor, sessionId, true);
     if (mode === 'produce') {
-      const capture = await this.prisma.sessionCaptureGeneration.findFirst({
-        orderBy: { generationNo: 'desc' },
-        select: { id: true, audioStreamId: true, status: true, timelineOffsetMs: true },
-        where: { sessionId },
-      });
+      const [capture, acceptedPcmEvidence] = await Promise.all([
+        this.prisma.sessionCaptureGeneration.findFirst({
+          orderBy: { generationNo: 'desc' },
+          select: { id: true, audioStreamId: true, status: true, timelineOffsetMs: true },
+          where: { sessionId },
+        }),
+        this.prisma.sessionCaptureGeneration.findFirst({
+          select: { id: true },
+          where: { firstPcmAcceptedAt: { not: null }, sessionId },
+        }),
+      ]);
       if (
         capture === null ||
         capture.audioStreamId !== audioStreamId ||
@@ -57,12 +64,18 @@ export class RealtimeAccessService {
         });
       }
       return {
+        acceptedPcmEvidenceExists: acceptedPcmEvidence !== null,
         captureGenerationId: capture.id,
         mode,
         timelineOffsetMs: capture.timelineOffsetMs,
       };
     }
-    return { captureGenerationId: null, mode, timelineOffsetMs: null };
+    return {
+      acceptedPcmEvidenceExists: false,
+      captureGenerationId: null,
+      mode,
+      timelineOffsetMs: null,
+    };
   }
 
   public async assertFrame(
