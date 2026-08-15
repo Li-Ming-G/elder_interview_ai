@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/decision-trace-v1.schema.json",
+  "title": "QuestionOrchestrationDecisionTraceV1",
+  "description": "Bounded, append-only observability projection for one question-orchestration decision. It stores references and hashes, never raw prompt/context/transcript/provider payloads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "request_id",
+    "session_id",
+    "project_id",
+    "trigger_type",
+    "decision_outcome",
+    "director_invoked",
+    "status",
+    "started_at",
+    "completed_at",
+    "duration_ms",
+    "context_revision",
+    "input_hash",
+    "stage_timings_ms"
+  ],
+  "properties": {
+    "trace_id": { "type": "string", "format": "uuid" },
+    "request_id": { "type": "string", "format": "uuid" },
+    "session_id": { "type": "string", "format": "uuid" },
+    "project_id": { "type": "string", "format": "uuid" },
+    "ai_job_id": { "type": ["string", "null"], "format": "uuid" },
+    "attempt_id": { "type": ["string", "null"], "format": "uuid" },
+    "trigger_type": { "enum": ["automatic", "manual_next", "second_session_opening", "recovery"] },
+    "decision_outcome": { "enum": ["question", "continue_listening", "system_error", "unavailable"] },
+    "director_invoked": { "type": "boolean" },
+    "status": { "enum": ["running", "succeeded", "failed", "cancelled", "stale", "unavailable"] },
+    "stage": { "type": ["string", "null"], "maxLength": 40 },
+    "gate_reason": { "type": ["string", "null"], "maxLength": 80 },
+    "error_code": { "type": ["string", "null"], "maxLength": 80 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "context_revision": { "type": "integer", "minimum": 0 },
+    "input_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "context_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "stage_timings_ms": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,39}$" }
+    }
+  }
+}

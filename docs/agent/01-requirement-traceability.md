@@ -34,3 +34,11 @@
 - 新增正式需求时同步增加条目。
 - 修改需求时保留变更记录，不得只改代码。
 - 任务进入 `VERIFY` 前，相关条目必须能追溯到测试证据。
+# Memory System V1 路线追踪（新增）
+
+| 需求 | 计划阶段 | 现有实现/复用路径 | 当前证据 | 状态 |
+|---|---|---|---|---|
+| 每个 orchestration decision 可解释为何调用/未调用模型 | T0 | `AiJob`、generation attempt、QuestionEvidence event、question orchestration | `docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md` | REVIEW；待 T0 契约/实现 |
+| 用户可区分 question、continue、system error/unavailable | T1 | 现有 question presentation/unavailable seam；需补决策投影 | 同上 | REVIEW；待 T1 契约/实现 |
+| Memory System V1 分层与 evidence provenance | T2–T17 | `MemoryClaim/Resolution/Evidence`、`CurrentMemoryReader`、TranscriptSegment | 同上 | PLANNED；不得假装已实现 |
+| P1/P2/P3/P4 分层运行时与固定评价 | T4–T27 | 现有 post-session memory、context V1、Question Director | 同上 | PLANNED；按阶段独立 PR |

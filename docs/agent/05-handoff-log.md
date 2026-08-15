@@ -4,6 +4,8 @@
 
 ## 当前接收对象
 
+| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-033 Proposed/REVIEW | T0 Decision Trace 实施 | 已完成 T0–T27 路线设计与现有路径核对；复核修正为“每次 orchestration decision/generation attempt”，覆盖 continue/unavailable/error/no-provider/timeout/stale 等不调用 Director 的结果；优先复用 AiJob/attempt/provider receipt，禁止复制正文 | T0 尚未实现；PR #62 provider-neutral readiness 仍 OPEN/REVIEW；真实 provider/数据/公网继续 BLOCKED |
+
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
 | SPEC-STAGING-DEPLOY-001 | [PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)、REV-052、[任务卡](tasks/SPEC-STAGING-DEPLOY-001.md)、[交接](handoffs/SPEC-STAGING-DEPLOY-001.md)、[正式契约](../contracts/staging-deployment-v1.md)、manifest Schema/fixtures、ADR-041、REQ-020 | DEV-STAGING-DEPLOY-001 后续独立实现任务 | DONE；old `195c4be2` / CI `31798730203` REQUEST_CHANGES（P0=0/P1=1/P2=0）永久保留；accepted `64cf94f3` / CI `31808762082` PASS，merge `751a32e1` / main CI `31815415871` SUCCESS。`DOC-STAGING-STATUS-SYNC-001` 仅机械同步页首/门禁状态；只完成契约，未安装 Cloudflare、未请求 token、未部署、未处理/许可真实数据 |
