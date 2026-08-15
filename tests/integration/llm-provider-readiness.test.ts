@@ -149,29 +149,22 @@ describe('DEV-LLM-PROVIDER-001A PostgreSQL provenance round-trip', () => {
   it('rejects invalid manifests before any database write', async () => {
     const vector = syntheticManifest();
     const before = await prisma.aiModelConfigManifest.count();
-    const missingField = structuredClone(vector.manifest) as Record<string, unknown>;
+    const missingField = structuredClone(vector.manifest);
     Reflect.deleteProperty(missingField, 'generation');
     const extraField = { ...vector.manifest, unexpected_property: true };
-    const invalidEnum = structuredClone(vector.manifest) as LlmModelConfigManifestV1;
-    Reflect.set(invalidEnum.generation.reasoning, 'mode', 'unsupported-mode');
+    const invalidEnum = structuredClone(vector.manifest);
+    const invalidGeneration = Reflect.get(invalidEnum, 'generation');
+    const invalidReasoning = Reflect.get(invalidGeneration, 'reasoning');
+    Reflect.set(invalidReasoning, 'mode', 'unsupported-mode');
 
     await expect(
-      persistence.registerModelConfigManifest(
-        missingField as LlmModelConfigManifestV1,
-        vector.sha256,
-      ),
+      persistence.registerModelConfigManifest(missingField, vector.sha256),
     ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
     await expect(
-      persistence.registerModelConfigManifest(
-        extraField as LlmModelConfigManifestV1,
-        vector.sha256,
-      ),
+      persistence.registerModelConfigManifest(extraField, vector.sha256),
     ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
     await expect(
-      persistence.registerModelConfigManifest(
-        invalidEnum as LlmModelConfigManifestV1,
-        vector.sha256,
-      ),
+      persistence.registerModelConfigManifest(invalidEnum, vector.sha256),
     ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
     await expect(
       persistence.registerModelConfigManifest(vector.manifest, 'f'.repeat(64)),

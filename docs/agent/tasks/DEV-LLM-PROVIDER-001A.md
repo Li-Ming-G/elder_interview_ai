@@ -59,3 +59,5 @@
 - 修复范围仅限 receipt 实际值/union fail-closed、正式 model-config Schema 校验与 invalid manifest 零写入回归；父任务与硬边界不变。
 
 本轮本地验证：全新隔离 DB `elder_llm_fix_20260815` fresh/repeat/status 19 migrations、integration 16 files/98 tests、auth 26 tests、build/format/lint/typecheck/smoke、ordinary Chromium 27/27、auth Chromium 5/5 全部通过。旧复用 DB 的既有清理污染失败历史不改变本轮结论。
+
+CI 失败历史 `31860539626` 仅为 lint 对新增测试 `structuredClone` 嵌套访问的类型解析问题，已用反射式 fixture mutation 修复；不涉及生产运行时。
