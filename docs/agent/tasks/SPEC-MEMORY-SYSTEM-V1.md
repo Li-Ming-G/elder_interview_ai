@@ -72,6 +72,19 @@ T0 记录的是每次 question-orchestration decision/generation attempt，而�
 
 这些条目在相应阶段前保持 `REVIEW/BLOCKED`，不由实现 Agent 默默猜定。
 
+## 5.1 T0 接收后的实现顺序
+
+只有项目负责人接收 T0 提案后，按以下顺序开工：
+
+1. 将 schema 从 `REVIEW` 提升为正式契约，并冻结错误码、结果枚举、retention/权限边界；
+2. 选择与现有 `AiJob`/`QuestionGenerationAttempt`/`AiProviderCall` 兼容的窄 trace root，补 forward-only migration 和 retention cleanup 接口；
+3. 实现 append-only repository：同一 request/generation 只能创建一个 trace，终态 CAS 后拒绝 late mutation；
+4. 在 automatic、manual next、journey continue bypass、provider unavailable、timeout/retry、context/P3 failure、stale generation 和 publication failure 路径写入 trace；
+5. 先补 persisted-state/unit/integration 覆盖四类结果与 provider-call=0 负例，再考虑 T1 前端投影；
+6. exact-head CI、失败历史、任务板、需求追踪、ADR/handoff 同步后提交窄 PR，等待独立负责人审查。
+
+该顺序明确禁止先写大规模 Memory migration、先切换 V2 Context、先安装真实 provider 或把 trace 做成完整上下文日志。
+
 ## 6. NOT V1（明确不做）
 
 Neo4j/Graph Database、Retrieval Reranker LLM、Search Intent LLM、Entity Agent、Temporal Reasoning Agent、无限 Evidence Tool Calling、自动推断 Fact、每个 Transcript Segment 调一次模型、实时语音情绪识别、多 Agent 调度框架、复杂消息队列基础设施。
