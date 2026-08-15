@@ -1175,6 +1175,23 @@ export type LlmProviderConfigApplicationV1 =
       warnings: [LlmProviderSettingWarningV1, ...LlmProviderSettingWarningV1[]];
     };
 
+export interface LlmProviderInvocationV1 {
+  frozen_input_digest: string;
+  requested_provider_id: string;
+  requested_provider_model_id: string;
+  model_config_schema_version: typeof LLM_MODEL_CONFIG_SCHEMA_VERSION;
+  model_config_version: string;
+  model_config_digest: string;
+  prompt_bundle_version: string;
+  prompt_bundle_digest: string;
+  context_schema_version: string;
+  context_schema_digest: string;
+  output_schema_version: string;
+  output_schema_digest: string;
+  deadline_at: string;
+  call_kind: 'primary' | 'same_input_retry' | 'evaluation';
+}
+
 export type LlmProviderCallReceiptV1 = LlmObservedResponseModelIdentityV1 &
   LlmProviderRequestIdentityV1 &
   LlmSdkResponseIdentityV1 &

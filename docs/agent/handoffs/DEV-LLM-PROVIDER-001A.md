@@ -1,0 +1,42 @@
+# DEV-LLM-PROVIDER-001A 任务交接
+
+## 基本信息
+
+- 任务：`DEV-LLM-PROVIDER-001A`
+- 状态：`REVIEW`
+- 基线：`main@8eb34f9f4933ec69b097d91c1b46b9e5143a76ac` / CI `31829153177 SUCCESS`
+- 分支：`codex/dev-llm-provider-001a-readiness`
+- 审查：`REV-056 / PENDING`
+- 父任务：`DEV-LLM-PROVIDER-001` 继续 `BLOCKED`
+
+## 已完成
+
+- 记录 exact-base、task/trace/board/review/handoff 治理边界；保留 staging 七文件状态同步。
+- 新增 shared `LlmProviderInvocationV1`。
+- 新增 `ai_model_config_manifest` 与 `ai_job`/`ai_provider_call` provider-neutral provenance migration/schema。
+- 新增空 registry readiness、evaluation target guard、typed persistence service 初版。
+- 在 fake/unavailable seam 上传递 AbortSignal；新增 loader `v2-draft` 拒绝测试。
+
+## 已完成的本地验证
+
+- offline frozen install、Prisma generate、typecheck、lint、format check、build：通过；未新增 AI SDK/provider 依赖。
+- unit 67 files/413 tests、integration 16 files/97 tests、auth unit 4 files/26 tests、smoke：通过。
+- 隔离 PostgreSQL fresh 19 migrations、repeat/status up-to-date、typed repository round-trip、legacy incomplete/unjudged 与 evaluation write guard：通过。
+- ordinary Chromium 27/27、auth Chromium 5/5：通过；首次未设置 `TEST_DATABASE_URL` 的 auth E2E 配置失败永久保留，随后隔离 DB 重跑通过。
+
+## 未完成
+
+- exact-head CI、non-Draft PR 的远端执行与项目负责人 exact-head 审查；
+- 任务保持 `REVIEW`，不得由实现 Agent 改为 DONE/PASS 或 merge。
+
+## 硬边界
+
+不安装 AI SDK/provider package，不选择 provider/model/region/endpoint，不建立 active binding，不读取 secret，不调用网络/provider，不加载或发布 v2-draft，不处理真实数据。
+
+## iteration-coach
+
+独立 reviewer 通道本轮无输出且无存活 reviewer；按 skill fallback 只做了一次单 Agent review，结论 `Clear`，不记作独立审查，不再次启动 reviewer。
+
+## 下一步
+
+提交并推送当前 exact-base 分支，创建 non-Draft PR，等待 exact-head 完整 CI 与项目负责人审查。任何真实 provider、SDK、secret、active binding 与 parent task 解锁均不在本交接范围。

@@ -452,7 +452,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     const context = prepared.context;
     const output = await this.coordinator.callProviderWithSameInputRetry(
       prepared.job,
-      () => this.director.generate({ context, prompt: this.contract.prompt }),
+      (signal) => this.director.generate({ context, prompt: this.contract.prompt, signal }),
       (value) => this.contract.parseOutput(value, context),
       prepared.deadlineAt,
     );

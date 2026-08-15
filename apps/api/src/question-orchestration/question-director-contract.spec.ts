@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { QuestionDirectorContract } from './question-director-contract.js';
+import {
+  loadInterviewDirectorPromptBundle,
+  QuestionDirectorContract,
+} from './question-director-contract.js';
 
 describe('QuestionDirectorContract', () => {
   const contract = new QuestionDirectorContract();
@@ -79,5 +82,14 @@ describe('QuestionDirectorContract', () => {
     expect(() =>
       contract.parseOutput({ decision: 'suggest', question: '缺少正式字段' }, context),
     ).toThrow('AI_OUTPUT_SCHEMA_INVALID');
+  });
+
+  it('rejects the editable v2 draft as a runtime prompt bundle', () => {
+    expect(() => loadInterviewDirectorPromptBundle('v2-draft')).toThrow(
+      'AI_PROMPT_BUNDLE_NOT_FORMAL',
+    );
+    expect(loadInterviewDirectorPromptBundle('interview-director-prompt-v1').system).toContain(
+      '# Interview Director System v1',
+    );
   });
 });

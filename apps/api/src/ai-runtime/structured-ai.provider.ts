@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { canonicalJson, sha256 } from './ai-provenance.js';
+import { LlmProviderReadinessService } from './llm-provider-readiness.service.js';
 
 export interface FrozenProviderSegment {
   inputSegmentId: string;
@@ -54,11 +55,21 @@ export class StructuredAiProviderUnavailableError extends Error {
 
 @Injectable()
 export class UnavailableStructuredAiProvider extends StructuredAiProvider {
+  public constructor(private readonly readiness: LlmProviderReadinessService) {
+    super();
+  }
+
   public override extractMemory(): Promise<never> {
-    return Promise.reject(new StructuredAiProviderUnavailableError());
+    return Promise.resolve().then(() => {
+      this.readiness.requireActiveBinding();
+      throw new StructuredAiProviderUnavailableError();
+    });
   }
   public override extractActualQuestions(): Promise<never> {
-    return Promise.reject(new StructuredAiProviderUnavailableError());
+    return Promise.resolve().then(() => {
+      this.readiness.requireActiveBinding();
+      throw new StructuredAiProviderUnavailableError();
+    });
   }
 }
 

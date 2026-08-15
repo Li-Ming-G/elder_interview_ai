@@ -22,13 +22,20 @@ export interface FrozenActualQuestion {
   normalizedDigest: string;
 }
 
-async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T> {
+async function withDeadline<T>(
+  invoke: (signal: AbortSignal) => Promise<T>,
+  deadlineMs: number,
+): Promise<T> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const work = Promise.resolve().then(() => invoke(controller.signal));
+  void work.catch(() => undefined);
   try {
     return await Promise.race([
       work,
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
+          controller.abort(new Error('AI_PROVIDER_TIMEOUT'));
           reject(new Error('AI_PROVIDER_TIMEOUT'));
         }, deadlineMs);
       }),
@@ -453,7 +460,7 @@ export class AiJobCoordinatorService {
 
   public async callProviderWithSameInputRetry<T>(
     job: FrozenAiJob,
-    invoke: () => Promise<unknown>,
+    invoke: (signal: AbortSignal) => Promise<unknown>,
     validate: (value: unknown) => T,
     deadlineAt: number,
   ): Promise<T> {
@@ -489,7 +496,7 @@ export class AiJobCoordinatorService {
         },
       });
       try {
-        const output = await withDeadline(invoke(), remainingMs);
+        const output = await withDeadline(invoke, remainingMs);
         if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');
         const parsed = validate(output);
         if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');

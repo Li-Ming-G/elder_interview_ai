@@ -4,10 +4,12 @@ import type {
   InterviewDirectorContextV1,
   InterviewDirectorOutputV1,
 } from './question-director-contract.js';
+import { LlmProviderReadinessService } from '../ai-runtime/llm-provider-readiness.service.js';
 
 export interface QuestionDirectorRequest {
   context: InterviewDirectorContextV1;
   prompt: { system: string; task: string };
+  signal: AbortSignal;
 }
 
 /** One provider-neutral Director call. It has no database or tool access. */
@@ -23,8 +25,15 @@ export class QuestionDirectorUnavailableError extends Error {
 
 @Injectable()
 export class UnavailableQuestionDirector extends QuestionDirector {
+  public constructor(private readonly readiness: LlmProviderReadinessService) {
+    super();
+  }
+
   public override generate(): Promise<never> {
-    return Promise.reject(new QuestionDirectorUnavailableError());
+    return Promise.resolve().then(() => {
+      this.readiness.requireActiveBinding();
+      throw new QuestionDirectorUnavailableError();
+    });
   }
 }
 

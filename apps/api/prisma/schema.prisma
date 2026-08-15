@@ -709,6 +709,8 @@ model AiJob {
   jobType                      AiJobType      @map("job_type")
   status                       AiJobStatus    @default(pending)
   modelName                    String         @map("model_name") @db.VarChar(120)
+  requestedProviderId         String?        @map("requested_provider_id") @db.VarChar(80)
+  requestedProviderModelId    String?        @map("requested_provider_model_id") @db.VarChar(160)
   promptVersion                String         @map("prompt_version") @db.VarChar(80)
   schemaVersion                String         @map("schema_version") @db.VarChar(80)
   contextBuilderVersion        String         @map("context_builder_version") @db.VarChar(80)
@@ -782,22 +784,62 @@ model AiJobInputMemory {
 }
 
 model AiProviderCall {
-  id                String    @id @default(uuid()) @db.Uuid
-  aiJobId           String    @map("ai_job_id") @db.Uuid
-  callNo            Int       @map("call_no")
-  callKind          String    @map("call_kind") @db.VarChar(20)
-  status            String    @db.VarChar(20)
-  providerRequestId String?   @map("provider_request_id") @db.VarChar(160)
-  inputHash         String    @map("input_hash") @db.Char(64)
-  outputHash        String?   @map("output_hash") @db.Char(64)
-  tokenUsageJson    Json?     @map("token_usage_json") @db.JsonB
-  latencyMs         Int?      @map("latency_ms")
-  errorCode         String?   @map("error_code") @db.VarChar(80)
-  startedAt         DateTime  @map("started_at") @db.Timestamptz(3)
-  completedAt       DateTime? @map("completed_at") @db.Timestamptz(3)
+  id                            String    @id @default(uuid()) @db.Uuid
+  aiJobId                       String    @map("ai_job_id") @db.Uuid
+  callNo                        Int       @map("call_no")
+  callKind                      String    @map("call_kind") @db.VarChar(20)
+  status                        String    @db.VarChar(20)
+  provenanceStatus              String    @default("incomplete") @map("provenance_status") @db.VarChar(24)
+  evaluationStatus              String    @default("unjudged") @map("evaluation_status") @db.VarChar(24)
+  modelConfigManifestId         String?   @map("model_config_manifest_id") @db.Uuid
+  requestedProviderId           String?   @map("requested_provider_id") @db.VarChar(80)
+  requestedProviderModelId      String?   @map("requested_provider_model_id") @db.VarChar(160)
+  observedResponseModelId       String?   @map("observed_response_model_id") @db.VarChar(160)
+  observedResponseModelIdSource String?   @map("observed_response_model_id_source") @db.VarChar(24)
+  modelConfigVersion            String?   @map("model_config_version") @db.VarChar(80)
+  modelConfigDigest             String?   @map("model_config_digest") @db.Char(64)
+  promptBundleVersion           String?   @map("prompt_bundle_version") @db.VarChar(80)
+  promptBundleDigest            String?   @map("prompt_bundle_digest") @db.Char(64)
+  contextSchemaVersion          String?   @map("context_schema_version") @db.VarChar(80)
+  contextSchemaDigest           String?   @map("context_schema_digest") @db.Char(64)
+  outputSchemaVersion           String?   @map("output_schema_version") @db.VarChar(80)
+  outputSchemaDigest            String?   @map("output_schema_digest") @db.Char(64)
+  deadlineAt                    DateTime? @map("deadline_at") @db.Timestamptz(3)
+  sdkCorePackage                String?   @map("sdk_core_package") @db.VarChar(120)
+  sdkCoreVersion                String?   @map("sdk_core_version") @db.VarChar(40)
+  sdkProviderPackage            String?   @map("sdk_provider_package") @db.VarChar(120)
+  sdkProviderPackageVersion     String?   @map("sdk_provider_package_version") @db.VarChar(40)
+  connectionMode                String?   @map("connection_mode") @db.VarChar(24)
+  endpointOrigin                String?   @map("endpoint_origin") @db.VarChar(500)
+  dataRegion                    String?   @map("data_region") @db.VarChar(80)
+  providerRequestId             String?   @map("provider_request_id") @db.VarChar(160)
+  providerRequestIdSource       String?   @map("provider_request_id_source") @db.VarChar(24)
+  sdkResponseId                 String?   @map("sdk_response_id") @db.VarChar(160)
+  sdkResponseIdSource           String?   @map("sdk_response_id_source") @db.VarChar(24)
+  configApplicationStatus       String?   @map("config_application_status") @db.VarChar(24)
+  warningsJson                  Json?     @map("warnings_json") @db.JsonB
+  inputHash                     String    @map("input_hash") @db.Char(64)
+  outputHash                    String?   @map("output_hash") @db.Char(64)
+  tokenUsageJson                Json?     @map("token_usage_json") @db.JsonB
+  latencyMs                     Int?      @map("latency_ms")
+  errorCode                     String?   @map("error_code") @db.VarChar(80)
+  startedAt                     DateTime  @map("started_at") @db.Timestamptz(3)
+  completedAt                   DateTime? @map("completed_at") @db.Timestamptz(3)
 
   @@unique([aiJobId, callNo])
   @@map("ai_provider_call")
+}
+
+model AiModelConfigManifest {
+  id                      String   @id @default(uuid()) @db.Uuid
+  schemaVersion           String   @map("schema_version") @db.VarChar(80)
+  canonicalizationVersion String   @map("canonicalization_version") @db.VarChar(80)
+  modelConfigVersion      String   @unique @map("model_config_version") @db.VarChar(80)
+  modelConfigDigest       String   @unique @map("model_config_digest") @db.Char(64)
+  manifestJson            Json     @map("manifest_json") @db.JsonB
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("ai_model_config_manifest")
 }
 
 model AiDerivedOutput {
