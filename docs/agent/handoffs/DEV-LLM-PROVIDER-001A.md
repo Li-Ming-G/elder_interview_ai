@@ -23,6 +23,7 @@
 - unit 67 files/413 tests、integration 16 files/97 tests、auth unit 4 files/26 tests、smoke：通过。
 - 隔离 PostgreSQL fresh 19 migrations、repeat/status up-to-date、typed repository round-trip、legacy incomplete/unjudged 与 evaluation write guard：通过。
 - ordinary Chromium 27/27、auth Chromium 5/5：通过；首次未设置 `TEST_DATABASE_URL` 的 auth E2E 配置失败永久保留，随后隔离 DB 重跑通过。
+- implementation commit `780bdb8d5ae7078a9b1723f4310f5b65b21fdb17` 已推送为 PR #62（OPEN/non-Draft/mergeable），exact base `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac`，CI `31859395528` SUCCESS。
 
 ## 未完成
 

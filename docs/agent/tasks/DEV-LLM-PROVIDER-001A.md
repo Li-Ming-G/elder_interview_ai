@@ -51,4 +51,4 @@
 - 隔离 PostgreSQL `elder_llm_readiness_20260815` 上 fresh 19 migrations deploy、repeat deploy/status up-to-date、repository round-trip/evaluation write guard：通过。
 - ordinary Chromium E2E：27/27 passed；auth Chromium E2E（带隔离 `TEST_DATABASE_URL`）：5/5 passed。
 - 首次未设置 `TEST_DATABASE_URL` 运行 auth E2E 的即时配置失败保留为失败历史；随后使用隔离数据库连接串重跑通过。
-- exact base remains `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac`; exact-head CI 与项目负责人审查仍待完成。
+- implementation commit `780bdb8d5ae7078a9b1723f4310f5b65b21fdb17`（PR #62，non-Draft，OPEN，mergeable）在 exact base `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac` 上获得 exact-head CI `31859395528` SUCCESS；项目负责人审查仍待完成。
