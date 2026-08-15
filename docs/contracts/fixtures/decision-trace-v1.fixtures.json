@@ -1,0 +1,67 @@
+{
+  "valid": [
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000001",
+      "request_id": "00000000-0000-4000-8000-000000000002",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "ai_job_id": null,
+      "attempt_id": null,
+      "trigger_type": "automatic",
+      "decision_outcome": "continue_listening",
+      "director_invoked": false,
+      "status": "succeeded",
+      "stage": "journey",
+      "gate_reason": "elder_answer_still_open",
+      "error_code": null,
+      "started_at": "2026-08-16T00:00:00.000Z",
+      "completed_at": "2026-08-16T00:00:00.120Z",
+      "duration_ms": 120,
+      "context_revision": 4,
+      "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "context_digest": null,
+      "stage_timings_ms": { "journey": 40, "publication_gate": 80 }
+    },
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000005",
+      "request_id": "00000000-0000-4000-8000-000000000006",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "ai_job_id": "00000000-0000-4000-8000-000000000007",
+      "attempt_id": "00000000-0000-4000-8000-000000000008",
+      "trigger_type": "manual_next",
+      "decision_outcome": "question",
+      "director_invoked": true,
+      "status": "succeeded",
+      "stage": "director",
+      "gate_reason": null,
+      "error_code": null,
+      "started_at": "2026-08-16T00:01:00.000Z",
+      "completed_at": "2026-08-16T00:01:01.800Z",
+      "duration_ms": 1800,
+      "context_revision": 8,
+      "input_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "stage_timings_ms": { "p1": 220, "p2": 0, "p3": 300, "p4": 180, "director": 1100 }
+    }
+  ],
+  "invalid": [
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000009",
+      "request_id": "00000000-0000-4000-8000-000000000010",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "trigger_type": "automatic",
+      "decision_outcome": "question",
+      "director_invoked": true,
+      "status": "succeeded",
+      "started_at": "2026-08-16T00:00:00.000Z",
+      "completed_at": "2026-08-16T00:00:01.000Z",
+      "duration_ms": 1000,
+      "context_revision": 1,
+      "input_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "stage_timings_ms": {},
+      "raw_context": "must-never-be-persisted"
+    }
+  ]
+}

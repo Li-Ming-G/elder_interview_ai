@@ -4,7 +4,7 @@
 
 ## 当前接收对象
 
-| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-033 Proposed/REVIEW | T0 Decision Trace 实施 | PR #63（路线+T0 schema 提案）已提交；复核修正为“每次 orchestration decision/generation attempt”，覆盖 continue/unavailable/error/no-provider/timeout/stale 等不调用 Director 的结果；优先复用 AiJob/attempt/provider receipt，禁止复制正文 | T0 尚未实现；等待项目负责人接收 T0 提案；PR #62 provider-neutral readiness 仍 OPEN/REVIEW；真实 provider/数据/公网继续 BLOCKED |
+| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-033 Proposed/REVIEW | T0 Decision Trace 实施 | PR #63（路线+T0 schema 提案）已提交；补充 valid/invalid fixtures 与 2 项契约测试（含 no-Director continue 与 raw payload 拒绝）；复核修正为“每次 orchestration decision/generation attempt”，覆盖 continue/unavailable/error/no-provider/timeout/stale 等不调用 Director 的结果；优先复用 AiJob/attempt/provider receipt，禁止复制正文 | T0 尚未实现；等待项目负责人接收 T0 提案；PR #62 provider-neutral readiness 仍 OPEN/REVIEW；真实 provider/数据/公网继续 BLOCKED |
 
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
