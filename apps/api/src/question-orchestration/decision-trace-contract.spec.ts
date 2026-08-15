@@ -14,7 +14,11 @@ describe('decision-trace-v1 proposal contract', () => {
     valid: unknown[];
     invalid: unknown[];
   };
-  const validate = new (Ajv2020 as unknown as new (options: object) => { compile: (value: object) => (input: unknown) => boolean })({
+  const validate = new (
+    Ajv2020 as unknown as new (options: object) => {
+      compile: (value: object) => (input: unknown) => boolean;
+    }
+  )({
     allErrors: true,
     strict: false,
   }).compile(schema as object);
