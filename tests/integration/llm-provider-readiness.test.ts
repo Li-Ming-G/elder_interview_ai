@@ -25,6 +25,7 @@ describe('DEV-LLM-PROVIDER-001A PostgreSQL provenance round-trip', () => {
   const actorId = randomUUID();
   const projectId = randomUUID();
   const jobId = randomUUID();
+  const variantJobId = randomUUID();
   const legacyJobId = randomUUID();
 
   beforeAll(async () => {
@@ -69,17 +70,25 @@ describe('DEV-LLM-PROVIDER-001A PostgreSQL provenance round-trip', () => {
           projectId,
           requestedBy: actorId,
         }),
+        aiJob(variantJobId, {
+          requestedProviderId: 'synthetic-provider',
+          requestedProviderModelId: 'synthetic-requested-model',
+          projectId,
+          requestedBy: actorId,
+        }),
         aiJob(legacyJobId, { projectId, requestedBy: actorId }),
       ],
     });
   });
 
   afterAll(async () => {
-    await prisma.aiProviderCall.deleteMany({ where: { aiJobId: { in: [jobId, legacyJobId] } } });
+    await prisma.aiProviderCall.deleteMany({
+      where: { aiJobId: { in: [jobId, variantJobId, legacyJobId] } },
+    });
     await prisma.aiModelConfigManifest.deleteMany({
       where: { modelConfigVersion: 'synthetic-comparison-v1' },
     });
-    await prisma.aiJob.deleteMany({ where: { id: { in: [jobId, legacyJobId] } } });
+    await prisma.aiJob.deleteMany({ where: { id: { in: [jobId, variantJobId, legacyJobId] } } });
     await prisma.elderProject.deleteMany({ where: { id: projectId } });
     await prisma.user.deleteMany({ where: { id: actorId } });
     await app.close();
@@ -105,6 +114,69 @@ describe('DEV-LLM-PROVIDER-001A PostgreSQL provenance round-trip', () => {
     });
     expect(await prisma.questionGenerationAttempt.count({ where: { aiJobId: jobId } })).toBe(0);
     expect(await prisma.questionDisplaySnapshot.count()).toBe(0);
+
+    const adjustedInvocation = providerInvocation(vector.sha256, 'same_input_retry');
+    const adjustedCallId = await persistence.beginInvocation(jobId, 2, adjustedInvocation);
+    const adjustedReceipt = adjustedProviderReceipt(vector.sha256);
+    await persistence.completeInvocation(adjustedCallId, adjustedReceipt);
+    expect(await persistence.readRoundTrip(adjustedCallId)).toEqual({
+      evaluation_status: 'unjudged',
+      invocation: adjustedInvocation,
+      provenance_status: 'complete',
+      receipt: adjustedReceipt,
+    });
+
+    const unknownInvocation = providerInvocation(vector.sha256, 'same_input_retry');
+    const unknownCallId = await persistence.beginInvocation(variantJobId, 1, unknownInvocation);
+    const unknownReceipt = unknownProviderReceipt(vector.sha256);
+    await persistence.completeInvocation(unknownCallId, unknownReceipt);
+    expect(await persistence.readRoundTrip(unknownCallId)).toEqual({
+      evaluation_status: 'unjudged',
+      invocation: unknownInvocation,
+      provenance_status: 'complete',
+      receipt: unknownReceipt,
+    });
+
+    await prisma.aiProviderCall.update({
+      data: { providerRequestId: null, providerRequestIdSource: 'provider' },
+      where: { id: unknownCallId },
+    });
+    await expect(persistence.readRoundTrip(unknownCallId)).rejects.toThrow(
+      'LLM_PROVIDER_PERSISTED_RECEIPT_INVALID',
+    );
+  });
+
+  it('rejects invalid manifests before any database write', async () => {
+    const vector = syntheticManifest();
+    const before = await prisma.aiModelConfigManifest.count();
+    const missingField = structuredClone(vector.manifest) as Record<string, unknown>;
+    Reflect.deleteProperty(missingField, 'generation');
+    const extraField = { ...vector.manifest, unexpected_property: true };
+    const invalidEnum = structuredClone(vector.manifest) as LlmModelConfigManifestV1;
+    Reflect.set(invalidEnum.generation.reasoning, 'mode', 'unsupported-mode');
+
+    await expect(
+      persistence.registerModelConfigManifest(
+        missingField as LlmModelConfigManifestV1,
+        vector.sha256,
+      ),
+    ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
+    await expect(
+      persistence.registerModelConfigManifest(
+        extraField as LlmModelConfigManifestV1,
+        vector.sha256,
+      ),
+    ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
+    await expect(
+      persistence.registerModelConfigManifest(
+        invalidEnum as LlmModelConfigManifestV1,
+        vector.sha256,
+      ),
+    ).rejects.toThrow('LLM_MODEL_CONFIG_MANIFEST_INVALID');
+    await expect(
+      persistence.registerModelConfigManifest(vector.manifest, 'f'.repeat(64)),
+    ).rejects.toThrow('LLM_MODEL_CONFIG_DIGEST_MISMATCH');
+    expect(await prisma.aiModelConfigManifest.count()).toBe(before);
   });
 
   it('keeps legacy/local-test calls explicitly incomplete and unjudged', async () => {
@@ -199,9 +271,12 @@ function syntheticManifest(): { manifest: LlmModelConfigManifestV1; sha256: stri
   };
 }
 
-function providerInvocation(modelConfigDigest: string): LlmProviderInvocationV1 {
+function providerInvocation(
+  modelConfigDigest: string,
+  callKind: 'primary' | 'same_input_retry' = 'primary',
+): LlmProviderInvocationV1 {
   return {
-    call_kind: 'primary',
+    call_kind: callKind,
     context_schema_digest: '1'.repeat(64),
     context_schema_version: 'interview-director-context-v1',
     deadline_at: '2026-08-15T01:00:08.000Z',
@@ -249,5 +324,43 @@ function providerReceipt(modelConfigDigest: string): LlmProviderCallReceiptV1 {
     status: 'succeeded',
     token_usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
     warnings: [],
+  };
+}
+
+function adjustedProviderReceipt(modelConfigDigest: string): LlmProviderCallReceiptV1 {
+  return {
+    ...providerReceipt(modelConfigDigest),
+    config_application_status: 'diverged',
+    observed_response_model_id: 'synthetic-normalized-model',
+    observed_response_model_id_source: 'sdk_normalized',
+    sdk_response_id: 'sdk-generated-1',
+    sdk_response_id_source: 'sdk_generated',
+    warnings: [
+      {
+        classification: 'adjusted_setting',
+        sanitized_code: 'TEMPERATURE_ADJUSTED',
+        setting_path: '/generation/temperature',
+      },
+    ],
+  };
+}
+
+function unknownProviderReceipt(modelConfigDigest: string): LlmProviderCallReceiptV1 {
+  return {
+    ...providerReceipt(modelConfigDigest),
+    config_application_status: 'unknown',
+    observed_response_model_id: null,
+    observed_response_model_id_source: 'unavailable',
+    provider_request_id: null,
+    provider_request_id_source: 'unavailable',
+    sdk_response_id: null,
+    sdk_response_id_source: 'unavailable',
+    warnings: [
+      {
+        classification: 'warning_visibility_unavailable',
+        sanitized_code: 'WARNING_VISIBILITY_UNAVAILABLE',
+        setting_path: null,
+      },
+    ],
   };
 }

@@ -24,6 +24,7 @@ export interface LlmProviderCallRoundTripV1 {
 @Injectable()
 export class LlmProviderPersistenceService {
   private readonly validateReceipt = compileReceipt();
+  private readonly validateModelConfig = compileModelConfig();
 
   public constructor(private readonly prisma: PrismaService) {}
 
@@ -31,6 +32,9 @@ export class LlmProviderPersistenceService {
     manifest: LlmModelConfigManifestV1,
     expectedDigest: string,
   ): Promise<string> {
+    if (!this.validateModelConfig(manifest)) {
+      throw new Error('LLM_MODEL_CONFIG_MANIFEST_INVALID');
+    }
     const digest = digestLlmModelConfigV1(manifest);
     if (digest !== expectedDigest) throw new Error('LLM_MODEL_CONFIG_DIGEST_MISMATCH');
     return this.prisma.$transaction(async (tx) => {
@@ -169,15 +173,15 @@ export class LlmProviderPersistenceService {
     const call = await this.prisma.aiProviderCall.findUnique({ where: { id: callId } });
     if (call === null) throw new Error('LLM_PROVIDER_CALL_NOT_FOUND');
     const invocation = invocationFromRow(call);
-    const receipt = call.provenanceStatus === 'complete' ? receiptFromRow(call) : null;
-    if (receipt !== null && !this.validateReceipt(receipt)) {
+    const persistedReceipt = call.provenanceStatus === 'complete' ? receiptFromRow(call) : null;
+    if (persistedReceipt !== null && !this.validateReceipt(persistedReceipt)) {
       throw new Error('LLM_PROVIDER_PERSISTED_RECEIPT_INVALID');
     }
     return {
       evaluation_status: call.evaluationStatus as 'judged' | 'unjudged',
       invocation,
       provenance_status: call.provenanceStatus as 'complete' | 'incomplete',
-      receipt,
+      receipt: persistedReceipt as LlmProviderCallReceiptV1 | null,
     };
   }
 }
@@ -217,11 +221,11 @@ function invocationFromRow(row: ProviderCallRow): LlmProviderInvocationV1 {
   };
 }
 
-function receiptFromRow(row: ProviderCallRow): LlmProviderCallReceiptV1 {
+function receiptFromRow(row: ProviderCallRow): Record<string, unknown> {
   return {
     completed_at: requiredDate(row.completedAt).toISOString(),
-    config_application_status: requiredString(row.configApplicationStatus) as 'as_requested',
-    connection_mode: requiredString(row.connectionMode) as 'direct_vendor',
+    config_application_status: requiredString(row.configApplicationStatus),
+    connection_mode: requiredString(row.connectionMode),
     data_region: requiredString(row.dataRegion),
     endpoint_origin: requiredString(row.endpointOrigin),
     error_code: row.errorCode,
@@ -231,26 +235,24 @@ function receiptFromRow(row: ProviderCallRow): LlmProviderCallReceiptV1 {
     model_config_schema_version: 'llm-model-config-v1',
     model_config_version: requiredString(row.modelConfigVersion),
     observed_response_model_id: row.observedResponseModelId,
-    observed_response_model_id_source: requiredString(
-      row.observedResponseModelIdSource,
-    ) as 'provider_origin',
+    observed_response_model_id_source: requiredString(row.observedResponseModelIdSource),
     output_digest: row.outputHash,
     provider_request_id: row.providerRequestId,
-    provider_request_id_source: requiredString(row.providerRequestIdSource) as 'provider',
+    provider_request_id_source: requiredString(row.providerRequestIdSource),
     requested_provider_id: requiredString(row.requestedProviderId),
     requested_provider_model_id: requiredString(row.requestedProviderModelId),
     schema_version: 'llm-provider-call-receipt-v1',
-    sdk_core_package: requiredString(row.sdkCorePackage) as 'ai',
+    sdk_core_package: requiredString(row.sdkCorePackage),
     sdk_core_version: requiredString(row.sdkCoreVersion),
     sdk_provider_package: requiredString(row.sdkProviderPackage),
     sdk_provider_package_version: requiredString(row.sdkProviderPackageVersion),
     sdk_response_id: row.sdkResponseId,
-    sdk_response_id_source: requiredString(row.sdkResponseIdSource) as 'provider_origin',
+    sdk_response_id_source: requiredString(row.sdkResponseIdSource),
     started_at: row.startedAt.toISOString(),
-    status: row.status as LlmProviderCallReceiptV1['status'],
-    token_usage: row.tokenUsageJson as LlmProviderCallReceiptV1['token_usage'],
-    warnings: row.warningsJson as LlmProviderCallReceiptV1['warnings'],
-  } as LlmProviderCallReceiptV1;
+    status: row.status,
+    token_usage: row.tokenUsageJson,
+    warnings: row.warningsJson,
+  };
 }
 
 type ProviderCallRow = Prisma.AiProviderCallGetPayload<Record<string, never>>;
@@ -285,6 +287,22 @@ function compileReceipt(): ValidateFunction {
   return ajv.compile(
     JSON.parse(
       readFileSync(join(root, 'docs/contracts/llm-provider-call-receipt-v1.schema.json'), 'utf8'),
+    ) as object,
+  );
+}
+
+function compileModelConfig(): ValidateFunction {
+  const root = findRepositoryRoot();
+  const AjvConstructor = Ajv2020 as unknown as new (options: {
+    allErrors: boolean;
+    strict: boolean;
+  }) => {
+    compile(schema: object): ValidateFunction;
+  };
+  const ajv = new AjvConstructor({ allErrors: true, strict: false });
+  return ajv.compile(
+    JSON.parse(
+      readFileSync(join(root, 'docs/contracts/llm-model-config-v1.schema.json'), 'utf8'),
     ) as object,
   );
 }

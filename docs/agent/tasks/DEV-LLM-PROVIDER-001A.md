@@ -52,3 +52,10 @@
 - ordinary Chromium E2E：27/27 passed；auth Chromium E2E（带隔离 `TEST_DATABASE_URL`）：5/5 passed。
 - 首次未设置 `TEST_DATABASE_URL` 运行 auth E2E 的即时配置失败保留为失败历史；随后使用隔离数据库连接串重跑通过。
 - implementation commit `780bdb8d5ae7078a9b1723f4310f5b65b21fdb17`（PR #62，non-Draft，OPEN，mergeable）在 exact base `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac` 上获得 exact-head CI `31859395528` SUCCESS；项目负责人审查仍待完成。
+
+## 定向修复历史
+
+- 旧 exact head `d5d4d031a22d6446bcb7bf20c26fc0fb4001990c` / CI `31859633862` 的正式 `REQUEST_CHANGES`（P0=0/P1=2/P2=0）永久保留，详见 PR #62 评论；本轮不覆盖历史结论。
+- 修复范围仅限 receipt 实际值/union fail-closed、正式 model-config Schema 校验与 invalid manifest 零写入回归；父任务与硬边界不变。
+
+本轮本地验证：全新隔离 DB `elder_llm_fix_20260815` fresh/repeat/status 19 migrations、integration 16 files/98 tests、auth 26 tests、build/format/lint/typecheck/smoke、ordinary Chromium 27/27、auth Chromium 5/5 全部通过。旧复用 DB 的既有清理污染失败历史不改变本轮结论。

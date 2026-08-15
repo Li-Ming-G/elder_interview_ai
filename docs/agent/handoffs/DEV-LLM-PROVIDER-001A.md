@@ -25,9 +25,19 @@
 - ordinary Chromium 27/27、auth Chromium 5/5：通过；首次未设置 `TEST_DATABASE_URL` 的 auth E2E 配置失败永久保留，随后隔离 DB 重跑通过。
 - implementation commit `780bdb8d5ae7078a9b1723f4310f5b65b21fdb17` 已推送为 PR #62（OPEN/non-Draft/mergeable），exact base `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac`，CI `31859395528` SUCCESS。
 
+## REQUEST_CHANGES 历史与本轮修复
+
+- 旧 exact head `d5d4d031a22d6446bcb7bf20c26fc0fb4001990c` / CI `31859633862` 的正式 `REQUEST_CHANGES`（P0=0/P1=2/P2=0）永久保留，评论见 [PR #62](https://github.com/Li-Ming-G/elder_interview_ai/pull/62#issuecomment-5300140619)。
+- 本轮窄修复：receipt 逐字段恢复数据库实际值并由正式 Schema 校验 union；manifest 入库前正式 AJV 校验、canonicalization/schema/digest 与零写入失败路径；补齐 requested/observed/provider/SDK/warnings 正反回归。
+
+## 本轮修复验证
+
+- 全新隔离 DB `elder_llm_fix_20260815`：fresh 19 migrations deploy、repeat deploy、status up-to-date；完整 integration 16 files/98 tests、auth 4 files/26 tests、build/format/lint/typecheck/smoke、ordinary Chromium 27/27、auth Chromium 5/5 全部通过。
+- 复用旧 `elder_llm_readiness_20260815` DB 的既有清理污染失败已保留为失败历史；新 DB 结果不受其影响。
+
 ## 未完成
 
-- exact-head CI、non-Draft PR 的远端执行与项目负责人 exact-head 审查；
+- 本轮修复后的 exact-head CI、non-Draft PR 远端执行与项目负责人 exact-head 审查；
 - 任务保持 `REVIEW`，不得由实现 Agent 改为 DONE/PASS 或 merge。
 
 ## 硬边界
