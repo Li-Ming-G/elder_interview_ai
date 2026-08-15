@@ -61,3 +61,5 @@
 本轮本地验证：全新隔离 DB `elder_llm_fix_20260815` fresh/repeat/status 19 migrations、integration 16 files/98 tests、auth 26 tests、build/format/lint/typecheck/smoke、ordinary Chromium 27/27、auth Chromium 5/5 全部通过。旧复用 DB 的既有清理污染失败历史不改变本轮结论。
 
 CI 失败历史 `31860539626` 仅为 lint 对新增测试 `structuredClone` 嵌套访问的类型解析问题，已用反射式 fixture mutation 修复；不涉及生产运行时。
+
+当前待审 exact head：`73e167e535a88f4c656d147437944bfbc5c6c70c`，PR #62 CI `31860733748 SUCCESS`，仍保持 `REVIEW`。

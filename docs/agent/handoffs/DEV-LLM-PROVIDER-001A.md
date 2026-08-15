@@ -35,6 +35,7 @@
 - 全新隔离 DB `elder_llm_fix_20260815`：fresh 19 migrations deploy、repeat deploy、status up-to-date；完整 integration 16 files/98 tests、auth 4 files/26 tests、build/format/lint/typecheck/smoke、ordinary Chromium 27/27、auth Chromium 5/5 全部通过。
 - 复用旧 `elder_llm_readiness_20260815` DB 的既有清理污染失败已保留为失败历史；新 DB 结果不受其影响。
 - CI `31860539626` 的 lint-only 失败历史永久保留：新增测试的 `structuredClone` 嵌套类型解析不稳定；已改用反射式 fixture mutation，未涉及生产逻辑。
+- 修复后 exact head `73e167e535a88f4c656d147437944bfbc5c6c70c` / PR #62 CI `31860733748 SUCCESS`，PR 仍 OPEN/non-Draft/mergeable，等待项目负责人窄复审。
 
 ## 未完成
 
