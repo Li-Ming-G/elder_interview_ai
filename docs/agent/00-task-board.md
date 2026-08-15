@@ -10,7 +10,7 @@
 
 ## 当前任务
 
-| SPEC-MEMORY-SYSTEM-V1 | Memory System V1 T0–T27 路线与分阶段实施 | 总控 Agent | REVIEW | 现有 ASR/QuestionEvidence/LLM provider-neutral seam；PR #62 仍 OPEN/REVIEW | `docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`；T0 前需 Decision Trace 窄契约与独立只读复核 | 真实 provider、真实数据、正式授权、公网部署继续 BLOCKED；不得把路线文档或 synthetic fixture 宣称为实现/PASS |
+| SPEC-MEMORY-SYSTEM-V1 | Memory System V1 T0–T27 路线与分阶段实施 | 总控 Agent | REVIEW | 现有 ASR/QuestionEvidence/LLM provider-neutral seam；PR #62 仍 OPEN/REVIEW | PR #63；`docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`；T0 前需 Decision Trace 窄契约与独立只读复核 | 等项目负责人接收 T0 提案后再实现；真实 provider、真实数据、正式授权、公网部署继续 BLOCKED；不得把路线文档或 synthetic fixture 宣称为实现/PASS |
 
 | 任务编号 | 任务 | 负责人 | 状态 | 前置任务 | 验收依据 | 阻塞原因 |
 |---|---|---|---|---|---|---|
