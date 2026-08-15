@@ -53,6 +53,8 @@
 | DEV-008B2 | REV-054（branch-local REV-052） | [PR #56](https://github.com/Li-Ming-G/elder_interview_ai/pull/56) / accepted `90ce5b35ebe032931860045da5b63e97b2df3674` / CI `31820768146` SUCCESS / merge `4b59c4d351d82e84ed88610cd0678b4882d84dab` / main CI `31821662034` SUCCESS / [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/56#issuecomment-5295947362) / [审查](reviews/REV-054.md) | DONE / PASS | 项目负责人临时授权总控独立定向复审，P0/P1/P2=0；无 snapshot context job、late writeback 与 latest-main integration 已关闭。old `0e703af` / CI `31800324817` P1=3、`996994f` / CI `31812498482` P1=1 及全部失败历史永久保留。只接收 fail-closed/provider-neutral 范围；真实 LLM、正式 continuing-consent covered、真实数据/试点未完成 |
 | DEV-ASR-PROVIDER-001 | REV-055 | [PR #57](https://github.com/Li-Ming-G/elder_interview_ai/pull/57) / accepted content `5271b52bc7149a5b716d97df0dc6a5204aae397c` / CI `31800257197` PASS；integration `27f1c84968fc3fb3482f830b0b07abd371959b57` / CI `31824839261` PASS；[正式评论](https://github.com/Li-Ming-G/elder_interview_ai/pull/57#issuecomment-5296422732)；merge/main `dd45f5e0f8cc24b764830b596f9a7c59fcc62e75` / CI `31825548551` SUCCESS | DONE / PASS | P0/P1/P2=0；accepted content、latest-main integration 与 merge/main CI 分层永久保留。旧 `af99d91` 外部虚构证据不冒充 fresh；actual billing/SKU unknown、CON-027 OPEN，真实长者/PII/真实数据/公网/生产试点禁止。仅解除 DEV-LLM-PROVIDER-001 的 ASR 工程依赖 |
 
+| DEV-LLM-PROVIDER-001A | REV-056 | 本地分支 `codex/dev-llm-provider-001a-readiness` / exact base `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac` | REVIEW / PENDING | 旧 head `d5d4d03` / CI `31859633862` 正式 REQUEST_CHANGES（P0=0/P1=2/P2=0）永久保留；本轮仅修复 receipt 实际值/union fail-closed 与 manifest Schema/零写入校验。独立 reviewer 通道无输出，单 Agent fallback Clear 不记作独立结论；父 DEV-LLM-PROVIDER-001 继续 BLOCKED |
+
 ## 阅读规则
 
 - `DONE` 只表示任务卡声明范围内已通过，不代表父任务或真实试点通过。

@@ -60,18 +60,50 @@ describe('question generation same-input retry budget', () => {
     expect(assertAllowed).toHaveBeenCalledTimes(2);
     expect(invoke).toHaveBeenCalledTimes(1);
   });
+
+  it('aborts the active call and ignores a late success after the shared deadline', async () => {
+    const { coordinator, invoke, providerCallUpdate } = fixture();
+    let signal: AbortSignal | undefined;
+    let resolveLate: ((value: unknown) => void) | undefined;
+    invoke.mockImplementationOnce(
+      (receivedSignal) =>
+        new Promise((resolve) => {
+          signal = receivedSignal;
+          resolveLate = resolve;
+        }),
+    );
+
+    await expect(
+      coordinator.callProviderWithSameInputRetry(job(), invoke, (value) => value, Date.now() + 20),
+    ).rejects.toThrow('AI_PROVIDER_TIMEOUT');
+
+    expect(signal?.aborted).toBe(true);
+    resolveLate?.({ late: true });
+    await Promise.resolve();
+    expect(providerCallUpdate).toHaveBeenCalledTimes(1);
+    const updates = providerCallUpdate.mock.calls as unknown[][];
+    expect(
+      updates.some((call) => {
+        const data = call[0] as { data?: { status?: unknown } } | undefined;
+        return data?.data?.status === 'succeeded';
+      }),
+    ).toBe(false);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
 });
 
 function fixture(): {
   assertAllowed: ReturnType<typeof vi.fn<AiPolicyService['assertAllowed']>>;
   coordinator: AiJobCoordinatorService;
-  invoke: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+  invoke: ReturnType<typeof vi.fn<(signal: AbortSignal) => Promise<unknown>>>;
+  providerCallUpdate: ReturnType<typeof vi.fn>;
 } {
+  const providerCallUpdate = vi.fn().mockResolvedValue({});
   const prisma = {
     aiJob: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     aiProviderCall: {
       create: vi.fn().mockResolvedValue({}),
-      update: vi.fn().mockResolvedValue({}),
+      update: providerCallUpdate,
     },
   } as unknown as PrismaService;
   const assertAllowed = vi.fn<AiPolicyService['assertAllowed']>().mockResolvedValue({
@@ -81,7 +113,12 @@ function fixture(): {
   });
   const policy = { assertAllowed } as unknown as AiPolicyService;
   const coordinator = new AiJobCoordinatorService(prisma, policy, {} as AiOutputEligibilityService);
-  return { assertAllowed, coordinator, invoke: vi.fn<() => Promise<unknown>>() };
+  return {
+    assertAllowed,
+    coordinator,
+    invoke: vi.fn<(signal: AbortSignal) => Promise<unknown>>(),
+    providerCallUpdate,
+  };
 }
 
 function job(): FrozenAiJob {

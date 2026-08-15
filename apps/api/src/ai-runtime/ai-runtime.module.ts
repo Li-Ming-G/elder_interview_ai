@@ -6,6 +6,8 @@ import { AiJobCoordinatorService } from './ai-job-coordinator.service.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
 import { AiPolicyService, LocalTestBoundaryPolicyFixtureReader } from './ai-policy.service.js';
 import { AiRetentionService } from './ai-retention.service.js';
+import { LlmProviderPersistenceService } from './llm-provider-persistence.service.js';
+import { LlmProviderReadinessService } from './llm-provider-readiness.service.js';
 import {
   BoundaryPolicyReader,
   DeletionScopeReader,
@@ -32,6 +34,8 @@ export function createAiRuntimeModule(config: ApiConfig, authModule: DynamicModu
       AiOutputEligibilityService,
       AiPolicyService,
       AiRetentionService,
+      LlmProviderPersistenceService,
+      LlmProviderReadinessService,
       BoundaryPolicyReader,
       DeletionScopeReader,
       StructuredAiProvider,
@@ -44,6 +48,8 @@ export function createAiRuntimeModule(config: ApiConfig, authModule: DynamicModu
       AiOutputEligibilityService,
       AiPolicyService,
       AiRetentionService,
+      LlmProviderPersistenceService,
+      LlmProviderReadinessService,
       localOrTest ? LocalTestBoundaryPolicyFixtureReader : UnavailableBoundaryPolicyReader,
       {
         provide: BoundaryPolicyReader,

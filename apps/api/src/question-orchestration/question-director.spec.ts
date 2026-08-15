@@ -6,9 +6,10 @@ import { LocalTestQuestionDirector } from './question-director.js';
 describe('LocalTestQuestionDirector', () => {
   const director = new LocalTestQuestionDirector();
   const prompt = { system: 'system', task: 'task' };
+  const signal = new AbortController().signal;
 
   it('continues listening when both conversation context and references are empty', async () => {
-    await expect(director.generate({ context: context(), prompt })).resolves.toMatchObject({
+    await expect(director.generate({ context: context(), prompt, signal })).resolves.toMatchObject({
       continue_reason_code: 'insufficient_context',
       decision: 'continue_listening',
       question: null,
@@ -29,6 +30,7 @@ describe('LocalTestQuestionDirector', () => {
         ],
       }),
       prompt,
+      signal,
     });
 
     expect(output).toMatchObject({
@@ -53,6 +55,7 @@ describe('LocalTestQuestionDirector', () => {
         ],
       }),
       prompt,
+      signal,
     });
 
     expect(output).toMatchObject({
@@ -78,6 +81,7 @@ describe('LocalTestQuestionDirector', () => {
         ],
       }),
       prompt,
+      signal,
     });
 
     expect(output).toMatchObject({

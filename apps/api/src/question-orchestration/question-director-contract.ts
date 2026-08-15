@@ -13,6 +13,20 @@ export const DIRECTOR_PROMPT_BUNDLE_VERSION = 'interview-director-prompt-v1';
 export const DIRECTOR_CONTEXT_BUILDER_VERSION = 'interview-director-context-builder-v1';
 export const DIRECTOR_MODEL_CONFIG_VERSION = 'local-test-director-v1';
 
+export function loadInterviewDirectorPromptBundle(bundleVersion: string): {
+  system: string;
+  task: string;
+} {
+  if (bundleVersion !== DIRECTOR_PROMPT_BUNDLE_VERSION) {
+    throw new Error('AI_PROMPT_BUNDLE_NOT_FORMAL');
+  }
+  const root = findRepositoryRoot();
+  return {
+    system: readFileSync(join(root, 'docs/prompts/interview-director/v1/system.md'), 'utf8'),
+    task: readFileSync(join(root, 'docs/prompts/interview-director/v1/task.md'), 'utf8'),
+  };
+}
+
 export interface InterviewDirectorContextV1 {
   context_schema_version: typeof DIRECTOR_CONTEXT_SCHEMA_VERSION;
   current_presentation: { snapshot_id: string; text: string } | null;
@@ -93,8 +107,7 @@ export class QuestionDirectorContract {
       join(root, 'docs/contracts/interview-director-output.schema.json'),
       'utf8',
     );
-    const system = readFileSync(join(root, 'docs/prompts/interview-director/v1/system.md'), 'utf8');
-    const task = readFileSync(join(root, 'docs/prompts/interview-director/v1/task.md'), 'utf8');
+    const prompt = loadInterviewDirectorPromptBundle(DIRECTOR_PROMPT_BUNDLE_VERSION);
     const AjvConstructor = Ajv2020 as unknown as new (options: {
       allErrors: boolean;
       strict: boolean;
@@ -111,7 +124,7 @@ export class QuestionDirectorContract {
     this.validateOutputSchema = ajv.compile(JSON.parse(outputSchemaText) as object);
     this.contextSchemaDigest = sha256(contextSchemaText);
     this.outputSchemaDigest = sha256(outputSchemaText);
-    this.prompt = { system, task };
+    this.prompt = prompt;
     this.promptBundleDigest = sha256(canonicalJson(this.prompt));
   }
 
