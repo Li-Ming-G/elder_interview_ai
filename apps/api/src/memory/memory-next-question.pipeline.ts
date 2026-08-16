@@ -81,7 +81,7 @@ export class MemoryAwareNextQuestionPipeline {
     const currentWorking = this.applier.apply(
       input.currentWorking,
       maintenance.operations,
-      new Set(input.finalizedTranscript.map(({ segmentId }) => segmentId)),
+      new Map(input.finalizedTranscript.map((segment) => [segment.segmentId, segment])),
     );
     const context = this.assembler.assemble({
       activeThread: input.activeThread,

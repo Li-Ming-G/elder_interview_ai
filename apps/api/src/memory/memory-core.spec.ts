@@ -234,9 +234,32 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
             evidence: [evidenceFromSegment(segment('outside', '外部证据'), 0)],
           },
         ],
-        new Set(['owned']),
+        new Map([['owned', segment('owned', '原始证据')]]),
       ),
     ).toThrow('MEMORY_OPERATION_EVIDENCE_NOT_IN_BATCH');
+
+    expect(() =>
+      applier.apply(
+        [current],
+        [
+          {
+            operationId: 'drifted',
+            kind: 'SUPPLEMENT',
+            targetMemoryId: current.id,
+            targetThreadId: current.threadId,
+            canonicalKey: current.canonicalKey,
+            memoryType: current.memoryType,
+            value: '篡改 revision',
+            valueKind: 'exact',
+            reasonCode: 'same_canonical_key',
+            evidence: [
+              { ...evidenceFromSegment(segment('owned', '原始证据'), 0), textRevision: 99 },
+            ],
+          },
+        ],
+        new Map([['owned', segment('owned', '原始证据')]]),
+      ),
+    ).toThrow('MEMORY_OPERATION_EVIDENCE_DRIFT');
   });
 
   function segment(segmentId: string, text: string): MaintainerTranscriptSegment {

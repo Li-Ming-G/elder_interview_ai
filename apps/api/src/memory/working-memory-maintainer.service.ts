@@ -225,13 +225,21 @@ export class WorkingMemoryOperationApplier {
   public apply(
     current: readonly WorkingMemoryItem[],
     operations: readonly WorkingMemoryCandidateOperation[],
-    allowedEvidenceSegmentIds: ReadonlySet<string>,
+    authoritativeSegments: ReadonlyMap<string, MaintainerTranscriptSegment>,
   ): readonly WorkingMemoryItem[] {
     const next = new Map(current.map((item) => [item.id, item]));
     for (const operation of operations) {
       assertCandidateOperation(operation);
-      if (operation.evidence.some(({ segmentId }) => !allowedEvidenceSegmentIds.has(segmentId))) {
-        throw new Error('MEMORY_OPERATION_EVIDENCE_NOT_IN_BATCH');
+      for (const evidence of operation.evidence) {
+        const segment = authoritativeSegments.get(evidence.segmentId);
+        if (segment === undefined) throw new Error('MEMORY_OPERATION_EVIDENCE_NOT_IN_BATCH');
+        if (
+          evidence.textRevision !== segment.textRevision ||
+          evidence.speakerRoleRevision !== segment.speakerRoleRevision ||
+          evidence.effectiveTextDigest !== segment.effectiveTextDigest
+        ) {
+          throw new Error('MEMORY_OPERATION_EVIDENCE_DRIFT');
+        }
       }
       if (operation.kind === 'DUPLICATE') continue;
       const existing =

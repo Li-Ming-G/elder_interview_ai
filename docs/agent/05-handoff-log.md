@@ -82,6 +82,7 @@
 - Boundaries: no Prisma migration, no formal V2 loader, no real provider/secret/network/real data, no UI/deployment. Existing V1 runtime remains authoritative until a separately reviewed contract.
 - Next reviewer action: independent/project-owner review of the exact implementation head; do not mark SPEC/ADR or production gates DONE from this candidate slice.
 - Review history: first exact-head CI `31940201852` failed at integration startup because the new Maintainer injected a type-only `StructuredAiProvider` token (runtime metadata became `Function`); format/lint/typecheck/unit/migrations had passed. Independent review on that head also identified trigger wiring, same-batch dedupe, branch-thread, boundary-scope and applier-truth gaps; these are being repaired in a follow-up commit and must not be erased from history.
+- Follow-up review history: exact head `6dc3618` closed the DI, trigger, dedupe, branch-thread, boundary-scope and thread-provenance findings. The remaining evidence-integrity finding required authoritative segment-map validation (same ID with forged revision/digest); the current unpushed fix adds field-by-field checks and a negative test. Do not treat this local fix as independently accepted until the next exact-head CI/review.
 
 ## Latest handoff: MEMORY-T0-TRACE / REV-058
 
