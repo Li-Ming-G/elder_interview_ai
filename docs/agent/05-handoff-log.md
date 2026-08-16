@@ -4,6 +4,8 @@
 
 ## 当前接收对象
 
+| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-043/044 Proposed/REVIEW；REV-057 | T0 / Foundation-Observability Decision Trace 定向复审 | PR #63 old `b34000a6` / CI `31922715469` REQUEST_CHANGES P1=5 与 next `b137b44` / CI `31924593302` REQUEST_CHANGES P1=5 永久保留；当前只修真实 Director/publication、attempt↔trace recovery、P4 invariant/provenance、全 frozen scope Reader、forward-only migration history | T0 仍 REVIEW，等待项目负责人绑定新 exact head/CI 定向复审；P1–P6 producer、真实 provider/数据/公网继续 BLOCKED |
+
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|
 | SPEC-STAGING-DEPLOY-001 | [PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)、REV-052、[任务卡](tasks/SPEC-STAGING-DEPLOY-001.md)、[交接](handoffs/SPEC-STAGING-DEPLOY-001.md)、[正式契约](../contracts/staging-deployment-v1.md)、manifest Schema/fixtures、ADR-041、REQ-020 | DEV-STAGING-DEPLOY-001 后续独立实现任务 | DONE；old `195c4be2` / CI `31798730203` REQUEST_CHANGES（P0=0/P1=1/P2=0）永久保留；accepted `64cf94f3` / CI `31808762082` PASS，merge `751a32e1` / main CI `31815415871` SUCCESS。`DOC-STAGING-STATUS-SYNC-001` 仅机械同步页首/门禁状态；只完成契约，未安装 Cloudflare、未请求 token、未部署、未处理/许可真实数据 |
@@ -68,3 +70,5 @@
 ## 历史索引
 
 完整 `HO-001` 至 `HO-024` 及补充记录见 [`handoffs/05-handoff-log-history.md`](handoffs/05-handoff-log-history.md)；HO-025 见 `handoffs/DOC-002.md`，HO-026 起按任务文件归档。
+| MEMORY-T0-TRACE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 用户已原则接收 T0，并要求可重建 Working/Mid/Long、P3、P4、Evidence 引用 | 已新增 `decision-trace-v1.schema.json` typed refs、独立 `decision_trace` root/五类子表、retention root kind、`DecisionTraceService`；typecheck、Prisma generate、契约 2/2 通过 | 尚未完成 orchestration 全路径/数据库 fresh deploy/集成恢复测试；P1–P5 producers 仍 `unavailable/not_started`，真实 provider/data/public deployment 继续 BLOCKED |
+| MEMORY-T0-TRACE-UPDATE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 独立复核要求禁止伪造 memory layer/revision，并补齐 reader/retention 证据 | `unknown`/`unavailable`/nullable revision、P4 字符串 source ID、reference-only ACL reader、20 migrations、DecisionTrace unit 4/4、question-presentation integration 4/4 已通过 | preflight/replay/recovery 全路径及新 exact head 的项目负责人定向审查仍待完成；P1–P5 producers、真实 provider/data/public deployment 继续 BLOCKED |

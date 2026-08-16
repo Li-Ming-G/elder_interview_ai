@@ -74,24 +74,25 @@ export class ActualAskedReader {
     });
     const result: ActualAskedItem[] = [];
     for (const analysis of analyses) {
-      if (
-        analysis.aiDerivedOutputId === null ||
-        !(await this.eligibility.isEligible(actorId, analysis.aiDerivedOutputId))
-      )
-        continue;
       const questions = await this.prisma.actualQuestion.findMany({
         orderBy: [{ askedAtMs: 'asc' }, { id: 'asc' }],
         where: { actualQuestionAnalysisId: analysis.id },
       });
-      result.push(
-        ...questions.map((question) => ({
+      for (const question of questions) {
+        if (
+          !(await this.eligibility.isActualQuestionEligible(actorId, projectId, question.id, [
+            question.sessionId,
+          ]))
+        )
+          continue;
+        result.push({
           analysisRevision: analysis.analysisRevision,
           id: question.id,
           normalizedDigest: question.normalizedDigest,
           questionText: question.questionText,
           sessionId: question.sessionId,
-        })),
-      );
+        });
+      }
     }
     return result;
   }

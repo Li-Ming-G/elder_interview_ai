@@ -13,6 +13,7 @@ DEV-008A4 / ADR-037 / REV-047 的普通首次访谈行为修订不新增 REST DT
 - `interview-recorder-output.schema.json`：访谈记录员结构化输出；
 - `interview-director-context.schema.json`：`InterviewDirectorContextV1`，正式；是 Director 实际输入字段、类型、必填性、枚举和边界的唯一技术结构；
 - `interview-director-output.schema.json`：`InterviewDirectorOutputV1`，正式；是 Director 实际输出字段、类型、必填性、枚举和交叉约束的唯一技术结构；
+- `decision-trace-v1.schema.json`：`QuestionOrchestrationDecisionTraceV1`，T0 已接收的正式字段/枚举约束；只允许保存 ID、revision、hash、版本、typed membership references、状态、分数/排序、result IDs 和耗时，不允许保存完整 prompt、context、transcript 或 provider payload。P1–P6 映射与 retention/authorization 边界见 `docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`。
 - `export-manifest.schema.json`：导出资料包清单。
 - `streaming-asr-provider-v2.schema.json`：`StreamingAsrAdapter v2` 供应商中立 lifecycle/result/drain/error 正式 Schema；
 - `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；

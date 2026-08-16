@@ -6,7 +6,8 @@ import { API_CONFIG, type ApiConfigValue } from '../api-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 
-export type AiRetentionRootKind = 'ai_job' | 'question_display_snapshot' | 'memory_retention_root';
+export type AiRetentionRootKind =
+  'ai_job' | 'question_display_snapshot' | 'memory_retention_root' | 'decision_trace';
 
 interface RetentionRootSnapshot {
   expiresAt: Date;
@@ -173,6 +174,12 @@ export class AiRetentionService {
   ): Promise<void> {
     if (rootKind === 'ai_job') {
       await tx.$executeRawUnsafe(
+        `DELETE FROM ai_job_input_actual_question WHERE actual_question_id IN (
+           SELECT q.id FROM actual_question q JOIN actual_question_analysis a ON a.id=q.actual_question_analysis_id WHERE a.ai_job_id=$1::uuid
+         ) AND ai_job_id <> $1::uuid`,
+        rootId,
+      );
+      await tx.$executeRawUnsafe(
         `DELETE FROM context_snapshot_actual_question WHERE actual_question_id IN (
            SELECT q.id FROM actual_question q JOIN actual_question_analysis a ON a.id=q.actual_question_analysis_id WHERE a.ai_job_id=$1::uuid
          )`,
@@ -194,6 +201,7 @@ export class AiRetentionService {
         rootId,
       );
     }
+    // decision_trace children are owned by the root and cascade on purge.
   }
 
   private async readRoot(
@@ -205,6 +213,8 @@ export class AiRetentionService {
     if (rootKind === 'question_display_snapshot') {
       return tx.questionDisplaySnapshot.findUnique({ where: { id: rootId } });
     }
+    if (rootKind === 'decision_trace')
+      return tx.decisionTrace.findUnique({ where: { id: rootId } });
     return tx.memoryRetentionRoot.findUnique({ where: { id: rootId } });
   }
 
@@ -224,6 +234,8 @@ export class AiRetentionService {
     if (rootKind === 'ai_job') await tx.aiJob.update({ data, where: { id: rootId } });
     else if (rootKind === 'question_display_snapshot') {
       await tx.questionDisplaySnapshot.update({ data, where: { id: rootId } });
+    } else if (rootKind === 'decision_trace') {
+      await tx.decisionTrace.update({ data, where: { id: rootId } });
     } else await tx.memoryRetentionRoot.update({ data, where: { id: rootId } });
   }
 
@@ -236,6 +248,8 @@ export class AiRetentionService {
     if (rootKind === 'ai_job') await tx.aiJob.update({ data, where: { id: rootId } });
     else if (rootKind === 'question_display_snapshot') {
       await tx.questionDisplaySnapshot.update({ data, where: { id: rootId } });
+    } else if (rootKind === 'decision_trace') {
+      await tx.decisionTrace.update({ data, where: { id: rootId } });
     } else await tx.memoryRetentionRoot.update({ data, where: { id: rootId } });
   }
 
@@ -247,6 +261,8 @@ export class AiRetentionService {
     if (rootKind === 'ai_job') await tx.aiJob.delete({ where: { id: rootId } });
     else if (rootKind === 'question_display_snapshot') {
       await tx.questionDisplaySnapshot.delete({ where: { id: rootId } });
+    } else if (rootKind === 'decision_trace') {
+      await tx.decisionTrace.delete({ where: { id: rootId } });
     } else await tx.memoryRetentionRoot.delete({ where: { id: rootId } });
   }
 
@@ -262,6 +278,8 @@ export class AiRetentionService {
       if (rootKind === 'ai_job') await this.prisma.aiJob.update({ data, where: { id: rootId } });
       else if (rootKind === 'question_display_snapshot') {
         await this.prisma.questionDisplaySnapshot.update({ data, where: { id: rootId } });
+      } else if (rootKind === 'decision_trace') {
+        await this.prisma.decisionTrace.update({ data, where: { id: rootId } });
       } else await this.prisma.memoryRetentionRoot.update({ data, where: { id: rootId } });
       await this.prisma.aiRetentionCleanupAudit.upsert({
         create: {

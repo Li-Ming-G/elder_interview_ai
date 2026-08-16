@@ -1,0 +1,107 @@
+{
+  "valid": [
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000001",
+      "request_id": "00000000-0000-4000-8000-000000000002",
+      "generation_id": "00000000-0000-4000-8000-000000000015",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "ai_job_id": null,
+      "attempt_id": null,
+      "trigger_type": "automatic",
+      "decision_outcome": "continue_listening",
+      "director_invoked": false,
+      "status": "succeeded",
+      "stage": "journey",
+      "gate_reason": "elder_answer_still_open",
+      "error_code": null,
+      "started_at": "2026-08-16T00:00:00.000Z",
+      "created_at": "2026-08-16T00:00:00.000Z",
+      "completed_at": "2026-08-16T00:00:00.120Z",
+      "duration_ms": 120,
+      "context_revision": 4,
+      "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "context_digest": null,
+      "stage_timings_ms": { "journey": 40, "publication_gate": 80 },
+      "transcript_memberships": [],
+      "active_thread_id": null,
+      "working_revision": 0,
+      "memory_memberships": [
+        { "memory_id": "00000000-0000-4000-8000-000000000009", "layer": "working", "revision": 2, "membership_role": "active", "input_order": 0 },
+        { "memory_id": "00000000-0000-4000-8000-000000000010", "layer": "mid", "revision": 1, "membership_role": "resumed", "input_order": 1 },
+        { "memory_id": "00000000-0000-4000-8000-000000000011", "layer": "long", "revision": 3, "membership_role": "active", "input_order": 2 }
+      ],
+      "p3_candidates": [
+        { "candidate_id": "00000000-0000-4000-8000-000000000012", "memory_id": "00000000-0000-4000-8000-000000000010", "source_layer": "mid", "retrieval_sources": ["embedding", "graph_neighbor"], "embedding_score": 0.84, "graph_distance": 1, "rank": 0, "included": true, "exclusion_reason": null }
+      ],
+      "p4_memberships": [
+        { "section": "working_memory", "source_type": "memory", "source_id": "00000000-0000-4000-8000-000000000009", "revision": 2, "revision_status": "available", "membership_digest": null, "input_order": 0, "included": true, "drop_reason": null },
+        { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "00000000-0000-4000-8000-000000000012", "revision": null, "revision_status": "unavailable", "membership_digest": null, "input_order": 1, "included": true, "drop_reason": null }
+      ],
+      "evidence_calls": [
+        { "call_id": "00000000-0000-4000-8000-000000000013", "tool": "get_memory_evidence", "target_type": "memory", "target_id": "00000000-0000-4000-8000-000000000010", "result_ids": ["00000000-0000-4000-8000-000000000014"], "status": "succeeded", "invocation_no": 1 }
+      ]
+    },
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000005",
+      "request_id": "00000000-0000-4000-8000-000000000006",
+      "generation_id": "00000000-0000-4000-8000-000000000016",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "ai_job_id": "00000000-0000-4000-8000-000000000007",
+      "attempt_id": "00000000-0000-4000-8000-000000000008",
+      "trigger_type": "manual_next",
+      "decision_outcome": "question",
+      "director_invoked": true,
+      "status": "succeeded",
+      "stage": "director",
+      "gate_reason": null,
+      "error_code": null,
+      "started_at": "2026-08-16T00:01:00.000Z",
+      "created_at": "2026-08-16T00:01:00.000Z",
+      "completed_at": "2026-08-16T00:01:01.800Z",
+      "duration_ms": 1800,
+      "context_revision": 8,
+      "input_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "stage_timings_ms": { "p1": 220, "p2": 0, "p3": 300, "p4": 180, "director": 1100 },
+      "transcript_memberships": [
+        { "segment_id": "00000000-0000-4000-8000-000000000017", "text_revision": 1, "speaker_role_revision": 2, "effective_text_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "input_order": 0 }
+      ],
+      "active_thread_id": "00000000-0000-4000-8000-000000000018",
+      "working_revision": 2,
+      "memory_memberships": [],
+      "p3_candidates": [],
+      "p4_memberships": [],
+      "evidence_calls": []
+    }
+  ],
+  "invalid": [
+    {
+      "trace_id": "00000000-0000-4000-8000-000000000009",
+      "request_id": "00000000-0000-4000-8000-000000000010",
+      "generation_id": "00000000-0000-4000-8000-000000000019",
+      "session_id": "00000000-0000-4000-8000-000000000003",
+      "project_id": "00000000-0000-4000-8000-000000000004",
+      "trigger_type": "automatic",
+      "decision_outcome": "question",
+      "director_invoked": true,
+      "status": "succeeded",
+      "started_at": "2026-08-16T00:00:00.000Z",
+      "created_at": "2026-08-16T00:00:00.000Z",
+      "completed_at": "2026-08-16T00:00:01.000Z",
+      "duration_ms": 1000,
+      "context_revision": 1,
+      "input_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "stage_timings_ms": {},
+      "transcript_memberships": [],
+      "active_thread_id": null,
+      "working_revision": 0,
+      "memory_memberships": [],
+      "p3_candidates": [],
+      "p4_memberships": [],
+      "evidence_calls": [],
+      "raw_context": "must-never-be-persisted"
+    }
+  ]
+}

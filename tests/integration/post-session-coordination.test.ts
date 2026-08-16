@@ -6,6 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { AiJobCoordinatorService } from '../../apps/api/src/ai-runtime/ai-job-coordinator.service.js';
+import { DecisionTraceReader } from '../../apps/api/src/ai-runtime/decision-trace.reader.js';
+import { DecisionTraceService } from '../../apps/api/src/ai-runtime/decision-trace.service.js';
+import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import { InterviewContextService } from '../../apps/api/src/memory/interview-context.service.js';
 import { CurrentMemoryReader } from '../../apps/api/src/memory/memory.service.js';
@@ -34,6 +37,9 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
   let contexts: InterviewContextService;
   let memories: CurrentMemoryReader;
   let questions: ActualAskedReader;
+  let decisionTraceReader: DecisionTraceReader;
+  let decisionTraces: DecisionTraceService;
+  let deletion: LocalTestDeletionScopeFixtureReader;
 
   const actorId = randomUUID();
   const projectId = randomUUID();
@@ -67,6 +73,9 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     contexts = app.get(InterviewContextService);
     memories = app.get(CurrentMemoryReader);
     questions = app.get(ActualAskedReader);
+    decisionTraceReader = app.get(DecisionTraceReader);
+    decisionTraces = app.get(DecisionTraceService);
+    deletion = app.get(LocalTestDeletionScopeFixtureReader);
 
     await prisma.user.create({
       data: {
@@ -483,6 +492,14 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     expect(openingActual.map(({ targetId }) => targetId)).toEqual(
       contextActual.map(({ actualQuestionId }) => actualQuestionId),
     );
+    expect(
+      (
+        await prisma.aiJobInputActualQuestion.findMany({
+          orderBy: { actualQuestionId: 'asc' },
+          where: { aiJobId: openingAttempt.aiJobId },
+        })
+      ).map(({ actualQuestionId }) => actualQuestionId),
+    ).toEqual(contextActual.map(({ actualQuestionId }) => actualQuestionId));
 
     const thirdRotatedAt = new Date('2026-08-14T08:04:00.000Z');
     await prisma.speakerStream.update({
@@ -552,6 +569,34 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     expect(opening?.calibration_gate_identity).toBe(contextSnapshot.calibrationGateIdentity);
     expect(typeof opening?.attempt_id).toBe('string');
     expect(typeof opening?.request_id).toBe('string');
+    const openingTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { attemptId: openingAttempt.id },
+    });
+    await expect(decisionTraceReader.read(actorId, openingTrace.id)).resolves.toMatchObject({
+      trace: { id: openingTrace.id },
+    });
+    deletion.blockSession(basisSessionId);
+    await expect(decisionTraceReader.read(actorId, openingTrace.id)).rejects.toThrow(
+      'DECISION_TRACE_UNAVAILABLE',
+    );
+    deletion.clear();
+    await prisma.decisionTrace.delete({ where: { id: openingTrace.id } });
+    const recoveredTraceId = await decisionTraces.recoverAttempt(openingAttempt.id);
+    const recoveredTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: true },
+      where: { id: recoveredTraceId },
+    });
+    expect(recoveredTrace.status).toBe('succeeded');
+    expect(recoveredTrace.contextDigest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(
+      recoveredTrace.p4Memberships
+        .filter(({ sourceType }) => sourceType === 'actual_question')
+        .map(({ sourceId }) => sourceId)
+        .sort(),
+    ).toEqual(contextActual.map(({ actualQuestionId }) => actualQuestionId).sort());
+    await expect(decisionTraceReader.read(actorId, recoveredTraceId)).resolves.toMatchObject({
+      trace: { id: recoveredTraceId },
+    });
   });
 
   it('terminalizes a stale running attempt after ACK loss without consuming twice', async () => {

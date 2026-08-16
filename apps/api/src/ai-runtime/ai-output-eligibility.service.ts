@@ -165,6 +165,74 @@ export class AiOutputEligibilityService {
     }
   }
 
+  public async isMemoryResolutionEligible(
+    actorId: string,
+    projectId: string,
+    resolutionId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<boolean> {
+    try {
+      const [resolution, policy] = await Promise.all([
+        db.memoryResolution.findUnique({ where: { id: resolutionId } }),
+        this.policy.assertAllowed(actorId, projectId, [], db),
+      ]);
+      if (
+        resolution === null ||
+        resolution.projectId !== projectId ||
+        resolution.status !== 'current' ||
+        policy.blockedCanonicalKeys.includes(resolution.canonicalKey)
+      ) {
+        return false;
+      }
+      if (resolution.authority === 'automatic') {
+        return (
+          resolution.aiDerivedOutputId !== null &&
+          (await this.isEligible(actorId, resolution.aiDerivedOutputId, db))
+        );
+      }
+      if (resolution.memoryRetentionRootId === null) return false;
+      const root = await db.memoryRetentionRoot.findUnique({
+        where: { id: resolution.memoryRetentionRootId },
+      });
+      return root !== null && root.retentionState === 'active' && root.expiresAt > new Date();
+    } catch {
+      return false;
+    }
+  }
+
+  public async isActualQuestionEligible(
+    actorId: string,
+    projectId: string,
+    actualQuestionId: string,
+    allowedSessionIds?: readonly string[],
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<boolean> {
+    try {
+      const question = await db.actualQuestion.findUnique({ where: { id: actualQuestionId } });
+      if (
+        question === null ||
+        (allowedSessionIds !== undefined && !allowedSessionIds.includes(question.sessionId))
+      ) {
+        return false;
+      }
+      const analysis = await db.actualQuestionAnalysis.findUnique({
+        where: { id: question.actualQuestionAnalysisId },
+      });
+      return (
+        analysis !== null &&
+        analysis.projectId === projectId &&
+        analysis.sessionId === question.sessionId &&
+        analysis.status === 'succeeded' &&
+        analysis.judgeability === 'judgeable' &&
+        analysis.isCurrentPublished &&
+        analysis.aiDerivedOutputId !== null &&
+        (await this.isEligible(actorId, analysis.aiDerivedOutputId, db))
+      );
+    } catch {
+      return false;
+    }
+  }
+
   public async isQuestionTargetEligible(
     actorId: string,
     kind: string,

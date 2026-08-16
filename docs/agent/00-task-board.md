@@ -10,6 +10,8 @@
 
 ## 当前任务
 
+| SPEC-MEMORY-SYSTEM-V1 | Memory System V1 T0–T27 路线与分阶段实施 | 总控 Agent | REVIEW | T0 契约已获原则接收；T0 / Foundation-Observability 实现仍在 PR #63 定向审查 | PR #63；`docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`；REV-057 | T0 未获 PASS 前不推进 T1；P1–P6 必须继续显式映射。真实 provider、真实数据、正式授权、公网部署继续 BLOCKED |
+
 | 任务编号 | 任务 | 负责人 | 状态 | 前置任务 | 验收依据 | 阻塞原因 |
 |---|---|---|---|---|---|---|
 | SPEC-STAGING-DEPLOY-001 | Cloudflare + Windows staging 部署契约 | 独立执行 Agent；`codex/spec-staging-deploy-001` | DONE | 项目负责人已确认网页优先、Quick 仅虚构排练、Named Tunnel + 固定域名 + Access、单 Windows 主机、盈利后迁云；唯一 iteration-coach Correction 已完成 | [PR #54](https://github.com/Li-Ming-G/elder_interview_ai/pull/54)、REV-052、[任务卡](tasks/SPEC-STAGING-DEPLOY-001.md)、[交接](handoffs/SPEC-STAGING-DEPLOY-001.md)、[正式契约](../contracts/staging-deployment-v1.md)、manifest Schema/fixtures、ADR-041、REQ-020 | old `195c4be2` / CI `31798730203` SUCCESS 的 REQUEST_CHANGES（P0=0/P1=1/P2=0）永久保留；accepted `64cf94f3` / CI `31808762082` PASS（P0/P1/P2=0），merge/main `751a32e1` / main CI `31815415871` SUCCESS。`DOC-STAGING-STATUS-SYNC-001` 仅把契约页首机械对齐为 `ACCEPTED / CONTRACT ONLY`；DONE 只接收 docs/machine contract，未安装 Cloudflare、未请求 token、未部署、未许可真实数据 |
@@ -92,3 +94,4 @@
 - 只有完成 `09` 和 `10` 所规定的适用验证后才能标记为 `DONE`；高风险任务和 MVP 发布必须独立验收。
 - 不得在根目录其他文件维护第二份详细任务状态。
 - 表格中的未启动下游任务是路线级工作包；任何任务进入 `READY` 前必须补齐 `10` 要求的正式任务字段。`READY` 只表示其明确子集可执行，不等于父任务或真实试点门禁通过。
+| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | REVIEW | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 两轮 REQUEST_CHANGES，当前五项 P1 定向修复候选待审 | `docs/contracts/decision-trace-v1.schema.json`；`docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`；REV-057 | old `b34000a6` / CI `31922715469` P1=5 与 `b137b44` / CI `31924593302` P1=5 永久保留；等待新 exact-head CI 与项目负责人定向复审。P1–P6 producer、真实 provider/数据/公网均未启动 |

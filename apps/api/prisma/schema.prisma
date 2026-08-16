@@ -781,6 +781,21 @@ model AiJobInputMemory {
   @@map("ai_job_input_memory")
 }
 
+model AiJobInputActualQuestion {
+  id                       String   @id @default(uuid()) @db.Uuid
+  aiJobId                  String   @map("ai_job_id") @db.Uuid
+  actualQuestionId         String   @map("actual_question_id") @db.Uuid
+  actualQuestionAnalysisId String   @map("actual_question_analysis_id") @db.Uuid
+  analysisRevision         Int      @map("analysis_revision")
+  normalizedDigest         String   @map("normalized_digest") @db.Char(64)
+  inputOrder               Int      @map("input_order")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([aiJobId, actualQuestionId])
+  @@unique([aiJobId, inputOrder])
+  @@map("ai_job_input_actual_question")
+}
+
 model AiProviderCall {
   id                String    @id @default(uuid()) @db.Uuid
   aiJobId           String    @map("ai_job_id") @db.Uuid
@@ -1433,4 +1448,136 @@ model SessionFinalizationChunk {
 
   @@unique([sessionFinalizationId, sequenceNo])
   @@map("session_finalization_chunk")
+}
+
+model DecisionTrace {
+  id                           String                              @id @default(uuid()) @db.Uuid
+  projectId                    String                              @map("project_id") @db.Uuid
+  sessionId                    String                              @map("session_id") @db.Uuid
+  ownerActorId                 String                              @map("owner_actor_id") @db.Uuid
+  requestId                    String                              @unique @map("request_id") @db.Uuid
+  generationId                 String                              @unique @map("generation_id") @db.Uuid
+  aiJobId                      String?                             @map("ai_job_id") @db.Uuid
+  attemptId                    String?                             @unique @map("attempt_id") @db.Uuid
+  triggerType                  String                              @map("trigger_type") @db.VarChar(32)
+  decisionOutcome              String                              @map("decision_outcome") @db.VarChar(32)
+  directorInvoked              Boolean                             @map("director_invoked")
+  status                       String                              @db.VarChar(24)
+  stage                        String?                             @db.VarChar(40)
+  gateReason                   String?                             @map("gate_reason") @db.VarChar(80)
+  publicationOutcome           String?                             @map("publication_outcome") @db.VarChar(40)
+  errorCode                    String?                             @map("error_code") @db.VarChar(80)
+  startedAt                    DateTime                            @map("started_at") @db.Timestamptz(3)
+  createdAt                    DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt                  DateTime?                           @map("completed_at") @db.Timestamptz(3)
+  durationMs                   Int?                                @map("duration_ms")
+  contextRevision              Int                                 @map("context_revision")
+  workingRevision              Int?                                @map("working_revision")
+  activeThreadId               String?                             @map("active_thread_id") @db.Uuid
+  inputHash                    String                              @map("input_hash") @db.Char(64)
+  contextDigest                String?                             @map("context_digest") @db.Char(64)
+  stageTimingsJson             Json                                @map("stage_timings_json") @db.JsonB
+  retentionState               RetentionState                      @default(active) @map("retention_state")
+  expiresAt                    DateTime                            @map("expires_at") @db.Timestamptz(3)
+  retentionHiddenAt            DateTime?                           @map("retention_hidden_at") @db.Timestamptz(3)
+  retentionCleanupRequestId    String?                             @map("retention_cleanup_request_id") @db.Uuid
+  retentionCleanupAttemptCount Int                                 @default(0) @map("retention_cleanup_attempt_count")
+  retentionCleanupStartedAt    DateTime?                           @map("retention_cleanup_started_at") @db.Timestamptz(3)
+  retentionCleanupErrorCode    String?                             @map("retention_cleanup_error_code") @db.VarChar(80)
+  transcriptMemberships        DecisionTraceTranscriptMembership[]
+  memoryMemberships            DecisionTraceMemoryMembership[]
+  p3Candidates                 DecisionTraceP3Candidate[]
+  p4Memberships                DecisionTraceP4Membership[]
+  evidenceCalls                DecisionTraceEvidenceCall[]
+
+  @@index([projectId, sessionId, createdAt(sort: Desc)])
+  @@index([retentionState, expiresAt])
+  @@map("decision_trace")
+}
+
+model DecisionTraceTranscriptMembership {
+  id                  String        @id @default(uuid()) @db.Uuid
+  traceId             String        @map("trace_id") @db.Uuid
+  segmentId           String        @map("segment_id") @db.Uuid
+  textRevision        Int           @map("text_revision")
+  speakerRoleRevision Int           @map("speaker_role_revision")
+  effectiveTextDigest String        @map("effective_text_digest") @db.Char(64)
+  inputOrder          Int           @map("input_order")
+  trace               DecisionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, segmentId])
+  @@unique([traceId, inputOrder])
+  @@map("decision_trace_transcript_membership")
+}
+
+model DecisionTraceMemoryMembership {
+  id             String        @id @default(uuid()) @db.Uuid
+  traceId        String        @map("trace_id") @db.Uuid
+  memoryId       String        @map("memory_id") @db.Uuid
+  layer          String        @db.VarChar(16)
+  revision       Int?
+  membershipRole String        @map("membership_role") @db.VarChar(16)
+  inputOrder     Int           @map("input_order")
+  trace          DecisionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, memoryId, revision])
+  @@unique([traceId, inputOrder])
+  @@map("decision_trace_memory_membership")
+}
+
+model DecisionTraceP3Candidate {
+  id               String        @id @default(uuid()) @db.Uuid
+  traceId          String        @map("trace_id") @db.Uuid
+  candidateId      String        @map("candidate_id") @db.Uuid
+  memoryId         String        @map("memory_id") @db.Uuid
+  sourceLayer      String        @map("source_layer") @db.VarChar(16)
+  retrievalSources String[]      @map("retrieval_sources")
+  embeddingScore   Decimal?      @map("embedding_score") @db.Decimal(6, 5)
+  graphDistance    Int?          @map("graph_distance")
+  rank             Int
+  included         Boolean
+  exclusionReason  String?       @map("exclusion_reason") @db.VarChar(80)
+  trace            DecisionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, candidateId])
+  @@index([traceId, rank])
+  @@map("decision_trace_p3_candidate")
+}
+
+model DecisionTraceP4Membership {
+  id               String        @id @default(uuid()) @db.Uuid
+  traceId          String        @map("trace_id") @db.Uuid
+  section          String        @db.VarChar(32)
+  sourceType       String        @map("source_type") @db.VarChar(32)
+  sourceId         String        @map("source_id") @db.VarChar(160)
+  revision         Int?
+  revisionStatus   String        @map("revision_status") @db.VarChar(16)
+  sourceVersion    String?       @map("source_version") @db.VarChar(80)
+  membershipDigest String?       @map("membership_digest") @db.Char(64)
+  inputOrder       Int           @map("input_order")
+  included         Boolean
+  dropReason       String?       @map("drop_reason") @db.VarChar(80)
+  trace            DecisionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, section, sourceId, inputOrder])
+  @@map("decision_trace_p4_membership")
+}
+
+model DecisionTraceEvidenceCall {
+  id            String        @id @default(uuid()) @db.Uuid
+  traceId       String        @map("trace_id") @db.Uuid
+  callId        String        @map("call_id") @db.Uuid
+  tool          String        @db.VarChar(40)
+  targetType    String        @map("target_type") @db.VarChar(24)
+  targetId      String        @map("target_id") @db.Uuid
+  resultIds     String[]      @map("result_ids") @db.Uuid
+  status        String        @db.VarChar(24)
+  invocationNo  Int           @map("invocation_no")
+  requestDigest String?       @map("request_digest") @db.Char(64)
+  resultDigest  String?       @map("result_digest") @db.Char(64)
+  trace         DecisionTrace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@unique([traceId, callId])
+  @@unique([traceId, invocationNo])
+  @@map("decision_trace_evidence_call")
 }

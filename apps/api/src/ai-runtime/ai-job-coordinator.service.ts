@@ -342,6 +342,19 @@ export class AiJobCoordinatorService {
         request.projectId,
         actualQuestionIds,
       );
+      for (const [inputOrder, question] of frozenActualQuestions.entries()) {
+        await tx.aiJobInputActualQuestion.create({
+          data: {
+            actualQuestionAnalysisId: question.analysisId,
+            actualQuestionId: question.actualQuestionId,
+            aiJobId: jobId,
+            analysisRevision: question.analysisRevision,
+            id: randomUUID(),
+            inputOrder,
+            normalizedDigest: question.normalizedDigest,
+          },
+        });
+      }
       if (
         sourceContext !== null &&
         frozenActualQuestions.some((question) => {
@@ -807,11 +820,15 @@ export class AiJobCoordinatorService {
     requestIdentityHash: string,
     triggeredReplay = false,
   ): Promise<void> {
-    const [job, scopes, memories] = await Promise.all([
+    const [job, scopes, memories, actualQuestions] = await Promise.all([
       tx.aiJob.findUniqueOrThrow({ where: { id: jobId } }),
       tx.aiJobSessionScope.findMany({ orderBy: { sessionId: 'asc' }, where: { aiJobId: jobId } }),
       tx.aiJobInputMemory.findMany({
         orderBy: { memoryResolutionId: 'asc' },
+        where: { aiJobId: jobId },
+      }),
+      tx.aiJobInputActualQuestion.findMany({
+        orderBy: { inputOrder: 'asc' },
         where: { aiJobId: jobId },
       }),
     ]);
@@ -830,7 +847,9 @@ export class AiJobCoordinatorService {
           `${request.jobType}:${[...new Set(request.trustedRoles ?? [request.trustedRole])].sort().join('+')}`,
       ) &&
       memories.map(({ memoryResolutionId }) => memoryResolutionId).join('|') ===
-        memoryIds.join('|');
+        memoryIds.join('|') &&
+      actualQuestions.map(({ actualQuestionId }) => actualQuestionId).join('|') ===
+        [...new Set(request.actualQuestionIds ?? [])].join('|');
     if (!same || (!triggeredReplay && job.requestId !== request.requestId)) {
       throw new Error('AI_REQUEST_IDENTITY_CONFLICT');
     }
@@ -862,12 +881,23 @@ export class AiJobCoordinatorService {
 
   private async hydrateReplay(tx: Prisma.TransactionClient, jobId: string): Promise<FrozenAiJob> {
     const job = await tx.aiJob.findUniqueOrThrow({ where: { id: jobId } });
-    const scopes = await tx.aiJobSessionScope.findMany({
-      orderBy: { sessionId: 'asc' },
-      where: { aiJobId: jobId },
-    });
+    const [scopes, actualQuestions] = await Promise.all([
+      tx.aiJobSessionScope.findMany({
+        orderBy: { sessionId: 'asc' },
+        where: { aiJobId: jobId },
+      }),
+      tx.aiJobInputActualQuestion.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: jobId },
+      }),
+    ]);
     return {
-      actualQuestions: [],
+      actualQuestions: actualQuestions.map((question) => ({
+        actualQuestionId: question.actualQuestionId,
+        analysisId: question.actualQuestionAnalysisId,
+        analysisRevision: question.analysisRevision,
+        normalizedDigest: question.normalizedDigest,
+      })),
       id: job.id,
       inputHash: job.inputHash,
       memories: [],
