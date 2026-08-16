@@ -464,3 +464,7 @@
 - Trace 使用独立 retention root，支持 hide→detach→purge、授权查询、source retention fail-closed、cleanup audit 和终态 CAS；no-provider/continue/error 也必须受同一治理。
 - 在 P1 memory authority 建立前，CurrentMemoryReader 不提供 Working/Mid/Long 的正式层级字段，因此 T0 必须记录 `unknown`/`unavailable`/nullable revision；禁止以 `mid` 或 `0` 伪造层级与版本。
 - 审查历史：PR #63 exact head `b34000a6` / CI `31922715469` 与 `b137b44` / CI `31924593302` 均获项目负责人 `REQUEST_CHANGES`（P0=0/P1=5/P2=0），永久保留；ADR 编号冲突在第二轮已关闭，当前五项 P1 修复候选仍为 REVIEW，不改变 ADR-043/044 的 Proposed 状态。
+
+## ADR-043/044 review history update
+
+REV-058 independently PASSed the T0 / Foundation-Observability implementation at `40cc61e` / CI `31936839303` and merged/main `a9363dcd` / CI `31937348480`. This is implementation evidence only; ADR-043/044 remain Proposed/REVIEW pending project-owner governance acceptance. No later P1-P6 layer or real provider/data/deployment decision is implied.

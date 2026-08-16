@@ -109,3 +109,7 @@ Neo4j/Graph Database、Retrieval Reranker LLM、Search Intent LLM、Entity Agent
 - 核心架构、数据模型、权限、安全、状态机和跨模块契约必须由项目负责人或独立验收角色明确审查；执行 Agent 不得自行 PASS/DONE/merge。
 - 真实 LLM 只有在 provider/model/region/endpoint、数据政策、DPA/retention/training、secret 注入和完整验证齐备后才可启用；真实长者、PII、生产公网、真实试点继续受现有 BLOCKED 门禁约束。
 - 任一阶段失败时保留失败历史，不删除测试目标、不用 `continue_listening` 掩盖错误、不覆盖原始录音/转录/授权记录。
+
+## T0 implementation closeout (REV-058)
+
+The T0 / Foundation-Observability Decision Trace implementation received independent PASS at `40cc61e12ef63096474fe63b69463920f2d6a7c4` / CI `31936839303` and merged to main as `a9363dcd` with CI `31937348480` SUCCESS. This closes only the reviewed T0 reference-only implementation. The overall SPEC remains REVIEW for T1-T27; every future task/PR/handoff must retain explicit P1-P6 mapping, and real provider, real data, public deployment and formal v2 remain blocked.

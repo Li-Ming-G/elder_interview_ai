@@ -43,3 +43,7 @@
 | Memory System V1 分层与 evidence provenance | T2–T17 | `MemoryClaim/Resolution/Evidence`、`CurrentMemoryReader`、TranscriptSegment | 同上 | PLANNED；不得假装已实现 |
 | P1/P2/P3/P4 分层运行时与固定评价 | T4–T27 | 现有 post-session memory、context V1、Question Director | 同上 | PLANNED；按阶段独立 PR |
 | T0 typed trace references | Foundation/Observability cross-cutting P1–P6 provenance | `decision-trace-v1.schema.json`、`MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`、DecisionTrace root/children、frozen actual-question input references | unit 69/427；fresh 21 migrations；integration 15/97；auth 4/26；REV-057 | REVIEW；两轮 REQUEST_CHANGES 历史保留，当前五项 P1 修复候选等待新 exact-head CI 与项目负责人定向复审 |
+
+## T0 traceability closeout
+
+REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.
