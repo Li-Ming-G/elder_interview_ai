@@ -237,7 +237,6 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       },
       input.requestId,
     );
-    if (attemptId === null) return null;
     const trace = await this.decisionTrace.begin({
       aiJobId: job.id,
       attemptId,

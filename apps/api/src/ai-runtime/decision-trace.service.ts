@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
+import type { DecisionTrace, Prisma } from '../generated/prisma/client.js';
 
 export type DecisionTraceOutcome =
   'question' | 'continue_listening' | 'system_error' | 'unavailable';
@@ -93,7 +94,7 @@ export interface DecisionTraceEvidenceInput {
 export class DecisionTraceService {
   public constructor(private readonly prisma: PrismaService) {}
 
-  public async begin(input: DecisionTraceInput) {
+  public async begin(input: DecisionTraceInput): Promise<DecisionTrace> {
     const existing = await this.prisma.decisionTrace.findUnique({
       where: { requestId: input.requestId },
     });
@@ -207,7 +208,9 @@ export class DecisionTraceService {
   }
 }
 
-function toTranscriptRow(value: DecisionTraceTranscriptInput) {
+function toTranscriptRow(
+  value: DecisionTraceTranscriptInput,
+): Prisma.DecisionTraceTranscriptMembershipCreateWithoutTraceInput {
   return {
     segmentId: value.segmentId,
     textRevision: value.textRevision,
@@ -217,7 +220,9 @@ function toTranscriptRow(value: DecisionTraceTranscriptInput) {
   };
 }
 
-function toMemoryRow(value: DecisionTraceMemoryInput) {
+function toMemoryRow(
+  value: DecisionTraceMemoryInput,
+): Prisma.DecisionTraceMemoryMembershipCreateWithoutTraceInput {
   return {
     memoryId: value.memoryId,
     layer: value.layer,
@@ -227,7 +232,9 @@ function toMemoryRow(value: DecisionTraceMemoryInput) {
   };
 }
 
-function toP3Row(value: DecisionTraceP3Input) {
+function toP3Row(
+  value: DecisionTraceP3Input,
+): Prisma.DecisionTraceP3CandidateCreateWithoutTraceInput {
   return {
     candidateId: value.candidateId,
     memoryId: value.memoryId,
@@ -241,7 +248,9 @@ function toP3Row(value: DecisionTraceP3Input) {
   };
 }
 
-function toP4Row(value: DecisionTraceP4Input) {
+function toP4Row(
+  value: DecisionTraceP4Input,
+): Prisma.DecisionTraceP4MembershipCreateWithoutTraceInput {
   return {
     section: value.section,
     sourceType: value.sourceType,
@@ -254,7 +263,9 @@ function toP4Row(value: DecisionTraceP4Input) {
   };
 }
 
-function toEvidenceRow(value: DecisionTraceEvidenceInput) {
+function toEvidenceRow(
+  value: DecisionTraceEvidenceInput,
+): Prisma.DecisionTraceEvidenceCallCreateWithoutTraceInput {
   return {
     callId: value.callId,
     tool: value.tool,

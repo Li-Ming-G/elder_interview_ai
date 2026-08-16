@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DecisionTraceService } from './decision-trace.service.js';
+import { DecisionTraceService, type DecisionTraceInput } from './decision-trace.service.js';
 
 const trace = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -9,7 +9,7 @@ const trace = {
   status: 'running',
 };
 
-function input() {
+function input(): DecisionTraceInput {
   return {
     contextRevision: 1,
     decisionOutcome: 'unavailable' as const,
@@ -41,7 +41,7 @@ describe('DecisionTraceService', () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const prisma = {
       decisionTrace: { findUnique, create, updateMany },
-      $transaction: vi.fn(async (callback: (tx: unknown) => unknown) =>
+      $transaction: vi.fn((callback: (tx: unknown) => unknown) =>
         callback({ decisionTrace: { findUnique: txFindUnique, create } }),
       ),
     } as never;
@@ -63,7 +63,7 @@ describe('DecisionTraceService', () => {
         findUnique: vi.fn().mockResolvedValue({ ...trace, status: 'succeeded' }),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
-      $transaction: vi.fn(async (callback: (tx: unknown) => unknown) =>
+      $transaction: vi.fn((callback: (tx: unknown) => unknown) =>
         callback({
           decisionTrace: {
             findUnique: vi.fn().mockResolvedValue({ ...trace, status: 'succeeded' }),

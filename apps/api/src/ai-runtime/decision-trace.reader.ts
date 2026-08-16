@@ -1,6 +1,31 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
+import type { Prisma } from '../generated/prisma/client.js';
+
+const traceInclude = {
+  transcriptMemberships: { orderBy: { inputOrder: 'asc' } },
+  memoryMemberships: { orderBy: { inputOrder: 'asc' } },
+  p3Candidates: { orderBy: { rank: 'asc' } },
+  p4Memberships: { orderBy: { inputOrder: 'asc' } },
+  evidenceCalls: { orderBy: { invocationNo: 'asc' } },
+} satisfies Prisma.DecisionTraceInclude;
+
+type DecisionTraceRead = Prisma.DecisionTraceGetPayload<{ include: typeof traceInclude }>;
+type ProviderProvenance = Pick<
+  Prisma.AiProviderCallGetPayload<{
+    select: {
+      callNo: true;
+      status: true;
+      providerRequestId: true;
+      inputHash: true;
+      outputHash: true;
+      latencyMs: true;
+      errorCode: true;
+    };
+  }>,
+  'callNo' | 'status' | 'providerRequestId' | 'inputHash' | 'outputHash' | 'latencyMs' | 'errorCode'
+>;
 
 /**
  * Read-only, reference-only trace access. This deliberately never joins or
@@ -10,16 +35,13 @@ import { PrismaService } from '../database/prisma.service.js';
 export class DecisionTraceReader {
   public constructor(private readonly prisma: PrismaService) {}
 
-  public async read(actorId: string, traceId: string) {
+  public async read(
+    actorId: string,
+    traceId: string,
+  ): Promise<{ trace: DecisionTraceRead; providerProvenance: ProviderProvenance[] | null }> {
     const trace = await this.prisma.decisionTrace.findUnique({
       where: { id: traceId },
-      include: {
-        transcriptMemberships: { orderBy: { inputOrder: 'asc' } },
-        memoryMemberships: { orderBy: { inputOrder: 'asc' } },
-        p3Candidates: { orderBy: { rank: 'asc' } },
-        p4Memberships: { orderBy: { inputOrder: 'asc' } },
-        evidenceCalls: { orderBy: { invocationNo: 'asc' } },
-      },
+      include: traceInclude,
     });
     if (trace === null || trace.retentionState !== 'active' || trace.expiresAt <= new Date()) {
       throw new Error('DECISION_TRACE_UNAVAILABLE');
