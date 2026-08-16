@@ -191,12 +191,28 @@ describe('DEV-007B constrained question publication', () => {
       },
     });
     expect(firstTrace.status).toBe('succeeded');
+    expect(firstTrace.directorInvoked).toBe(true);
+    expect(firstTrace.stage).toBe('publication');
     expect(firstTrace.attemptId).toBe(first.attempt_id);
+    expect(firstTrace.contextDigest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(
+      firstTrace.p4Memberships.every(
+        (item) => item.revisionStatus === 'available' || item.revisionStatus === 'unavailable',
+      ),
+    ).toBe(true);
     expect(firstTrace.memoryMemberships.every((item) => item.layer === 'unknown')).toBe(true);
     expect(firstTrace.p4Memberships.length).toBeGreaterThan(0);
     expect(
       firstTrace.transcriptMemberships.every((item) => item.effectiveTextDigest.length === 64),
     ).toBe(true);
+    await prisma.decisionTrace.delete({ where: { id: firstTrace.id } });
+    const repairedTraceId = await decisionTraces.recoverAttempt(first.attempt_id);
+    const repairedTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { id: repairedTraceId },
+    });
+    expect(repairedTrace.status).toBe('succeeded');
+    expect(repairedTrace.directorInvoked).toBe(true);
+    expect(repairedTrace.stage).toBe('recovered');
 
     const firstCandidate = await prisma.questionCandidate.findFirstOrThrow({
       where: { questionGenerationAttemptId: first.attempt_id },
@@ -563,22 +579,12 @@ describe('DEV-007B constrained question publication', () => {
 
   it('keeps trace reads reference-only and purges the root with all memberships', async () => {
     const requestId = randomUUID();
-    const memoryId = randomUUID();
     const trace = await decisionTraces.begin({
       contextRevision: 0,
       decisionOutcome: 'continue_listening',
       directorInvoked: false,
       expiresAt: new Date(Date.now() + 60_000),
       inputHash: 'd'.repeat(64),
-      memoryMemberships: [
-        {
-          inputOrder: 0,
-          layer: 'unknown',
-          memoryId,
-          membershipRole: 'unavailable',
-          revision: null,
-        },
-      ],
       ownerActorId: actorId,
       p4Memberships: [
         {
@@ -586,6 +592,7 @@ describe('DEV-007B constrained question publication', () => {
           inputOrder: 0,
           membershipDigest: null,
           revision: null,
+          revisionStatus: 'unavailable',
           section: 'question_bank',
           sourceId: 'fixture-business-question-id',
           sourceType: 'question_bank_item',
@@ -602,7 +609,7 @@ describe('DEV-007B constrained question publication', () => {
       status: 'succeeded',
     });
     const readable = await decisionTraceReader.read(actorId, trace.id);
-    expect(readable.trace.memoryMemberships).toHaveLength(1);
+    expect(readable.trace.memoryMemberships).toHaveLength(0);
     expect(readable.trace.p4Memberships[0]?.sourceId).toBe('fixture-business-question-id');
     expect(JSON.stringify(readable)).not.toContain('transcript_text');
     expect(JSON.stringify(readable)).not.toContain('prompt_text');

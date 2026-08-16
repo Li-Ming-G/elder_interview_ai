@@ -35,8 +35,8 @@
         { "candidate_id": "00000000-0000-4000-8000-000000000012", "memory_id": "00000000-0000-4000-8000-000000000010", "source_layer": "mid", "retrieval_sources": ["embedding", "graph_neighbor"], "embedding_score": 0.84, "graph_distance": 1, "rank": 0, "included": true, "exclusion_reason": null }
       ],
       "p4_memberships": [
-        { "section": "working_memory", "source_type": "memory", "source_id": "00000000-0000-4000-8000-000000000009", "revision": 2, "membership_digest": null, "input_order": 0, "included": true, "drop_reason": null },
-        { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "00000000-0000-4000-8000-000000000012", "revision": 0, "membership_digest": null, "input_order": 1, "included": true, "drop_reason": null }
+        { "section": "working_memory", "source_type": "memory", "source_id": "00000000-0000-4000-8000-000000000009", "revision": 2, "revision_status": "available", "membership_digest": null, "input_order": 0, "included": true, "drop_reason": null },
+        { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "00000000-0000-4000-8000-000000000012", "revision": null, "revision_status": "unavailable", "membership_digest": null, "input_order": 1, "included": true, "drop_reason": null }
       ],
       "evidence_calls": [
         { "call_id": "00000000-0000-4000-8000-000000000013", "tool": "get_memory_evidence", "target_type": "memory", "target_id": "00000000-0000-4000-8000-000000000010", "result_ids": ["00000000-0000-4000-8000-000000000014"], "status": "succeeded", "invocation_no": 1 }

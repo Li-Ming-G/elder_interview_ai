@@ -448,7 +448,7 @@
 - 重新评估：跨源部署、允许绕过 Cloudflare 直连 origin、Access identity 替代应用账号、引入 OIDC，或可信代理无法形成唯一可验证入口时，重开 ADR-009/042 与 Cookie/CORS/CSRF/审计契约。
 - iteration-coach：SEC 任务恰好一次独立只读复核为 `Clear / NO-PAUSE`；最重要不变量是任何边缘 metadata 只有在部署证明受信入口后才可成为安全上下文，且即使可信也不能授予应用身份或权限。本 integration 不重复复核。
 - 审查历史：branch-local ADR-041、content PASS、canonical ADR-042 的机械编号映射与 integration PASS 全部永久保留；Accepted 只接收应用身份/会话、匿名失败审计与 direct-peer fail-closed seam。trusted ingress、可信 proxy/header/hop、origin 防直连、公网容量与真实数据许可仍未实现，不由本 ADR 状态关闭。
-## ADR-033｜Memory System V1 分阶段路线与 Decision Trace 先行
+## ADR-043｜Memory System V1 分阶段路线与 Decision Trace 先行
 
 - 状态：Proposed / REVIEW。
 - 决定：按 `SPEC-MEMORY-SYSTEM-V1` 的 T0–T27 顺序推进，先做 T0–T1 诊断与错误可见性，再做 Memory 合同、Provider、P1–P4、Evidence、Runtime、Prompt 和 Evaluation；每个阶段独立验证、PR 和负责人审查。
@@ -456,7 +456,7 @@
 - 数据边界：Trace 只保存 ID、hash、版本、membership 引用、有限枚举和耗时；不复制完整 prompt/context/transcript/provider payload，不新建第二套业务事实。优先复用 `AiJob`/attempt/provider receipt；只有缺口才增加窄 trace root/投影。
 - 约束：Trace 与冻结 job/attempt 事务关联，终态后不可变；late generation 不得改写新结果。T0 不接入真实 provider，不启用真实长者/PII，不提前加载 v2-draft。
 - 后续需单独冻结：trace schema/retention root/权限、P1 操作 schema、Memory authority、retrieval provider、context budget、SYSTEM_ERROR 公共错误码、evaluation artifact 隔离。
-## ADR-034｜T0 Decision Trace typed references、retention root 与 P1–P6 映射
+## ADR-044｜T0 Decision Trace typed references、retention root 与 P1–P6 映射
 
 - 状态：Proposed / REVIEW（用户原则接收 T0 补充要求；实现仍待 PR 审查）。
 - Trace 必须通过 typed ID/revision/membership/order/digest/result-ID references 重建当次 Working/Mid/Long、P3 candidates、P4 membership 与 P5 Evidence 调用，不复制正文。

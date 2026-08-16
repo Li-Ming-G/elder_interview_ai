@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import type { DecisionTrace, Prisma } from '../generated/prisma/client.js';
+import { Prisma, type DecisionTrace } from '../generated/prisma/client.js';
 
 export type DecisionTraceOutcome =
   'question' | 'continue_listening' | 'system_error' | 'unavailable';
@@ -72,6 +72,7 @@ export interface DecisionTraceP4Input {
   sourceType: string;
   sourceId: string;
   revision: number | null;
+  revisionStatus: 'available' | 'unavailable';
   membershipDigest?: string | null;
   inputOrder: number;
   included: boolean;
@@ -91,8 +92,12 @@ export interface DecisionTraceEvidenceInput {
 }
 
 @Injectable()
-export class DecisionTraceService {
+export class DecisionTraceService implements OnModuleInit {
   public constructor(private readonly prisma: PrismaService) {}
+
+  public async onModuleInit(): Promise<void> {
+    await this.reconcileRunning();
+  }
 
   public async begin(input: DecisionTraceInput): Promise<DecisionTrace> {
     const existing = await this.prisma.decisionTrace.findUnique({
@@ -150,6 +155,8 @@ export class DecisionTraceService {
       decisionOutcome?: DecisionTraceOutcome;
       errorCode?: string | null;
       completedAt?: Date;
+      directorInvoked?: boolean;
+      stage?: string | null;
     },
   ): Promise<void> {
     const completedAt = result.completedAt ?? new Date();
@@ -161,6 +168,10 @@ export class DecisionTraceService {
         ...(result.decisionOutcome === undefined
           ? {}
           : { decisionOutcome: result.decisionOutcome }),
+        ...(result.directorInvoked === undefined
+          ? {}
+          : { directorInvoked: result.directorInvoked }),
+        ...(result.stage === undefined ? {} : { stage: result.stage }),
         durationMs: Math.max(0, completedAt.getTime() - current.startedAt.getTime()),
         errorCode: result.errorCode ?? null,
         status: result.status,
@@ -172,39 +183,109 @@ export class DecisionTraceService {
 
   public async attachReferences(
     traceId: string,
-    refs: Pick<DecisionTraceInput, 'p3Candidates' | 'p4Memberships' | 'evidenceCalls'>,
+    refs: Pick<DecisionTraceInput, 'p3Candidates' | 'p4Memberships' | 'evidenceCalls'> & {
+      contextDigest?: string | null;
+    },
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      const trace = await tx.decisionTrace.findUnique({ where: { id: traceId } });
-      if (trace === null || trace.status !== 'running') {
-        throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
-      }
-      const p3Candidates = refs.p3Candidates ?? [];
-      const p4Memberships = refs.p4Memberships ?? [];
-      const evidenceCalls = refs.evidenceCalls ?? [];
-      if (p3Candidates.length > 0) {
-        await tx.decisionTraceP3Candidate.createMany({
-          data: p3Candidates.map((value) => ({ ...toP3Row(value), traceId, id: randomUUID() })),
-          skipDuplicates: true,
+    await this.prisma.$transaction(
+      async (tx) => {
+        const trace = await tx.decisionTrace.findUnique({ where: { id: traceId } });
+        if (trace === null || trace.status !== 'running') {
+          throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+        }
+        const p3Candidates = refs.p3Candidates ?? [];
+        const p4Memberships = refs.p4Memberships ?? [];
+        const evidenceCalls = refs.evidenceCalls ?? [];
+        if (p3Candidates.length > 0) {
+          await tx.decisionTraceP3Candidate.createMany({
+            data: p3Candidates.map((value) => ({ ...toP3Row(value), traceId, id: randomUUID() })),
+            skipDuplicates: true,
+          });
+        }
+        if (p4Memberships.length > 0) {
+          await tx.decisionTraceP4Membership.createMany({
+            data: p4Memberships.map((value) => ({ ...toP4Row(value), traceId, id: randomUUID() })),
+            skipDuplicates: true,
+          });
+        }
+        if (evidenceCalls.length > 0) {
+          await tx.decisionTraceEvidenceCall.createMany({
+            data: evidenceCalls.map((value) => ({
+              ...toEvidenceRow(value),
+              traceId,
+              id: randomUUID(),
+            })),
+            skipDuplicates: true,
+          });
+        }
+        await tx.decisionTrace.update({
+          data: { contextDigest: refs.contextDigest ?? null, stage: 'context_frozen' },
+          where: { id: traceId },
         });
-      }
-      if (p4Memberships.length > 0) {
-        await tx.decisionTraceP4Membership.createMany({
-          data: p4Memberships.map((value) => ({ ...toP4Row(value), traceId, id: randomUUID() })),
-          skipDuplicates: true,
-        });
-      }
-      if (evidenceCalls.length > 0) {
-        await tx.decisionTraceEvidenceCall.createMany({
-          data: evidenceCalls.map((value) => ({
-            ...toEvidenceRow(value),
-            traceId,
-            id: randomUUID(),
-          })),
-          skipDuplicates: true,
-        });
-      }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  public async recoverAttempt(attemptId: string): Promise<string> {
+    const attempt = await this.prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { id: attemptId },
     });
+    const aiJob = await this.prisma.aiJob.findUniqueOrThrow({ where: { id: attempt.aiJobId } });
+    const existing = await this.prisma.decisionTrace.findUnique({
+      where: { requestId: attempt.requestId },
+    });
+    if (existing !== null) return existing.id;
+    const providerCallCount = await this.prisma.aiProviderCall.count({
+      where: { aiJobId: attempt.aiJobId },
+    });
+    const trace = await this.begin({
+      aiJobId: attempt.aiJobId,
+      attemptId,
+      contextRevision: attempt.basisPresentationRevision,
+      decisionOutcome: 'unavailable',
+      directorInvoked: providerCallCount > 0,
+      generationId: attempt.requestId,
+      inputHash: aiJob.inputHash,
+      ownerActorId: aiJob.requestedBy,
+      projectId: aiJob.projectId,
+      requestId: attempt.requestId,
+      sessionId: attempt.sessionId,
+      stage: 'recovered',
+      triggerType: attempt.attemptKind,
+      workingRevision: null,
+    });
+    await this.finalize(trace.id, {
+      directorInvoked: providerCallCount > 0,
+      decisionOutcome:
+        attempt.status === 'succeeded'
+          ? attempt.resultKind === 'suggestion'
+            ? 'question'
+            : 'continue_listening'
+          : 'unavailable',
+      errorCode: attempt.status === 'succeeded' ? null : 'SYSTEM_TRACE_RECOVERED',
+      stage: 'recovered',
+      status:
+        attempt.status === 'succeeded'
+          ? 'succeeded'
+          : attempt.status === 'cancelled'
+            ? 'cancelled'
+            : 'unavailable',
+    });
+    return trace.id;
+  }
+
+  public async reconcileRunning(maxAgeMs = 30_000): Promise<number> {
+    const result = await this.prisma.decisionTrace.updateMany({
+      data: {
+        completedAt: new Date(),
+        errorCode: 'SYSTEM_COORDINATOR_RESTARTED',
+        stage: 'recovered',
+        status: 'unavailable',
+      },
+      where: { status: 'running', startedAt: { lt: new Date(Date.now() - maxAgeMs) } },
+    });
+    return result.count;
   }
 }
 
@@ -256,6 +337,7 @@ function toP4Row(
     sourceType: value.sourceType,
     sourceId: value.sourceId,
     revision: value.revision,
+    revisionStatus: value.revisionStatus,
     membershipDigest: value.membershipDigest ?? null,
     inputOrder: value.inputOrder,
     included: value.included,

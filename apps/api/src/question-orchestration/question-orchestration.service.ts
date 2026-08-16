@@ -305,7 +305,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         select: { id: true },
         where: { requestId },
       });
-      const replayTraceId = replayTrace?.id ?? null;
+      const replayTraceId =
+        replayTrace === null ? await this.decisionTrace.recoverAttempt(replay.id) : replayTrace.id;
       const replayJob = await this.prisma.aiJob.findUnique({ where: { id: replay.aiJobId } });
       if (
         replay.sessionId !== sessionId ||
@@ -328,7 +329,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         shouldContinueListening: false,
         replayed: true,
         requestId,
-        traceId: replayTraceId ?? '',
+        traceId: replayTraceId,
       };
     }
 
@@ -368,7 +369,13 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       trustedRole: 'elder',
       trustedRoles: ['elder', 'interviewer'],
     });
-    if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    if (job.replayed) {
+      const replayAttempt = await this.prisma.questionGenerationAttempt.findUnique({
+        where: { requestId },
+      });
+      if (replayAttempt !== null) await this.decisionTrace.recoverAttempt(replayAttempt.id);
+      throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+    }
 
     const journeyContext = await this.journeyContext(job, generation.journeyStage, memories);
     const decision = this.journey.evaluate(journeyContext, JOURNEY_POLICY_VERSION);
@@ -484,13 +491,23 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         sessionId,
       );
       this.contract.assertContext(context);
+      const p4Memberships = traceP4Memberships(
+        context,
+        sessionId,
+        memories,
+        actualAsked,
+        inputSegments,
+      );
       await this.decisionTrace.attachReferences(trace.id, {
-        p4Memberships: traceP4Memberships(context, sessionId),
+        contextDigest: manifestHash(p4Memberships.map((item) => JSON.stringify(item))),
+        p4Memberships,
       });
     } catch (error) {
       await this.decisionTrace.finalize(trace.id, {
         decisionOutcome: 'system_error',
         errorCode: error instanceof Error ? error.message.slice(0, 80) : 'CONTEXT_BUILD_FAILED',
+        directorInvoked: false,
+        stage: 'context',
         status: 'failed',
       });
       throw error;
@@ -515,7 +532,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     if (prepared.job === null || prepared.context === null) return;
     try {
       if (prepared.shouldContinueListening) {
-        await this.writer.publishAttemptResult(
+        const publication = await this.writer.publishAttemptResult(
           {
             attemptId: prepared.attemptId,
             candidate: null,
@@ -530,8 +547,13 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           prepared.requestId,
         );
         await this.decisionTrace.finalize(prepared.traceId, {
-          decisionOutcome: 'continue_listening',
-          status: 'succeeded',
+          decisionOutcome: traceOutcomeForPublication(
+            publication.publicationOutcome,
+            'continue_listening',
+          ),
+          directorInvoked: false,
+          stage: 'publication',
+          status: traceStatusForPublication(publication.publicationOutcome),
         });
         return;
       }
@@ -563,7 +585,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
               }),
             }
           : null;
-      await this.writer.publishAttemptResult(
+      const publication = await this.writer.publishAttemptResult(
         {
           attemptId: prepared.attemptId,
           candidate,
@@ -578,14 +600,21 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         prepared.requestId,
       );
       await this.decisionTrace.finalize(prepared.traceId, {
-        decisionOutcome: candidate === null ? 'continue_listening' : 'question',
-        status: 'succeeded',
+        decisionOutcome: traceOutcomeForPublication(
+          publication.publicationOutcome,
+          candidate === null ? 'continue_listening' : 'question',
+        ),
+        directorInvoked: true,
+        stage: 'publication',
+        status: traceStatusForPublication(publication.publicationOutcome),
       });
     } catch (error) {
       await this.decisionTrace
         .finalize(prepared.traceId, {
           decisionOutcome: 'system_error',
           errorCode: error instanceof Error ? error.message.slice(0, 80) : 'DIRECTOR_FAILED',
+          directorInvoked: true,
+          stage: 'director',
           status: 'failed',
         })
         .catch(() => undefined);
@@ -835,13 +864,34 @@ function goalFor(stage: 'rapport' | 'life_outline' | 'story_depth'): string {
 function traceP4Memberships(
   context: InterviewDirectorContextV1,
   sessionId: string,
+  memories: readonly CurrentMemoryItem[],
+  actualAsked: readonly { id: string; analysisRevision: number; normalizedDigest: string }[],
+  inputSegments: readonly {
+    transcriptSegmentId: string;
+    textRevision: number;
+    effectiveTextDigest: string;
+  }[],
 ): DecisionTraceP4Input[] {
   const refs: DecisionTraceP4Input[] = [];
+  const memoryRevisions = new Map(memories.map((item) => [item.id, item.resolutionRevision]));
+  const actualRevisions = new Map(
+    actualAsked.map((item) => [
+      item.id,
+      { revision: item.analysisRevision, digest: item.normalizedDigest },
+    ]),
+  );
+  const transcriptRevisions = new Map(
+    inputSegments.map((item) => [
+      item.transcriptSegmentId,
+      { revision: item.textRevision, digest: item.effectiveTextDigest },
+    ]),
+  );
   let inputOrder = 0;
   refs.push({
     inputOrder: inputOrder++,
     included: true,
     revision: null,
+    revisionStatus: 'unavailable',
     section: 'interview_state',
     sourceId: sessionId,
     sourceType: 'session',
@@ -850,7 +900,10 @@ function traceP4Memberships(
     refs.push({
       inputOrder: inputOrder++,
       included: true,
-      revision: null,
+      revision: memoryRevisions.get(memory.memory_resolution_id) ?? null,
+      revisionStatus: memoryRevisions.has(memory.memory_resolution_id)
+        ? 'available'
+        : 'unavailable',
       section: 'working_memory',
       sourceId: memory.memory_resolution_id,
       sourceType: 'memory',
@@ -860,7 +913,9 @@ function traceP4Memberships(
     refs.push({
       inputOrder: inputOrder++,
       included: true,
-      revision: null,
+      revision: transcriptRevisions.get(segment.segment_id)?.revision ?? null,
+      revisionStatus: transcriptRevisions.has(segment.segment_id) ? 'available' : 'unavailable',
+      membershipDigest: transcriptRevisions.get(segment.segment_id)?.digest ?? null,
       section: 'recent_transcript',
       sourceId: segment.segment_id,
       sourceType: 'transcript_segment',
@@ -870,7 +925,11 @@ function traceP4Memberships(
     refs.push({
       inputOrder: inputOrder++,
       included: true,
-      revision: null,
+      revision: actualRevisions.get(question.actual_question_id)?.revision ?? null,
+      revisionStatus: actualRevisions.has(question.actual_question_id)
+        ? 'available'
+        : 'unavailable',
+      membershipDigest: actualRevisions.get(question.actual_question_id)?.digest ?? null,
       section: 'actual_asked',
       sourceId: question.actual_question_id,
       sourceType: 'actual_question',
@@ -881,6 +940,7 @@ function traceP4Memberships(
       inputOrder: inputOrder++,
       included: true,
       revision: null,
+      revisionStatus: 'unavailable',
       section: 'recently_displayed',
       sourceId: snapshot.snapshot_id,
       sourceType: 'display_snapshot',
@@ -891,6 +951,7 @@ function traceP4Memberships(
       inputOrder: inputOrder++,
       included: true,
       revision: null,
+      revisionStatus: 'unavailable',
       section: 'current_presentation',
       sourceId: context.current_presentation.snapshot_id,
       sourceType: 'presentation',
@@ -901,6 +962,7 @@ function traceP4Memberships(
       inputOrder: inputOrder++,
       included: true,
       revision: null,
+      revisionStatus: 'unavailable',
       section: 'question_bank',
       sourceId: bank.question_bank_item_id,
       sourceType: 'question_bank_item',
@@ -914,4 +976,23 @@ function stableUuid(value: string): string {
   hex[12] = '4';
   hex[16] = '8';
   return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex.slice(12, 16).join('')}-${hex.slice(16, 20).join('')}-${hex.slice(20, 32).join('')}`;
+}
+
+function traceStatusForPublication(
+  publicationOutcome: string,
+): 'succeeded' | 'cancelled' | 'stale' | 'unavailable' {
+  if (publicationOutcome === 'superseded_by_manual') return 'cancelled';
+  if (publicationOutcome === 'stale_basis') return 'stale';
+  if (publicationOutcome === 'policy_blocked' || publicationOutcome.includes('blocked'))
+    return 'unavailable';
+  return 'succeeded';
+}
+
+function traceOutcomeForPublication(
+  publicationOutcome: string,
+  successOutcome: 'question' | 'continue_listening',
+): 'question' | 'continue_listening' | 'unavailable' {
+  return traceStatusForPublication(publicationOutcome) === 'succeeded'
+    ? successOutcome
+    : 'unavailable';
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { AiPolicyService } from './ai-policy.service.js';
 
 const traceInclude = {
   transcriptMemberships: { orderBy: { inputOrder: 'asc' } },
@@ -33,7 +34,10 @@ type ProviderProvenance = Pick<
  */
 @Injectable()
 export class DecisionTraceReader {
-  public constructor(private readonly prisma: PrismaService) {}
+  public constructor(
+    private readonly prisma: PrismaService,
+    private readonly policy: AiPolicyService,
+  ) {}
 
   public async read(
     actorId: string,
@@ -45,6 +49,68 @@ export class DecisionTraceReader {
     });
     if (trace === null || trace.retentionState !== 'active' || trace.expiresAt <= new Date()) {
       throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    await this.policy.assertAllowed(actorId, trace.projectId, [trace.sessionId]).catch(() => {
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+    });
+    if (trace.aiJobId !== null) {
+      const sourceJob = await this.prisma.aiJob.findUnique({ where: { id: trace.aiJobId } });
+      if (
+        sourceJob === null ||
+        sourceJob.retentionState !== 'active' ||
+        sourceJob.expiresAt <= new Date()
+      ) {
+        throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+    }
+    const transcriptIds = trace.transcriptMemberships.map((item) => item.segmentId);
+    if (transcriptIds.length > 0) {
+      const count = await this.prisma.transcriptSegment.count({
+        where: { id: { in: transcriptIds }, sessionId: trace.sessionId },
+      });
+      if (count !== transcriptIds.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const memoryIds = trace.memoryMemberships.map((item) => item.memoryId);
+    if (memoryIds.length > 0) {
+      const memories = await this.prisma.memoryResolution.findMany({
+        where: { id: { in: memoryIds }, projectId: trace.projectId, status: 'current' },
+        select: { id: true, memoryRetentionRootId: true },
+      });
+      if (memories.length !== memoryIds.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+      const rootIds = memories.flatMap((item) =>
+        item.memoryRetentionRootId === null ? [] : [item.memoryRetentionRootId],
+      );
+      if (rootIds.length > 0) {
+        const roots = await this.prisma.memoryRetentionRoot.count({
+          where: { id: { in: rootIds }, retentionState: 'active', expiresAt: { gt: new Date() } },
+        });
+        if (roots !== rootIds.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+    }
+    const snapshotIds = trace.p4Memberships
+      .filter(
+        (item) => item.sourceType === 'display_snapshot' || item.sourceType === 'presentation',
+      )
+      .map((item) => item.sourceId);
+    if (snapshotIds.length > 0) {
+      const count = await this.prisma.questionDisplaySnapshot.count({
+        where: {
+          id: { in: snapshotIds },
+          sessionId: trace.sessionId,
+          retentionState: 'active',
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (count !== snapshotIds.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const actualIds = trace.p4Memberships
+      .filter((item) => item.sourceType === 'actual_question')
+      .map((item) => item.sourceId);
+    if (actualIds.length > 0) {
+      const count = await this.prisma.actualQuestion.count({
+        where: { id: { in: actualIds }, sessionId: trace.sessionId },
+      });
+      if (count !== actualIds.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
     }
     const [actor, assignment, session] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: actorId }, select: { status: true } }),

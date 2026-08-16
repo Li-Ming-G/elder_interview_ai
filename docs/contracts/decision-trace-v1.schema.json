@@ -117,12 +117,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["section", "source_type", "source_id", "revision", "input_order", "included"],
+        "required": ["section", "source_type", "source_id", "revision", "revision_status", "input_order", "included"],
         "properties": {
           "section": { "enum": ["interview_state", "working_memory", "active_memory", "recent_transcript", "memory_candidates", "boundaries", "actual_asked", "recently_displayed", "question_bank", "current_presentation"] },
           "source_type": { "enum": ["session", "memory", "transcript_segment", "memory_candidate", "boundary", "actual_question", "display_snapshot", "question_bank_item", "presentation"] },
           "source_id": { "type": "string", "minLength": 1, "maxLength": 160 },
-          "revision": { "type": "integer", "minimum": 0 },
+          "revision": { "type": ["integer", "null"], "minimum": 0 },
+          "revision_status": { "enum": ["available", "unavailable"] },
           "membership_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
           "input_order": { "type": "integer", "minimum": 0 },
           "included": { "type": "boolean" },

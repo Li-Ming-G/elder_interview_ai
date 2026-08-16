@@ -78,6 +78,7 @@ CREATE TABLE "decision_trace_p4_membership" (
     "source_type" VARCHAR(32) NOT NULL,
     "source_id" VARCHAR(160) NOT NULL,
     "revision" INTEGER,
+    "revision_status" VARCHAR(16) NOT NULL DEFAULT 'unavailable',
     "membership_digest" CHAR(64),
     "input_order" INTEGER NOT NULL,
     "included" BOOLEAN NOT NULL,

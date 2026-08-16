@@ -79,4 +79,15 @@ describe('DecisionTraceService', () => {
       'DECISION_TRACE_TERMINAL_OR_MISSING',
     );
   });
+
+  it('reconciles stale running traces with a deterministic terminal state', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const prisma = { decisionTrace: { updateMany } } as never;
+    await expect(new DecisionTraceService(prisma).reconcileRunning()).resolves.toBe(2);
+    const call = updateMany.mock.calls[0]?.[0] as
+      { data: { status: string; errorCode: string }; where: { status: string } } | undefined;
+    expect(call?.data.status).toBe('unavailable');
+    expect(call?.data.errorCode).toBe('SYSTEM_COORDINATOR_RESTARTED');
+    expect(call?.where.status).toBe('running');
+  });
 });

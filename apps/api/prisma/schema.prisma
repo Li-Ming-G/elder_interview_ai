@@ -1535,6 +1535,7 @@ model DecisionTraceP4Membership {
   sourceType         String       @map("source_type") @db.VarChar(32)
   sourceId           String       @map("source_id") @db.VarChar(160)
   revision           Int?
+  revisionStatus     String       @map("revision_status") @db.VarChar(16)
   membershipDigest   String?      @map("membership_digest") @db.Char(64)
   inputOrder         Int          @map("input_order")
   included           Boolean
