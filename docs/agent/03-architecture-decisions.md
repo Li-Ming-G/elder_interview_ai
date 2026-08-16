@@ -463,3 +463,4 @@
 - T0/T1 标记为 Foundation/Observability；T4=P1、T5–T8=P2、T9–T10=P3、T11–T12=P4、T13–T17=P5、T18–T25=P6、T26–T27=Foundation/Observability。后续任务、PR、handoff、traceability、review 必须带该映射。
 - Trace 使用独立 retention root，支持 hide→detach→purge、授权查询、source retention fail-closed、cleanup audit 和终态 CAS；no-provider/continue/error 也必须受同一治理。
 - 在 P1 memory authority 建立前，CurrentMemoryReader 不提供 Working/Mid/Long 的正式层级字段，因此 T0 必须记录 `unknown`/`unavailable`/nullable revision；禁止以 `mid` 或 `0` 伪造层级与版本。
+- 审查历史：PR #63 exact head `b34000a6` / CI `31922715469` 与 `b137b44` / CI `31924593302` 均获项目负责人 `REQUEST_CHANGES`（P0=0/P1=5/P2=0），永久保留；ADR 编号冲突在第二轮已关闭，当前五项 P1 修复候选仍为 REVIEW，不改变 ADR-043/044 的 Proposed 状态。

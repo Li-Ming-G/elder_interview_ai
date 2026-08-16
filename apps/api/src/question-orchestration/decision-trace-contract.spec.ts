@@ -30,4 +30,26 @@ describe('decision-trace-v1 proposal contract', () => {
   it('rejects raw context or other undeclared payload fields', () => {
     for (const fixture of fixtures.invalid) expect(validate(fixture)).toBe(false);
   });
+
+  it('locks revision availability to a non-null revision in both directions', () => {
+    const availableWithoutRevision = JSON.parse(JSON.stringify(fixtures.valid[0])) as {
+      p4_memberships: Array<{ revision: number | null; revision_status: string }>;
+    };
+    availableWithoutRevision.p4_memberships[0] = {
+      ...availableWithoutRevision.p4_memberships[0],
+      revision: null,
+      revision_status: 'available',
+    };
+    expect(validate(availableWithoutRevision)).toBe(false);
+
+    const unavailableWithRevision = JSON.parse(JSON.stringify(fixtures.valid[0])) as {
+      p4_memberships: Array<{ revision: number | null; revision_status: string }>;
+    };
+    unavailableWithRevision.p4_memberships[1] = {
+      ...unavailableWithRevision.p4_memberships[1],
+      revision: 1,
+      revision_status: 'unavailable',
+    };
+    expect(validate(unavailableWithRevision)).toBe(false);
+  });
 });

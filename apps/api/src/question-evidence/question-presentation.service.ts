@@ -242,6 +242,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         data: { inputHash: frozenInputHash },
         where: { id: command.job.id },
       });
+      await createDecisionTraceForAttempt(tx, command, attempt, requestId, frozenInputHash);
       if (command.attemptKind === 'manual_next') {
         await createEvent(tx, {
           actorId,
@@ -336,6 +337,13 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           status: 'failed',
         },
       });
+      await createDecisionTraceForAttempt(
+        tx,
+        { ...command, bankReferences: [] },
+        attempt,
+        requestId,
+        job.inputHash,
+      );
       await createEvent(tx, {
         actorId: null,
         aiJobId: command.job.id,
@@ -1566,6 +1574,181 @@ function emptyCurrent(sessionId: string): SuggestionPresentationResponse {
 
 async function lock(tx: Prisma.TransactionClient, key: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+}
+
+async function createDecisionTraceForAttempt(
+  tx: Prisma.TransactionClient,
+  command: BeginQuestionGenerationCommand,
+  attempt: QuestionGenerationAttempt,
+  requestId: string,
+  frozenInputHash: string,
+): Promise<void> {
+  const existing = await tx.decisionTrace.findUnique({ where: { requestId } });
+  if (existing !== null) return;
+  const [job, scopes, segments, memories, snapshot] = await Promise.all([
+    tx.aiJob.findUniqueOrThrow({ where: { id: command.job.id } }),
+    tx.aiJobSessionScope.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: command.job.id },
+    }),
+    tx.aiJobInputSegment.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: command.job.id },
+    }),
+    tx.aiJobInputMemory.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: command.job.id },
+    }),
+    command.basisSnapshotId === null
+      ? null
+      : tx.questionDisplaySnapshot.findUnique({ where: { id: command.basisSnapshotId } }),
+  ]);
+  const p4: Array<{
+    section: string;
+    sourceType: string;
+    sourceId: string;
+    revision: number | null;
+    revisionStatus: string;
+    sourceVersion: string | null;
+    membershipDigest: string | null;
+    inputOrder: number;
+    included: boolean;
+    dropReason: string | null;
+  }> = [];
+  for (const scope of scopes) {
+    p4.push({
+      section: 'interview_state',
+      sourceType: 'session',
+      sourceId: scope.sessionId,
+      revision: scope.speakerRoleRevision,
+      revisionStatus: 'available',
+      sourceVersion: null,
+      membershipDigest: scope.segmentManifestHash,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  for (const segment of segments) {
+    p4.push({
+      section: 'recent_transcript',
+      sourceType: 'transcript_segment',
+      sourceId: segment.transcriptSegmentId,
+      revision: segment.textRevision,
+      revisionStatus: 'available',
+      sourceVersion: null,
+      membershipDigest: segment.effectiveTextDigest,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  for (const memory of memories) {
+    p4.push({
+      section: 'working_memory',
+      sourceType: 'memory',
+      sourceId: memory.memoryResolutionId,
+      revision: memory.resolutionRevision,
+      revisionStatus: 'available',
+      sourceVersion: null,
+      membershipDigest: null,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  for (const actual of command.job.actualQuestions) {
+    p4.push({
+      section: 'actual_asked',
+      sourceType: 'actual_question',
+      sourceId: actual.actualQuestionId,
+      revision: actual.analysisRevision,
+      revisionStatus: 'available',
+      sourceVersion: null,
+      membershipDigest: actual.normalizedDigest,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  for (const reference of command.bankReferences) {
+    p4.push({
+      section: 'question_bank',
+      sourceType: 'question_bank_item',
+      sourceId: reference.itemId,
+      revision: null,
+      revisionStatus: 'unavailable',
+      sourceVersion: reference.bankVersion,
+      membershipDigest: reference.contentDigest,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  if (snapshot !== null) {
+    p4.push({
+      section: 'current_presentation',
+      sourceType: 'presentation',
+      sourceId: snapshot.id,
+      revision: snapshot.publishedPresentationRevision,
+      revisionStatus: 'available',
+      sourceVersion: null,
+      membershipDigest: snapshot.normalizedQuestionDigest,
+      inputOrder: p4.length,
+      included: true,
+      dropReason: null,
+    });
+  }
+  await tx.decisionTrace.create({
+    data: {
+      id: randomUUID(),
+      projectId: command.job.projectId,
+      sessionId: command.sessionId,
+      ownerActorId: command.job.requestedBy,
+      requestId,
+      generationId: stableTraceUuid(`generation:${requestId}`),
+      aiJobId: command.job.id,
+      attemptId: attempt.id,
+      triggerType: command.attemptKind,
+      decisionOutcome: 'unavailable',
+      directorInvoked: false,
+      status: 'running',
+      stage: 'attempt_created',
+      startedAt: attempt.startedAt ?? attempt.createdAt,
+      contextRevision: command.basisPresentationRevision,
+      workingRevision: null,
+      inputHash: frozenInputHash,
+      contextDigest: manifestHash(p4.map((item) => canonicalJson(item))),
+      stageTimingsJson: {},
+      expiresAt: job.expiresAt,
+      transcriptMemberships: {
+        create: segments.map((segment) => ({
+          segmentId: segment.transcriptSegmentId,
+          textRevision: segment.textRevision,
+          speakerRoleRevision: segment.speakerRoleRevision,
+          effectiveTextDigest: segment.effectiveTextDigest,
+          inputOrder: segment.inputOrder,
+        })),
+      },
+      memoryMemberships: {
+        create: memories.map((memory) => ({
+          memoryId: memory.memoryResolutionId,
+          layer: 'unknown',
+          revision: memory.resolutionRevision,
+          membershipRole: 'active',
+          inputOrder: memory.inputOrder,
+        })),
+      },
+      p4Memberships: { create: p4 },
+    },
+  });
+}
+
+function stableTraceUuid(value: string): string {
+  const hex = sha256(value).slice(0, 32).split('');
+  hex[12] = '4';
+  hex[16] = '8';
+  return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex.slice(12, 16).join('')}-${hex.slice(16, 20).join('')}-${hex.slice(20, 32).join('')}`;
 }
 
 function conflict(code: string): ConflictException {

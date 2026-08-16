@@ -13,7 +13,7 @@ import {
   DecisionTraceService,
   type DecisionTraceP4Input,
 } from '../ai-runtime/decision-trace.service.js';
-import { manifestHash } from '../ai-runtime/ai-provenance.js';
+import { canonicalJson, manifestHash } from '../ai-runtime/ai-provenance.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { InterviewContextService } from '../memory/interview-context.service.js';
@@ -256,6 +256,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     await this.decisionTrace.finalize(trace.id, {
       decisionOutcome: 'unavailable',
       errorCode: input.errorCode,
+      publicationOutcome: 'policy_blocked',
       status: 'unavailable',
     });
     return attemptId;
@@ -440,10 +441,16 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       throw error;
     }
     const frozenJob = { ...job, inputHash: receipt.frozenInputHash };
-    const inputSegments = await this.prisma.aiJobInputSegment.findMany({
-      orderBy: { inputOrder: 'asc' },
-      where: { aiJobId: frozenJob.id },
-    });
+    const [inputSegments, sessionScopes] = await Promise.all([
+      this.prisma.aiJobInputSegment.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: frozenJob.id },
+      }),
+      this.prisma.aiJobSessionScope.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: frozenJob.id },
+      }),
+    ]);
     const trace = await this.decisionTrace.begin({
       aiJobId: frozenJob.id,
       attemptId: receipt.attemptId,
@@ -491,15 +498,31 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         sessionId,
       );
       this.contract.assertContext(context);
+      const displaySourceIds = [
+        ...context.recently_displayed.map((item) => item.snapshot_id),
+        ...(context.current_presentation === null
+          ? []
+          : [context.current_presentation.snapshot_id]),
+      ];
+      const displaySources = await this.prisma.questionDisplaySnapshot.findMany({
+        where: { id: { in: displaySourceIds } },
+        select: {
+          id: true,
+          normalizedQuestionDigest: true,
+          publishedPresentationRevision: true,
+        },
+      });
       const p4Memberships = traceP4Memberships(
         context,
-        sessionId,
         memories,
         actualAsked,
         inputSegments,
+        bankReferences,
+        displaySources,
+        sessionScopes,
       );
       await this.decisionTrace.attachReferences(trace.id, {
-        contextDigest: manifestHash(p4Memberships.map((item) => JSON.stringify(item))),
+        contextDigest: manifestHash(p4Memberships.map((item) => canonicalJson(item))),
         p4Memberships,
       });
     } catch (error) {
@@ -552,6 +575,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
             'continue_listening',
           ),
           directorInvoked: false,
+          publicationOutcome: publication.publicationOutcome,
           stage: 'publication',
           status: traceStatusForPublication(publication.publicationOutcome),
         });
@@ -605,6 +629,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           candidate === null ? 'continue_listening' : 'question',
         ),
         directorInvoked: true,
+        publicationOutcome: publication.publicationOutcome,
         stage: 'publication',
         status: traceStatusForPublication(publication.publicationOutcome),
       });
@@ -863,13 +888,23 @@ function goalFor(stage: 'rapport' | 'life_outline' | 'story_depth'): string {
 
 function traceP4Memberships(
   context: InterviewDirectorContextV1,
-  sessionId: string,
   memories: readonly CurrentMemoryItem[],
   actualAsked: readonly { id: string; analysisRevision: number; normalizedDigest: string }[],
   inputSegments: readonly {
     transcriptSegmentId: string;
     textRevision: number;
     effectiveTextDigest: string;
+  }[],
+  bankReferences: readonly QuestionBankInputReference[],
+  displaySources: readonly {
+    id: string;
+    normalizedQuestionDigest: string;
+    publishedPresentationRevision: number;
+  }[],
+  sessionScopes: readonly {
+    segmentManifestHash: string;
+    sessionId: string;
+    speakerRoleRevision: number;
   }[],
 ): DecisionTraceP4Input[] {
   const refs: DecisionTraceP4Input[] = [];
@@ -886,16 +921,31 @@ function traceP4Memberships(
       { revision: item.textRevision, digest: item.effectiveTextDigest },
     ]),
   );
+  const bankProvenance = new Map(
+    bankReferences.map((item) => [
+      item.itemId,
+      { version: item.bankVersion, digest: item.contentDigest },
+    ]),
+  );
+  const displayProvenance = new Map(
+    displaySources.map((item) => [
+      item.id,
+      { revision: item.publishedPresentationRevision, digest: item.normalizedQuestionDigest },
+    ]),
+  );
   let inputOrder = 0;
-  refs.push({
-    inputOrder: inputOrder++,
-    included: true,
-    revision: null,
-    revisionStatus: 'unavailable',
-    section: 'interview_state',
-    sourceId: sessionId,
-    sourceType: 'session',
-  });
+  for (const scope of sessionScopes) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      membershipDigest: scope.segmentManifestHash,
+      revision: scope.speakerRoleRevision,
+      revisionStatus: 'available',
+      section: 'interview_state',
+      sourceId: scope.sessionId,
+      sourceType: 'session',
+    });
+  }
   for (const memory of context.current_memories) {
     refs.push({
       inputOrder: inputOrder++,
@@ -939,8 +989,9 @@ function traceP4Memberships(
     refs.push({
       inputOrder: inputOrder++,
       included: true,
-      revision: null,
-      revisionStatus: 'unavailable',
+      revision: displayProvenance.get(snapshot.snapshot_id)?.revision ?? null,
+      revisionStatus: displayProvenance.has(snapshot.snapshot_id) ? 'available' : 'unavailable',
+      membershipDigest: displayProvenance.get(snapshot.snapshot_id)?.digest ?? null,
       section: 'recently_displayed',
       sourceId: snapshot.snapshot_id,
       sourceType: 'display_snapshot',
@@ -950,8 +1001,12 @@ function traceP4Memberships(
     refs.push({
       inputOrder: inputOrder++,
       included: true,
-      revision: null,
-      revisionStatus: 'unavailable',
+      revision: displayProvenance.get(context.current_presentation.snapshot_id)?.revision ?? null,
+      revisionStatus: displayProvenance.has(context.current_presentation.snapshot_id)
+        ? 'available'
+        : 'unavailable',
+      membershipDigest:
+        displayProvenance.get(context.current_presentation.snapshot_id)?.digest ?? null,
       section: 'current_presentation',
       sourceId: context.current_presentation.snapshot_id,
       sourceType: 'presentation',
@@ -963,6 +1018,8 @@ function traceP4Memberships(
       included: true,
       revision: null,
       revisionStatus: 'unavailable',
+      sourceVersion: bankProvenance.get(bank.question_bank_item_id)?.version ?? null,
+      membershipDigest: bankProvenance.get(bank.question_bank_item_id)?.digest ?? null,
       section: 'question_bank',
       sourceId: bank.question_bank_item_id,
       sourceType: 'question_bank_item',

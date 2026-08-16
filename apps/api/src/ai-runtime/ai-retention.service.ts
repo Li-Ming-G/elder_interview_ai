@@ -174,6 +174,12 @@ export class AiRetentionService {
   ): Promise<void> {
     if (rootKind === 'ai_job') {
       await tx.$executeRawUnsafe(
+        `DELETE FROM ai_job_input_actual_question WHERE actual_question_id IN (
+           SELECT q.id FROM actual_question q JOIN actual_question_analysis a ON a.id=q.actual_question_analysis_id WHERE a.ai_job_id=$1::uuid
+         ) AND ai_job_id <> $1::uuid`,
+        rootId,
+      );
+      await tx.$executeRawUnsafe(
         `DELETE FROM context_snapshot_actual_question WHERE actual_question_id IN (
            SELECT q.id FROM actual_question q JOIN actual_question_analysis a ON a.id=q.actual_question_analysis_id WHERE a.ai_job_id=$1::uuid
          )`,

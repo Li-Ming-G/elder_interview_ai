@@ -44,6 +44,10 @@
     "status": { "enum": ["running", "succeeded", "failed", "cancelled", "stale", "unavailable"] },
     "stage": { "type": ["string", "null"], "maxLength": 40 },
     "gate_reason": { "type": ["string", "null"], "maxLength": 80 },
+    "publication_outcome": {
+      "type": ["string", "null"],
+      "enum": ["published", "not_better", "duplicate_filtered", "stale_basis", "superseded_by_manual", "policy_blocked", "not_applicable", null]
+    },
     "error_code": { "type": ["string", "null"], "maxLength": 80 },
     "started_at": { "type": "string", "format": "date-time" },
     "created_at": { "type": "string", "format": "date-time" },
@@ -124,11 +128,22 @@
           "source_id": { "type": "string", "minLength": 1, "maxLength": 160 },
           "revision": { "type": ["integer", "null"], "minimum": 0 },
           "revision_status": { "enum": ["available", "unavailable"] },
+          "source_version": { "type": ["string", "null"], "maxLength": 80 },
           "membership_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
           "input_order": { "type": "integer", "minimum": 0 },
           "included": { "type": "boolean" },
           "drop_reason": { "type": ["string", "null"], "maxLength": 80 }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "revision_status": { "const": "available" } } },
+            "then": { "properties": { "revision": { "type": "integer", "minimum": 0 } } }
+          },
+          {
+            "if": { "properties": { "revision_status": { "const": "unavailable" } } },
+            "then": { "properties": { "revision": { "type": "null" } } }
+          }
+        ]
       }
     },
     "evidence_calls": {

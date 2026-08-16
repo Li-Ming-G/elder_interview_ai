@@ -4,7 +4,7 @@
 
 ## 当前接收对象
 
-| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-043/044 Proposed/REVIEW | T0 Decision Trace 实施 | PR #63 定向修复进行中；旧 head `b34000a6` / CI `31922715469` REQUEST_CHANGES P1=5 永久保留；本轮只修 director/stale 终态、attempt↔trace crash repair、P4 revision/digest status、reader policy/source retention、ADR 编号冲突 | T0 仍 REVIEW，等待项目负责人新 exact head 定向复审；P1–P5 producer、真实 provider/数据/公网继续 BLOCKED |
+| SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-043/044 Proposed/REVIEW；REV-057 | T0 / Foundation-Observability Decision Trace 定向复审 | PR #63 old `b34000a6` / CI `31922715469` REQUEST_CHANGES P1=5 与 next `b137b44` / CI `31924593302` REQUEST_CHANGES P1=5 永久保留；当前只修真实 Director/publication、attempt↔trace recovery、P4 invariant/provenance、全 frozen scope Reader、forward-only migration history | T0 仍 REVIEW，等待项目负责人绑定新 exact head/CI 定向复审；P1–P6 producer、真实 provider/数据/公网继续 BLOCKED |
 
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |
 |---|---|---|---|

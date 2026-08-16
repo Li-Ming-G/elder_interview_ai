@@ -6,6 +6,7 @@
 
 | 任务 | 最新审查 | 绑定提交 / PR | 结论 | 当前边界或未关闭意见 |
 |---|---|---|---|---|
+| MEMORY-T0-TRACE | REV-057 | [PR #63](https://github.com/Li-Ming-G/elder_interview_ai/pull/63) / old `b34000a6` CI `31922715469` / next `b137b44` CI `31924593302` | REVIEW / REQUEST_CHANGES 修复候选 | 两轮均为 P0=0/P1=5/P2=0，历史永久保留；当前只形成五项 P1 定向修复候选，等待项目负责人绑定新 exact head/CI 复审。T0=Foundation/Observability；P1–P6 producer、真实 provider/数据/公网未启动 |
 | DEV-001B | REV-053（旧 REV-007 永久保留） | [PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55) / integration `d67dd12de5010f49e5ad97733a9c33aecea0c5c5` / CI `31816652463` SUCCESS | DONE / PASS | REV-053 接收身份、会话、权限与匿名失败审计基础，CON-008 RESOLVED；旧 `ab9628b` / REV-007 REVIEW 历史永久保留。DONE 不覆盖 trusted ingress/proxy/header/origin 防直连、公网部署或真实数据许可 |
 | SEC-AUTH-PUBLIC-001 | REV-053 | [PR #55](https://github.com/Li-Ming-G/elder_interview_ai/pull/55) / content `01018376002b475fd7715ca9b3cb8ee6333a3a72` / CI `31798421917` SUCCESS / integration `d67dd12de5010f49e5ad97733a9c33aecea0c5c5` / CI `31816652463` SUCCESS / merge `8bcf65b2575841277ca7f885cdb783d57494b01e` / main CI `31817732960` SUCCESS | DONE / PASS | 项目负责人对 content 与 latest-main integration 均正式 PASS（P0/P1/P2=0）；canonical ADR-042 Accepted 并保留 branch-local ADR-041 alias。只接收应用身份/会话与 direct-peer fail-closed seam；trusted ingress/proxy/header/origin 防绕过仍未实现 |
 | DEV-002 | REV-009 | `f16b82a` | DONE | 仅内部虚构项目/授权/会话；CON-010 不允许真实口头授权音频试点 |

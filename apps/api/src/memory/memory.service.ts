@@ -13,7 +13,7 @@ import {
 import { AiPolicyService } from '../ai-runtime/ai-policy.service.js';
 import { StructuredAiProvider } from '../ai-runtime/structured-ai.provider.js';
 import { PrismaService } from '../database/prisma.service.js';
-import type { MemoryResolution, Prisma } from '../generated/prisma/client.js';
+import type { Prisma } from '../generated/prisma/client.js';
 
 export interface CurrentMemoryItem {
   authority: 'automatic' | 'human_confirmed' | 'system_migration';
@@ -43,13 +43,11 @@ export class CurrentMemoryReader {
     });
     const visible: CurrentMemoryItem[] = [];
     for (const row of rows) {
-      if (blockedCanonicalKeys.has(row.canonicalKey)) continue;
-      const allowed =
-        row.authority === 'automatic'
-          ? row.aiDerivedOutputId !== null &&
-            (await this.eligibility.isEligible(actorId, row.aiDerivedOutputId))
-          : await this.humanRootIsActive(row);
-      if (!allowed) continue;
+      if (
+        blockedCanonicalKeys.has(row.canonicalKey) ||
+        !(await this.eligibility.isMemoryResolutionEligible(actorId, projectId, row.id))
+      )
+        continue;
       visible.push({
         authority: row.authority,
         canonicalKey: row.canonicalKey,
@@ -62,14 +60,6 @@ export class CurrentMemoryReader {
       });
     }
     return visible;
-  }
-
-  private async humanRootIsActive(row: MemoryResolution): Promise<boolean> {
-    if (row.memoryRetentionRootId === null) return false;
-    const root = await this.prisma.memoryRetentionRoot.findUnique({
-      where: { id: row.memoryRetentionRootId },
-    });
-    return root !== null && root.retentionState === 'active' && root.expiresAt > new Date();
   }
 }
 

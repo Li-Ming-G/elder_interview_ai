@@ -182,6 +182,7 @@ describe('DEV-007B constrained question publication', () => {
     });
     expect(first.current.question).toBe('如果您愿意，可以先从小时候住过的地方讲起吗？');
     expect(accepted.attempt_id).toBe(first.attempt_id);
+    await waitForTraceTerminal(firstRequestId);
     const firstTrace = await prisma.decisionTrace.findUniqueOrThrow({
       where: { requestId: firstRequestId },
       include: {
@@ -193,6 +194,7 @@ describe('DEV-007B constrained question publication', () => {
     expect(firstTrace.status).toBe('succeeded');
     expect(firstTrace.directorInvoked).toBe(true);
     expect(firstTrace.stage).toBe('publication');
+    expect(typeof (firstTrace.stageTimingsJson as { total?: unknown }).total).toBe('number');
     expect(firstTrace.attemptId).toBe(first.attempt_id);
     expect(firstTrace.contextDigest).toMatch(/^[a-f0-9]{64}$/u);
     expect(
@@ -208,11 +210,35 @@ describe('DEV-007B constrained question publication', () => {
     await prisma.decisionTrace.delete({ where: { id: firstTrace.id } });
     const repairedTraceId = await decisionTraces.recoverAttempt(first.attempt_id);
     const repairedTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: { orderBy: { inputOrder: 'asc' } } },
       where: { id: repairedTraceId },
     });
     expect(repairedTrace.status).toBe('succeeded');
     expect(repairedTrace.directorInvoked).toBe(true);
     expect(repairedTrace.stage).toBe('recovered');
+    expect(
+      repairedTrace.p4Memberships.map((item) => ({
+        membershipDigest: item.membershipDigest,
+        revision: item.revision,
+        revisionStatus: item.revisionStatus,
+        section: item.section,
+        sourceId: item.sourceId,
+        sourceType: item.sourceType,
+        sourceVersion: item.sourceVersion,
+      })),
+    ).toEqual(
+      firstTrace.p4Memberships
+        .sort((left, right) => left.inputOrder - right.inputOrder)
+        .map((item) => ({
+          membershipDigest: item.membershipDigest,
+          revision: item.revision,
+          revisionStatus: item.revisionStatus,
+          section: item.section,
+          sourceId: item.sourceId,
+          sourceType: item.sourceType,
+          sourceVersion: item.sourceVersion,
+        })),
+    );
 
     const firstCandidate = await prisma.questionCandidate.findFirstOrThrow({
       where: { questionGenerationAttemptId: first.attempt_id },
@@ -577,9 +603,143 @@ describe('DEV-007B constrained question publication', () => {
     automaticGenerate.mockRestore();
   });
 
+  it('records pre-call timeout and policy drift without claiming Director invocation', async () => {
+    const internal = orchestration as unknown as {
+      complete(prepared: unknown): Promise<void>;
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<{
+        attemptId: string;
+        deadlineAt: number;
+        job: { id: string } | null;
+        shouldContinueListening: boolean;
+        traceId: string;
+      }>;
+    };
+
+    const timeoutSessionId = randomUUID();
+    await createSession(timeoutSessionId, randomUUID(), 20);
+    const timeoutRequestId = randomUUID();
+    const timedOut = await internal.prepare(
+      actorId,
+      timeoutSessionId,
+      'manual_next',
+      timeoutRequestId,
+      { presentationRevision: 0, snapshotId: null },
+    );
+    timedOut.shouldContinueListening = false;
+    timedOut.deadlineAt = 0;
+    await expect(internal.complete(timedOut)).rejects.toThrow('AI_PROVIDER_TIMEOUT');
+    const timeoutTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { requestId: timeoutRequestId },
+    });
+    expect(timeoutTrace).toMatchObject({
+      directorInvoked: false,
+      stage: 'director',
+      status: 'failed',
+    });
+    expect(await prisma.aiProviderCall.count({ where: { aiJobId: timedOut.job?.id ?? '' } })).toBe(
+      0,
+    );
+
+    const driftSessionId = randomUUID();
+    await createSession(driftSessionId, randomUUID(), 21);
+    const driftRequestId = randomUUID();
+    const drifted = await internal.prepare(actorId, driftSessionId, 'manual_next', driftRequestId, {
+      presentationRevision: 0,
+      snapshotId: null,
+    });
+    drifted.shouldContinueListening = false;
+    const consent = await prisma.consentRecord.findFirstOrThrow({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      where: { projectId },
+    });
+    await prisma.consentRecord.update({
+      data: { revokedAt: new Date(), status: 'revoked' },
+      where: { id: consent.id },
+    });
+    await expect(internal.complete(drifted)).rejects.toThrow();
+    const driftTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { requestId: driftRequestId },
+    });
+    expect(driftTrace).toMatchObject({
+      directorInvoked: false,
+      stage: 'director',
+      status: 'failed',
+    });
+    expect(await prisma.aiProviderCall.count({ where: { aiJobId: drifted.job?.id ?? '' } })).toBe(
+      0,
+    );
+    await prisma.consentRecord.update({
+      data: { revokedAt: null, status: 'valid' },
+      where: { id: consent.id },
+    });
+  });
+
+  it('repairs a persisted attempt-without-Trace crash exactly once after restart grace', async () => {
+    const internal = orchestration as unknown as {
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<{ attemptId: string; job: { id: string } | null; traceId: string }>;
+    };
+    const crashSessionId = randomUUID();
+    await createSession(crashSessionId, randomUUID(), 22);
+    const requestId = randomUUID();
+    const prepared = await internal.prepare(actorId, crashSessionId, 'manual_next', requestId, {
+      presentationRevision: 0,
+      snapshotId: null,
+    });
+    await prisma.decisionTrace.delete({ where: { id: prepared.traceId } });
+    const staleAt = new Date(Date.now() - 60_000);
+    await prisma.questionGenerationAttempt.update({
+      data: { createdAt: staleAt, startedAt: staleAt },
+      where: { id: prepared.attemptId },
+    });
+    const [firstRepair, concurrentRepair] = await Promise.all([
+      decisionTraces.recoverAttempt(prepared.attemptId),
+      decisionTraces.recoverAttempt(prepared.attemptId),
+    ]);
+    expect(concurrentRepair).toBe(firstRepair);
+    expect(
+      await prisma.questionGenerationAttempt.findUniqueOrThrow({
+        where: { id: prepared.attemptId },
+      }),
+    ).toMatchObject({
+      failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+      publicationOutcome: 'policy_blocked',
+      status: 'failed',
+    });
+    expect(
+      await prisma.aiJob.findUniqueOrThrow({ where: { id: prepared.job?.id ?? '' } }),
+    ).toMatchObject({
+      failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+      status: 'failed',
+    });
+    const repaired = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: true, transcriptMemberships: true },
+      where: { id: firstRepair },
+    });
+    expect(repaired).toMatchObject({
+      directorInvoked: false,
+      publicationOutcome: 'policy_blocked',
+      stage: 'recovered',
+      status: 'unavailable',
+    });
+    expect(repaired.contextDigest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(repaired.p4Memberships.length).toBeGreaterThan(0);
+  });
+
   it('keeps trace reads reference-only and purges the root with all memberships', async () => {
     const requestId = randomUUID();
-    const trace = await decisionTraces.begin({
+    const traceInput = {
       contextRevision: 0,
       decisionOutcome: 'continue_listening',
       directorInvoked: false,
@@ -603,7 +763,12 @@ describe('DEV-007B constrained question publication', () => {
       sessionId,
       triggerType: 'manual_next',
       workingRevision: null,
-    });
+    } as const;
+    const [trace, concurrentReplay] = await Promise.all([
+      decisionTraces.begin(traceInput),
+      decisionTraces.begin(traceInput),
+    ]);
+    expect(concurrentReplay.id).toBe(trace.id);
     await decisionTraces.finalize(trace.id, {
       decisionOutcome: 'continue_listening',
       status: 'succeeded',
@@ -641,6 +806,15 @@ describe('DEV-007B constrained question publication', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('Suggestion request did not settle');
+  }
+
+  async function waitForTraceTerminal(requestId: string): Promise<void> {
+    for (let index = 0; index < 100; index += 1) {
+      const trace = await prisma.decisionTrace.findUnique({ where: { requestId } });
+      if (trace !== null && trace.status !== 'running') return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('Decision trace did not settle');
   }
 
   async function ageManualFence(targetSessionId = sessionId): Promise<void> {

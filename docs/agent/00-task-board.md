@@ -10,7 +10,7 @@
 
 ## 当前任务
 
-| SPEC-MEMORY-SYSTEM-V1 | Memory System V1 T0–T27 路线与分阶段实施 | 总控 Agent | REVIEW | 现有 ASR/QuestionEvidence/LLM provider-neutral seam；PR #62 仍 OPEN/REVIEW | PR #63；`docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`；T0 前需 Decision Trace 窄契约与独立只读复核 | 等项目负责人接收 T0 提案后再实现；真实 provider、真实数据、正式授权、公网部署继续 BLOCKED；不得把路线文档或 synthetic fixture 宣称为实现/PASS |
+| SPEC-MEMORY-SYSTEM-V1 | Memory System V1 T0–T27 路线与分阶段实施 | 总控 Agent | REVIEW | T0 契约已获原则接收；T0 / Foundation-Observability 实现仍在 PR #63 定向审查 | PR #63；`docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`；REV-057 | T0 未获 PASS 前不推进 T1；P1–P6 必须继续显式映射。真实 provider、真实数据、正式授权、公网部署继续 BLOCKED |
 
 | 任务编号 | 任务 | 负责人 | 状态 | 前置任务 | 验收依据 | 阻塞原因 |
 |---|---|---|---|---|---|---|
@@ -94,4 +94,4 @@
 - 只有完成 `09` 和 `10` 所规定的适用验证后才能标记为 `DONE`；高风险任务和 MVP 发布必须独立验收。
 - 不得在根目录其他文件维护第二份详细任务状态。
 - 表格中的未启动下游任务是路线级工作包；任何任务进入 `READY` 前必须补齐 `10` 要求的正式任务字段。`READY` 只表示其明确子集可执行，不等于父任务或真实试点门禁通过。
-| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | IN_PROGRESS | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 CI SUCCESS | `docs/contracts/decision-trace-v1.schema.json`; `docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md` | T0 runtime implementation in progress; P1–P5 membership producers remain unavailable/not_started until their phases |
+| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | REVIEW | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 两轮 REQUEST_CHANGES，当前五项 P1 定向修复候选待审 | `docs/contracts/decision-trace-v1.schema.json`；`docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`；REV-057 | old `b34000a6` / CI `31922715469` P1=5 与 `b137b44` / CI `31924593302` P1=5 永久保留；等待新 exact-head CI 与项目负责人定向复审。P1–P6 producer、真实 provider/数据/公网均未启动 |

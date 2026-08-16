@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, type OnModuleInit } from '@nestjs/common';
+import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type DecisionTrace } from '../generated/prisma/client.js';
+import { canonicalJson, manifestHash, sha256 } from './ai-provenance.js';
 
 export type DecisionTraceOutcome =
   'question' | 'continue_listening' | 'system_error' | 'unavailable';
@@ -73,6 +74,7 @@ export interface DecisionTraceP4Input {
   sourceId: string;
   revision: number | null;
   revisionStatus: 'available' | 'unavailable';
+  sourceVersion?: string | null;
   membershipDigest?: string | null;
   inputOrder: number;
   included: boolean;
@@ -92,11 +94,25 @@ export interface DecisionTraceEvidenceInput {
 }
 
 @Injectable()
-export class DecisionTraceService implements OnModuleInit {
+export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
+  private timer: ReturnType<typeof setInterval> | null = null;
+
   public constructor(private readonly prisma: PrismaService) {}
 
   public async onModuleInit(): Promise<void> {
+    await this.reconcileMissingAttempts();
     await this.reconcileRunning();
+    this.timer = setInterval(() => {
+      void this.reconcileMissingAttempts()
+        .then(() => this.reconcileRunning())
+        .catch(() => undefined);
+    }, 30_000);
+    this.timer.unref();
+  }
+
+  public onModuleDestroy(): void {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
   }
 
   public async begin(input: DecisionTraceInput): Promise<DecisionTrace> {
@@ -107,45 +123,55 @@ export class DecisionTraceService implements OnModuleInit {
 
     const startedAt = input.startedAt ?? new Date();
     const generationId = input.generationId ?? randomUUID();
-    return this.prisma.$transaction(async (tx) => {
-      const replay = await tx.decisionTrace.findUnique({ where: { requestId: input.requestId } });
-      if (replay !== null) return replay;
-      return tx.decisionTrace.create({
-        data: {
-          activeThreadId: input.activeThreadId ?? null,
-          aiJobId: input.aiJobId ?? null,
-          attemptId: input.attemptId ?? null,
-          contextDigest: input.contextDigest ?? null,
-          contextRevision: input.contextRevision,
-          createdAt: startedAt,
-          decisionOutcome: input.decisionOutcome,
-          directorInvoked: input.directorInvoked,
-          expiresAt: input.expiresAt ?? new Date(startedAt.getTime() + 30 * 24 * 60 * 60 * 1_000),
-          generationId,
-          gateReason: input.gateReason ?? null,
-          id: randomUUID(),
-          inputHash: input.inputHash,
-          memoryMemberships: { create: (input.memoryMemberships ?? []).map(toMemoryRow) },
-          ownerActorId: input.ownerActorId,
-          p3Candidates: { create: (input.p3Candidates ?? []).map(toP3Row) },
-          p4Memberships: { create: (input.p4Memberships ?? []).map(toP4Row) },
-          projectId: input.projectId,
-          requestId: input.requestId,
-          sessionId: input.sessionId,
-          stage: input.stage ?? null,
-          stageTimingsJson: input.stageTimingsMs ?? {},
-          startedAt,
-          status: 'running',
-          transcriptMemberships: {
-            create: (input.transcriptMemberships ?? []).map(toTranscriptRow),
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const replay = await tx.decisionTrace.findUnique({ where: { requestId: input.requestId } });
+        if (replay !== null) return replay;
+        return tx.decisionTrace.create({
+          data: {
+            activeThreadId: input.activeThreadId ?? null,
+            aiJobId: input.aiJobId ?? null,
+            attemptId: input.attemptId ?? null,
+            contextDigest: input.contextDigest ?? null,
+            contextRevision: input.contextRevision,
+            createdAt: startedAt,
+            decisionOutcome: input.decisionOutcome,
+            directorInvoked: input.directorInvoked,
+            expiresAt: input.expiresAt ?? new Date(startedAt.getTime() + 30 * 24 * 60 * 60 * 1_000),
+            generationId,
+            gateReason: input.gateReason ?? null,
+            id: randomUUID(),
+            inputHash: input.inputHash,
+            memoryMemberships: { create: (input.memoryMemberships ?? []).map(toMemoryRow) },
+            ownerActorId: input.ownerActorId,
+            p3Candidates: { create: (input.p3Candidates ?? []).map(toP3Row) },
+            p4Memberships: { create: (input.p4Memberships ?? []).map(toP4Row) },
+            projectId: input.projectId,
+            requestId: input.requestId,
+            sessionId: input.sessionId,
+            stage: input.stage ?? null,
+            stageTimingsJson: input.stageTimingsMs ?? {},
+            startedAt,
+            status: 'running',
+            transcriptMemberships: {
+              create: (input.transcriptMemberships ?? []).map(toTranscriptRow),
+            },
+            triggerType: input.triggerType,
+            workingRevision: input.workingRevision,
+            evidenceCalls: { create: (input.evidenceCalls ?? []).map(toEvidenceRow) },
+            errorCode: input.errorCode ?? null,
           },
-          triggerType: input.triggerType,
-          workingRevision: input.workingRevision,
-          evidenceCalls: { create: (input.evidenceCalls ?? []).map(toEvidenceRow) },
-          errorCode: input.errorCode ?? null,
-        },
+        });
       });
-    });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const winner = await this.prisma.decisionTrace.findUnique({
+          where: { requestId: input.requestId },
+        });
+        if (winner !== null) return winner;
+      }
+      throw error;
+    }
   }
 
   public async finalize(
@@ -156,24 +182,37 @@ export class DecisionTraceService implements OnModuleInit {
       errorCode?: string | null;
       completedAt?: Date;
       directorInvoked?: boolean;
+      publicationOutcome?: string | null;
       stage?: string | null;
     },
   ): Promise<void> {
     const completedAt = result.completedAt ?? new Date();
     const current = await this.prisma.decisionTrace.findUnique({ where: { id: traceId } });
     if (current === null) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+    const directorInvoked =
+      current.aiJobId !== null &&
+      (await this.prisma.aiProviderCall.count({ where: { aiJobId: current.aiJobId } })) > 0;
+    const durationMs = Math.max(0, completedAt.getTime() - current.startedAt.getTime());
     const updated = await this.prisma.decisionTrace.updateMany({
       data: {
         completedAt,
         ...(result.decisionOutcome === undefined
           ? {}
           : { decisionOutcome: result.decisionOutcome }),
-        ...(result.directorInvoked === undefined
+        directorInvoked,
+        ...(result.publicationOutcome === undefined
           ? {}
-          : { directorInvoked: result.directorInvoked }),
+          : {
+              publicationOutcome: result.publicationOutcome,
+              gateReason:
+                result.publicationOutcome === null || result.publicationOutcome === 'published'
+                  ? null
+                  : result.publicationOutcome,
+            }),
         ...(result.stage === undefined ? {} : { stage: result.stage }),
-        durationMs: Math.max(0, completedAt.getTime() - current.startedAt.getTime()),
+        durationMs,
         errorCode: result.errorCode ?? null,
+        stageTimingsJson: terminalStageTimings(current.stageTimingsJson, durationMs),
         status: result.status,
       },
       where: { id: traceId, status: 'running' },
@@ -203,6 +242,7 @@ export class DecisionTraceService implements OnModuleInit {
           });
         }
         if (p4Memberships.length > 0) {
+          await tx.decisionTraceP4Membership.deleteMany({ where: { traceId } });
           await tx.decisionTraceP4Membership.createMany({
             data: p4Memberships.map((value) => ({ ...toP4Row(value), traceId, id: randomUUID() })),
             skipDuplicates: true,
@@ -228,64 +268,320 @@ export class DecisionTraceService implements OnModuleInit {
   }
 
   public async recoverAttempt(attemptId: string): Promise<string> {
-    const attempt = await this.prisma.questionGenerationAttempt.findUniqueOrThrow({
-      where: { id: attemptId },
-    });
-    const aiJob = await this.prisma.aiJob.findUniqueOrThrow({ where: { id: attempt.aiJobId } });
-    const existing = await this.prisma.decisionTrace.findUnique({
-      where: { requestId: attempt.requestId },
-    });
-    if (existing !== null) return existing.id;
-    const providerCallCount = await this.prisma.aiProviderCall.count({
-      where: { aiJobId: attempt.aiJobId },
-    });
-    const trace = await this.begin({
-      aiJobId: attempt.aiJobId,
-      attemptId,
-      contextRevision: attempt.basisPresentationRevision,
-      decisionOutcome: 'unavailable',
-      directorInvoked: providerCallCount > 0,
-      generationId: attempt.requestId,
-      inputHash: aiJob.inputHash,
-      ownerActorId: aiJob.requestedBy,
-      projectId: aiJob.projectId,
-      requestId: attempt.requestId,
-      sessionId: attempt.sessionId,
-      stage: 'recovered',
-      triggerType: attempt.attemptKind,
-      workingRevision: null,
-    });
-    await this.finalize(trace.id, {
-      directorInvoked: providerCallCount > 0,
-      decisionOutcome:
-        attempt.status === 'succeeded'
-          ? attempt.resultKind === 'suggestion'
-            ? 'question'
-            : 'continue_listening'
-          : 'unavailable',
-      errorCode: attempt.status === 'succeeded' ? null : 'SYSTEM_TRACE_RECOVERED',
-      stage: 'recovered',
-      status:
-        attempt.status === 'succeeded'
-          ? 'succeeded'
-          : attempt.status === 'cancelled'
-            ? 'cancelled'
-            : 'unavailable',
-    });
-    return trace.id;
+    return this.prisma.$transaction(
+      async (tx) => {
+        const identity = await tx.questionGenerationAttempt.findUniqueOrThrow({
+          select: { requestId: true },
+          where: { id: attemptId },
+        });
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`trace:${identity.requestId}`}, 0))`;
+        const attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
+          where: { id: attemptId },
+        });
+        const existing = await tx.decisionTrace.findUnique({
+          where: { requestId: attempt.requestId },
+        });
+        if (existing !== null && existing.status !== 'running') return existing.id;
+        const now = new Date();
+        const stale = attempt.createdAt < new Date(now.getTime() - 30_000);
+        if (stale && (attempt.status === 'running' || attempt.status === 'pending')) {
+          await tx.questionGenerationAttempt.update({
+            data: {
+              completedAt: now,
+              failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+              publicationOutcome: 'policy_blocked',
+              resultKind: 'unavailable',
+              status: 'failed',
+            },
+            where: { id: attempt.id },
+          });
+          await tx.aiJob.updateMany({
+            data: {
+              completedAt: now,
+              failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+              status: 'failed',
+            },
+            where: { id: attempt.aiJobId, status: { in: ['pending', 'running'] } },
+          });
+        }
+        const [
+          terminalAttempt,
+          aiJob,
+          segments,
+          memories,
+          actualQuestions,
+          scopes,
+          bank,
+          snapshot,
+        ] = await Promise.all([
+          tx.questionGenerationAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+          tx.aiJob.findUniqueOrThrow({ where: { id: attempt.aiJobId } }),
+          tx.aiJobInputSegment.findMany({
+            orderBy: { inputOrder: 'asc' },
+            where: { aiJobId: attempt.aiJobId },
+          }),
+          tx.aiJobInputMemory.findMany({
+            orderBy: { inputOrder: 'asc' },
+            where: { aiJobId: attempt.aiJobId },
+          }),
+          tx.aiJobInputActualQuestion.findMany({
+            orderBy: { inputOrder: 'asc' },
+            where: { aiJobId: attempt.aiJobId },
+          }),
+          tx.aiJobSessionScope.findMany({
+            orderBy: { inputOrder: 'asc' },
+            where: { aiJobId: attempt.aiJobId },
+          }),
+          tx.questionGenerationBankInputMembership.findMany({
+            orderBy: { inputOrder: 'asc' },
+            where: { aiJobId: attempt.aiJobId },
+          }),
+          attempt.basisSnapshotId === null
+            ? null
+            : tx.questionDisplaySnapshot.findUnique({ where: { id: attempt.basisSnapshotId } }),
+        ]);
+        const p4: DecisionTraceP4Input[] = [];
+        for (const scope of scopes) {
+          p4.push({
+            section: 'interview_state',
+            sourceType: 'session',
+            sourceId: scope.sessionId,
+            revision: scope.speakerRoleRevision,
+            revisionStatus: 'available',
+            sourceVersion: null,
+            membershipDigest: scope.segmentManifestHash,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        for (const memory of memories) {
+          p4.push({
+            section: 'working_memory',
+            sourceType: 'memory',
+            sourceId: memory.memoryResolutionId,
+            revision: memory.resolutionRevision,
+            revisionStatus: 'available',
+            sourceVersion: null,
+            membershipDigest: null,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        for (const segment of segments) {
+          p4.push({
+            section: 'recent_transcript',
+            sourceType: 'transcript_segment',
+            sourceId: segment.transcriptSegmentId,
+            revision: segment.textRevision,
+            revisionStatus: 'available',
+            sourceVersion: null,
+            membershipDigest: segment.effectiveTextDigest,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        for (const actual of actualQuestions) {
+          p4.push({
+            section: 'actual_asked',
+            sourceType: 'actual_question',
+            sourceId: actual.actualQuestionId,
+            revision: actual.analysisRevision,
+            revisionStatus: 'available',
+            sourceVersion: null,
+            membershipDigest: actual.normalizedDigest,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        if (snapshot !== null) {
+          p4.push({
+            section: 'current_presentation',
+            sourceType: 'presentation',
+            sourceId: snapshot.id,
+            revision: snapshot.publishedPresentationRevision,
+            revisionStatus: 'available',
+            sourceVersion: null,
+            membershipDigest: snapshot.normalizedQuestionDigest,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        for (const reference of bank) {
+          p4.push({
+            section: 'question_bank',
+            sourceType: 'question_bank_item',
+            sourceId: reference.questionBankItemId ?? reference.questionId,
+            revision: null,
+            revisionStatus: 'unavailable',
+            sourceVersion: reference.bankVersion,
+            membershipDigest: reference.contentDigest,
+            inputOrder: p4.length,
+            included: true,
+            dropReason: null,
+          });
+        }
+        const invoked = (await tx.aiProviderCall.count({ where: { aiJobId: aiJob.id } })) > 0;
+        const recoveredStatus = traceStatusFromAttempt(
+          terminalAttempt.status,
+          terminalAttempt.publicationOutcome,
+        );
+        const terminalOutcome =
+          terminalAttempt.status === 'succeeded'
+            ? terminalAttempt.resultKind === 'suggestion'
+              ? 'question'
+              : 'continue_listening'
+            : 'unavailable';
+        const completedAt = terminalAttempt.completedAt;
+        const startedAt = terminalAttempt.startedAt ?? terminalAttempt.createdAt;
+        const contextDigest = manifestHash(p4.map((item) => canonicalJson(item)));
+        const recoveredDurationMs =
+          completedAt === null ? null : Math.max(0, completedAt.getTime() - startedAt.getTime());
+        if (existing !== null) {
+          await tx.decisionTraceP4Membership.deleteMany({ where: { traceId: existing.id } });
+          await tx.decisionTraceTranscriptMembership.createMany({
+            data: segments.map((segment) => ({
+              id: randomUUID(),
+              traceId: existing.id,
+              segmentId: segment.transcriptSegmentId,
+              textRevision: segment.textRevision,
+              speakerRoleRevision: segment.speakerRoleRevision,
+              effectiveTextDigest: segment.effectiveTextDigest,
+              inputOrder: segment.inputOrder,
+            })),
+            skipDuplicates: true,
+          });
+          await tx.decisionTraceMemoryMembership.createMany({
+            data: memories.map((memory) => ({
+              id: randomUUID(),
+              traceId: existing.id,
+              memoryId: memory.memoryResolutionId,
+              layer: 'unknown',
+              revision: memory.resolutionRevision,
+              membershipRole: 'active',
+              inputOrder: memory.inputOrder,
+            })),
+            skipDuplicates: true,
+          });
+          await tx.decisionTraceP4Membership.createMany({
+            data: p4.map((item) => ({ ...toP4Row(item), id: randomUUID(), traceId: existing.id })),
+          });
+          await tx.decisionTrace.update({
+            data: {
+              attemptId: terminalAttempt.id,
+              aiJobId: aiJob.id,
+              contextDigest,
+              decisionOutcome: terminalOutcome,
+              directorInvoked: invoked,
+              status: recoveredStatus,
+              stage: 'recovered',
+              gateReason: publicationGateReason(terminalAttempt.publicationOutcome),
+              publicationOutcome: terminalAttempt.publicationOutcome,
+              errorCode: terminalAttempt.failureCode,
+              completedAt,
+              durationMs: recoveredDurationMs,
+              stageTimingsJson: recoveredDurationMs === null ? {} : { total: recoveredDurationMs },
+            },
+            where: { id: existing.id },
+          });
+          return existing.id;
+        }
+        const trace = await tx.decisionTrace.create({
+          data: {
+            id: randomUUID(),
+            projectId: aiJob.projectId,
+            sessionId: terminalAttempt.sessionId,
+            ownerActorId: aiJob.requestedBy,
+            requestId: terminalAttempt.requestId,
+            generationId: stableUuid(`generation:${terminalAttempt.requestId}`),
+            aiJobId: aiJob.id,
+            attemptId: terminalAttempt.id,
+            triggerType: terminalAttempt.attemptKind,
+            decisionOutcome: terminalOutcome,
+            directorInvoked: invoked,
+            status: recoveredStatus,
+            stage: 'recovered',
+            gateReason: publicationGateReason(terminalAttempt.publicationOutcome),
+            publicationOutcome: terminalAttempt.publicationOutcome,
+            errorCode: terminalAttempt.failureCode,
+            startedAt: terminalAttempt.startedAt ?? terminalAttempt.createdAt,
+            completedAt,
+            durationMs: recoveredDurationMs,
+            contextRevision: terminalAttempt.basisPresentationRevision,
+            workingRevision: null,
+            inputHash: aiJob.inputHash,
+            contextDigest,
+            stageTimingsJson: recoveredDurationMs === null ? {} : { total: recoveredDurationMs },
+            expiresAt: aiJob.expiresAt,
+            transcriptMemberships: {
+              create: segments.map((segment) => ({
+                segmentId: segment.transcriptSegmentId,
+                textRevision: segment.textRevision,
+                speakerRoleRevision: segment.speakerRoleRevision,
+                effectiveTextDigest: segment.effectiveTextDigest,
+                inputOrder: segment.inputOrder,
+              })),
+            },
+            memoryMemberships: {
+              create: memories.map((memory) => ({
+                memoryId: memory.memoryResolutionId,
+                layer: 'unknown',
+                revision: memory.resolutionRevision,
+                membershipRole: 'active',
+                inputOrder: memory.inputOrder,
+              })),
+            },
+            p4Memberships: { create: p4.map(toP4Row) },
+          },
+        });
+        return trace.id;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+    );
   }
 
   public async reconcileRunning(maxAgeMs = 30_000): Promise<number> {
-    const result = await this.prisma.decisionTrace.updateMany({
-      data: {
-        completedAt: new Date(),
-        errorCode: 'SYSTEM_COORDINATOR_RESTARTED',
-        stage: 'recovered',
-        status: 'unavailable',
-      },
+    const traces = await this.prisma.decisionTrace.findMany({
       where: { status: 'running', startedAt: { lt: new Date(Date.now() - maxAgeMs) } },
+      select: { id: true, attemptId: true },
     });
-    return result.count;
+    for (const trace of traces) {
+      if (trace.attemptId !== null) await this.recoverAttempt(trace.attemptId);
+      else {
+        await this.prisma.decisionTrace.updateMany({
+          data: {
+            completedAt: new Date(),
+            errorCode: 'SYSTEM_COORDINATOR_RESTARTED',
+            stage: 'recovered',
+            status: 'unavailable',
+          },
+          where: { id: trace.id, status: 'running' },
+        });
+      }
+    }
+    return traces.length;
+  }
+
+  public async reconcileMissingAttempts(maxAgeMs = 30_000): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeMs);
+    const attempts = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT a.id
+      FROM question_generation_attempt a
+      LEFT JOIN decision_trace t ON t.attempt_id = a.id
+      WHERE t.id IS NULL AND a.created_at < ${cutoff}
+      ORDER BY a.created_at ASC
+      LIMIT 200
+    `;
+    let repaired = 0;
+    for (const attempt of attempts) {
+      await this.recoverAttempt(attempt.id);
+      repaired += 1;
+    }
+    return repaired;
   }
 }
 
@@ -338,6 +634,7 @@ function toP4Row(
     sourceId: value.sourceId,
     revision: value.revision,
     revisionStatus: value.revisionStatus,
+    sourceVersion: value.sourceVersion ?? null,
     membershipDigest: value.membershipDigest ?? null,
     inputOrder: value.inputOrder,
     included: value.included,
@@ -359,4 +656,42 @@ function toEvidenceRow(
     requestDigest: value.requestDigest ?? null,
     resultDigest: value.resultDigest ?? null,
   };
+}
+
+function stableUuid(value: string): string {
+  const hex = sha256(value).slice(0, 32).split('');
+  hex[12] = '4';
+  hex[16] = '8';
+  return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex.slice(12, 16).join('')}-${hex.slice(16, 20).join('')}-${hex.slice(20, 32).join('')}`;
+}
+
+function traceStatusFromAttempt(
+  attemptStatus: string,
+  publicationOutcome: string | null,
+): DecisionTraceStatus {
+  if (publicationOutcome === 'stale_basis') return 'stale';
+  if (publicationOutcome === 'superseded_by_manual' || attemptStatus === 'cancelled')
+    return 'cancelled';
+  if (attemptStatus === 'succeeded') return 'succeeded';
+  if (attemptStatus === 'failed') return 'unavailable';
+  return 'running';
+}
+
+function publicationGateReason(publicationOutcome: string | null): string | null {
+  return publicationOutcome === null || publicationOutcome === 'published'
+    ? null
+    : publicationOutcome;
+}
+
+function terminalStageTimings(value: Prisma.JsonValue, durationMs: number): Prisma.InputJsonObject {
+  const timings: Record<string, Prisma.InputJsonValue> = {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    for (const [key, timing] of Object.entries(value)) {
+      if (typeof timing === 'number' && Number.isInteger(timing) && timing >= 0) {
+        timings[key] = timing;
+      }
+    }
+  }
+  timings.total = durationMs;
+  return timings;
 }
