@@ -680,6 +680,339 @@ describe('DEV-007B constrained question publication', () => {
     });
   });
 
+  it('terminalizes the attempt and job when persisted context attachment fails', async () => {
+    const internal = orchestration as unknown as {
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<unknown>;
+    };
+    const contextFailureSessionId = randomUUID();
+    await createSession(contextFailureSessionId, randomUUID(), 24);
+    const requestId = randomUUID();
+    const attach = vi
+      .spyOn(decisionTraces, 'attachReferences')
+      .mockRejectedValueOnce(new Error('TEST_CONTEXT_ATTACHMENT_FAILED'));
+
+    await expect(
+      internal.prepare(actorId, contextFailureSessionId, 'manual_next', requestId, {
+        presentationRevision: 0,
+        snapshotId: null,
+      }),
+    ).rejects.toThrow('TEST_CONTEXT_ATTACHMENT_FAILED');
+    attach.mockRestore();
+
+    const attempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { requestId },
+    });
+    expect(attempt).toMatchObject({
+      failureCode: 'TEST_CONTEXT_ATTACHMENT_FAILED',
+      publicationOutcome: 'policy_blocked',
+      resultKind: 'unavailable',
+      status: 'failed',
+    });
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: attempt.aiJobId } })).toMatchObject({
+      failureCode: 'TEST_CONTEXT_ATTACHMENT_FAILED',
+      status: 'failed',
+    });
+    const trace = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: true },
+      where: { requestId },
+    });
+    expect(trace).toMatchObject({
+      decisionOutcome: 'system_error',
+      errorCode: 'TEST_CONTEXT_ATTACHMENT_FAILED',
+      stage: 'context',
+      status: 'failed',
+    });
+    expect(trace.contextDigest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(trace.p4Memberships.length).toBeGreaterThan(0);
+  });
+
+  it('repairs terminal-Trace child drift, fences late writeback, and preserves success', async () => {
+    type Prepared = {
+      attemptId: string;
+      context: unknown;
+      job: unknown;
+      traceId: string;
+    };
+    const internal = orchestration as unknown as {
+      complete(prepared: Prepared): Promise<void>;
+      coordinator: {
+        writeBack<T>(job: unknown, write: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
+      };
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<Prepared>;
+    };
+
+    const crashSessionId = randomUUID();
+    await createSession(crashSessionId, randomUUID(), 25);
+    const crashRequestId = randomUUID();
+    const crashed = await internal.prepare(actorId, crashSessionId, 'manual_next', crashRequestId, {
+      presentationRevision: 0,
+      snapshotId: null,
+    });
+    await decisionTraces.finalize(crashed.traceId, {
+      decisionOutcome: 'system_error',
+      errorCode: 'TEST_CRASH_AFTER_TRACE_TERMINAL',
+      stage: 'context',
+      status: 'failed',
+    });
+    await prisma.questionGenerationAttempt.update({
+      data: { createdAt: new Date(Date.now() - 60_000) },
+      where: { id: crashed.attemptId },
+    });
+
+    await expect(decisionTraces.reconcileMissingAttempts(0)).resolves.toBeGreaterThanOrEqual(1);
+    const reconciledAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+      where: { id: crashed.attemptId },
+    });
+    expect(reconciledAttempt).toMatchObject({
+      failureCode: 'TEST_CRASH_AFTER_TRACE_TERMINAL',
+      publicationOutcome: 'policy_blocked',
+      resultKind: 'unavailable',
+      status: 'failed',
+    });
+    expect(
+      await prisma.aiJob.findUniqueOrThrow({ where: { id: reconciledAttempt.aiJobId } }),
+    ).toMatchObject({
+      failureCode: 'TEST_CRASH_AFTER_TRACE_TERMINAL',
+      status: 'failed',
+    });
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({ where: { id: crashed.traceId } }),
+    ).toMatchObject({
+      decisionOutcome: 'system_error',
+      errorCode: 'TEST_CRASH_AFTER_TRACE_TERMINAL',
+      stage: 'context',
+      status: 'failed',
+    });
+    const lateWrite = vi.fn();
+    await expect(
+      internal.coordinator.writeBack(crashed.job, () => {
+        lateWrite();
+        return Promise.resolve(null);
+      }),
+    ).rejects.toThrow('AI_JOB_NOT_RUNNING');
+    expect(lateWrite).not.toHaveBeenCalled();
+
+    const successSessionId = randomUUID();
+    await createSession(successSessionId, randomUUID(), 26);
+    const successRequestId = randomUUID();
+    const successful = await internal.prepare(
+      actorId,
+      successSessionId,
+      'manual_next',
+      successRequestId,
+      { presentationRevision: 0, snapshotId: null },
+    );
+    await internal.complete(successful);
+    const successfulTraceBefore = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { id: successful.traceId },
+    });
+    await expect(decisionTraces.recoverAttempt(successful.attemptId)).resolves.toBe(
+      successful.traceId,
+    );
+    expect(
+      await prisma.questionGenerationAttempt.findUniqueOrThrow({
+        where: { id: successful.attemptId },
+      }),
+    ).toMatchObject({ status: 'succeeded' });
+    expect(
+      await prisma.aiJob.findUniqueOrThrow({
+        where: { id: successfulTraceBefore.aiJobId ?? '' },
+      }),
+    ).toMatchObject({ status: 'succeeded' });
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({ where: { id: successful.traceId } }),
+    ).toMatchObject({
+      completedAt: successfulTraceBefore.completedAt,
+      decisionOutcome: successfulTraceBefore.decisionOutcome,
+      status: 'succeeded',
+    });
+  });
+
+  it('serializes begin/recovery and reference attachment/finalization by request identity', async () => {
+    type Prepared = { attemptId: string; job: { id: string } | null; traceId: string };
+    const internal = orchestration as unknown as {
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<Prepared>;
+    };
+    const holdRequestLock = async (
+      requestId: string,
+    ): Promise<{ release: () => void; settled: Promise<void> }> => {
+      let release = (): void => undefined;
+      let acquired = (): void => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const locked = new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      const settled = prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`request:${requestId}`}, 0))`;
+        acquired();
+        await released;
+      });
+      await locked;
+      return { release, settled };
+    };
+    const p4Reference = {
+      included: true,
+      inputOrder: 0,
+      membershipDigest: 'f'.repeat(64),
+      revision: 0,
+      revisionStatus: 'available' as const,
+      section: 'interview_state',
+      sourceId: randomUUID(),
+      sourceType: 'session',
+    };
+
+    const attachFirstSessionId = randomUUID();
+    await createSession(attachFirstSessionId, randomUUID(), 27);
+    const attachFirstRequestId = randomUUID();
+    const attachFirst = await internal.prepare(
+      actorId,
+      attachFirstSessionId,
+      'manual_next',
+      attachFirstRequestId,
+      { presentationRevision: 0, snapshotId: null },
+    );
+    await prisma.decisionTraceP4Membership.deleteMany({ where: { traceId: attachFirst.traceId } });
+    await prisma.decisionTrace.update({
+      data: { contextDigest: null, stage: 'prepare' },
+      where: { id: attachFirst.traceId },
+    });
+    const attachFirstLock = await holdRequestLock(attachFirstRequestId);
+    const attachPromise = decisionTraces.attachReferences(attachFirst.traceId, {
+      contextDigest: 'a'.repeat(64),
+      p4Memberships: [p4Reference],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const finalizeAfterAttach = decisionTraces.finalize(attachFirst.traceId, {
+      decisionOutcome: 'continue_listening',
+      publicationOutcome: 'published',
+      status: 'succeeded',
+    });
+    attachFirstLock.release();
+    await attachFirstLock.settled;
+    await expect(Promise.all([attachPromise, finalizeAfterAttach])).resolves.toBeDefined();
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({
+        include: { p4Memberships: true },
+        where: { id: attachFirst.traceId },
+      }),
+    ).toMatchObject({
+      contextDigest: 'a'.repeat(64),
+      p4Memberships: [expect.objectContaining({ sourceId: p4Reference.sourceId })],
+      stage: 'context_frozen',
+      status: 'succeeded',
+    });
+
+    const finalizeFirstSessionId = randomUUID();
+    await createSession(finalizeFirstSessionId, randomUUID(), 28);
+    const finalizeFirstRequestId = randomUUID();
+    const finalizeFirst = await internal.prepare(
+      actorId,
+      finalizeFirstSessionId,
+      'manual_next',
+      finalizeFirstRequestId,
+      { presentationRevision: 0, snapshotId: null },
+    );
+    await prisma.decisionTraceP4Membership.deleteMany({
+      where: { traceId: finalizeFirst.traceId },
+    });
+    await prisma.decisionTrace.update({
+      data: { contextDigest: null, stage: 'prepare' },
+      where: { id: finalizeFirst.traceId },
+    });
+    const finalizeFirstLock = await holdRequestLock(finalizeFirstRequestId);
+    const prematureFinalize = decisionTraces.finalize(finalizeFirst.traceId, {
+      decisionOutcome: 'continue_listening',
+      publicationOutcome: 'published',
+      status: 'succeeded',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const attachAfterFinalize = decisionTraces.attachReferences(finalizeFirst.traceId, {
+      contextDigest: 'b'.repeat(64),
+      p4Memberships: [{ ...p4Reference, sourceId: randomUUID() }],
+    });
+    finalizeFirstLock.release();
+    await finalizeFirstLock.settled;
+    await expect(prematureFinalize).rejects.toThrow('DECISION_TRACE_CONTEXT_NOT_FROZEN');
+    await expect(attachAfterFinalize).resolves.toBeUndefined();
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({ where: { id: finalizeFirst.traceId } }),
+    ).toMatchObject({ contextDigest: 'b'.repeat(64), stage: 'context_frozen', status: 'running' });
+    await expect(
+      decisionTraces.finalize(finalizeFirst.traceId, {
+        decisionOutcome: 'continue_listening',
+        publicationOutcome: 'published',
+        status: 'succeeded',
+      }),
+    ).resolves.toBeUndefined();
+
+    for (const beginFirst of [true, false]) {
+      const targetSessionId = randomUUID();
+      await createSession(targetSessionId, randomUUID(), beginFirst ? 29 : 30);
+      const requestId = randomUUID();
+      const prepared = await internal.prepare(actorId, targetSessionId, 'manual_next', requestId, {
+        presentationRevision: 0,
+        snapshotId: null,
+      });
+      const deletedTrace = await prisma.decisionTrace.delete({
+        where: { id: prepared.traceId },
+      });
+      const staleAt = new Date(Date.now() - 60_000);
+      await prisma.questionGenerationAttempt.update({
+        data: { createdAt: staleAt, startedAt: staleAt },
+        where: { id: prepared.attemptId },
+      });
+      const lock = await holdRequestLock(requestId);
+      const begin = (): Promise<{ id: string }> =>
+        decisionTraces.begin({
+          aiJobId: deletedTrace.aiJobId,
+          attemptId: prepared.attemptId,
+          contextRevision: deletedTrace.contextRevision,
+          decisionOutcome: 'unavailable',
+          directorInvoked: false,
+          expiresAt: deletedTrace.expiresAt,
+          generationId: deletedTrace.generationId,
+          inputHash: deletedTrace.inputHash,
+          ownerActorId: deletedTrace.ownerActorId,
+          projectId: deletedTrace.projectId,
+          requestId,
+          sessionId: deletedTrace.sessionId,
+          stage: 'prepare',
+          triggerType: deletedTrace.triggerType,
+          workingRevision: null,
+        });
+      const first = beginFirst ? begin() : decisionTraces.recoverAttempt(prepared.attemptId);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const second = beginFirst ? decisionTraces.recoverAttempt(prepared.attemptId) : begin();
+      lock.release();
+      await lock.settled;
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      const firstId = typeof firstResult === 'string' ? firstResult : firstResult.id;
+      const secondId = typeof secondResult === 'string' ? secondResult : secondResult.id;
+      expect(secondId).toBe(firstId);
+      expect(await prisma.decisionTrace.count({ where: { requestId } })).toBe(1);
+    }
+  });
+
   it('repairs a persisted attempt-without-Trace crash exactly once after restart grace', async () => {
     const internal = orchestration as unknown as {
       prepare(

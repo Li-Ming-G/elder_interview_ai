@@ -5,7 +5,11 @@ import { DecisionTraceService, type DecisionTraceInput } from './decision-trace.
 const trace = {
   id: '00000000-0000-4000-8000-000000000001',
   aiJobId: null,
+  attemptId: null,
+  contextDigest: null,
   requestId: '00000000-0000-4000-8000-000000000002',
+  stage: null,
+  stageTimingsJson: {},
   startedAt: new Date('2026-08-16T00:00:00.000Z'),
   status: 'running',
 };
@@ -38,13 +42,15 @@ describe('DecisionTraceService', () => {
   it('is idempotent by request and terminalizes exactly once', async () => {
     const create = vi.fn().mockResolvedValue(trace);
     const findUnique = vi.fn().mockResolvedValueOnce(null).mockResolvedValue(trace);
-    const txFindUnique = vi.fn().mockResolvedValue(null);
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      aiProviderCall: { count: vi.fn().mockResolvedValue(0) },
+      decisionTrace: { findUnique, create, updateMany },
+    };
     const prisma = {
       decisionTrace: { findUnique, create, updateMany },
-      $transaction: vi.fn((callback: (tx: unknown) => unknown) =>
-        callback({ decisionTrace: { findUnique: txFindUnique, create } }),
-      ),
+      $transaction: vi.fn((callback: (value: unknown) => unknown) => callback(tx)),
     } as never;
     const service = new DecisionTraceService(prisma);
     await expect(service.begin(input())).resolves.toBe(trace);
@@ -59,18 +65,17 @@ describe('DecisionTraceService', () => {
   });
 
   it('rejects late finalization and reference attachment after terminal state', async () => {
+    const terminal = { ...trace, status: 'succeeded' };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      decisionTrace: { findUnique: vi.fn().mockResolvedValue(terminal) },
+    };
     const prisma = {
       decisionTrace: {
-        findUnique: vi.fn().mockResolvedValue({ ...trace, status: 'succeeded' }),
+        findUnique: vi.fn().mockResolvedValue(terminal),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
-      $transaction: vi.fn((callback: (tx: unknown) => unknown) =>
-        callback({
-          decisionTrace: {
-            findUnique: vi.fn().mockResolvedValue({ ...trace, status: 'succeeded' }),
-          },
-        }),
-      ),
+      $transaction: vi.fn((callback: (value: unknown) => unknown) => callback(tx)),
     } as never;
     const service = new DecisionTraceService(prisma);
     await expect(service.finalize(trace.id, { status: 'failed' })).rejects.toThrow(
@@ -91,12 +96,18 @@ describe('DecisionTraceService', () => {
     'not_applicable',
   ])('persists the raw %s publication outcome', async (publicationOutcome) => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const prisma = {
+    const current = { ...trace, aiJobId: 'job' };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
       aiProviderCall: { count: vi.fn().mockResolvedValue(0) },
+      decisionTrace: { findUnique: vi.fn().mockResolvedValue(current), updateMany },
+    };
+    const prisma = {
       decisionTrace: {
-        findUnique: vi.fn().mockResolvedValue({ ...trace, aiJobId: 'job' }),
+        findUnique: vi.fn().mockResolvedValue(current),
         updateMany,
       },
+      $transaction: vi.fn((callback: (value: unknown) => unknown) => callback(tx)),
     } as never;
     await new DecisionTraceService(prisma).finalize(trace.id, {
       directorInvoked: true,
@@ -121,12 +132,18 @@ describe('DecisionTraceService', () => {
 
   it('derives Director invocation from persisted provider calls instead of caller guesses', async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
-    const prisma = {
+    const current = { ...trace, aiJobId: 'job' };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
       aiProviderCall: { count: vi.fn().mockResolvedValue(1) },
+      decisionTrace: { findUnique: vi.fn().mockResolvedValue(current), updateMany },
+    };
+    const prisma = {
       decisionTrace: {
-        findUnique: vi.fn().mockResolvedValue({ ...trace, aiJobId: 'job' }),
+        findUnique: vi.fn().mockResolvedValue(current),
         updateMany,
       },
+      $transaction: vi.fn((callback: (value: unknown) => unknown) => callback(tx)),
     } as never;
     await new DecisionTraceService(prisma).finalize(trace.id, {
       directorInvoked: false,

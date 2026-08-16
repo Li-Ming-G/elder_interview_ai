@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import { Prisma, type DecisionTrace } from '../generated/prisma/client.js';
+import {
+  Prisma,
+  type DecisionTrace,
+  type QuestionGenerationAttempt,
+} from '../generated/prisma/client.js';
 import { canonicalJson, manifestHash, sha256 } from './ai-provenance.js';
 
 export type DecisionTraceOutcome =
@@ -116,15 +120,11 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
   }
 
   public async begin(input: DecisionTraceInput): Promise<DecisionTrace> {
-    const existing = await this.prisma.decisionTrace.findUnique({
-      where: { requestId: input.requestId },
-    });
-    if (existing !== null) return existing;
-
     const startedAt = input.startedAt ?? new Date();
     const generationId = input.generationId ?? randomUUID();
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await lockTraceRequest(tx, input.requestId);
         const replay = await tx.decisionTrace.findUnique({ where: { requestId: input.requestId } });
         if (replay !== null) return replay;
         return tx.decisionTrace.create({
@@ -187,37 +187,56 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
     },
   ): Promise<void> {
     const completedAt = result.completedAt ?? new Date();
-    const current = await this.prisma.decisionTrace.findUnique({ where: { id: traceId } });
-    if (current === null) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
-    const directorInvoked =
-      current.aiJobId !== null &&
-      (await this.prisma.aiProviderCall.count({ where: { aiJobId: current.aiJobId } })) > 0;
-    const durationMs = Math.max(0, completedAt.getTime() - current.startedAt.getTime());
-    const updated = await this.prisma.decisionTrace.updateMany({
-      data: {
-        completedAt,
-        ...(result.decisionOutcome === undefined
-          ? {}
-          : { decisionOutcome: result.decisionOutcome }),
-        directorInvoked,
-        ...(result.publicationOutcome === undefined
-          ? {}
-          : {
-              publicationOutcome: result.publicationOutcome,
-              gateReason:
-                result.publicationOutcome === null || result.publicationOutcome === 'published'
-                  ? null
-                  : result.publicationOutcome,
-            }),
-        ...(result.stage === undefined ? {} : { stage: result.stage }),
-        durationMs,
-        errorCode: result.errorCode ?? null,
-        stageTimingsJson: terminalStageTimings(current.stageTimingsJson, durationMs),
-        status: result.status,
-      },
-      where: { id: traceId, status: 'running' },
+    const identity = await this.prisma.decisionTrace.findUnique({
+      select: { requestId: true },
+      where: { id: traceId },
     });
-    if (updated.count !== 1) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+    if (identity === null) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+    await this.prisma.$transaction(async (tx) => {
+      await lockTraceRequest(tx, identity.requestId);
+      const current = await tx.decisionTrace.findUnique({ where: { id: traceId } });
+      if (current === null || current.status !== 'running') {
+        throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+      }
+      if (
+        current.attemptId !== null &&
+        (result.status === 'succeeded' ||
+          result.status === 'cancelled' ||
+          result.status === 'stale') &&
+        (current.stage !== 'context_frozen' || current.contextDigest === null)
+      ) {
+        throw new Error('DECISION_TRACE_CONTEXT_NOT_FROZEN');
+      }
+      const directorInvoked =
+        current.aiJobId !== null &&
+        (await tx.aiProviderCall.count({ where: { aiJobId: current.aiJobId } })) > 0;
+      const durationMs = Math.max(0, completedAt.getTime() - current.startedAt.getTime());
+      const updated = await tx.decisionTrace.updateMany({
+        data: {
+          completedAt,
+          ...(result.decisionOutcome === undefined
+            ? {}
+            : { decisionOutcome: result.decisionOutcome }),
+          directorInvoked,
+          ...(result.publicationOutcome === undefined
+            ? {}
+            : {
+                publicationOutcome: result.publicationOutcome,
+                gateReason:
+                  result.publicationOutcome === null || result.publicationOutcome === 'published'
+                    ? null
+                    : result.publicationOutcome,
+              }),
+          ...(result.stage === undefined ? {} : { stage: result.stage }),
+          durationMs,
+          errorCode: result.errorCode ?? null,
+          stageTimingsJson: terminalStageTimings(current.stageTimingsJson, durationMs),
+          status: result.status,
+        },
+        where: { id: traceId, status: 'running' },
+      });
+      if (updated.count !== 1) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
+    });
   }
 
   public async attachReferences(
@@ -226,8 +245,14 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
       contextDigest?: string | null;
     },
   ): Promise<void> {
+    const identity = await this.prisma.decisionTrace.findUnique({
+      select: { requestId: true },
+      where: { id: traceId },
+    });
+    if (identity === null) throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
     await this.prisma.$transaction(
       async (tx) => {
+        await lockTraceRequest(tx, identity.requestId);
         const trace = await tx.decisionTrace.findUnique({ where: { id: traceId } });
         if (trace === null || trace.status !== 'running') {
           throw new Error('DECISION_TRACE_TERMINAL_OR_MISSING');
@@ -263,7 +288,7 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
           where: { id: traceId },
         });
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
     );
   }
 
@@ -274,15 +299,33 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
           select: { requestId: true },
           where: { id: attemptId },
         });
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`trace:${identity.requestId}`}, 0))`;
-        const attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
+        await lockTraceRequest(tx, identity.requestId);
+        let attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
           where: { id: attemptId },
         });
         const existing = await tx.decisionTrace.findUnique({
           where: { requestId: attempt.requestId },
         });
-        if (existing !== null && existing.status !== 'running') return existing.id;
         const now = new Date();
+        let preserveTerminalTrace = false;
+        if (existing !== null && existing.status !== 'running') {
+          if (attempt.status === 'pending' || attempt.status === 'running') {
+            preserveTerminalTrace = await terminalizeAttemptFromTrace(tx, attempt, existing, now);
+            attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
+              where: { id: attemptId },
+            });
+          }
+          await terminalizeRunningJobFromAttempt(tx, attempt, existing, now);
+          const currentJob = await tx.aiJob.findUniqueOrThrow({ where: { id: attempt.aiJobId } });
+          if (
+            !preserveTerminalTrace &&
+            traceMatchesAttempt(existing, attempt) &&
+            currentJob.status !== 'pending' &&
+            currentJob.status !== 'running'
+          ) {
+            return existing.id;
+          }
+        }
         const stale = attempt.createdAt < new Date(now.getTime() - 30_000);
         if (stale && (attempt.status === 'running' || attempt.status === 'pending')) {
           await tx.questionGenerationAttempt.update({
@@ -475,16 +518,21 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
               attemptId: terminalAttempt.id,
               aiJobId: aiJob.id,
               contextDigest,
-              decisionOutcome: terminalOutcome,
               directorInvoked: invoked,
-              status: recoveredStatus,
-              stage: 'recovered',
-              gateReason: publicationGateReason(terminalAttempt.publicationOutcome),
-              publicationOutcome: terminalAttempt.publicationOutcome,
-              errorCode: terminalAttempt.failureCode,
-              completedAt,
-              durationMs: recoveredDurationMs,
-              stageTimingsJson: recoveredDurationMs === null ? {} : { total: recoveredDurationMs },
+              ...(preserveTerminalTrace
+                ? {}
+                : {
+                    decisionOutcome: terminalOutcome,
+                    status: recoveredStatus,
+                    stage: 'recovered',
+                    gateReason: publicationGateReason(terminalAttempt.publicationOutcome),
+                    publicationOutcome: terminalAttempt.publicationOutcome,
+                    errorCode: terminalAttempt.failureCode,
+                    completedAt,
+                    durationMs: recoveredDurationMs,
+                    stageTimingsJson:
+                      recoveredDurationMs === null ? {} : { total: recoveredDurationMs },
+                  }),
             },
             where: { id: existing.id },
           });
@@ -572,7 +620,18 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
       SELECT a.id
       FROM question_generation_attempt a
       LEFT JOIN decision_trace t ON t.attempt_id = a.id
-      WHERE t.id IS NULL AND a.created_at < ${cutoff}
+      INNER JOIN ai_job j ON j.id = a.ai_job_id
+      WHERE a.created_at < ${cutoff}
+        AND (
+          t.id IS NULL
+          OR (
+            t.status <> 'running'
+            AND (
+              a.status IN ('pending', 'running')
+              OR j.status IN ('pending', 'running')
+            )
+          )
+        )
       ORDER BY a.created_at ASC
       LIMIT 200
     `;
@@ -583,6 +642,103 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
     }
     return repaired;
   }
+}
+
+async function lockTraceRequest(tx: Prisma.TransactionClient, requestId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`request:${requestId}`}, 0))`;
+}
+
+async function terminalizeAttemptFromTrace(
+  tx: Prisma.TransactionClient,
+  attempt: QuestionGenerationAttempt,
+  trace: DecisionTrace,
+  now: Date,
+): Promise<boolean> {
+  const completedAt = trace.completedAt ?? now;
+  if (trace.status === 'succeeded') {
+    const updated = await tx.questionGenerationAttempt.updateMany({
+      data: {
+        completedAt,
+        failureCode: null,
+        publicationOutcome: terminalPublicationOutcome(trace),
+        resultKind: trace.decisionOutcome === 'question' ? 'suggestion' : 'continue_listening',
+        status: 'succeeded',
+      },
+      where: { id: attempt.id, status: { in: ['pending', 'running'] } },
+    });
+    return updated.count === 1;
+  }
+  if (trace.status === 'stale' || trace.status === 'cancelled') {
+    const updated = await tx.questionGenerationAttempt.updateMany({
+      data: {
+        completedAt,
+        failureCode: null,
+        publicationOutcome: trace.status === 'stale' ? 'stale_basis' : 'superseded_by_manual',
+        resultKind: 'unavailable',
+        status: 'cancelled',
+      },
+      where: { id: attempt.id, status: { in: ['pending', 'running'] } },
+    });
+    return updated.count === 1;
+  }
+  const updated = await tx.questionGenerationAttempt.updateMany({
+    data: {
+      completedAt,
+      failureCode: trace.errorCode ?? 'SYSTEM_COORDINATOR_RESTARTED',
+      publicationOutcome: 'policy_blocked',
+      resultKind: 'unavailable',
+      status: 'failed',
+    },
+    where: { id: attempt.id, status: { in: ['pending', 'running'] } },
+  });
+  return updated.count === 1;
+}
+
+async function terminalizeRunningJobFromAttempt(
+  tx: Prisma.TransactionClient,
+  attempt: QuestionGenerationAttempt,
+  trace: DecisionTrace,
+  now: Date,
+): Promise<void> {
+  if (attempt.status === 'pending' || attempt.status === 'running') return;
+  const succeeded = attempt.status === 'succeeded' || attempt.status === 'cancelled';
+  await tx.aiJob.updateMany({
+    data: {
+      completedAt: attempt.completedAt ?? trace.completedAt ?? now,
+      failureCode: succeeded
+        ? null
+        : (attempt.failureCode ?? trace.errorCode ?? 'SYSTEM_COORDINATOR_RESTARTED'),
+      status: succeeded ? 'succeeded' : 'failed',
+    },
+    where: { id: attempt.aiJobId, status: { in: ['pending', 'running'] } },
+  });
+}
+
+function traceMatchesAttempt(trace: DecisionTrace, attempt: QuestionGenerationAttempt): boolean {
+  if (attempt.status === 'succeeded') {
+    const expectedOutcome = attempt.resultKind === 'suggestion' ? 'question' : 'continue_listening';
+    return trace.status === 'succeeded' && trace.decisionOutcome === expectedOutcome;
+  }
+  if (attempt.status === 'cancelled') {
+    if (attempt.publicationOutcome === 'stale_basis') return trace.status === 'stale';
+    return trace.status === 'cancelled';
+  }
+  if (attempt.status === 'failed') {
+    return trace.status === 'failed' || trace.status === 'unavailable';
+  }
+  return trace.status === 'running';
+}
+
+function terminalPublicationOutcome(trace: DecisionTrace): string {
+  if (
+    trace.publicationOutcome === 'published' ||
+    trace.publicationOutcome === 'not_better' ||
+    trace.publicationOutcome === 'duplicate_filtered' ||
+    trace.publicationOutcome === 'not_applicable'
+  ) {
+    return trace.publicationOutcome;
+  }
+  return 'published';
 }
 
 function toTranscriptRow(

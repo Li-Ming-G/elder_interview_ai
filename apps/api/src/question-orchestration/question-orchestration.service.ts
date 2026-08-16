@@ -526,13 +526,16 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         p4Memberships,
       });
     } catch (error) {
-      await this.decisionTrace.finalize(trace.id, {
-        decisionOutcome: 'system_error',
-        errorCode: error instanceof Error ? error.message.slice(0, 80) : 'CONTEXT_BUILD_FAILED',
-        directorInvoked: false,
-        stage: 'context',
-        status: 'failed',
-      });
+      await this.decisionTrace
+        .finalize(trace.id, {
+          decisionOutcome: 'system_error',
+          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'CONTEXT_BUILD_FAILED',
+          directorInvoked: false,
+          stage: 'context',
+          status: 'failed',
+        })
+        .catch(() => undefined);
+      await this.decisionTrace.recoverAttempt(receipt.attemptId).catch(() => undefined);
       throw error;
     }
     return {
@@ -643,6 +646,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           status: 'failed',
         })
         .catch(() => undefined);
+      await this.decisionTrace.recoverAttempt(prepared.attemptId).catch(() => undefined);
       throw error;
     }
   }
