@@ -43,6 +43,7 @@ export class MemoryRetrievalService {
       ...input.currentWorking.map((item, index) => ({
         id: item.id,
         layer: 'working' as const,
+        threadId: item.threadId,
         revision: item.revision,
         status: item.status,
         canonicalKey: item.canonicalKey,

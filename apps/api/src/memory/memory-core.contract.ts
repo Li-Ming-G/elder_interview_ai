@@ -88,6 +88,7 @@ export interface MaintainerTranscriptSegment {
 export interface MemoryReference {
   id: string;
   layer: MemoryLayer;
+  threadId: string | null;
   revision: number | null;
   status: MemoryStatus | 'unavailable';
   canonicalKey: string | null;

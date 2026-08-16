@@ -23,7 +23,7 @@
 - `working-memory-maintainer.service.ts`：batch/time/minimum-useful-content gate；只产生 `NEW/CONTINUE/DUPLICATE/SUPPLEMENT/UNCERTAIN` 候选和带 evidence 的 Boundary candidate。
 - `memory-context-assembly.service.ts`：P3 deterministic candidate retrieval 与 P4 mechanical assembly。
 - `memory-next-question.pipeline.ts`：local/test-only 的 transcript → P1 → P3 → P4 → grounded question/continue seam。
-- `memory-core.spec.ts`：触发门禁、重复/补充/不确定/Boundary、candidate 排序、grounding 和 digest 固定测试。
+- `memory-core.spec.ts`：触发门禁、同批去重、补充/不确定/Branch/Boundary、candidate 排序、grounding、digest 和 applier ownership 固定测试。
 
 ## 明确后置
 

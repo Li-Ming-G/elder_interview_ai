@@ -12,6 +12,7 @@ import { MemoryContextAssemblyService } from './memory-context-assembly.service.
 import {
   WorkingMemoryMaintainerService,
   WorkingMemoryOperationApplier,
+  workingMemoryTrigger,
 } from './working-memory-maintainer.service.js';
 
 export type MemoryAwareNextQuestionResult =
@@ -44,6 +45,10 @@ export interface MemoryAwareNextQuestionInput {
   journeyReasonCodes?: readonly string[];
   midLongIndex?: readonly MemoryReference[];
   recentlyDisplayed?: readonly { id: string; text: string }[];
+  finalizedSinceLastRun?: number;
+  oldestUnprocessedAtMs?: number | null;
+  nowMs?: number;
+  minimumUsefulContent?: boolean;
 }
 
 @Injectable()
@@ -55,13 +60,29 @@ export class MemoryAwareNextQuestionPipeline {
   ) {}
 
   public async run(input: MemoryAwareNextQuestionInput): Promise<MemoryAwareNextQuestionResult> {
-    const maintenance = await this.maintainer.propose({
-      activeThread: input.activeThread,
-      currentWorking: input.currentWorking,
-      finalizedTranscript: input.finalizedTranscript,
-      sessionMidIndex: input.midLongIndex ?? [],
+    const trigger = workingMemoryTrigger({
+      finalizedSinceLastRun: input.finalizedSinceLastRun ?? input.finalizedTranscript.length,
+      oldestUnprocessedAtMs: input.oldestUnprocessedAtMs ?? null,
+      nowMs: input.nowMs ?? 0,
+      minimumUsefulContent: input.minimumUsefulContent ?? false,
     });
-    const currentWorking = this.applier.apply(input.currentWorking, maintenance.operations);
+    const maintenance =
+      trigger === 'not_ready'
+        ? { boundaryCandidates: [], operations: [], trigger }
+        : await this.maintainer.propose(
+            {
+              activeThread: input.activeThread,
+              currentWorking: input.currentWorking,
+              finalizedTranscript: input.finalizedTranscript,
+              sessionMidIndex: input.midLongIndex ?? [],
+            },
+            trigger,
+          );
+    const currentWorking = this.applier.apply(
+      input.currentWorking,
+      maintenance.operations,
+      new Set(input.finalizedTranscript.map(({ segmentId }) => segmentId)),
+    );
     const context = this.assembler.assemble({
       activeThread: input.activeThread,
       actualAsked: input.actualAsked ?? [],
@@ -81,7 +102,13 @@ export class MemoryAwareNextQuestionPipeline {
     const latestElder = [...context.recent_transcript]
       .reverse()
       .find(({ trustedRole }) => trustedRole === 'elder');
-    const boundary = context.boundaries.at(-1);
+    const boundary = context.boundaries.find((candidate) =>
+      boundaryApplies(
+        candidate.abstractScope,
+        candidate.evidence.map(({ segmentId }) => segmentId),
+        context.recent_transcript,
+      ),
+    );
     if (boundary !== undefined && latestElder !== undefined) {
       return {
         context,
@@ -121,4 +148,20 @@ export class MemoryAwareNextQuestionPipeline {
       reason: '当前没有足够的长者已完成叙述来形成下一问。',
     };
   }
+}
+
+function boundaryApplies(
+  abstractScope: string,
+  evidenceSegmentIds: readonly string[],
+  recentTranscript: readonly MaintainerTranscriptSegment[],
+): boolean {
+  const latestElder = [...recentTranscript]
+    .reverse()
+    .find(({ trustedRole }) => trustedRole === 'elder');
+  if (latestElder === undefined) return false;
+  if (evidenceSegmentIds.includes(latestElder.segmentId)) return true;
+  const normalizedScope = abstractScope.trim().toLocaleLowerCase();
+  return (
+    normalizedScope.length > 0 && latestElder.text.toLocaleLowerCase().includes(normalizedScope)
+  );
 }

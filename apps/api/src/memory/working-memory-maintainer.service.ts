@@ -9,10 +9,8 @@ import {
   type WorkingMemoryMaintainerInput,
   type MaintainerTranscriptSegment,
 } from './memory-core.contract.js';
-import type {
-  StructuredAiProvider,
-  StructuredMemoryClaim,
-} from '../ai-runtime/structured-ai.provider.js';
+import { StructuredAiProvider } from '../ai-runtime/structured-ai.provider.js';
+import type { StructuredMemoryClaim } from '../ai-runtime/structured-ai.provider.js';
 
 export interface WorkingMemoryMaintenanceResult {
   operations: readonly WorkingMemoryCandidateOperation[];
@@ -70,7 +68,44 @@ export class WorkingMemoryMaintainerService {
         trustedRole: segment.trustedRole,
       })),
     );
-    const operations = claims.flatMap((claim) => this.toOperation(claim, input, elderSegments));
+    const operations: WorkingMemoryCandidateOperation[] = [];
+    const comparisonWorking = [...input.currentWorking];
+    for (const claim of claims) {
+      const operation = this.toOperation(
+        claim,
+        { ...input, currentWorking: comparisonWorking },
+        elderSegments,
+      )[0];
+      if (operation === undefined) continue;
+      operations.push(operation);
+      if (
+        operation.kind !== 'DUPLICATE' &&
+        operation.canonicalKey !== null &&
+        operation.memoryType !== null &&
+        operation.valueKind !== null
+      ) {
+        const virtualId = operation.targetMemoryId ?? `working:${operation.operationId}`;
+        const existing = comparisonWorking.find(({ id }) => id === virtualId);
+        const virtual: WorkingMemoryItem = {
+          canonicalKey: operation.canonicalKey,
+          evidence: operation.evidence,
+          id: virtualId,
+          layer: 'working',
+          memoryType: operation.memoryType,
+          revision: existing?.revision ?? 1,
+          status:
+            operation.kind === 'UNCERTAIN' || operation.valueKind === 'unknown'
+              ? 'uncertain'
+              : 'current',
+          threadId: operation.targetThreadId ?? `thread:${operation.canonicalKey}`,
+          value: operation.value,
+          valueKind: operation.valueKind,
+        };
+        const existingIndex = comparisonWorking.findIndex(({ id }) => id === virtualId);
+        if (existingIndex >= 0) comparisonWorking[existingIndex] = virtual;
+        else comparisonWorking.push(virtual);
+      }
+    }
     const boundaryCandidates = elderSegments.flatMap((segment) =>
       this.boundaryFromSegment(segment),
     );
@@ -114,7 +149,10 @@ export class WorkingMemoryMaintainerService {
           operationId: `memory-op:${claim.canonicalKey}:${evidence.map(({ segmentId }) => segmentId).join(',')}`,
           kind,
           targetMemoryId: resumable?.id ?? null,
-          targetThreadId: related?.threadId ?? input.activeThread?.id ?? null,
+          targetThreadId:
+            kind === 'BRANCH'
+              ? `thread:branch:${claim.canonicalKey}:${evidence.map(({ segmentId }) => segmentId).join(',')}`
+              : (related?.threadId ?? resumable?.threadId ?? input.activeThread?.id ?? null),
           canonicalKey: claim.canonicalKey,
           memoryType: claim.memoryType,
           value: claim.value,
@@ -187,14 +225,25 @@ export class WorkingMemoryOperationApplier {
   public apply(
     current: readonly WorkingMemoryItem[],
     operations: readonly WorkingMemoryCandidateOperation[],
+    allowedEvidenceSegmentIds: ReadonlySet<string>,
   ): readonly WorkingMemoryItem[] {
     const next = new Map(current.map((item) => [item.id, item]));
     for (const operation of operations) {
       assertCandidateOperation(operation);
+      if (operation.evidence.some(({ segmentId }) => !allowedEvidenceSegmentIds.has(segmentId))) {
+        throw new Error('MEMORY_OPERATION_EVIDENCE_NOT_IN_BATCH');
+      }
       if (operation.kind === 'DUPLICATE') continue;
       const existing =
         operation.targetMemoryId === null ? undefined : next.get(operation.targetMemoryId);
       if (existing !== undefined) {
+        if (
+          operation.canonicalKey !== existing.canonicalKey ||
+          operation.memoryType !== existing.memoryType ||
+          (operation.targetThreadId !== null && operation.targetThreadId !== existing.threadId)
+        ) {
+          throw new Error('MEMORY_OPERATION_TARGET_DRIFT');
+        }
         next.set(existing.id, {
           ...existing,
           evidence: mergeEvidence(existing.evidence, operation.evidence),

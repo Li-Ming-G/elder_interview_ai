@@ -104,10 +104,12 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       activeThread: { id: 'thread-a', revision: 2, status: 'active', topicKey: 'work' },
       currentWorking,
       finalizedTranscript: [segment('s5', '后来我去了洛阳的工厂工作。')],
+      minimumUsefulContent: true,
       midLongIndex: [
         {
           id: 'long-1',
           layer: 'long',
+          threadId: null,
           revision: 3,
           status: 'current',
           canonicalKey: 'life.place',
@@ -130,6 +132,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       activeThread: null,
       currentWorking: [],
       finalizedTranscript: [segment('s6', '记忆[event:first.job] = 在工厂工作')],
+      minimumUsefulContent: true,
     });
     expect(created.decision).toBe('suggest');
     expect(created.operations[0]?.kind).toBe('NEW');
@@ -140,9 +143,100 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       activeThread: null,
       currentWorking: [],
       finalizedTranscript: [segment('s7', '不要再问家庭关系')],
+      minimumUsefulContent: true,
     });
     expect(blocked.decision).toBe('continue_listening');
     expect(blocked.context.boundaries[0]).toMatchObject({ status: 'active' });
+  });
+
+  it('does not call the maintainer before the gate and suppresses same-batch duplicates', async () => {
+    const pipeline = new MemoryAwareNextQuestionPipeline(maintainer, applier, assembler);
+    const notReady = await pipeline.run({
+      activeThread: null,
+      currentWorking: [],
+      finalizedTranscript: [segment('s8', '记忆[event:one] = 同一件事')],
+    });
+    expect(notReady.operations).toHaveLength(0);
+    const deduped = await pipeline.run({
+      activeThread: null,
+      currentWorking: [],
+      finalizedTranscript: [
+        segment('s9', '记忆[event:one] = 同一件事'),
+        segment('s10', '记忆[event:one] = 同一件事'),
+      ],
+      minimumUsefulContent: true,
+    });
+    expect(deduped.operations.map(({ kind }) => kind)).toEqual(['NEW', 'DUPLICATE']);
+    expect(deduped.context.current_working_memory).toHaveLength(1);
+  });
+
+  it('creates a distinct branch thread and does not apply an unrelated historical boundary', async () => {
+    const existing = {
+      id: 'memory-old',
+      canonicalKey: 'work.old',
+      memoryType: 'event',
+      value: '旧工作',
+      valueKind: 'exact' as const,
+      layer: 'working' as const,
+      status: 'current' as const,
+      revision: 1,
+      threadId: 'thread-work',
+      evidence: [evidenceFromSegment(segment('old', '记忆[event:work.old] = 旧工作'), 0)],
+    };
+    const result = await new MemoryAwareNextQuestionPipeline(maintainer, applier, assembler).run({
+      activeThread: { id: 'thread-work', revision: 1, status: 'active', topicKey: 'work' },
+      boundaries: [
+        {
+          id: 'boundary-family',
+          code: 'elder_explicit_boundary',
+          abstractScope: '家庭关系',
+          status: 'active',
+          revision: 1,
+          evidence: [evidenceFromSegment(segment('old-boundary', '不要再问家庭关系'), 0)],
+        },
+      ],
+      currentWorking: [existing],
+      finalizedTranscript: [segment('s11', '记忆[event:family.new] = 新故事')],
+      minimumUsefulContent: true,
+    });
+    expect(result.operations[0]?.kind).toBe('BRANCH');
+    expect(result.operations[0]?.targetThreadId).toMatch(/^thread:branch:/u);
+    expect(result.decision).toBe('suggest');
+  });
+
+  it('rejects a candidate that drifts target identity or evidence ownership', () => {
+    const current = {
+      id: 'memory-guarded',
+      canonicalKey: 'event.guarded',
+      memoryType: 'event',
+      value: '原值',
+      valueKind: 'exact' as const,
+      layer: 'working' as const,
+      status: 'current' as const,
+      revision: 1,
+      threadId: 'thread-guarded',
+      evidence: [evidenceFromSegment(segment('owned', '原始证据'), 0)],
+    };
+    expect(() =>
+      applier.apply(
+        [current],
+        [
+          {
+            operationId: 'forged',
+            kind: 'SUPPLEMENT',
+            targetMemoryId: current.id,
+            targetThreadId: current.threadId,
+            canonicalKey: 'event.other',
+            memoryType: 'event',
+            value: '伪造',
+            valueKind: 'exact',
+            reasonCode: 'same_canonical_key',
+            evidence: [evidenceFromSegment(segment('outside', '外部证据'), 0)],
+          },
+        ],
+        new Set(['owned']),
+      ),
+    ).toThrow('MEMORY_OPERATION_EVIDENCE_NOT_IN_BATCH');
   });
 
   function segment(segmentId: string, text: string): MaintainerTranscriptSegment {
