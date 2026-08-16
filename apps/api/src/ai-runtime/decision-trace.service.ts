@@ -316,13 +316,17 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
                 tx.decisionTraceP3Candidate.count({ where: { traceId: existing.id } }),
                 tx.decisionTraceEvidenceCall.count({ where: { traceId: existing.id } }),
               ]);
-        // A context_frozen trace with its digest and persisted P4 membership is
-        // already the authoritative snapshot of the Director input. Recovery
-        // may terminalize child state, but must never replace that snapshot
-        // with a projection rebuilt from mutable job rows.
+        // Once context has been frozen, all later orchestration stages carry
+        // the same authoritative snapshot. Recovery may terminalize child
+        // state, but must never replace that snapshot with a projection
+        // rebuilt from mutable job rows. In particular, a crash after the
+        // publication/attempt commit but before trace projection can leave the
+        // trace in `director` or `publication`; those stages are still frozen.
         const hasFrozenReferences =
           existing !== null &&
-          existing.stage === 'context_frozen' &&
+          (existing.stage === 'context_frozen' ||
+            existing.stage === 'director' ||
+            existing.stage === 'publication') &&
           existing.contextDigest !== null &&
           (frozenReferenceCounts?.[0] ?? 0) > 0;
         const now = new Date();
