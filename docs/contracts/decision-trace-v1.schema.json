@@ -8,6 +8,7 @@
   "required": [
     "trace_id",
     "request_id",
+    "generation_id",
     "session_id",
     "project_id",
     "trigger_type",
@@ -15,15 +16,24 @@
     "director_invoked",
     "status",
     "started_at",
+    "created_at",
     "completed_at",
     "duration_ms",
     "context_revision",
     "input_hash",
-    "stage_timings_ms"
+    "stage_timings_ms",
+    "transcript_memberships",
+    "active_thread_id",
+    "working_revision",
+    "memory_memberships",
+    "p3_candidates",
+    "p4_memberships",
+    "evidence_calls"
   ],
   "properties": {
     "trace_id": { "type": "string", "format": "uuid" },
     "request_id": { "type": "string", "format": "uuid" },
+    "generation_id": { "type": "string", "format": "uuid" },
     "session_id": { "type": "string", "format": "uuid" },
     "project_id": { "type": "string", "format": "uuid" },
     "ai_job_id": { "type": ["string", "null"], "format": "uuid" },
@@ -36,11 +46,108 @@
     "gate_reason": { "type": ["string", "null"], "maxLength": 80 },
     "error_code": { "type": ["string", "null"], "maxLength": 80 },
     "started_at": { "type": "string", "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": ["string", "null"], "format": "date-time" },
     "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
     "context_revision": { "type": "integer", "minimum": 0 },
     "input_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "context_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "transcript_memberships": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["segment_id", "text_revision", "speaker_role_revision", "effective_text_digest", "input_order"],
+        "properties": {
+          "segment_id": { "type": "string", "format": "uuid" },
+          "text_revision": { "type": "integer", "minimum": 0 },
+          "speaker_role_revision": { "type": "integer", "minimum": 0 },
+          "effective_text_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "input_order": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "active_thread_id": { "type": ["string", "null"], "format": "uuid" },
+    "working_revision": { "type": ["integer", "null"], "minimum": 0 },
+    "memory_memberships": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["memory_id", "layer", "revision", "membership_role", "input_order"],
+        "properties": {
+          "memory_id": { "type": "string", "format": "uuid" },
+          "layer": { "enum": ["working", "mid", "long", "unknown"] },
+          "revision": { "type": ["integer", "null"], "minimum": 0 },
+          "membership_role": { "enum": ["active", "resumed", "candidate", "excluded", "unavailable"] },
+          "input_order": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "p3_candidates": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "memory_id", "source_layer", "retrieval_sources", "rank", "included"],
+        "properties": {
+          "candidate_id": { "type": "string", "format": "uuid" },
+          "memory_id": { "type": "string", "format": "uuid" },
+          "source_layer": { "enum": ["mid", "long"] },
+          "retrieval_sources": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "enum": ["embedding", "graph_neighbor"] },
+            "uniqueItems": true
+          },
+          "embedding_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "graph_distance": { "type": ["integer", "null"], "minimum": 0 },
+          "rank": { "type": "integer", "minimum": 0 },
+          "included": { "type": "boolean" },
+          "exclusion_reason": { "type": ["string", "null"], "maxLength": 80 }
+        }
+      }
+    },
+    "p4_memberships": {
+      "type": "array",
+      "maxItems": 400,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["section", "source_type", "source_id", "revision", "input_order", "included"],
+        "properties": {
+          "section": { "enum": ["interview_state", "working_memory", "active_memory", "recent_transcript", "memory_candidates", "boundaries", "actual_asked", "recently_displayed", "question_bank", "current_presentation"] },
+          "source_type": { "enum": ["session", "memory", "transcript_segment", "memory_candidate", "boundary", "actual_question", "display_snapshot", "question_bank_item", "presentation"] },
+          "source_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "revision": { "type": "integer", "minimum": 0 },
+          "membership_digest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+          "input_order": { "type": "integer", "minimum": 0 },
+          "included": { "type": "boolean" },
+          "drop_reason": { "type": ["string", "null"], "maxLength": 80 }
+        }
+      }
+    },
+    "evidence_calls": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["call_id", "tool", "target_type", "target_id", "result_ids", "status", "invocation_no"],
+        "properties": {
+          "call_id": { "type": "string", "format": "uuid" },
+          "tool": { "enum": ["get_memory_evidence", "search_transcript"] },
+          "target_type": { "enum": ["memory", "transcript"] },
+          "target_id": { "type": "string", "format": "uuid" },
+          "result_ids": { "type": "array", "maxItems": 100, "items": { "type": "string", "format": "uuid" } },
+          "status": { "enum": ["succeeded", "empty", "failed", "denied"] },
+          "invocation_no": { "const": 1 }
+        }
+      }
+    },
     "stage_timings_ms": {
       "type": "object",
       "additionalProperties": { "type": "integer", "minimum": 0 },

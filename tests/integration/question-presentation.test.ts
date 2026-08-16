@@ -5,6 +5,9 @@ import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import { AiRetentionService } from '../../apps/api/src/ai-runtime/ai-retention.service.js';
+import { DecisionTraceReader } from '../../apps/api/src/ai-runtime/decision-trace.reader.js';
+import { DecisionTraceService } from '../../apps/api/src/ai-runtime/decision-trace.service.js';
 import type { AuthPrincipal } from '../../apps/api/src/auth/auth.types.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
@@ -24,6 +27,9 @@ describe('DEV-007B constrained question publication', () => {
   let deletion: LocalTestDeletionScopeFixtureReader;
   let imports: QuestionBankImportService;
   let director: QuestionDirector;
+  let decisionTraces: DecisionTraceService;
+  let decisionTraceReader: DecisionTraceReader;
+  let retention: AiRetentionService;
   let releaseId: string;
   const speakerStreamId = randomUUID();
 
@@ -59,6 +65,9 @@ describe('DEV-007B constrained question publication', () => {
     deletion = app.get(LocalTestDeletionScopeFixtureReader);
     imports = app.get(QuestionBankImportService);
     director = app.get(QuestionDirector);
+    decisionTraces = app.get(DecisionTraceService);
+    decisionTraceReader = app.get(DecisionTraceReader);
+    retention = app.get(AiRetentionService);
 
     for (const release of await prisma.questionBankRelease.findMany({
       where: { environmentScope: 'internal_demo', status: 'active' },
@@ -173,6 +182,21 @@ describe('DEV-007B constrained question publication', () => {
     });
     expect(first.current.question).toBe('如果您愿意，可以先从小时候住过的地方讲起吗？');
     expect(accepted.attempt_id).toBe(first.attempt_id);
+    const firstTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { requestId: firstRequestId },
+      include: {
+        memoryMemberships: true,
+        p4Memberships: true,
+        transcriptMemberships: true,
+      },
+    });
+    expect(firstTrace.status).toBe('succeeded');
+    expect(firstTrace.attemptId).toBe(first.attempt_id);
+    expect(firstTrace.memoryMemberships.every((item) => item.layer === 'unknown')).toBe(true);
+    expect(firstTrace.p4Memberships.length).toBeGreaterThan(0);
+    expect(
+      firstTrace.transcriptMemberships.every((item) => item.effectiveTextDigest.length === 64),
+    ).toBe(true);
 
     const firstCandidate = await prisma.questionCandidate.findFirstOrThrow({
       where: { questionGenerationAttemptId: first.attempt_id },
@@ -535,6 +559,69 @@ describe('DEV-007B constrained question publication', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(automaticGenerate).toHaveBeenCalledTimes(1);
     automaticGenerate.mockRestore();
+  });
+
+  it('keeps trace reads reference-only and purges the root with all memberships', async () => {
+    const requestId = randomUUID();
+    const memoryId = randomUUID();
+    const trace = await decisionTraces.begin({
+      contextRevision: 0,
+      decisionOutcome: 'continue_listening',
+      directorInvoked: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      inputHash: 'd'.repeat(64),
+      memoryMemberships: [
+        {
+          inputOrder: 0,
+          layer: 'unknown',
+          memoryId,
+          membershipRole: 'unavailable',
+          revision: null,
+        },
+      ],
+      ownerActorId: actorId,
+      p4Memberships: [
+        {
+          included: true,
+          inputOrder: 0,
+          membershipDigest: null,
+          revision: null,
+          section: 'question_bank',
+          sourceId: 'fixture-business-question-id',
+          sourceType: 'question_bank_item',
+        },
+      ],
+      projectId,
+      requestId,
+      sessionId,
+      triggerType: 'manual_next',
+      workingRevision: null,
+    });
+    await decisionTraces.finalize(trace.id, {
+      decisionOutcome: 'continue_listening',
+      status: 'succeeded',
+    });
+    const readable = await decisionTraceReader.read(actorId, trace.id);
+    expect(readable.trace.memoryMemberships).toHaveLength(1);
+    expect(readable.trace.p4Memberships[0]?.sourceId).toBe('fixture-business-question-id');
+    expect(JSON.stringify(readable)).not.toContain('transcript_text');
+    expect(JSON.stringify(readable)).not.toContain('prompt_text');
+
+    await prisma.decisionTrace.update({
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+      where: { id: trace.id },
+    });
+    const cleanupRequestId = randomUUID();
+    await retention.hideExpired('decision_trace', trace.id, cleanupRequestId);
+    await expect(decisionTraceReader.read(actorId, trace.id)).rejects.toThrow(
+      'DECISION_TRACE_UNAVAILABLE',
+    );
+    await retention.purge('decision_trace', trace.id, cleanupRequestId);
+    expect(await prisma.decisionTrace.count({ where: { id: trace.id } })).toBe(0);
+    expect(await prisma.decisionTraceMemoryMembership.count({ where: { traceId: trace.id } })).toBe(
+      0,
+    );
+    expect(await prisma.decisionTraceP4Membership.count({ where: { traceId: trace.id } })).toBe(0);
   });
 
   async function waitForTerminal(

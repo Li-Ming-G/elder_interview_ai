@@ -42,3 +42,4 @@
 | 用户可区分 question、continue、system error/unavailable | T1 | 现有 question presentation/unavailable seam；需补决策投影 | 同上 | REVIEW；待 T1 契约/实现 |
 | Memory System V1 分层与 evidence provenance | T2–T17 | `MemoryClaim/Resolution/Evidence`、`CurrentMemoryReader`、TranscriptSegment | 同上 | PLANNED；不得假装已实现 |
 | P1/P2/P3/P4 分层运行时与固定评价 | T4–T27 | 现有 post-session memory、context V1、Question Director | 同上 | PLANNED；按阶段独立 PR |
+| T0 typed trace references | Foundation/Observability cross-cutting P1–P6 provenance | `decision-trace-v1.schema.json`、`MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`、DecisionTrace root/children | schema fixtures + `DecisionTraceService` | IN_PROGRESS；runtime path and retention integration pending |

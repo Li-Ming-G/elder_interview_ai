@@ -19,6 +19,7 @@ export interface CurrentMemoryItem {
   authority: 'automatic' | 'human_confirmed' | 'system_migration';
   canonicalKey: string;
   id: string;
+  layer: 'working' | 'mid' | 'long' | 'unknown';
   memoryType: string;
   resolutionKind: string;
   resolutionRevision: number;
@@ -53,6 +54,7 @@ export class CurrentMemoryReader {
         authority: row.authority,
         canonicalKey: row.canonicalKey,
         id: row.id,
+        layer: 'unknown',
         memoryType: row.memoryType,
         resolutionKind: row.resolutionKind,
         resolutionRevision: row.resolutionRevision,

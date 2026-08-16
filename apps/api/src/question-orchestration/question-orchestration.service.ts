@@ -9,6 +9,10 @@ import {
   AiJobCoordinatorService,
   type FrozenAiJob,
 } from '../ai-runtime/ai-job-coordinator.service.js';
+import {
+  DecisionTraceService,
+  type DecisionTraceP4Input,
+} from '../ai-runtime/decision-trace.service.js';
 import { manifestHash } from '../ai-runtime/ai-provenance.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -67,6 +71,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   public constructor(
     private readonly prisma: PrismaService,
     private readonly coordinator: AiJobCoordinatorService,
+    private readonly decisionTrace: DecisionTraceService,
     private readonly contexts: InterviewContextService,
     private readonly memories: CurrentMemoryReader,
     private readonly actualAsked: ActualAskedReader,
@@ -204,7 +209,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       input.errorCode,
     );
     if (job === null) return null;
-    return this.presentations.recordSystemUnavailableAttempt(
+    const attemptId = await this.presentations.recordSystemUnavailableAttempt(
       {
         attemptKind: 'second_session_opening',
         basisPresentationRevision: 0,
@@ -232,6 +237,29 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       },
       input.requestId,
     );
+    if (attemptId === null) return null;
+    const trace = await this.decisionTrace.begin({
+      aiJobId: job.id,
+      attemptId,
+      contextRevision: 0,
+      decisionOutcome: 'unavailable',
+      directorInvoked: false,
+      generationId: stableUuid(`generation:${input.requestId}`),
+      inputHash: createHash('sha256').update(input.requestId).digest('hex'),
+      ownerActorId: input.actorId,
+      projectId: input.projectId,
+      requestId: input.requestId,
+      sessionId: input.consumerSessionId,
+      stage: 'preflight',
+      triggerType: 'second_session_opening',
+      workingRevision: null,
+    });
+    await this.decisionTrace.finalize(trace.id, {
+      decisionOutcome: 'unavailable',
+      errorCode: input.errorCode,
+      status: 'unavailable',
+    });
+    return attemptId;
   }
 
   public async failOrphanedSecondSessionOpening(attemptId: string): Promise<void> {
@@ -274,6 +302,11 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   ): Promise<PreparedQuestionAttempt> {
     const replay = await this.prisma.questionGenerationAttempt.findUnique({ where: { requestId } });
     if (replay !== null) {
+      const replayTrace = await this.prisma.decisionTrace.findUnique({
+        select: { id: true },
+        where: { requestId },
+      });
+      const replayTraceId = replayTrace?.id ?? null;
       const replayJob = await this.prisma.aiJob.findUnique({ where: { id: replay.aiJobId } });
       if (
         replay.sessionId !== sessionId ||
@@ -296,6 +329,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         shouldContinueListening: false,
         replayed: true,
         requestId,
+        traceId: replayTraceId ?? '',
       };
     }
 
@@ -400,21 +434,68 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       throw error;
     }
     const frozenJob = { ...job, inputHash: receipt.frozenInputHash };
+    const inputSegments = await this.prisma.aiJobInputSegment.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: frozenJob.id },
+    });
+    const trace = await this.decisionTrace.begin({
+      aiJobId: frozenJob.id,
+      attemptId: receipt.attemptId,
+      contextRevision: basis.presentationRevision,
+      decisionOutcome: 'unavailable',
+      directorInvoked: false,
+      generationId: stableUuid(`generation:${requestId}`),
+      inputHash: frozenJob.inputHash,
+      memoryMemberships: memories.map((memory, inputOrder) => ({
+        inputOrder,
+        layer: memory.layer,
+        memoryId: memory.id,
+        membershipRole: 'active',
+        revision: memory.resolutionRevision,
+      })),
+      ownerActorId: actorId,
+      projectId: session.projectId,
+      requestId,
+      sessionId,
+      stage: 'prepare',
+      transcriptMemberships: inputSegments.map((segment) => ({
+        effectiveTextDigest: segment.effectiveTextDigest,
+        inputOrder: segment.inputOrder,
+        segmentId: segment.transcriptSegmentId,
+        speakerRoleRevision: segment.speakerRoleRevision,
+        textRevision: segment.textRevision,
+      })),
+      triggerType: attemptKind,
+      workingRevision: null,
+    });
     const persistedAttempt = await this.prisma.questionGenerationAttempt.findUniqueOrThrow({
       select: { createdAt: true },
       where: { id: receipt.attemptId },
     });
-    const context = await this.buildContext(
-      frozenJob,
-      memories,
-      actualAsked,
-      bankReferences,
-      decision.stage,
-      decision.reasonCodes,
-      generation,
-      sessionId,
-    );
-    this.contract.assertContext(context);
+    let context: InterviewDirectorContextV1;
+    try {
+      context = await this.buildContext(
+        frozenJob,
+        memories,
+        actualAsked,
+        bankReferences,
+        decision.stage,
+        decision.reasonCodes,
+        generation,
+        sessionId,
+      );
+      this.contract.assertContext(context);
+      await this.decisionTrace.attachReferences(trace.id, {
+        p4Memberships: traceP4Memberships(context, sessionId),
+      });
+    } catch (error) {
+      await this.decisionTrace.finalize(trace.id, {
+        decisionOutcome: 'system_error',
+        errorCode: error instanceof Error ? error.message.slice(0, 80) : 'CONTEXT_BUILD_FAILED',
+        status: 'failed',
+      });
+      throw error;
+    }
     return {
       actorId,
       attemptId: receipt.attemptId,
@@ -427,19 +508,69 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       replayed: false,
       requestId,
       shouldContinueListening: decision.shouldContinueListening,
+      traceId: trace.id,
     };
   }
 
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {
     if (prepared.job === null || prepared.context === null) return;
-    if (prepared.shouldContinueListening) {
+    try {
+      if (prepared.shouldContinueListening) {
+        await this.writer.publishAttemptResult(
+          {
+            attemptId: prepared.attemptId,
+            candidate: null,
+            deadlineAt: prepared.deadlineAt,
+            job: prepared.job,
+            resultKind: 'continue_listening',
+            sessionId: prepared.consumerSessionId,
+          },
+          isSystemAttempt(prepared.attemptKind)
+            ? { kind: 'system', trigger: prepared.requestId }
+            : { actorId: prepared.actorId, kind: 'actor' },
+          prepared.requestId,
+        );
+        await this.decisionTrace.finalize(prepared.traceId, {
+          decisionOutcome: 'continue_listening',
+          status: 'succeeded',
+        });
+        return;
+      }
+      const context = prepared.context;
+      const output = await this.coordinator.callProviderWithSameInputRetry(
+        prepared.job,
+        () => this.director.generate({ context, prompt: this.contract.prompt }),
+        (value) => this.contract.parseOutput(value, context),
+        prepared.deadlineAt,
+      );
+      const candidate: QuestionCandidateResult | null =
+        output.decision === 'suggest'
+          ? {
+              declaredBankReferences: output.declared_bank_references.map((reference) => ({
+                questionBankItemId: reference.question_bank_item_id,
+                usage: reference.usage,
+              })),
+              grounding: output.grounding,
+              purpose: output.purpose,
+              questionText: output.question,
+              reasonText: output.reason,
+              risk: output.risk,
+              selectionScore: scoreQuestionSelectionV1({
+                grounding: output.grounding,
+                purpose: output.purpose,
+                risk: output.risk,
+                segments: prepared.job.segments,
+                stage: prepared.context.interview_state.journey_stage,
+              }),
+            }
+          : null;
       await this.writer.publishAttemptResult(
         {
           attemptId: prepared.attemptId,
-          candidate: null,
+          candidate,
           deadlineAt: prepared.deadlineAt,
           job: prepared.job,
-          resultKind: 'continue_listening',
+          resultKind: candidate === null ? 'continue_listening' : 'suggestion',
           sessionId: prepared.consumerSessionId,
         },
         isSystemAttempt(prepared.attemptKind)
@@ -447,50 +578,20 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           : { actorId: prepared.actorId, kind: 'actor' },
         prepared.requestId,
       );
-      return;
+      await this.decisionTrace.finalize(prepared.traceId, {
+        decisionOutcome: candidate === null ? 'continue_listening' : 'question',
+        status: 'succeeded',
+      });
+    } catch (error) {
+      await this.decisionTrace
+        .finalize(prepared.traceId, {
+          decisionOutcome: 'system_error',
+          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'DIRECTOR_FAILED',
+          status: 'failed',
+        })
+        .catch(() => undefined);
+      throw error;
     }
-    const context = prepared.context;
-    const output = await this.coordinator.callProviderWithSameInputRetry(
-      prepared.job,
-      () => this.director.generate({ context, prompt: this.contract.prompt }),
-      (value) => this.contract.parseOutput(value, context),
-      prepared.deadlineAt,
-    );
-    const candidate: QuestionCandidateResult | null =
-      output.decision === 'suggest'
-        ? {
-            declaredBankReferences: output.declared_bank_references.map((reference) => ({
-              questionBankItemId: reference.question_bank_item_id,
-              usage: reference.usage,
-            })),
-            grounding: output.grounding,
-            purpose: output.purpose,
-            questionText: output.question,
-            reasonText: output.reason,
-            risk: output.risk,
-            selectionScore: scoreQuestionSelectionV1({
-              grounding: output.grounding,
-              purpose: output.purpose,
-              risk: output.risk,
-              segments: prepared.job.segments,
-              stage: prepared.context.interview_state.journey_stage,
-            }),
-          }
-        : null;
-    await this.writer.publishAttemptResult(
-      {
-        attemptId: prepared.attemptId,
-        candidate,
-        deadlineAt: prepared.deadlineAt,
-        job: prepared.job,
-        resultKind: candidate === null ? 'continue_listening' : 'suggestion',
-        sessionId: prepared.consumerSessionId,
-      },
-      isSystemAttempt(prepared.attemptKind)
-        ? { kind: 'system', trigger: prepared.requestId }
-        : { actorId: prepared.actorId, kind: 'actor' },
-      prepared.requestId,
-    );
   }
 
   private async buildContext(
@@ -648,6 +749,7 @@ interface PreparedQuestionAttempt {
   replayed: boolean;
   requestId: string;
   shouldContinueListening: boolean;
+  traceId: string;
 }
 
 function isSystemAttempt(kind: QuestionAttemptKind): boolean {
@@ -729,6 +831,83 @@ function goalFor(stage: 'rapport' | 'life_outline' | 'story_depth'): string {
   if (stage === 'story_depth') return '顺着已经出现的具体故事线索，帮助长者自愿讲出更多细节。';
   if (stage === 'life_outline') return '补全人物、地点、事件和时间线索，形成大致人生轮廓。';
   return '用低压力、开放的问题建立信任和谈话节奏。';
+}
+
+function traceP4Memberships(
+  context: InterviewDirectorContextV1,
+  sessionId: string,
+): DecisionTraceP4Input[] {
+  const refs: DecisionTraceP4Input[] = [];
+  let inputOrder = 0;
+  refs.push({
+    inputOrder: inputOrder++,
+    included: true,
+    revision: null,
+    section: 'interview_state',
+    sourceId: sessionId,
+    sourceType: 'session',
+  });
+  for (const memory of context.current_memories) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'working_memory',
+      sourceId: memory.memory_resolution_id,
+      sourceType: 'memory',
+    });
+  }
+  for (const segment of context.recent_transcript) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'recent_transcript',
+      sourceId: segment.segment_id,
+      sourceType: 'transcript_segment',
+    });
+  }
+  for (const question of context.actual_asked) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'actual_asked',
+      sourceId: question.actual_question_id,
+      sourceType: 'actual_question',
+    });
+  }
+  for (const snapshot of context.recently_displayed) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'recently_displayed',
+      sourceId: snapshot.snapshot_id,
+      sourceType: 'display_snapshot',
+    });
+  }
+  if (context.current_presentation !== null) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'current_presentation',
+      sourceId: context.current_presentation.snapshot_id,
+      sourceType: 'presentation',
+    });
+  }
+  for (const bank of context.bank_references) {
+    refs.push({
+      inputOrder: inputOrder++,
+      included: true,
+      revision: null,
+      section: 'question_bank',
+      sourceId: bank.question_bank_item_id,
+      sourceType: 'question_bank_item',
+    });
+  }
+  return refs;
 }
 
 function stableUuid(value: string): string {

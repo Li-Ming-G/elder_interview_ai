@@ -23,6 +23,20 @@ Transcript
 
 不新增第二个 Director、planner/critic 或多 Agent 调度层。程序负责确定性触发、权限、事务、预算、状态机和写回；LLM 只负责被正式 Schema 约束的语义判断，不能直接访问或修改数据库。
 
+### P1–P6 映射（所有任务/PR 必须标注）
+
+| 层 | 架构职责 | 对应任务 |
+|---|---|---|
+| Foundation / Observability | 跨层诊断、错误可见性、Trace、评价基座 | T0–T1、T26–T27 的观测部分 |
+| P1 | Working Memory Maintainer 与 active thread | T4、T18–T20 的 P1 trigger |
+| P2 | Working→Mid、Park/Resume、Checkpoint、Long | T5–T8、T22 的 P2 后台 |
+| P3 | Embedding + Graph Neighbor Candidate Retrieval | T9–T10 |
+| P4 | Context V2、优先级、budget、membership freeze | T11–T12 |
+| P5 | Evidence Drill-down、Evidence Gate、Correction | T13–T17、T25 的 evidence/boundary 规则 |
+| P6 | Director/runtime orchestration、generation fence、deadline、evaluation feedback loop | T3、T15、T18–T25、T26–T27 的运行时部分 |
+
+任务卡、PR 标题/正文、handoff 和 review 必须同时写 `Tn` 与 `Foundation/Observability` 或 `P1`–`P6`；T0/T1 固定标记为 `Foundation/Observability`，不得只用 T 编号推进。
+
 ## 3. 分阶段路线
 
 | 阶段 | 任务 | 输入 | 主要输出 | 最小验收 | 依赖/边界 |
@@ -47,7 +61,7 @@ T0 记录的是每次 question-orchestration decision/generation attempt，而�
 
 - `generation_id`、`trigger_type`、`created_at`、`session_id`、`project_id`；
 - 输入引用：transcript range/revision、working revision、active thread、mid/long memory IDs、P3 candidates/source/score；
-- P4：context version/digest、实际进入 Director 的字段 membership、budget drop/裁剪记录；
+- P4：context version/digest、实际进入 Director 的字段 membership、budget drop/裁剪记录；每个 Working/Mid/Long memory、P3 candidate、P4 section membership 和 Evidence 调用都必须保存 ID、revision、membership/order、digest 或结果 ID 引用，足以重建当次输入集合，但绝不保存正文副本；
 - Director/决策结果：question/continue_listening/system_error/unavailable、`director_invoked`、stage/gate、output schema/version、error code；
 - Evidence：是否调用、tool 名、请求/返回摘要引用、调用次数；
 - latency：P1/P2/P3/P4/Director/total；

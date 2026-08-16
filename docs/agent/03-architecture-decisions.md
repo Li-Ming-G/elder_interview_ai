@@ -456,3 +456,10 @@
 - 数据边界：Trace 只保存 ID、hash、版本、membership 引用、有限枚举和耗时；不复制完整 prompt/context/transcript/provider payload，不新建第二套业务事实。优先复用 `AiJob`/attempt/provider receipt；只有缺口才增加窄 trace root/投影。
 - 约束：Trace 与冻结 job/attempt 事务关联，终态后不可变；late generation 不得改写新结果。T0 不接入真实 provider，不启用真实长者/PII，不提前加载 v2-draft。
 - 后续需单独冻结：trace schema/retention root/权限、P1 操作 schema、Memory authority、retrieval provider、context budget、SYSTEM_ERROR 公共错误码、evaluation artifact 隔离。
+## ADR-034｜T0 Decision Trace typed references、retention root 与 P1–P6 映射
+
+- 状态：Proposed / REVIEW（用户原则接收 T0 补充要求；实现仍待 PR 审查）。
+- Trace 必须通过 typed ID/revision/membership/order/digest/result-ID references 重建当次 Working/Mid/Long、P3 candidates、P4 membership 与 P5 Evidence 调用，不复制正文。
+- T0/T1 标记为 Foundation/Observability；T4=P1、T5–T8=P2、T9–T10=P3、T11–T12=P4、T13–T17=P5、T18–T25=P6、T26–T27=Foundation/Observability。后续任务、PR、handoff、traceability、review 必须带该映射。
+- Trace 使用独立 retention root，支持 hide→detach→purge、授权查询、source retention fail-closed、cleanup audit 和终态 CAS；no-provider/continue/error 也必须受同一治理。
+- 在 P1 memory authority 建立前，CurrentMemoryReader 不提供 Working/Mid/Long 的正式层级字段，因此 T0 必须记录 `unknown`/`unavailable`/nullable revision；禁止以 `mid` 或 `0` 伪造层级与版本。

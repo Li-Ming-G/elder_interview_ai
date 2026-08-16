@@ -70,3 +70,5 @@
 ## 历史索引
 
 完整 `HO-001` 至 `HO-024` 及补充记录见 [`handoffs/05-handoff-log-history.md`](handoffs/05-handoff-log-history.md)；HO-025 见 `handoffs/DOC-002.md`，HO-026 起按任务文件归档。
+| MEMORY-T0-TRACE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 用户已原则接收 T0，并要求可重建 Working/Mid/Long、P3、P4、Evidence 引用 | 已新增 `decision-trace-v1.schema.json` typed refs、独立 `decision_trace` root/五类子表、retention root kind、`DecisionTraceService`；typecheck、Prisma generate、契约 2/2 通过 | 尚未完成 orchestration 全路径/数据库 fresh deploy/集成恢复测试；P1–P5 producers 仍 `unavailable/not_started`，真实 provider/data/public deployment 继续 BLOCKED |
+| MEMORY-T0-TRACE-UPDATE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 独立复核要求禁止伪造 memory layer/revision，并补齐 reader/retention 证据 | `unknown`/`unavailable`/nullable revision、P4 字符串 source ID、reference-only ACL reader、20 migrations、DecisionTrace unit 4/4、question-presentation integration 4/4 已通过 | preflight/replay/recovery 全路径及新 exact head 的项目负责人定向审查仍待完成；P1–P5 producers、真实 provider/data/public deployment 继续 BLOCKED |

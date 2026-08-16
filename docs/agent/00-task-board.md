@@ -94,3 +94,4 @@
 - 只有完成 `09` 和 `10` 所规定的适用验证后才能标记为 `DONE`；高风险任务和 MVP 发布必须独立验收。
 - 不得在根目录其他文件维护第二份详细任务状态。
 - 表格中的未启动下游任务是路线级工作包；任何任务进入 `READY` 前必须补齐 `10` 要求的正式任务字段。`READY` 只表示其明确子集可执行，不等于父任务或真实试点门禁通过。
+| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | IN_PROGRESS | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 CI SUCCESS | `docs/contracts/decision-trace-v1.schema.json`; `docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md` | T0 runtime implementation in progress; P1–P5 membership producers remain unavailable/not_started until their phases |
