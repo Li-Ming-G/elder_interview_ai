@@ -73,6 +73,15 @@
 | MEMORY-T0-TRACE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 用户已原则接收 T0，并要求可重建 Working/Mid/Long、P3、P4、Evidence 引用 | 已新增 `decision-trace-v1.schema.json` typed refs、独立 `decision_trace` root/五类子表、retention root kind、`DecisionTraceService`；typecheck、Prisma generate、契约 2/2 通过 | 尚未完成 orchestration 全路径/数据库 fresh deploy/集成恢复测试；P1–P5 producers 仍 `unavailable/not_started`，真实 provider/data/public deployment 继续 BLOCKED |
 | MEMORY-T0-TRACE-UPDATE | T0 / Foundation-Observability；P1–P6 映射与 typed membership refs | 当前执行 Agent | IN_PROGRESS | 独立复核要求禁止伪造 memory layer/revision，并补齐 reader/retention 证据 | `unknown`/`unavailable`/nullable revision、P4 字符串 source ID、reference-only ACL reader、20 migrations、DecisionTrace unit 4/4、question-presentation integration 4/4 已通过 | preflight/replay/recovery 全路径及新 exact head 的项目负责人定向审查仍待完成；P1–P5 producers、真实 provider/data/public deployment 继续 BLOCKED |
 
+## HO-MEMORY-T2-T4-CORE-001
+
+- Branch: `codex/memory-t2-t4-core-001` (based on `origin/main@7f395df125440b1ffcba7dbc32ed6eba67ee6d15`).
+- Scope: T2/Foundation memory contract; T3/Foundation + P6 provider-neutral seam; T4/P1 Working Memory; thin T9-T12 P3/P4 consumer path.
+- Implemented: candidate-only operation types and evidence refs; hybrid trigger; local/test maintainer; deterministic reference retrieval; candidate Context assembly with membership digest; local/test grounded next-question pipeline.
+- Verification so far: API typecheck, lint and build PASS; targeted memory-core unit 4/4 and full unit 70 files / 430 tests PASS; existing user modification `.codex/iteration-learning.md` preserved untouched.
+- Boundaries: no Prisma migration, no formal V2 loader, no real provider/secret/network/real data, no UI/deployment. Existing V1 runtime remains authoritative until a separately reviewed contract.
+- Next reviewer action: independent/project-owner review of the exact implementation head; do not mark SPEC/ADR or production gates DONE from this candidate slice.
+
 ## Latest handoff: MEMORY-T0-TRACE / REV-058
 
 The independent final review PASS is bound to `40cc61e12ef63096474fe63b69463920f2d6a7c4` / CI `31936839303`; merge/main is `a9363dcd5d33173f1bd355d0c5d3d0b548d70fea` / CI `31937348480` SUCCESS. The accepted implementation is T0 / Foundation-Observability only: provider-neutral, fail-closed, reference-only Decision Trace and recovery. Keep all prior REQUEST_CHANGES history, ADR-043/044 Proposed/REVIEW, later P1-P6 producers and real provider/data/deployment gates unchanged.

@@ -467,4 +467,14 @@
 
 ## ADR-043/044 review history update
 
+## ADR-045 — Memory Core candidate contract and thin P3/P4 seam
+
+- Status: `Proposed / REVIEW`.
+- Mapping: `T2/Foundation + Memory Contract`, `T3/Foundation + P6 provider-neutral seam`, `T4/P1 Working Memory`, and a thin `T9-T12/P3/P4` consumer path.
+- Decision: first validate candidate-only Working operations with transcript evidence, deterministic reference retrieval, mechanical Context assembly and a local/test grounded next-question pipeline. The Maintainer cannot write persistence or decide the question. Existing `interview-director-context-v1` remains authoritative; `interview-director-context-v2-candidate` is not runtime-loadable.
+- Rejected for this slice: new Prisma projection truth source, embedding/graph/reranker, real provider/secret, formal V2 runtime switch, UI and production data.
+- Evidence: `docs/contracts/memory-core-v1-candidate.md`, `docs/agent/tasks/MEMORY-T2-T4-CORE-001.md`, and `apps/api/src/memory/memory-core.spec.ts`.
+
+## ADR-043/044 review history update
+
 REV-058 independently PASSed the T0 / Foundation-Observability implementation at `40cc61e` / CI `31936839303` and merged/main `a9363dcd` / CI `31937348480`. This is implementation evidence only; ADR-043/044 remain Proposed/REVIEW pending project-owner governance acceptance. No later P1-P6 layer or real provider/data/deployment decision is implied.
