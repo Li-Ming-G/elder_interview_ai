@@ -63,3 +63,7 @@
 ## 历史索引
 
 历史审查编号和完整正文见 [`reviews/04-review-report-history.md`](reviews/04-review-report-history.md)，当前历史卷包含 `REV-001` 至 `REV-049`；DEV-008B1 的并行审查使用单篇 [`REV-050`](reviews/REV-050.md)，SPEC-LLM-PROVIDER-001 在原分支使用 REV-050、整合后以 REV-051 canonical alias 归档。PR #54/#55 分别以 REV-052/REV-053 记录，#55 保留 branch-local ADR-041 alias；DEV-008B2 的 branch-local REV-052 在 latest-main integration 后以单篇 [`REV-054`](reviews/REV-054.md) 归档；DEV-ASR-PROVIDER-001 latest-main integration 使用单篇 [`REV-055`](reviews/REV-055.md)。所有 old REQUEST_CHANGES、accepted content/integration PASS、CI 与范围边界均独立永久保留，不互相覆盖。
+
+## MEMORY-T0-TRACE closeout update
+
+REV-058 records independent PASS (P0=0/P1=0/P2=0) for exact head `40cc61e12ef63096474fe63b69463920f2d6a7c4`, CI `31936839303`, followed by merge/main `a9363dcd` and main CI `31937348480` SUCCESS. The accepted scope remains T0 / Foundation-Observability only; SPEC-MEMORY-SYSTEM-V1 overall and ADR-043/044 remain REVIEW/Proposed for governance, and later P1-P6/real-provider/data/deployment work remains blocked.
