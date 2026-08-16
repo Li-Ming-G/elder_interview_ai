@@ -306,6 +306,25 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
         const existing = await tx.decisionTrace.findUnique({
           where: { requestId: attempt.requestId },
         });
+        const frozenReferenceCounts =
+          existing === null
+            ? null
+            : await Promise.all([
+                tx.decisionTraceP4Membership.count({ where: { traceId: existing.id } }),
+                tx.decisionTraceTranscriptMembership.count({ where: { traceId: existing.id } }),
+                tx.decisionTraceMemoryMembership.count({ where: { traceId: existing.id } }),
+                tx.decisionTraceP3Candidate.count({ where: { traceId: existing.id } }),
+                tx.decisionTraceEvidenceCall.count({ where: { traceId: existing.id } }),
+              ]);
+        // A context_frozen trace with its digest and persisted P4 membership is
+        // already the authoritative snapshot of the Director input. Recovery
+        // may terminalize child state, but must never replace that snapshot
+        // with a projection rebuilt from mutable job rows.
+        const hasFrozenReferences =
+          existing !== null &&
+          existing.stage === 'context_frozen' &&
+          existing.contextDigest !== null &&
+          (frozenReferenceCounts?.[0] ?? 0) > 0;
         const now = new Date();
         let preserveTerminalTrace = false;
         if (existing !== null && existing.status !== 'running') {
@@ -485,39 +504,45 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
         const recoveredDurationMs =
           completedAt === null ? null : Math.max(0, completedAt.getTime() - startedAt.getTime());
         if (existing !== null) {
-          await tx.decisionTraceP4Membership.deleteMany({ where: { traceId: existing.id } });
-          await tx.decisionTraceTranscriptMembership.createMany({
-            data: segments.map((segment) => ({
-              id: randomUUID(),
-              traceId: existing.id,
-              segmentId: segment.transcriptSegmentId,
-              textRevision: segment.textRevision,
-              speakerRoleRevision: segment.speakerRoleRevision,
-              effectiveTextDigest: segment.effectiveTextDigest,
-              inputOrder: segment.inputOrder,
-            })),
-            skipDuplicates: true,
-          });
-          await tx.decisionTraceMemoryMembership.createMany({
-            data: memories.map((memory) => ({
-              id: randomUUID(),
-              traceId: existing.id,
-              memoryId: memory.memoryResolutionId,
-              layer: 'unknown',
-              revision: memory.resolutionRevision,
-              membershipRole: 'active',
-              inputOrder: memory.inputOrder,
-            })),
-            skipDuplicates: true,
-          });
-          await tx.decisionTraceP4Membership.createMany({
-            data: p4.map((item) => ({ ...toP4Row(item), id: randomUUID(), traceId: existing.id })),
-          });
+          if (!hasFrozenReferences) {
+            await tx.decisionTraceP4Membership.deleteMany({ where: { traceId: existing.id } });
+            await tx.decisionTraceTranscriptMembership.createMany({
+              data: segments.map((segment) => ({
+                id: randomUUID(),
+                traceId: existing.id,
+                segmentId: segment.transcriptSegmentId,
+                textRevision: segment.textRevision,
+                speakerRoleRevision: segment.speakerRoleRevision,
+                effectiveTextDigest: segment.effectiveTextDigest,
+                inputOrder: segment.inputOrder,
+              })),
+              skipDuplicates: true,
+            });
+            await tx.decisionTraceMemoryMembership.createMany({
+              data: memories.map((memory) => ({
+                id: randomUUID(),
+                traceId: existing.id,
+                memoryId: memory.memoryResolutionId,
+                layer: 'unknown',
+                revision: memory.resolutionRevision,
+                membershipRole: 'active',
+                inputOrder: memory.inputOrder,
+              })),
+              skipDuplicates: true,
+            });
+            await tx.decisionTraceP4Membership.createMany({
+              data: p4.map((item) => ({
+                ...toP4Row(item),
+                id: randomUUID(),
+                traceId: existing.id,
+              })),
+            });
+          }
           await tx.decisionTrace.update({
             data: {
               attemptId: terminalAttempt.id,
               aiJobId: aiJob.id,
-              contextDigest,
+              contextDigest: hasFrozenReferences ? existing.contextDigest : contextDigest,
               directorInvoked: invoked,
               ...(preserveTerminalTrace
                 ? {}

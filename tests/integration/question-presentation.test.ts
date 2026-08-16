@@ -1070,6 +1070,70 @@ describe('DEV-007B constrained question publication', () => {
     expect(repaired.p4Memberships.length).toBeGreaterThan(0);
   });
 
+  it('preserves a frozen recently-displayed membership during running-trace recovery', async () => {
+    const internal = orchestration as unknown as {
+      prepare(
+        actorId: string,
+        sessionId: string,
+        attemptKind: 'manual_next',
+        requestId: string,
+        basis: { presentationRevision: number; snapshotId: string | null },
+      ): Promise<{ attemptId: string; traceId: string }>;
+    };
+    const targetSessionId = randomUUID();
+    await createSession(targetSessionId, randomUUID(), 31);
+    const requestId = randomUUID();
+    const prepared = await internal.prepare(actorId, targetSessionId, 'manual_next', requestId, {
+      presentationRevision: 0,
+      snapshotId: null,
+    });
+    const staleAt = new Date(Date.now() - 60_000);
+    const frozenDigest = 'e'.repeat(64);
+    const frozenDisplayId = randomUUID();
+    await prisma.decisionTraceP4Membership.deleteMany({ where: { traceId: prepared.traceId } });
+    const frozenMembership = await prisma.decisionTraceP4Membership.create({
+      data: {
+        dropReason: null,
+        included: true,
+        inputOrder: 0,
+        membershipDigest: 'd'.repeat(64),
+        revision: 7,
+        revisionStatus: 'available',
+        section: 'recently_displayed',
+        sourceId: frozenDisplayId,
+        sourceType: 'display_snapshot',
+        traceId: prepared.traceId,
+      },
+    });
+    await prisma.decisionTrace.update({
+      data: { contextDigest: frozenDigest, stage: 'context_frozen', startedAt: staleAt },
+      where: { id: prepared.traceId },
+    });
+    await prisma.questionGenerationAttempt.update({
+      data: { createdAt: staleAt, startedAt: staleAt },
+      where: { id: prepared.attemptId },
+    });
+
+    await expect(decisionTraces.reconcileRunning(0)).resolves.toBeGreaterThanOrEqual(1);
+
+    const recovered = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: true },
+      where: { id: prepared.traceId },
+    });
+    expect(recovered.contextDigest).toBe(frozenDigest);
+    expect(recovered.p4Memberships).toEqual([
+      expect.objectContaining({
+        id: frozenMembership.id,
+        membershipDigest: 'd'.repeat(64),
+        revision: 7,
+        revisionStatus: 'available',
+        section: 'recently_displayed',
+        sourceId: frozenDisplayId,
+        sourceType: 'display_snapshot',
+      }),
+    ]);
+  });
+
   it('keeps trace reads reference-only and purges the root with all memberships', async () => {
     const requestId = randomUUID();
     const traceInput = {
