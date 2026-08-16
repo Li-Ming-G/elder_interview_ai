@@ -65,12 +65,15 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       segment('s3', '记忆[event:unknown.event] = unknown'),
       segment('s4', '不要再问家庭关系'),
     ];
-    const result = await maintainer.propose({
-      activeThread: { id: 'thread-a', revision: 1, status: 'active', topicKey: 'childhood' },
-      currentWorking: [existing],
-      finalizedTranscript: segments,
-      sessionMidIndex: [],
-    });
+    const result = await maintainer.propose(
+      {
+        activeThread: { id: 'thread-a', revision: 1, status: 'active', topicKey: 'childhood' },
+        currentWorking: [existing],
+        finalizedTranscript: segments,
+        sessionMidIndex: [],
+      },
+      'minimum_useful_content',
+    );
     expect(result.operations.map(({ kind }) => kind)).toEqual([
       'DUPLICATE',
       'SUPPLEMENT',

@@ -38,4 +38,4 @@
 - synthetic pipeline 能生成 grounded question，且 grounding 只引用 Context 中存在的 segment/memory。
 - Boundary candidate 会使 pipeline `continue_listening`，不会继续追问已明确拒绝的范围。
 - mid/long 缺失保持空/不可用，不伪造事实。
-- `pnpm --filter @elder-interview/api typecheck`、lint/build 与 memory-core/full unit tests 通过。
+- `pnpm --filter @elder-interview/api typecheck`、lint/build 与 memory-core/full unit tests 通过；exact-head CI `31940833720` for `2cda800` passed its full verify matrix.

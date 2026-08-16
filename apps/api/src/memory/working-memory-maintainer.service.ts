@@ -49,11 +49,9 @@ export class WorkingMemoryMaintainerService {
 
   public async propose(
     input: WorkingMemoryMaintainerInput,
-    trigger: Exclude<
-      WorkingMemoryMaintenanceResult['trigger'],
-      'not_ready'
-    > = 'minimum_useful_content',
+    trigger: WorkingMemoryMaintenanceResult['trigger'],
   ): Promise<WorkingMemoryMaintenanceResult> {
+    if (trigger === 'not_ready') return { boundaryCandidates: [], operations: [], trigger };
     const elderSegments = input.finalizedTranscript.filter(
       ({ trustedRole }) => trustedRole === 'elder',
     );
