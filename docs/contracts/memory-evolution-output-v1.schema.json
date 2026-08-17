@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/memory-evolution-output-v1.schema.json",
+  "title": "Memory Evolution Output V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["output_schema_version", "checkpoint_id", "revision_candidates"],
+  "properties": {
+    "output_schema_version": { "const": "memory-evolution-output-v1" },
+    "checkpoint_id": { "$ref": "#/$defs/uuid" },
+    "revision_candidates": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/revision" } }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "revision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_key", "layer_identity_id", "target_layer", "lifecycle_status", "source_resolution_id", "source_resolution_revision", "source_semantic_status", "predecessor_layer_revision_id", "hierarchy_consequence", "expected_member_count", "member_manifest_hash", "manifest_algorithm_version", "members"],
+      "properties": {
+        "candidate_key": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "target_layer": { "const": "mid" },
+        "lifecycle_status": { "const": "current" },
+        "source_resolution_id": { "$ref": "#/$defs/uuid" },
+        "source_resolution_revision": { "type": "integer", "minimum": 1 },
+        "source_semantic_status": { "enum": ["current", "uncertain", "disputed", "unavailable"] },
+        "predecessor_layer_revision_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "hierarchy_consequence": { "enum": ["parked_to_mid", "active_checkpoint_to_mid", "resumed_identity_reuse", "final_flush_to_mid"] },
+        "expected_member_count": { "type": "integer", "minimum": 1 },
+        "member_manifest_hash": { "$ref": "#/$defs/digest" },
+        "manifest_algorithm_version": { "const": "memory-evolution-canonical-v1" },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/member" } }
+      }
+    },
+    "member": {
+      "type": "object", "additionalProperties": false,
+      "required": ["memory_claim_id", "role", "input_order", "evidence_membership_digest"],
+      "properties": {
+        "memory_claim_id": { "$ref": "#/$defs/uuid" },
+        "role": { "enum": ["primary", "supporting", "conflicting", "superseded"] },
+        "input_order": { "type": "integer", "minimum": 0 },
+        "evidence_membership_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

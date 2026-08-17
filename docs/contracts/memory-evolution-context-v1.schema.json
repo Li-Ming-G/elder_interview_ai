@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/memory-evolution-context-v1.schema.json",
+  "title": "Memory Evolution Context V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context_schema_version", "project_id", "source_session_id", "trigger", "checkpoint", "layer_identities", "policy"],
+  "properties": {
+    "context_schema_version": { "const": "memory-evolution-context-v1" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "source_session_id": { "$ref": "#/$defs/uuid" },
+    "trigger": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "trigger_identity"],
+      "properties": {
+        "kind": { "enum": ["semantic_park", "capacity_checkpoint", "session_final_flush"] },
+        "trigger_identity": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint_id", "root_identity", "expected_member_count", "member_manifest_hash", "manifest_algorithm_version", "ai_job_id", "policy_revision", "retention_policy_version", "source_working_snapshot_id", "source_working_snapshot_contract_version", "source_resolution_manifest_hash", "source_thread_manifest_hash", "source_boundary_manifest_hash", "source_thread_id", "source_thread_revision_id", "source_thread_revision", "source_thread_status", "source_p1_final_job_id", "source_p1_final_status", "members"],
+      "properties": {
+        "checkpoint_id": { "$ref": "#/$defs/uuid" },
+        "root_identity": { "$ref": "#/$defs/digest" },
+        "expected_member_count": { "type": "integer", "minimum": 1 },
+        "member_manifest_hash": { "$ref": "#/$defs/digest" },
+        "manifest_algorithm_version": { "const": "memory-evolution-canonical-v1" },
+        "ai_job_id": { "$ref": "#/$defs/uuid" },
+        "policy_revision": { "type": "string", "minLength": 1 },
+        "retention_policy_version": { "type": "string", "minLength": 1 },
+        "source_working_snapshot_id": { "$ref": "#/$defs/uuid" },
+        "source_working_snapshot_contract_version": { "const": "memory-maintainer-v1.1" },
+        "source_resolution_manifest_hash": { "$ref": "#/$defs/digest" },
+        "source_thread_manifest_hash": { "$ref": "#/$defs/digest" },
+        "source_boundary_manifest_hash": { "$ref": "#/$defs/digest" },
+        "source_thread_id": { "$ref": "#/$defs/uuid" },
+        "source_thread_revision_id": { "$ref": "#/$defs/uuid" },
+        "source_thread_revision": { "type": "integer", "minimum": 1 },
+        "source_thread_status": { "enum": ["active", "parked"] },
+        "source_p1_final_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "source_p1_final_status": { "enum": ["succeeded", "failed", "cancelled", "unavailable", null] },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/checkpointMember" } }
+      }
+    },
+    "layer_identities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layerIdentity" } },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_revision", "deletion_scope_digest", "retention_policy_version"],
+      "properties": {
+        "policy_revision": { "type": "string", "minLength": 1 },
+        "deletion_scope_digest": { "$ref": "#/$defs/digest" },
+        "retention_policy_version": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "checkpointMember": {
+      "type": "object", "additionalProperties": false,
+      "required": ["memory_resolution_id", "resolution_revision", "semantic_status", "membership_digest", "input_order"],
+      "properties": {
+        "memory_resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "input_order": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "layerIdentity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["layer_identity_id", "identity_state", "project_id", "origin_session_id", "origin_thread_id", "origin_resolution_id"],
+      "properties": {
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "identity_state": { "enum": ["existing", "reserved_new"] },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "origin_session_id": { "$ref": "#/$defs/uuid" },
+        "origin_thread_id": { "$ref": "#/$defs/uuid" },
+        "origin_resolution_id": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}
