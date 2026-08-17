@@ -3,11 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { canonicalJson, sha256 } from './ai-provenance.js';
 
 export interface FrozenProviderSegment {
+  contentKind?: 'conversation';
+  effectiveTextDigest?: string;
   inputSegmentId: string;
+  speakerRoleRevision?: number;
   segmentId: string;
   sessionId: string;
   startMs: number;
   text: string;
+  textRevision?: number;
   trustedRole: 'elder' | 'interviewer';
 }
 

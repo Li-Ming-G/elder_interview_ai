@@ -54,10 +54,12 @@ export interface FrozenAiJob {
 }
 
 export interface FreezeAiJobRequest {
+  afterFreeze?: (tx: Prisma.TransactionClient, job: FrozenAiJob) => Promise<void>;
   actorId: string;
   actualQuestionIds?: readonly string[];
   contextBuilderVersion?: string;
   expiresAt: Date;
+  exactSegmentIds?: readonly string[];
   jobType: AiJobType;
   memoryResolutionIds?: readonly string[];
   projectId: string;
@@ -126,7 +128,15 @@ export class AiJobCoordinatorService {
       }
       if (request.triggerDedupeKey !== undefined) {
         const byTrigger = await tx.aiJob.findFirst({
-          where: { triggerDedupeKey: request.triggerDedupeKey },
+          orderBy: { attemptNo: 'desc' },
+          where:
+            request.jobType === 'working_memory_maintain'
+              ? {
+                  jobType: 'working_memory_maintain',
+                  status: { in: ['pending', 'running', 'succeeded'] },
+                  triggerDedupeKey: request.triggerDedupeKey,
+                }
+              : { triggerDedupeKey: request.triggerDedupeKey },
         });
         if (byTrigger !== null) {
           await this.assertReplayBinding(
@@ -186,10 +196,71 @@ export class AiJobCoordinatorService {
         }
       }
 
+      let attemptNo = 1;
+      if (request.jobType === 'working_memory_maintain') {
+        if (request.triggerDedupeKey === undefined) throw new Error('AI_SYSTEM_TRIGGER_REQUIRED');
+        const predecessor =
+          request.retryOfJobId === undefined
+            ? null
+            : await tx.aiJob.findUnique({ where: { id: request.retryOfJobId } });
+        if (request.retryOfJobId !== undefined) {
+          if (
+            predecessor === null ||
+            predecessor.jobType !== 'working_memory_maintain' ||
+            predecessor.status !== 'failed' ||
+            predecessor.triggerDedupeKey !== request.triggerDedupeKey
+          ) {
+            throw new Error('AI_MAINTAINER_RETRY_PREDECESSOR_INVALID');
+          }
+          const latest = await tx.aiJob.findFirst({
+            orderBy: { attemptNo: 'desc' },
+            where: {
+              jobType: 'working_memory_maintain',
+              triggerDedupeKey: request.triggerDedupeKey,
+            },
+          });
+          if (latest?.id !== predecessor.id) throw new Error('AI_MAINTAINER_RETRY_NOT_LATEST');
+          const [predecessorScopes, predecessorSegments] = await Promise.all([
+            tx.aiJobSessionScope.findMany({
+              orderBy: { sessionId: 'asc' },
+              select: { sessionId: true },
+              where: { aiJobId: predecessor.id },
+            }),
+            tx.aiJobInputSegment.findMany({
+              orderBy: { transcriptSegmentId: 'asc' },
+              select: { transcriptSegmentId: true },
+              where: { aiJobId: predecessor.id },
+            }),
+          ]);
+          const requestedSegments = [...new Set(request.exactSegmentIds ?? [])].sort();
+          if (
+            predecessor.projectId !== request.projectId ||
+            predecessor.requestedBy !== request.actorId ||
+            predecessor.contextBuilderVersion !== (request.contextBuilderVersion ?? 'dev-006.v1') ||
+            predecessorScopes.map(({ sessionId }) => sessionId).join('|') !==
+              sessionIds.join('|') ||
+            predecessorSegments.map(({ transcriptSegmentId }) => transcriptSegmentId).join('|') !==
+              requestedSegments.join('|')
+          ) {
+            throw new Error('AI_MAINTAINER_RETRY_SCOPE_DRIFT');
+          }
+          attemptNo = predecessor.attemptNo + 1;
+        } else {
+          const prior = await tx.aiJob.count({
+            where: {
+              jobType: 'working_memory_maintain',
+              triggerDedupeKey: request.triggerDedupeKey,
+            },
+          });
+          if (prior !== 0) throw new Error('AI_MAINTAINER_RETRY_PREDECESSOR_REQUIRED');
+        }
+      }
+
       const jobId = randomUUID();
       await tx.aiJob.create({
         data: {
           contextBuilderVersion: request.contextBuilderVersion ?? 'dev-006.v1',
+          attemptNo,
           expiresAt: request.expiresAt,
           id: jobId,
           inputHash: '0'.repeat(64),
@@ -218,6 +289,8 @@ export class AiJobCoordinatorService {
           const projection = projectTrustedSpeakerRole(segment);
           return (
             segment.contentKind === 'conversation' &&
+            (request.exactSegmentIds === undefined ||
+              request.exactSegmentIds.includes(segment.id)) &&
             (sourceContext === null || sourceContext.segments.has(segment.id)) &&
             trustedRoles.includes(projection.trustedEffectiveSpeakerRole as 'elder' | 'interviewer')
           );
@@ -287,11 +360,15 @@ export class AiJobCoordinatorService {
             },
           });
           frozenSegments.push({
+            contentKind: 'conversation',
+            effectiveTextDigest: digest,
             inputSegmentId,
+            speakerRoleRevision: segment.speakerRoleRevision,
             segmentId: segment.id,
             sessionId: session.id,
             startMs: segment.startMs,
             text,
+            textRevision: segment.textRevision,
             trustedRole: projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole as
               'elder' | 'interviewer',
           });
@@ -300,6 +377,12 @@ export class AiJobCoordinatorService {
       }
       if (sourceContext !== null && frozenSegments.length !== sourceContext.segments.size) {
         throw new Error('AI_CONTEXT_SNAPSHOT_SEGMENT_DRIFT');
+      }
+      if (
+        request.exactSegmentIds !== undefined &&
+        frozenSegments.length !== new Set(request.exactSegmentIds).size
+      ) {
+        throw new Error('AI_EXACT_SEGMENT_SCOPE_INVALID');
       }
 
       const resolutions = await tx.memoryResolution.findMany({
@@ -396,7 +479,7 @@ export class AiJobCoordinatorService {
         data: { inputHash, startedAt: new Date(), status: 'running' },
         where: { id: jobId },
       });
-      return {
+      const frozenJob: FrozenAiJob = {
         actualQuestions: frozenActualQuestions,
         id: jobId,
         inputHash,
@@ -410,6 +493,8 @@ export class AiJobCoordinatorService {
         sessionIds,
         status: 'running',
       };
+      await request.afterFreeze?.(tx, frozenJob);
+      return frozenJob;
     });
   }
 
@@ -684,8 +769,9 @@ export class AiJobCoordinatorService {
       if (
         session === null ||
         session.speakerRoleRevision !== scope.speakerRoleRevision ||
-        (latestFinal?.startMs ?? null) !== scope.maxSegmentStartMs ||
-        (latestFinal?.id ?? null) !== scope.maxSegmentId
+        (persistedJob.jobType !== 'working_memory_maintain' &&
+          ((latestFinal?.startMs ?? null) !== scope.maxSegmentStartMs ||
+            (latestFinal?.id ?? null) !== scope.maxSegmentId))
       ) {
         return 'AI_SESSION_WATERMARK_DRIFT';
       }
@@ -866,6 +952,9 @@ export class AiJobCoordinatorService {
         actorId: request.actorId,
         actualQuestionIds,
         contextBuilderVersion: request.contextBuilderVersion ?? 'dev-006.v1',
+        ...(request.exactSegmentIds === undefined
+          ? {}
+          : { exactSegmentIds: [...new Set(request.exactSegmentIds)].sort() }),
         jobType: request.jobType,
         memoryResolutionIds: memoryIds,
         projectId: request.projectId,

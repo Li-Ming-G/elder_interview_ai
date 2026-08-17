@@ -15,7 +15,7 @@ import type { StructuredMemoryClaim } from '../ai-runtime/structured-ai.provider
 export interface WorkingMemoryMaintenanceResult {
   operations: readonly WorkingMemoryCandidateOperation[];
   boundaryCandidates: readonly MemoryBoundary[];
-  trigger: 'batch_threshold' | 'time_threshold' | 'minimum_useful_content' | 'not_ready';
+  trigger: 'batch_threshold' | 'time_threshold' | 'not_ready';
 }
 
 export interface WorkingMemoryTriggerInput {
@@ -32,6 +32,7 @@ export function workingMemoryTrigger(
 ): WorkingMemoryMaintenanceResult['trigger'] {
   const batchThreshold = input.batchThreshold ?? 3;
   const timeThresholdMs = input.timeThresholdMs ?? 15_000;
+  if (!input.minimumUsefulContent) return 'not_ready';
   if (input.finalizedSinceLastRun >= batchThreshold) return 'batch_threshold';
   if (
     input.oldestUnprocessedAtMs !== null &&
@@ -39,7 +40,6 @@ export function workingMemoryTrigger(
   ) {
     return 'time_threshold';
   }
-  if (input.minimumUsefulContent) return 'minimum_useful_content';
   return 'not_ready';
 }
 

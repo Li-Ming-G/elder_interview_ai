@@ -108,6 +108,16 @@ export class AiRetentionService {
     rootId: string,
   ): Promise<void> {
     if (rootKind === 'ai_job') {
+      await tx.$executeRawUnsafe(
+        `UPDATE memory_working_consumption SET ai_job_input_segment_id=NULL
+         WHERE ai_job_input_segment_id IN (SELECT id FROM ai_job_input_segment WHERE ai_job_id=$1::uuid)`,
+        rootId,
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE memory_working_consumption SET memory_working_snapshot_id=NULL
+         WHERE memory_working_snapshot_id IN (SELECT id FROM memory_working_snapshot WHERE ai_job_id=$1::uuid)`,
+        rootId,
+      );
       await tx.aiDerivedOutput.updateMany({
         data: {
           invalidatedAt: new Date(),

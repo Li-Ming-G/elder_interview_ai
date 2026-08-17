@@ -2,7 +2,7 @@
 
 ## 状态与基线
 
-- 状态：`REVIEW`；执行 Agent 不宣布 PASS/DONE，不 merge。
+- 状态：`DONE / PASS`（contract-only）。
 - branch：`codex/memory-t2-t4-contract-002`。
 - base：`main@27e8d8d6aaa523b3298b5d64f6f27240696c542c` / CI `32001983350` SUCCESS。
 - v1 history：PR #66 accepted `224445064613cb2abd24a7c761052b7679bbcbd6` / CI `31994482841` / PASS `5312635580` / merge `27e8d8d`。
@@ -27,7 +27,8 @@
 - modified Markdown relative links：PASS。
 - `git diff --cached --check`：PASS。
 - old exact-head CI `32004656762`：SUCCESS，但绑定已 REQUEST_CHANGES 的 `fdd309a`，不得作为修复 head 证据。
-- repaired exact-head CI：待形成一个新提交后只运行一次并通过 PR 评论回传，不再修改该 head。
+- repaired exact-head CI 只对 accepted head 运行一次；该 head 后续未修改。
+- accepted exact head `02706534d1aa9094699d991ae3584edb651560a8` / CI `32006749030` / PASS comment `5313281208`；merge/main `d48e022a5e3a6ed7fde5beb11b9c214f2509c9ae` / CI `32007442074` SUCCESS。
 
 ## 后续 reviewer / runtime 边界
 

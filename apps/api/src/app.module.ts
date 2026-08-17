@@ -42,7 +42,12 @@ export class AppModule implements NestModule {
       aiRuntimeModule,
       realtimeModule,
     );
-    const memoryModule = createMemoryModule(aiRuntimeModule, questionEvidenceModule);
+    const memoryModule = createMemoryModule(
+      config,
+      aiRuntimeModule,
+      questionEvidenceModule,
+      realtimeModule,
+    );
     const questionOrchestrationModule = createQuestionOrchestrationModule(
       config,
       authModule,

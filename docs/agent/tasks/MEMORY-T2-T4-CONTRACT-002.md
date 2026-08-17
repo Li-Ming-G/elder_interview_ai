@@ -1,6 +1,6 @@
 # MEMORY-T2-T4-CONTRACT-002｜Memory Maintainer V1.1 前向契约修订
 
-状态：`REVIEW`
+状态：`DONE / PASS`（contract-only）
 
 ## 基线与历史
 
@@ -48,4 +48,5 @@
 - P1-1：revision parity 必须比较 DB/Context/Trace/CAS 完整 key set、count、revision，并补四层遗漏、额外、重复反例。
 - P1-2：disputed target 必须存在于同 project current Context 且 revision 精确匹配；至少两个 distinct eligible claim IDs，随机 target/rev999/duplicate claim 必须失败。
 - P2：dedupe validator 必须与 SQL namespace 一致，Maintainer 只允许 `memory-p1-v1.1:*`，non-maintainer 禁止该 namespace。
-- old head/CI/结论永久保留；定向修复形成一个新 head 后只运行一次完整 CI，任务继续 REVIEW。
+- old head/CI/结论永久保留；定向修复只形成一个新 exact head 并运行一次完整 CI。
+- accepted exact head `02706534d1aa9094699d991ae3584edb651560a8` / CI `32006749030` 获正式 PASS（comment `5313281208`），随后 merge/main `d48e022a5e3a6ed7fde5beb11b9c214f2509c9ae` / CI `32007442074` SUCCESS。该结论只接收 v1.1 contract，不接收 runtime。
