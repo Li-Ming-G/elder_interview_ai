@@ -12,4 +12,4 @@ PR #69 initial exact head `466124058a2358b4afeef6e8433aedf43650ff58` / CI `32028
 
 随后 `bd299fb5c315d2907a837362d433aa174ba82075` / CI `32037158715` 的独立复审新增 P1=4：Long 跨 session source set、revision/member ID uniqueness、terminal reference fail-closed、Trace member manifest canonical parity。当前 worktree 正在同一 PR 做第二次窄修，仍不宣称 PASS/DONE/merge。
 
-第二次窄修已冻结为 `fd31cd5587a6feeee888678a26b2c799a373b73f`，exact-head CI `32040317089` SUCCESS；contract tests 45/45、full unit 547/547、typecheck/build/lint/format 全绿。独立复审确认代码 P0=0/P1=0，仅指出本文件旧措辞未同步“已 push/CI 成功”的治理 P2；下一步只做 docs-only evidence correction，不改变 P2-B/C/D/P3/P4/Prisma/runtime/provider 范围。
+第二次窄修已冻结为 `fd31cd5587a6feeee888678a26b2c799a373b73f`，exact-head CI `32040317089` SUCCESS；contract tests 45/45、full unit 547/547、typecheck/build/lint/format 全绿。独立复审确认代码 P0=0/P1=0，并要求同步动态索引中的最新 governance head；本批仅更新 board/handoff-log，待其 docs-only exact-head CI 作为最终记录证据，不改变 P2-B/C/D/P3/P4/Prisma/runtime/provider 范围。
