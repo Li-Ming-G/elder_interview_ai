@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/long-memory-consolidation-context-v1.schema.json",
+  "title": "Long Memory Consolidation Context V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context_schema_version", "project_id", "source_session_id", "source_session_ids", "session_completed_at", "p2_final_checkpoint", "mid_manifest", "policy"],
+  "properties": {
+    "context_schema_version": { "const": "long-memory-consolidation-context-v1" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "source_session_id": { "$ref": "#/$defs/uuid" },
+    "source_session_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/uuid" } },
+    "session_completed_at": { "type": "string", "format": "date-time" },
+    "p2_final_checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint_id", "root_identity", "ai_job_id", "terminal_status", "member_manifest_hash"],
+      "properties": {
+        "checkpoint_id": { "$ref": "#/$defs/uuid" },
+        "root_identity": { "$ref": "#/$defs/digest" },
+        "ai_job_id": { "$ref": "#/$defs/uuid" },
+        "terminal_status": { "const": "succeeded" },
+        "member_manifest_hash": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "mid_manifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["expected_revision_count", "manifest_algorithm_version", "revision_manifest_hash", "revisions"],
+      "properties": {
+        "expected_revision_count": { "type": "integer", "minimum": 1 },
+        "manifest_algorithm_version": { "const": "memory-evolution-canonical-v1" },
+        "revision_manifest_hash": { "$ref": "#/$defs/digest" },
+        "revisions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/midRevision" } }
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_revision", "deletion_scope_digest", "retention_policy_version", "deletion_scope_status", "retention_status"],
+      "properties": {
+        "policy_revision": { "type": "string", "minLength": 1 },
+        "deletion_scope_digest": { "$ref": "#/$defs/digest" },
+        "retention_policy_version": { "type": "string", "minLength": 1 },
+        "deletion_scope_status": { "enum": ["active", "deleted", "unknown", "cleanup_failed"] },
+        "retention_status": { "enum": ["active", "expired", "hidden", "unknown"] }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "midRevision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["layer_identity_id", "layer_revision_id", "project_id", "source_session_id", "resolution_id", "resolution_revision", "semantic_status", "claim_count", "boundary_status", "lifecycle_status", "membership_digest", "input_order", "source_job_id"],
+      "properties": {
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "layer_revision_id": { "$ref": "#/$defs/uuid" },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "source_session_id": { "$ref": "#/$defs/uuid" },
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "claim_count": { "type": "integer", "minimum": 1 },
+        "boundary_status": { "enum": ["none", "active", "revoked", "superseded"] },
+        "lifecycle_status": { "enum": ["current", "superseded", "revoked"] },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "input_order": { "type": "integer", "minimum": 0 },
+        "source_job_id": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}

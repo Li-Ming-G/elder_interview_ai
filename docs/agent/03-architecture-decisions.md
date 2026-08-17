@@ -513,3 +513,13 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - PR #68 审查修正：old `4bda58c` / CI `32017818045` 的两条正式 REQUEST_CHANGES（P1=4）永久保留。forward migration 用显式 provenance state + parent-delete trigger 解决 SET NULL/CHECK 冲突；existing-target identity 在 formal validator/runtime CAS 双层冻结；`AI_MEMORY_INPUT_DRIFT` 以 predecessor-id + current-authority digest 派生稳定 rebase identity；opening provenance 按 legacy/P1 profile 分流并验证 P1 snapshot 或 `MEMORY_UNJUDGED` authority。
 - 约束名边界：forward migration 只确定性移除 official exact old-head 的 `memory_claim_v1_1_authority_all_or_none` 与 `memory_resolution_v1_1_authority_all_or_none`；不动态匹配或删除其他 CHECK。exact old-head 升级后已枚举只剩 exactly-one-root 与新 lifecycle CHECK。
 - Reader authority：`status=current` 不是 provenance。legacy profile 的共享 CurrentMemoryReader 只接受 `provenance_state IS NULL`，P1 profile 只接受 `active`；三个 detached 状态在 direct resolution、AI output/dependency、freeze/CAS、DecisionTrace 与 v1.1 snapshot read seam 一律不可 eligible。此规则关闭 `7f5a413` re-review comment `5315170627` 的唯一邻接 P1，不改变 legacy NULL 的既有非 P1 语义。
+
+## ADR-049｜P2-A Memory Evolution 与 Trace v1.1 reference-only contract
+
+- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T5-T8-P2-A-CONTRACT-001`，不得由执行 Agent 自宣 PASS。
+- 决定：P2 只拥有 Working->Mid、checkpoint、append-only layer identity/revision/member membership 与 Park/Resume 层级后果；P1、MemoryModule、P6、T0 的 ownership 不变。Long 只能在 P1 final 与 P2 final Mid terminal 后 reference-only consolidation。
+- CAS/replay、identity、source/target/policy/deletion/retention drift、count/hash/order/scope 和 one-winner 规则先由 pure contract validator 冻结；duplicate/concurrent/crash/late/transaction 需 P2-C runtime 验证。
+- Decision Trace v1 不改字节；v1.1 新增 `trace_kind`、`memory_outcome`、typed source roots、layer/resolution membership refs 和 strict loader/version/raw schema digest。question-only `decision_outcome/director_invoked` 不得出现在 memory trace。
+- PR #68 accepted `f55da95` / PASS `5315324044` / merge-main `58794c4` / main CI `32024183820` 仅作为前置 accepted scope 事实，不扩大为 P2 runtime。
+- P2-A correction gate：`8d48cd5` / CI `32028717254` 的独立 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）要求 checkpoint/revision parity、Long Mid manifest parity、Trace root membership provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间；修正仍保持 `Proposed / REVIEW`，不得先行开启 P2-B。
+- 第二 correction gate：`bd299fb` / CI `32037158715` 的独立 `REQUEST_CHANGES`（P0=0/P1=4/P2=0）要求 Long source session set、claim/layer ID uniqueness、terminal reference conditions 与 Trace member manifest recomputation；当前仍不得合并或开启 P2-B。

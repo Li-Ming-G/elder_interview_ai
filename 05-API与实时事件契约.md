@@ -1585,3 +1585,6 @@ comparison evaluator 可循环显式选择的 bindings，但每个 invocation �
 - 上传 body/time limit 必须覆盖现有分片契约且有上界；拒绝必须返回公共错误壳并让客户端保留/重试本机作业。API/WS/upload 禁止 edge/proxy cache。
 - `CF-Connecting-IP` 只有在请求经整条受信链且入口头已清洗时可用于登录限流/审计。任何直连或伪造头不得改变当前 direct-peer 安全语义。
 - 公网业务 HTTP/WS 在 origin 必须复验 `Cf-Access-Jwt-Assertion` 的签名、issuer/team、audience 与 expiry；只把结果作为外层可达性布尔值，不把 email/subject/group 映射为应用用户。独立内部 health listener 不承载业务 route。
+## P2-A Internal Contract Boundary
+
+The evolution and Long schemas are internal machine contracts, not public REST/WebSocket events. Their CAS identity binds PR68 fields `projectId`, `sourceSessionId`, `sourceWorkingSnapshotId`, `sourceResolutionManifestHash`, `sourceThreadRevisionId`, `policyRevision` and `retentionPolicyVersion`. Fixed lock order, one winner, late-terminal zero-write and same-transaction job/root/revision/member rules are formal validation requirements; runtime verification remains pending.

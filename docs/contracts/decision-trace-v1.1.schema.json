@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/decision-trace-v1.1.schema.json",
+  "title": "Decision Trace V1.1 P2 Reference Extension",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_schema_version", "trace_kind", "trace_id", "project_id", "session_id", "actor_id", "assignment_id", "consent_revision", "memory_outcome", "roots", "memory_memberships"],
+  "properties": {
+    "trace_schema_version": { "const": "decision-trace-v1.1" },
+    "trace_kind": { "enum": ["question_orchestration", "working_memory_maintain", "memory_layer_evolve"] },
+    "trace_id": { "$ref": "#/$defs/uuid" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "session_id": { "$ref": "#/$defs/uuid" },
+    "actor_id": { "$ref": "#/$defs/uuid" },
+    "assignment_id": { "$ref": "#/$defs/uuid" },
+    "consent_revision": { "type": "integer", "minimum": 1 },
+    "memory_outcome": { "enum": ["checkpoint_committed", "long_committed", "no_change", "unjudged", "failed", "cancelled", "unavailable"] },
+    "decision_outcome": { "enum": ["continue_listening", "ask_follow_up", "close_session", "unavailable"] },
+    "director_invoked": { "type": "boolean" },
+    "roots": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ai_job", "source_working_snapshot", "checkpoint", "retention"],
+      "properties": {
+        "ai_job": { "$ref": "#/$defs/aiJobRef" },
+        "source_working_snapshot": { "$ref": "#/$defs/workingSnapshotRef" },
+        "checkpoint": { "anyOf": [{ "$ref": "#/$defs/checkpointRef" }, { "type": "null" }] },
+        "retention": { "$ref": "#/$defs/retentionRootRef" }
+      }
+    },
+    "memory_memberships": { "type": "array", "items": { "$ref": "#/$defs/membership" } }
+  },
+  "allOf": [{
+    "if": { "properties": { "trace_kind": { "const": "question_orchestration" } } },
+    "then": { "properties": { "decision_outcome": {}, "director_invoked": {} }, "required": ["decision_outcome", "director_invoked"] },
+    "else": { "not": { "anyOf": [{ "required": ["decision_outcome"] }, { "required": ["director_invoked"] }] } }
+  }],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "aiJobRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["job_id", "job_type", "status", "attempt_no", "request_identity_hash"],
+      "properties": {
+        "job_id": { "$ref": "#/$defs/uuid" }, "job_type": { "const": "working_memory_maintain" },
+        "status": { "enum": ["pending", "running", "succeeded", "failed", "cancelled", "unavailable"] },
+        "attempt_no": { "type": "integer", "minimum": 1 }, "request_identity_hash": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "workingSnapshotRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["snapshot_id", "contract_version", "project_id", "session_id", "resolution_manifest_hash", "thread_manifest_hash", "status"],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/uuid" }, "contract_version": { "const": "memory-maintainer-v1.1" },
+        "project_id": { "$ref": "#/$defs/uuid" }, "session_id": { "$ref": "#/$defs/uuid" },
+        "resolution_manifest_hash": { "$ref": "#/$defs/digest" }, "thread_manifest_hash": { "$ref": "#/$defs/digest" },
+        "status": { "enum": ["active", "detached_session", "detached_thread", "detached_session_thread", "cleanup_failed"] }
+      }
+    },
+    "checkpointRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint_id", "project_id", "session_id", "completed_at", "root_identity", "member_manifest_hash", "status", "resolution_ids", "layer_identity_ids", "layer_revision_ids", "membership_refs"],
+      "properties": {
+        "checkpoint_id": { "$ref": "#/$defs/uuid" }, "project_id": { "$ref": "#/$defs/uuid" }, "session_id": { "$ref": "#/$defs/uuid" }, "completed_at": { "type": "string", "format": "date-time" },
+        "root_identity": { "$ref": "#/$defs/digest" }, "member_manifest_hash": { "$ref": "#/$defs/digest" },
+        "status": { "enum": ["committed", "hidden", "detached", "cleanup_failed"] },
+        "resolution_ids": { "type": "array", "items": { "$ref": "#/$defs/uuid" } },
+        "layer_identity_ids": { "type": "array", "items": { "$ref": "#/$defs/uuid" } },
+        "layer_revision_ids": { "type": "array", "items": { "$ref": "#/$defs/uuid" } },
+        "membership_refs": { "type": "array", "items": { "$ref": "#/$defs/membershipRef" } }
+      }
+    },
+    "retentionRootRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_revision", "retention_policy_version", "deletion_scope_digest", "deletion_scope_status", "status"],
+      "properties": {
+        "policy_revision": { "type": "string", "minLength": 1 }, "retention_policy_version": { "type": "string", "minLength": 1 },
+        "deletion_scope_digest": { "$ref": "#/$defs/digest" },
+        "deletion_scope_status": { "enum": ["active", "deleted", "unknown", "cleanup_failed"] },
+        "status": { "enum": ["active", "expired", "hidden", "cleanup_failed"] }
+      }
+    },
+    "membership": {
+      "type": "object", "additionalProperties": false,
+      "required": ["layer_identity_id", "layer_revision_id", "layer", "project_id", "session_id", "resolution_id", "resolution_revision", "membership_digest", "role", "input_order", "source_job_id"],
+      "properties": {
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "layer_revision_id": { "$ref": "#/$defs/uuid" },
+        "layer": { "enum": ["mid", "long"] },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "role": { "enum": ["primary", "supporting", "conflicting", "superseded"] },
+        "input_order": { "type": "integer", "minimum": 0 },
+        "source_job_id": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "membershipRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["layer_identity_id", "layer_revision_id", "layer", "project_id", "session_id", "resolution_id", "resolution_revision", "membership_digest", "role", "input_order", "source_job_id"],
+      "properties": {
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "layer_revision_id": { "$ref": "#/$defs/uuid" },
+        "layer": { "enum": ["mid", "long"] },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "role": { "enum": ["primary", "supporting", "conflicting", "superseded"] },
+        "input_order": { "type": "integer", "minimum": 0 },
+        "source_job_id": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}

@@ -1,10 +1,10 @@
 # MEMORY-T2-T4-RUNTIME-001｜Memory Maintainer V1.1 Durable Runtime
 
-状态：`REVIEW`
+状态：`DONE / ACCEPTED SCOPE`
 
 ## 基线与映射
 
-- base：`main@d48e022a5e3a6ed7fde5beb11b9c214f2509c9ae`，main CI `32007442074` SUCCESS；
+- base：`main@58794c4c6e82a4dfeeb5e89af430c3bac85cfe3d`，main CI `32024183820` SUCCESS；
 - contract：PR #67 accepted `02706534` / CI `32006749030` / PASS comment `5313281208`；old `fdd309a` / CI `32004656762` / REQUEST_CHANGES `5313116887` 永久保留；
 - mapping：T2/Foundation、T4/P1、T18-T19/P6、T0/Observability；
 - branch：`codex/memory-t2-t4-runtime-001`。
@@ -37,7 +37,7 @@
 - P1-2：formal semantic validator 与 runtime writeback CAS 同时冻结 target canonical key、memory type、semantic kind、resolution/thread identity；normal/disputed 恶意漂移均失败关闭且零业务写。
 - P1-3：仅 `AI_MEMORY_INPUT_DRIFT` cancelled terminal 可从稳定 base trigger 派生 deterministic rebase identity；failed 仍按原 identity/retry predecessor，其他 cancelled terminal 不被伪装为 retry。
 - P1-4：legacy profile 仍只接受旧 `memory_extract` lane identity；P1 profile 只接受同 project/basis session、合法 `memory-p1-v1.1:*` terminal job，并按 succeeded snapshot 或 `MEMORY_UNJUDGED` authority 验证。
-- 当前仍为 `REVIEW`。本次集中修复的新 exact head/CI 由提交后的 PR #68 review package 绑定；不自宣 PASS/DONE/merge。
+- accepted closeout：PR #68 `f55da95f593b857228d7db18c9dc062057fdfb56` / exact-head CI `32023718244` SUCCESS / PASS comment `5315324044`; merge/main `58794c4c6e82a4dfeeb5e89af430c3bac85cfe3d` / main CI `32024183820` SUCCESS。该结论只收口本任务已实现的 T2-T4/P1/T18-T19/P6 accepted scope；P2-A 及后续 P2 runtime 不由此完成。
 
 ## `7f5a413` re-review 邻接修复
 

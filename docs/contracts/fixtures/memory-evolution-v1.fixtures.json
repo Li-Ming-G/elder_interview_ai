@@ -1,0 +1,311 @@
+{
+  "evolution_cases": [
+    {
+      "name": "T5 park Mid",
+      "valid": true,
+      "context": {
+        "context_schema_version": "memory-evolution-context-v1",
+        "project_id": "11111111-1111-4111-8111-111111111111",
+        "source_session_id": "22222222-2222-4222-8222-222222222222",
+        "trigger": {
+          "kind": "semantic_park",
+          "trigger_identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "checkpoint": {
+          "checkpoint_id": "33333333-3333-4333-8333-333333333333",
+          "root_identity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "expected_member_count": 1,
+          "member_manifest_hash": "7615e7ce7aa80ec2802d0d365892437f7d0e86b0070a77247c7895bfd518aec0",
+          "manifest_algorithm_version": "memory-evolution-canonical-v1",
+          "ai_job_id": "44444444-4444-4444-8444-444444444444",
+          "policy_revision": "p2-1",
+          "retention_policy_version": "r1",
+          "source_working_snapshot_id": "55555555-5555-4555-8555-555555555555",
+          "source_working_snapshot_contract_version": "memory-maintainer-v1.1",
+          "source_resolution_manifest_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "source_thread_manifest_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "source_boundary_manifest_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "source_thread_id": "66666666-6666-4666-8666-666666666666",
+          "source_thread_revision_id": "77777777-7777-4777-8777-777777777777",
+          "source_thread_revision": 1,
+          "source_thread_status": "parked",
+          "source_p1_final_job_id": null,
+          "source_p1_final_status": null,
+          "members": [
+            {
+              "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
+              "resolution_revision": 2,
+              "semantic_status": "current",
+              "claim_count": 1,
+              "boundary_status": "none",
+              "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+              "input_order": 0
+            }
+          ]
+        },
+        "layer_identities": [
+          {
+            "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "identity_state": "reserved_new",
+            "project_id": "11111111-1111-4111-8111-111111111111",
+            "origin_session_id": "22222222-2222-4222-8222-222222222222",
+            "origin_thread_id": "66666666-6666-4666-8666-666666666666",
+            "origin_resolution_id": "88888888-8888-4888-8888-888888888888"
+          }
+        ],
+        "policy": {
+          "policy_revision": "p2-1",
+          "deletion_scope_digest": "abababababababababababababababababababababababababababababababab",
+          "retention_policy_version": "r1",
+          "deletion_scope_status": "active",
+          "retention_status": "active"
+        }
+      },
+      "output": {
+        "output_schema_version": "memory-evolution-output-v1",
+        "checkpoint_id": "33333333-3333-4333-8333-333333333333",
+        "revision_candidates": [
+          {
+            "candidate_key": "mid-1",
+            "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "target_layer": "mid",
+            "lifecycle_status": "current",
+            "source_resolution_id": "88888888-8888-4888-8888-888888888888",
+            "source_resolution_revision": 2,
+            "source_semantic_status": "current",
+            "predecessor_layer_revision_id": null,
+            "hierarchy_consequence": "parked_to_mid",
+            "expected_member_count": 1,
+            "member_manifest_hash": "f49998103453ba09d29ea256fd498ed0dea015c44b514396a0bb7ea5bb6d5f28",
+            "manifest_algorithm_version": "memory-evolution-canonical-v1",
+            "members": [
+              {
+                "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                "role": "primary",
+                "input_order": 0,
+                "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+              }
+            ],
+            "checkpoint_member_refs": [
+              {
+                "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
+                "resolution_revision": 2,
+                "semantic_status": "current",
+                "claim_count": 1,
+                "boundary_status": "none",
+                "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+                "input_order": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "semantic_cases": [
+    {
+      "name": "duplicate source ID same row count",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.members",
+      "value": [
+        {
+          "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "resolution_revision": 2,
+          "semantic_status": "current",
+          "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "input_order": 0
+        },
+        {
+          "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "resolution_revision": 2,
+          "semantic_status": "current",
+          "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+          "input_order": 1
+        }
+      ],
+      "expected_error": "EVOLUTION_SOURCE_ID_DUPLICATE"
+    },
+    {
+      "name": "order gap",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.members.0.input_order",
+      "value": 1,
+      "expected_error": "EVOLUTION_SOURCE_ORDER_INVALID"
+    },
+    {
+      "name": "cross project identity",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.layer_identities.0.project_id",
+      "value": "99999999-9999-4999-8999-999999999999",
+      "expected_error": "EVOLUTION_IDENTITY_PROJECT_MISMATCH"
+    },
+    {
+      "name": "capacity does not park",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.trigger.kind",
+      "value": "capacity_checkpoint",
+      "expected_error": "EVOLUTION_CAPACITY_MUST_NOT_PARK"
+    },
+    {
+      "name": "final flush requires P1 terminal",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.trigger.kind",
+      "value": "session_final_flush",
+      "expected_error": "EVOLUTION_FINAL_TERMINAL_REQUIRED"
+    },
+    {
+      "name": "semantic unavailable",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.source_semantic_status",
+      "value": "unavailable",
+      "expected_error": "EVOLUTION_SEMANTIC_UNAVAILABLE"
+    },
+    {
+      "name": "identity predecessor drift",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.predecessor_layer_revision_id",
+      "value": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "expected_error": "EVOLUTION_PREDECESSOR_IDENTITY_COLLISION"
+    },
+    {
+      "name": "T6 A to B to A identity reuse",
+      "base": "T5 park Mid",
+      "valid": true,
+      "path": "output.revision_candidates.0.hierarchy_consequence",
+      "value": "resumed_identity_reuse"
+    },
+    {
+      "name": "uncertain resolution remains reference-only",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.source_semantic_status",
+      "value": "uncertain",
+      "expected_error": "EVOLUTION_RESOLUTION_SEMANTIC_STATUS_MISMATCH"
+    },
+    {
+      "name": "disputed resolution remains Resolution-owned",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.source_semantic_status",
+      "value": "disputed",
+      "expected_error": "EVOLUTION_DISPUTED_CLAIMS_REQUIRED"
+    },
+    {
+      "name": "cross session Mid rejected",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.layer_identities.0.origin_session_id",
+      "value": "99999999-9999-4999-8999-999999999999",
+      "expected_error": "EVOLUTION_IDENTITY_SESSION_MISMATCH"
+    },
+    {
+      "name": "retention drift rejected",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.policy.retention_policy_version",
+      "value": "expired",
+      "expected_error": "EVOLUTION_RETENTION_DRIFT"
+    },
+    {
+      "name": "checkpoint identity drift",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.checkpoint_id",
+      "value": "99999999-9999-4999-8999-999999999999",
+      "expected_error": "EVOLUTION_CHECKPOINT_ID_MISMATCH"
+    },
+    {
+      "name": "active Boundary cannot promote",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.members.0.boundary_status",
+      "value": "active",
+      "expected_error": "EVOLUTION_BOUNDARY_MUST_NOT_PROMOTE"
+    },
+    {
+      "name": "deletion scope unknown",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.policy.deletion_scope_status",
+      "value": "unknown",
+      "expected_error": "EVOLUTION_DELETION_SCOPE_NOT_ACTIVE"
+    },
+    {
+      "name": "successful P1 final requires job",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.source_p1_final_status",
+      "value": "succeeded",
+      "expected_error": "EVOLUTION_FINAL_JOB_REQUIRED"
+    },
+    {
+      "name": "duplicate claim id",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.members",
+      "value": [
+        {
+          "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "role": "primary",
+          "input_order": 0,
+          "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+        },
+        {
+          "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "role": "supporting",
+          "input_order": 1,
+          "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+        }
+      ],
+      "expected_error": "EVOLUTION_CLAIM_ID_DUPLICATE"
+    },
+    {
+      "name": "duplicate layer identity",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates",
+      "value": [
+        {
+          "candidate_key": "mid-1",
+          "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "target_layer": "mid",
+          "lifecycle_status": "current",
+          "source_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "source_resolution_revision": 2,
+          "source_semantic_status": "current",
+          "predecessor_layer_revision_id": null,
+          "hierarchy_consequence": "parked_to_mid",
+          "expected_member_count": 1,
+          "member_manifest_hash": "f49998103453ba09d29ea256fd498ed0dea015c44b514396a0bb7ea5bb6d5f28",
+          "manifest_algorithm_version": "memory-evolution-canonical-v1",
+          "checkpoint_member_refs": [{ "memory_resolution_id": "88888888-8888-4888-8888-888888888888", "resolution_revision": 2, "semantic_status": "current", "claim_count": 1, "boundary_status": "none", "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999", "input_order": 0 }],
+          "members": [{ "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "role": "primary", "input_order": 0, "evidence_membership_digest": "dededededededededededededededededededededededededededededededede" }]
+        },
+        {
+          "candidate_key": "mid-2",
+          "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "target_layer": "mid",
+          "lifecycle_status": "current",
+          "source_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "source_resolution_revision": 2,
+          "source_semantic_status": "current",
+          "predecessor_layer_revision_id": null,
+          "hierarchy_consequence": "parked_to_mid",
+          "expected_member_count": 1,
+          "member_manifest_hash": "f49998103453ba09d29ea256fd498ed0dea015c44b514396a0bb7ea5bb6d5f28",
+          "manifest_algorithm_version": "memory-evolution-canonical-v1",
+          "checkpoint_member_refs": [{ "memory_resolution_id": "88888888-8888-4888-8888-888888888888", "resolution_revision": 2, "semantic_status": "current", "claim_count": 1, "boundary_status": "none", "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999", "input_order": 0 }],
+          "members": [{ "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "role": "primary", "input_order": 0, "evidence_membership_digest": "dededededededededededededededededededededededededededededededede" }]
+        }
+      ],
+      "expected_error": "EVOLUTION_LAYER_IDENTITY_DUPLICATE"
+    }
+  ]
+}
