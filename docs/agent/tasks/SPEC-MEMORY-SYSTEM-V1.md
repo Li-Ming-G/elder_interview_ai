@@ -2,7 +2,7 @@
 
 ## 1. 状态与依据
 
-- 状态：REVIEW（T0 / Foundation-Observability 已由 REV-058 接收；PR #65 candidate/local Memory Core 已由 REV-059 接收。当前进入 `MEMORY-T2-T4-CONTRACT-001`，冻结 T2/Foundation、T4/P1、T18-T19/P6 正式契约；后续 T5-T27 仍未完成）。
+- 状态：REVIEW（T0 / Foundation-Observability 已由 REV-058 接收；PR #65 candidate/local Memory Core 已由 REV-059 接收；PR #66 v1 contract 已接收但在 runtime 前由独立 Correction 标记 `accepted-history/pre-runtime-superseded`。当前进入 `MEMORY-T2-T4-CONTRACT-002`，以前向 v1.1 修订 T2/Foundation、T4/P1、T18-T19/P6 契约；后续 T5-T27 仍未完成）。
 - 依据：`C:\Users\TR\Downloads\LLM记忆改造.md` 最底部 T0–T27 安排，以及项目正式 `00`–`10` 规范、现有 AI/Memory/QuestionEvidence 契约和最新 handoff。
 - 当前 Memory 基线：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`，merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS。该证据只接收 candidate/local seam，不代表正式 runtime 或真实 provider 已接入。
 

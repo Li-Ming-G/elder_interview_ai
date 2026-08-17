@@ -56,10 +56,21 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| Formal Maintainer input freezes new/overlap transcript and real revisions | T2/Foundation + T4/P1 | `memory-maintainer-context-v1.schema.json`、fixtures、formal contract | REVIEW |
-| Provider returns candidate operation, complete next state and expected target revisions | T4/P1 | `memory-maintainer-output-v1.schema.json`、fixtures | REVIEW |
-| Trigger/recovery is durable and does not block transcript | T18-T19/P6 | formal contract §§3/6/7、`09` §21 | REVIEW；runtime after contract PASS |
-| Existing claim/resolution remains the only memory value authority | T2/Foundation | `04` §13、formal contract §2 | REVIEW；no Prisma/runtime changes in contract task |
+| Formal Maintainer input freezes new/overlap transcript and real revisions | T2/Foundation + T4/P1 | v1 Schema/fixtures；PR #66 `2244450` / CI `31994482841` / PASS `5312635580` | DONE / PASS history；v1 pre-runtime superseded |
+| Provider returns candidate operation, complete next state and expected target revisions | T4/P1 | v1 Output Schema/fixtures；PR #66 | DONE / PASS history；v1 pre-runtime superseded |
+| Trigger/recovery is durable and does not block transcript | T18-T19/P6 | v1 formal contract §§3/6/7、`09` §21 | DONE / PASS contract history；runtime not implemented |
+| Existing claim/resolution remains the only memory value authority | T2/Foundation | `04` §13、v1 contract §2 | DONE / PASS contract history；no Prisma/runtime changes |
+
+## MEMORY-T2-T4-CONTRACT-002 traceability
+
+| Requirement | Architecture mapping | Evidence | Status |
+|---|---|---|---|
+| text revision 0 and exact DB/Context/Trace/CAS parity | T2/Foundation + T0/Observability | v1.1 Context Schema、revision fixtures、pure parity validator、`04` §14 | REVIEW |
+| Semantic status is independent from resolution lifecycle; disputed is existing conflict set | T2/Foundation + T4/P1 | v1.1 Context/Output Schema、semantic fixtures/validator、`07` §21 | REVIEW |
+| Failed stable identity retries without weakening other job dedupe | T18-T19/P6 | v1.1 contract §4、dedupe fixtures/validator | REVIEW；runtime migration later |
+| Consumption survives AI cleanup and follows transcript deletion | T2/Foundation + T18-T19/P6 | v1.1 contract §5、consumption fixtures/validator、`08` §23 | REVIEW；runtime FK test later |
+| Post-session and scanner share one P1 authority at cutover | T4/P1 + T18-T19/P6 | v1.1 contract §6、cutover fixtures/validator、ADR-047 | REVIEW；runtime later |
+| Accepted v1 bytes and PR #66 evidence remain immutable | Governance / T0 | SHA-256 contract tests、board/review/handoff indexes | REVIEW；await exact-head CI/review |
 
 ## T0 traceability closeout
 

@@ -481,10 +481,22 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 
 ## ADR-046｜正式 P1 Maintainer 复用 MemoryResolution 唯一权威并采用 durable batch
 
-- 状态：`Proposed / REVIEW`。
+- 状态：`Accepted-history / Pre-runtime-superseded`。PR #66 accepted `224445064613cb2abd24a7c761052b7679bbcbd6` / CI `31994482841` / PASS comment `5312635580`，merge/main `27e8d8d6aaa523b3298b5d64f6f27240696c542c` / CI `32001983350` SUCCESS。该接收历史永久保留；runtime 前独立 Correction 由 ADR-047/v1.1 前向修订，v1 不可加载。
 - 映射：`T2/Foundation + T4/P1 + T18-T19/P6`；T0 reference-only provenance 继续适用。
 - 决定：`MemoryClaim/Resolution/Evidence` 继续唯一持有记忆值；新增 thread/boundary revision、Working snapshot、new/overlap membership 和 consumption，只补身份、版本、冻结集合与恢复事实，不建立第二套 Working value 表。
 - Trigger：自动调用固定为 `(batch OR time) AND minimumUseful`；进程内 final notification 只唤醒，startup/periodic scanner 以持久未消费 final 为 authority。
 - Provider：正式 T4 使用独立 Context/Output Schema，直接提出 semantic operation、完整 proposed next state、evidence IDs 和 expected revisions；post-session claim Schema/canonical prefix 不得冒充 thread 决策。
 - 写回：freeze/call/writeback 三段式；成功事务原子提交全部业务 row、snapshot/consumption 与 job CAS，stale/late callback 无写回资格。P1 失败不影响录音/转录，consumer 继续读上一完整 snapshot。
 - 后置：P2、正式 P3/P4/Context V2、真实 provider/secret/data、UI 与生产试点。
+
+## ADR-047｜Memory Maintainer V1.1 分离 semantic/lifecycle 并采用 transcript-owned consumption 与单 producer cutover
+
+- 状态：`Proposed / REVIEW`；唯一 iteration-coach/独立审计结论为 `Correction`，本任务不启动第二次审计。
+- 映射：`T2/Foundation + T4/P1 + T18-T19/P6`，并以 T0/Observability 锁定 DB/Context/Trace/CAS revision parity。
+- 前向版本：不改写 PR #66 接收的 v1 Schema/fixtures；v1 保留为 `accepted-history/pre-runtime-superseded`。runtime 只有在 v1.1 exact-head 独立 PASS 且 merge 后才能加载 v1.1，禁止加载 v1。
+- Revision：`text_revision=0` 是合法“从未正式修订”，所有 membership/Trace/CAS 原样使用 DB revision，禁止 offset。
+- Status：新增 legacy-nullable `MemoryResolution.semantic_status=current|uncertain|disputed`；NULL=unavailable。既有 resolution `status=current|pending_review|superseded` 只表示 lifecycle。disputed 必须更新 existing target/revision、`conflict_set` 且至少两个 claims；自动 NEW/BRANCH/RELATED 不得 disputed。
+- Retry：新增 `working_memory_maintain`。non-maintainer trigger identity 继续任意状态唯一；Maintainer 仅 `pending|running|succeeded` 占唯一 slot，failed 可由同 identity 的新 request/attempt/retry_of 重试，失败 row 不删除或复活。
+- Consumption：consumption 以 unique transcript segment 为 owner；transcript delete CASCADE，snapshot/job-input cleanup SET NULL。pending 不依赖 AI pointer，成功 writeback 原子建立 consumption。
+- Cutover：正式 P1 启用时必须同时禁止旧 post-session `MemoryService.extract/memory_extract` producer；post-session lane 只委托同一 P1 final flush 或投影其 terminal outcome，未消费 final 只由同一 P1 scanner/final-flush authority 处理。
+- 后置：Prisma/migration/repository/runtime cutover、P2/P3/P4/P5、真实 provider/data/UI 另立任务；本 ADR 当前不接收实现。
