@@ -16,6 +16,7 @@ import type {
 } from '../generated/prisma/client.js';
 import { InterviewContextService } from '../memory/interview-context.service.js';
 import { MemoryService } from '../memory/memory.service.js';
+import { MemoryMaintainerRuntime } from '../memory/memory-maintainer.runtime.js';
 import { QuestionEvidenceService } from '../question-evidence/question-evidence.service.js';
 import { QuestionOrchestrationService } from '../question-orchestration/question-orchestration.service.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
@@ -73,6 +74,7 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
     private readonly prisma: PrismaService,
     private readonly jobs: AiJobCoordinatorService,
     private readonly memories: MemoryService,
+    private readonly memoryMaintainer: MemoryMaintainerRuntime,
     private readonly questions: QuestionEvidenceService,
     private readonly contexts: InterviewContextService,
     private readonly openings: QuestionOrchestrationService,
@@ -183,6 +185,10 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
   }
 
   private async runLane(basis: BasisFact, root: string, lane: PostSessionLane): Promise<void> {
+    if (lane === 'memory_extract' && this.memoryMaintainer.isEnabled()) {
+      await this.memoryMaintainer.requestFinalFlush(basis.id);
+      return;
+    }
     const triggerDedupeKey = postSessionLaneTriggerKey(root, lane);
     const existing = await this.prisma.aiJob.findFirst({ where: { triggerDedupeKey } });
     if (existing !== null) {
@@ -613,7 +619,9 @@ export class PostSessionCoordinationService implements OnModuleInit, OnModuleDes
         .filter(({ errorCode }) => errorCode === 'AI_PROVIDER_UNAVAILABLE')
         .map(({ aiJobId }) => aiJobId),
     );
-    const memoryJob = jobs.find(({ triggerDedupeKey }) => triggerDedupeKey === memoryKey) ?? null;
+    const memoryJob = this.memoryMaintainer.isEnabled()
+      ? await this.memoryMaintainer.terminalJobForSession(basis.id)
+      : (jobs.find(({ triggerDedupeKey }) => triggerDedupeKey === memoryKey) ?? null);
     return {
       actual: laneFact(actualJob, unavailableJobIds, actualAnalysis?.judgeability === 'unjudged'),
       memory: laneFact(memoryJob, unavailableJobIds, memoryJob?.failureCode === 'MEMORY_UNJUDGED'),
@@ -700,7 +708,7 @@ function laneFact(
   }
   const unavailable = unavailableJobIds.has(job.id);
   const status: PostSessionAnalysisLaneProjection['status'] =
-    job.status === 'succeeded' && unjudged
+    unjudged && ['succeeded', 'cancelled'].includes(job.status)
       ? 'unjudged'
       : job.status === 'succeeded'
         ? 'succeeded'

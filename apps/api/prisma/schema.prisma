@@ -183,6 +183,7 @@ enum FinalizationTranscriptStatus {
 
 enum AiJobType {
   memory_extract
+  working_memory_maintain
   question_generate
   actual_question_reconcile
   session_note
@@ -246,6 +247,52 @@ enum MemoryAuthority {
   automatic
   human_confirmed
   system_migration
+}
+
+enum MemorySemanticKind {
+  episode
+  fact
+}
+
+enum MemoryLayer {
+  working
+  mid
+  long
+}
+
+enum MemorySemanticStatus {
+  current
+  uncertain
+  disputed
+}
+
+enum MemoryThreadStatus {
+  active
+  parked
+}
+
+enum MemoryBoundaryStatus {
+  active
+  revoked
+  superseded
+}
+
+enum MemoryMaintenanceTriggerKind {
+  batch_threshold
+  time_threshold
+  session_final_flush
+}
+
+enum MemoryMaintenanceMembershipKind {
+  new
+  overlap
+}
+
+enum MemoryProvenanceState {
+  active
+  detached_session
+  detached_thread
+  detached_session_thread
 }
 
 enum MemoryResolutionKind {
@@ -703,6 +750,7 @@ model AiJob {
   requestedBy                  String         @map("requested_by") @db.Uuid
   requestId                    String         @unique @map("request_id") @db.Uuid
   triggerDedupeKey             String?        @map("trigger_dedupe_key") @db.VarChar(160)
+  attemptNo                    Int            @default(1) @map("attempt_no")
   retryOfJobId                 String?        @map("retry_of_job_id") @db.Uuid
   requestIdentityHash          String         @map("request_identity_hash") @db.Char(64)
   inputHash                    String         @map("input_hash") @db.Char(64)
@@ -727,6 +775,7 @@ model AiJob {
   createdAt                    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([projectId, jobType, createdAt(sort: Desc)])
+  @@index([triggerDedupeKey])
   @@index([retryOfJobId])
   @@map("ai_job")
 }
@@ -894,19 +943,24 @@ model MemoryRetentionRoot {
 }
 
 model MemoryClaim {
-  id                    String          @id @default(uuid()) @db.Uuid
-  projectId             String          @map("project_id") @db.Uuid
-  aiJobId               String?         @map("ai_job_id") @db.Uuid
-  memoryRetentionRootId String?         @map("memory_retention_root_id") @db.Uuid
-  aiDerivedOutputId     String?         @unique @map("ai_derived_output_id") @db.Uuid
-  memoryType            MemoryType      @map("memory_type")
-  canonicalKey          String          @map("canonical_key") @db.VarChar(240)
-  valueKind             MemoryValueKind @map("value_kind")
-  valueJson             Json            @map("value_json") @db.JsonB
-  normalizedValueDigest String          @map("normalized_value_digest") @db.Char(64)
-  authority             MemoryAuthority @default(automatic)
-  explicitCorrection    Boolean         @default(false) @map("explicit_correction")
-  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                    String                 @id @default(uuid()) @db.Uuid
+  projectId             String                 @map("project_id") @db.Uuid
+  aiJobId               String?                @map("ai_job_id") @db.Uuid
+  memoryRetentionRootId String?                @map("memory_retention_root_id") @db.Uuid
+  aiDerivedOutputId     String?                @unique @map("ai_derived_output_id") @db.Uuid
+  memoryType            MemoryType             @map("memory_type")
+  canonicalKey          String                 @map("canonical_key") @db.VarChar(240)
+  valueKind             MemoryValueKind        @map("value_kind")
+  valueJson             Json                   @map("value_json") @db.JsonB
+  normalizedValueDigest String                 @map("normalized_value_digest") @db.Char(64)
+  authority             MemoryAuthority        @default(automatic)
+  explicitCorrection    Boolean                @default(false) @map("explicit_correction")
+  semanticKind          MemorySemanticKind?    @map("semantic_kind")
+  layer                 MemoryLayer?
+  provenanceState       MemoryProvenanceState? @map("provenance_state")
+  sourceSessionId       String?                @map("source_session_id") @db.Uuid
+  threadId              String?                @map("thread_id") @db.Uuid
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([projectId, memoryType, canonicalKey])
   @@map("memory_claim")
@@ -939,6 +993,12 @@ model MemoryResolution {
   authority              MemoryAuthority
   status                 MemoryResolutionStatus @default(current)
   supersedesResolutionId String?                @map("supersedes_resolution_id") @db.Uuid
+  semanticKind           MemorySemanticKind?    @map("semantic_kind")
+  layer                  MemoryLayer?
+  semanticStatus         MemorySemanticStatus?  @map("semantic_status")
+  provenanceState        MemoryProvenanceState? @map("provenance_state")
+  sourceSessionId        String?                @map("source_session_id") @db.Uuid
+  threadId               String?                @map("thread_id") @db.Uuid
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([projectId, memoryType, canonicalKey, resolutionRevision])
@@ -956,6 +1016,170 @@ model MemoryResolutionMember {
   @@unique([memoryResolutionId, memoryClaimId])
   @@unique([memoryResolutionId, memberOrder])
   @@map("memory_resolution_member")
+}
+
+model MemoryThread {
+  id               String   @id @default(uuid()) @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  originSessionId  String   @map("origin_session_id") @db.Uuid
+  anchorThreadId   String?  @map("anchor_thread_id") @db.Uuid
+  createdByAiJobId String?  @map("created_by_ai_job_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([projectId, originSessionId])
+  @@map("memory_thread")
+}
+
+model MemoryThreadRevision {
+  id                         String             @id @default(uuid()) @db.Uuid
+  threadId                   String             @map("thread_id") @db.Uuid
+  sourceSessionId            String             @map("source_session_id") @db.Uuid
+  revision                   Int
+  status                     MemoryThreadStatus
+  topicKey                   String             @map("topic_key") @db.VarChar(240)
+  supersedesThreadRevisionId String?            @map("supersedes_thread_revision_id") @db.Uuid
+  supersededAt               DateTime?          @map("superseded_at") @db.Timestamptz(3)
+  aiJobId                    String?            @map("ai_job_id") @db.Uuid
+  createdAt                  DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([threadId, revision])
+  @@index([sourceSessionId, status, supersededAt])
+  @@map("memory_thread_revision")
+}
+
+model MemoryBoundary {
+  id               String   @id @default(uuid()) @db.Uuid
+  projectId        String   @map("project_id") @db.Uuid
+  createdByAiJobId String?  @map("created_by_ai_job_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([projectId])
+  @@map("memory_boundary")
+}
+
+model MemoryBoundaryRevision {
+  id                           String               @id @default(uuid()) @db.Uuid
+  boundaryId                   String               @map("boundary_id") @db.Uuid
+  revision                     Int
+  code                         String               @db.VarChar(80)
+  abstractScope                String               @map("abstract_scope") @db.VarChar(240)
+  status                       MemoryBoundaryStatus
+  supersedesBoundaryRevisionId String?              @map("supersedes_boundary_revision_id") @db.Uuid
+  supersededAt                 DateTime?            @map("superseded_at") @db.Timestamptz(3)
+  aiJobId                      String?              @map("ai_job_id") @db.Uuid
+  createdAt                    DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([boundaryId, revision])
+  @@index([boundaryId, status, supersededAt])
+  @@map("memory_boundary_revision")
+}
+
+model MemoryBoundaryEvidence {
+  id                  String   @id @default(uuid()) @db.Uuid
+  boundaryRevisionId  String   @map("boundary_revision_id") @db.Uuid
+  aiJobInputSegmentId String   @map("ai_job_input_segment_id") @db.Uuid
+  transcriptSegmentId String   @map("transcript_segment_id") @db.Uuid
+  evidenceOrder       Int      @map("evidence_order")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([boundaryRevisionId, aiJobInputSegmentId])
+  @@unique([boundaryRevisionId, evidenceOrder])
+  @@map("memory_boundary_evidence")
+}
+
+model MemoryMaintenanceInputSegment {
+  id                  String                          @id @default(uuid()) @db.Uuid
+  aiJobId             String                          @map("ai_job_id") @db.Uuid
+  aiJobInputSegmentId String                          @unique @map("ai_job_input_segment_id") @db.Uuid
+  transcriptSegmentId String                          @map("transcript_segment_id") @db.Uuid
+  membershipKind      MemoryMaintenanceMembershipKind @map("membership_kind")
+  inputOrder          Int                             @map("input_order")
+  createdAt           DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([aiJobId, transcriptSegmentId])
+  @@unique([aiJobId, inputOrder])
+  @@index([transcriptSegmentId, membershipKind])
+  @@map("memory_maintenance_input_segment")
+}
+
+model MemoryWorkingSnapshot {
+  id                      String                       @id @default(uuid()) @db.Uuid
+  aiJobId                 String                       @unique @map("ai_job_id") @db.Uuid
+  projectId               String                       @map("project_id") @db.Uuid
+  sourceSessionId         String                       @map("source_session_id") @db.Uuid
+  contractVersion         String                       @map("contract_version") @db.VarChar(80)
+  triggerKind             MemoryMaintenanceTriggerKind @map("trigger_kind")
+  triggerIdentity         String                       @unique @map("trigger_identity") @db.VarChar(160)
+  policyRevision          Int                          @map("policy_revision")
+  expectedResolutionCount Int                          @map("expected_resolution_count")
+  resolutionManifestHash  String                       @map("resolution_manifest_hash") @db.Char(64)
+  expectedThreadCount     Int                          @map("expected_thread_count")
+  threadManifestHash      String                       @map("thread_manifest_hash") @db.Char(64)
+  expectedBoundaryCount   Int                          @map("expected_boundary_count")
+  boundaryManifestHash    String                       @map("boundary_manifest_hash") @db.Char(64)
+  committedAt             DateTime                     @default(now()) @map("committed_at") @db.Timestamptz(3)
+
+  @@index([projectId, sourceSessionId, committedAt(sort: Desc)])
+  @@map("memory_working_snapshot")
+}
+
+model MemoryWorkingSnapshotResolution {
+  id                 String   @id @default(uuid()) @db.Uuid
+  snapshotId         String   @map("snapshot_id") @db.Uuid
+  memoryResolutionId String   @map("memory_resolution_id") @db.Uuid
+  resolutionRevision Int      @map("resolution_revision")
+  membershipDigest   String   @map("membership_digest") @db.Char(64)
+  inputOrder         Int      @map("input_order")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([snapshotId, memoryResolutionId])
+  @@unique([snapshotId, inputOrder])
+  @@map("memory_working_snapshot_resolution")
+}
+
+model MemoryWorkingSnapshotThread {
+  id               String   @id @default(uuid()) @db.Uuid
+  snapshotId       String   @map("snapshot_id") @db.Uuid
+  threadId         String   @map("thread_id") @db.Uuid
+  threadRevisionId String   @map("thread_revision_id") @db.Uuid
+  revision         Int
+  membershipDigest String   @map("membership_digest") @db.Char(64)
+  inputOrder       Int      @map("input_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([snapshotId, threadId])
+  @@unique([snapshotId, inputOrder])
+  @@map("memory_working_snapshot_thread")
+}
+
+model MemoryWorkingSnapshotBoundary {
+  id                 String   @id @default(uuid()) @db.Uuid
+  snapshotId         String   @map("snapshot_id") @db.Uuid
+  boundaryId         String   @map("boundary_id") @db.Uuid
+  boundaryRevisionId String   @map("boundary_revision_id") @db.Uuid
+  revision           Int
+  membershipDigest   String   @map("membership_digest") @db.Char(64)
+  inputOrder         Int      @map("input_order")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([snapshotId, boundaryId])
+  @@unique([snapshotId, inputOrder])
+  @@map("memory_working_snapshot_boundary")
+}
+
+model MemoryWorkingConsumption {
+  id                      String   @id @default(uuid()) @db.Uuid
+  projectId               String   @map("project_id") @db.Uuid
+  sessionId               String   @map("session_id") @db.Uuid
+  transcriptSegmentId     String   @unique @map("transcript_segment_id") @db.Uuid
+  textRevision            Int      @map("text_revision")
+  effectiveTextDigest     String   @map("effective_text_digest") @db.Char(64)
+  memoryWorkingSnapshotId String?  @map("memory_working_snapshot_id") @db.Uuid
+  aiJobInputSegmentId     String?  @map("ai_job_input_segment_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([projectId, sessionId])
+  @@map("memory_working_consumption")
 }
 
 model QuestionBankRelease {

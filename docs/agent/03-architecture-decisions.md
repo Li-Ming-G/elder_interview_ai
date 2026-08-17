@@ -491,7 +491,7 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 
 ## ADR-047｜Memory Maintainer V1.1 分离 semantic/lifecycle 并采用 transcript-owned consumption 与单 producer cutover
 
-- 状态：`Proposed / REVIEW`；唯一 iteration-coach/独立审计结论为 `Correction`，本任务不启动第二次审计。
+- 状态：`Accepted`；PR #67 accepted `02706534` / CI `32006749030` / PASS comment `5313281208`，merge/main `d48e022a` / CI `32007442074` SUCCESS。唯一 iteration-coach/独立审计结论为 `Correction`，未启动第二次审计。
 - 映射：`T2/Foundation + T4/P1 + T18-T19/P6`，并以 T0/Observability 锁定 DB/Context/Trace/CAS revision parity。
 - 前向版本：不改写 PR #66 接收的 v1 Schema/fixtures；v1 保留为 `accepted-history/pre-runtime-superseded`。runtime 只有在 v1.1 exact-head 独立 PASS 且 merge 后才能加载 v1.1，禁止加载 v1。
 - Revision：`text_revision=0` 是合法“从未正式修订”，DB/Context/Trace/CAS 四层 segment key set、unique count 和逐 key revision 必须完全相同，禁止遗漏/额外/重复/offset。
@@ -499,5 +499,17 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - Retry：新增 `working_memory_maintain`。non-maintainer trigger identity 继续任意状态唯一；Maintainer 仅 `pending|running|succeeded` 占唯一 slot，failed 可由同 identity 的新 request/attempt/retry_of 重试，失败 row 不删除或复活。Maintainer identity 必须在 `memory-p1-v1.1:*` namespace，non-maintainer 双向禁止该 namespace。
 - Consumption：consumption 以 unique transcript segment 为 owner；transcript delete CASCADE，snapshot/job-input cleanup SET NULL。pending 不依赖 AI pointer，成功 writeback 原子建立 consumption。
 - Cutover：正式 P1 启用时必须同时禁止旧 post-session `MemoryService.extract/memory_extract` producer；post-session lane 只委托同一 P1 final flush 或投影其 terminal outcome，未消费 final 只由同一 P1 scanner/final-flush authority 处理。
-- 后置：Prisma/migration/repository/runtime cutover、P2/P3/P4/P5、真实 provider/data/UI 另立任务；本 ADR 当前不接收实现。
-- 审查历史：PR #67 old `fdd309a` / CI `32004656762` 正式 `REQUEST_CHANGES`（P0=0/P1=2/P2=1，comment `5313116887`）永久保留；当前只形成三项定向修复，不表示 ADR 已 Accepted。
+- 后置：Prisma/migration/repository/runtime cutover 由 MEMORY-T2-T4-RUNTIME-001 承接；P2/P3/P4/P5、真实 provider/data/UI 仍另立任务。
+- 审查历史：PR #67 old `fdd309a` / CI `32004656762` 正式 `REQUEST_CHANGES`（P0=0/P1=2/P2=1，comment `5313116887`）永久保留；accepted head/CI/PASS 不覆盖 runtime。
+
+## ADR-048｜Memory Maintainer V1.1 使用 PostgreSQL durable batch 与 release-profile 单 producer
+
+- 状态：`Proposed / REVIEW`；等待 MEMORY-T2-T4-RUNTIME-001 non-Draft PR exact-head 独立审查。
+- 映射：T2/Foundation、T4/P1、T18-T19/P6、T0/Observability。
+- 决定：enum 先独立 committed migration，再追加 legacy-null authority、thread/boundary revision、snapshot/membership、transcript-owned consumption 与 retry/dedupe DDL；batch selection 持有 session advisory transaction lock，provider call 不持锁。
+- Cutover：P1 enabled profile 必须同时加载 v1.1、禁用 legacy producer、把 post-session memory lane 委托同一 final flush，并以 transcript consumption 作为唯一 pending authority；P1 disabled profile 不启动 scanner。
+- 恢复：stale attempt 只 terminalize 一次；retry 保留 failed predecessor/attempt/scope；late callback 因 running CAS 失败而零业务写入。AI cleanup 只 detach pointer，transcript delete 才删除 consumption。
+- Provider：只接 local/test deterministic fixture 和 unavailable port；无真实 provider/secret/data。Context V2、P2/P3/P4/UI 继续后置。
+- PR #68 审查修正：old `4bda58c` / CI `32017818045` 的两条正式 REQUEST_CHANGES（P1=4）永久保留。forward migration 用显式 provenance state + parent-delete trigger 解决 SET NULL/CHECK 冲突；existing-target identity 在 formal validator/runtime CAS 双层冻结；`AI_MEMORY_INPUT_DRIFT` 以 predecessor-id + current-authority digest 派生稳定 rebase identity；opening provenance 按 legacy/P1 profile 分流并验证 P1 snapshot 或 `MEMORY_UNJUDGED` authority。
+- 约束名边界：forward migration 只确定性移除 official exact old-head 的 `memory_claim_v1_1_authority_all_or_none` 与 `memory_resolution_v1_1_authority_all_or_none`；不动态匹配或删除其他 CHECK。exact old-head 升级后已枚举只剩 exactly-one-root 与新 lifecycle CHECK。
+- Reader authority：`status=current` 不是 provenance。legacy profile 的共享 CurrentMemoryReader 只接受 `provenance_state IS NULL`，P1 profile 只接受 `active`；三个 detached 状态在 direct resolution、AI output/dependency、freeze/CAS、DecisionTrace 与 v1.1 snapshot read seam 一律不可 eligible。此规则关闭 `7f5a413` re-review comment `5315170627` 的唯一邻接 P1，不改变 legacy NULL 的既有非 P1 语义。

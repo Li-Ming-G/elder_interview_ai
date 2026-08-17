@@ -25,7 +25,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
         finalizedSinceLastRun: 0,
         oldestUnprocessedAtMs: null,
         nowMs: 20_000,
-        minimumUsefulContent: false,
+        minimumUsefulContent: true,
       }),
     ).toBe('not_ready');
     expect(
@@ -33,7 +33,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
         finalizedSinceLastRun: 3,
         oldestUnprocessedAtMs: null,
         nowMs: 20_000,
-        minimumUsefulContent: false,
+        minimumUsefulContent: true,
       }),
     ).toBe('batch_threshold');
     expect(
@@ -41,7 +41,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
         finalizedSinceLastRun: 1,
         oldestUnprocessedAtMs: 0,
         nowMs: 20_000,
-        minimumUsefulContent: false,
+        minimumUsefulContent: true,
       }),
     ).toBe('time_threshold');
   });
@@ -72,7 +72,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
         finalizedTranscript: segments,
         sessionMidIndex: [],
       },
-      'minimum_useful_content',
+      'batch_threshold',
     );
     expect(result.operations.map(({ kind }) => kind)).toEqual([
       'DUPLICATE',
@@ -135,6 +135,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       activeThread: null,
       currentWorking: [],
       finalizedTranscript: [segment('s6', '记忆[event:first.job] = 在工厂工作')],
+      finalizedSinceLastRun: 3,
       minimumUsefulContent: true,
     });
     expect(created.decision).toBe('suggest');
@@ -146,6 +147,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       activeThread: null,
       currentWorking: [],
       finalizedTranscript: [segment('s7', '不要再问家庭关系')],
+      finalizedSinceLastRun: 3,
       minimumUsefulContent: true,
     });
     expect(blocked.decision).toBe('continue_listening');
@@ -167,6 +169,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
         segment('s9', '记忆[event:one] = 同一件事'),
         segment('s10', '记忆[event:one] = 同一件事'),
       ],
+      finalizedSinceLastRun: 3,
       minimumUsefulContent: true,
     });
     expect(deduped.operations.map(({ kind }) => kind)).toEqual(['NEW', 'DUPLICATE']);
@@ -200,6 +203,7 @@ describe('MEMORY-T2-T4-CORE-001 memory core and thin P3/P4 seam', () => {
       ],
       currentWorking: [existing],
       finalizedTranscript: [segment('s11', '记忆[event:family.new] = 新故事')],
+      finalizedSinceLastRun: 3,
       minimumUsefulContent: true,
     });
     expect(result.operations[0]?.kind).toBe('BRANCH');

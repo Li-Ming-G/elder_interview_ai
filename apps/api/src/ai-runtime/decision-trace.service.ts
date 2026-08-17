@@ -208,6 +208,7 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
         throw new Error('DECISION_TRACE_CONTEXT_NOT_FROZEN');
       }
       const directorInvoked =
+        current.triggerType !== 'working_memory_maintain' &&
         current.aiJobId !== null &&
         (await tx.aiProviderCall.count({ where: { aiJobId: current.aiJobId } })) > 0;
       const durationMs = Math.max(0, completedAt.getTime() - current.startedAt.getTime());

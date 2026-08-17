@@ -150,6 +150,67 @@ describe('Memory Maintainer v1.1 forward machine contract', () => {
     expect(result.errors).toContain(fixture.expected_error);
   });
 
+  for (const mode of ['normal', 'disputed'] as const) {
+    it.each([
+      ['canonical key', 'MEMORY_TARGET_CANONICAL_KEY_MISMATCH'],
+      ['memory type', 'MEMORY_TARGET_MEMORY_TYPE_MISMATCH'],
+      ['semantic kind', 'MEMORY_TARGET_SEMANTIC_KIND_MISMATCH'],
+      ['thread identity', 'MEMORY_TARGET_THREAD_IDENTITY_MISMATCH'],
+    ] as const)(`rejects ${mode} target %s drift`, (drift, expectedError) => {
+      const context = fixtures.context_cases.find(
+        ({ name }) => name === 'valid_zero_revision_and_independent_statuses',
+      );
+      const source = fixtures.output_cases.find(
+        ({ name }) => name === 'valid_disputed_existing_update',
+      );
+      expect(context).toBeDefined();
+      expect(source).toBeDefined();
+      const output = structuredClone(source?.value) as {
+        operations: {
+          anchor_thread_id: string;
+          kind: string;
+          proposed_state: {
+            canonical_key: string;
+            claims: Record<string, unknown>[];
+            memory_type: string;
+            resolution_kind: string;
+            semantic_kind: string;
+            semantic_status: string;
+            value: unknown;
+            value_kind: string | null;
+          };
+          reason_code: string;
+        }[];
+      };
+      const operation = output.operations[0];
+      if (operation === undefined) throw new Error('TARGET_OPERATION_FIXTURE_REQUIRED');
+      if (mode === 'normal') {
+        operation.kind = 'SUPPLEMENT';
+        operation.reason_code = 'explicit_correction';
+        operation.proposed_state.semantic_status = 'current';
+        operation.proposed_state.resolution_kind = 'single';
+        operation.proposed_state.value_kind = 'exact';
+        operation.proposed_state.value = { summary: 'worked as a teacher' };
+        operation.proposed_state.claims = [
+          {
+            ...operation.proposed_state.claims[0],
+            claim_id: null,
+          },
+        ];
+      }
+      if (drift === 'canonical key') operation.proposed_state.canonical_key = 'career.other';
+      if (drift === 'memory type') operation.proposed_state.memory_type = 'place';
+      if (drift === 'semantic kind') operation.proposed_state.semantic_kind = 'episode';
+      if (drift === 'thread identity') {
+        operation.anchor_thread_id = '77777777-7777-4777-8777-777777777777';
+      }
+
+      const result = validateMemoryMaintainerV11SemanticPair(context?.value, output);
+      expect(result.valid, result.errors.join(',')).toBe(false);
+      expect(result.errors).toContain(expectedError);
+    });
+  }
+
   it.each(fixtures.revision_cases)('validates exact revision fixture $name', (fixture) => {
     const result = validateMemoryMaintainerRevisionParity(fixture.value);
     expect(result.valid, result.errors.join(',')).toBe(fixture.valid);
