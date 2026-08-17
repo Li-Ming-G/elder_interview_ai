@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 
+import { validateMemoryMaintainerSemanticPair } from './memory-maintainer-contract.js';
+
 interface FixtureCase {
   name: string;
   valid: boolean;
@@ -13,6 +15,12 @@ interface FixtureCase {
 interface Fixtures {
   context_cases: FixtureCase[];
   output_cases: FixtureCase[];
+  semantic_cases: {
+    name: string;
+    context_case: string;
+    output_case: string;
+    valid: boolean;
+  }[];
 }
 
 describe('Memory Maintainer V1 machine contracts', () => {
@@ -28,6 +36,15 @@ describe('Memory Maintainer V1 machine contracts', () => {
   it.each(fixtures.output_cases)('validates output fixture $name', ({ valid, value }) => {
     const validate = compile('docs/contracts/memory-maintainer-output-v1.schema.json');
     expect(validate(value), JSON.stringify(validate.errors)).toBe(valid);
+  });
+
+  it.each(fixtures.semantic_cases)('validates semantic fixture $name', (fixture) => {
+    const context = fixtures.context_cases.find(({ name }) => name === fixture.context_case);
+    const output = fixtures.output_cases.find(({ name }) => name === fixture.output_case);
+    expect(context).toBeDefined();
+    expect(output).toBeDefined();
+    const result = validateMemoryMaintainerSemanticPair(context?.value, output?.value);
+    expect(result.valid, result.errors.join(',')).toBe(fixture.valid);
   });
 });
 

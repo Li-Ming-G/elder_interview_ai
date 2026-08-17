@@ -57,10 +57,10 @@ AND minimum useful content = true
 
 ## 4. 冻结输入
 
-正式 provider 输入只遵循 [`memory-maintainer-context-v1.schema.json`](memory-maintainer-context-v1.schema.json)。
+正式 provider 输入只遵循 [`memory-maintainer-context-v1.schema.json`](memory-maintainer-context-v1.schema.json)，并通过同一契约包的 semantic validator 做跨文档校验。
 
 - `transcript_membership` 明确区分 `new|overlap`；每次调用至少有一个 `new` trusted elder conversation final。
-- output evidence 只能引用本次 `new` trusted elder membership；overlap 只提供相邻语境，不能再次成为新 claim 的唯一证据。
+- Schema 机械要求至少一个 `new` trusted elder conversation final；semantic validator 还要求 segment ID、operation ID、boundary candidate ID 唯一，且 output evidence 只能引用本次 `new` trusted elder membership。overlap 只提供相邻语境，不能再次成为新 claim 的唯一证据。
 - 输入 Working、Mid index、active thread 和 active boundary 均保存 ID 与真实 revision；不存在时使用空集合或 `null`，不得伪造。
 - freeze 在 session advisory lock 内选择未消费 batch，创建 AiJob、session scope、input segment/memory 和 `new|overlap` membership 后提交；provider 调用不持数据库锁。
 - trigger identity 由 session、new membership manifest 和契约版本确定；重复通知/ACK 丢失/并发 worker 必须落到同一 job。

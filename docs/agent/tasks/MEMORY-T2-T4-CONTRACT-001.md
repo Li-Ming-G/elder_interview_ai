@@ -22,6 +22,7 @@
 - `docs/contracts/fixtures/memory-maintainer-v1.fixtures.json`
 - `docs/contracts/memory-maintainer-v1.md`
 - `apps/api/src/memory/memory-maintainer-contract.spec.ts`
+- `apps/api/src/memory/memory-maintainer-contract.ts` pure cross-document semantic validator
 - `04/07/09/10` 正式职责和 runtime gate 同步
 - board、traceability、ADR-046、handoff/review index 同步
 
@@ -42,6 +43,6 @@
 
 ## 本地验证
 
-- 两份 Schema + fixtures：7/7 PASS；
+- 两份 Schema + cross-document semantic fixtures：14/14 PASS；
 - `format:check`、workspace `typecheck`、目标测试文件 ESLint、`git diff --check` PASS；
 - 一次全仓 lint 先发现新测试缺显式返回类型，已修复；随后仅因本机 ignored `tmp/dev008a4-sandbox` 不在 TypeScript project 而失败。未删除该历史目录；目标源文件 lint PASS，最终 exact-head CI 将在 clean checkout 复核全仓 lint。

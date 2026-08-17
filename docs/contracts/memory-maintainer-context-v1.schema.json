@@ -28,6 +28,16 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 80,
+      "contains": {
+        "type": "object",
+        "required": ["membership_kind", "trusted_role", "content_kind"],
+        "properties": {
+          "membership_kind": { "const": "new" },
+          "trusted_role": { "const": "elder" },
+          "content_kind": { "const": "conversation" }
+        }
+      },
+      "minContains": 1,
       "items": { "$ref": "#/$defs/transcriptMembership" }
     },
     "active_thread": {

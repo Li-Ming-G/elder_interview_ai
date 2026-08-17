@@ -57,6 +57,96 @@
         "active_boundaries": [],
         "raw_prompt": "must not be accepted"
       }
+    },
+    {
+      "name": "invalid_overlap_only_context",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1",
+        "trigger": { "kind": "time_threshold", "identity": "overlap-only" },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "overlap",
+            "start_ms": 1000,
+            "text": "相邻语境。",
+            "trusted_role": "elder",
+            "text_revision": 1,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "invalid_no_elder_context",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1",
+        "trigger": { "kind": "batch_threshold", "identity": "no-elder" },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "倾听员提问。",
+            "trusted_role": "interviewer",
+            "text_revision": 1,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "schema_valid_duplicate_segment_ids",
+      "valid": true,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1",
+        "trigger": { "kind": "batch_threshold", "identity": "duplicate-id-case" },
+        "transcript_membership": [
+          {
+            "segment_id": "22222222-2222-4222-8222-222222222222",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 3000,
+            "text": "第一版内容。",
+            "trusted_role": "elder",
+            "text_revision": 1,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "content_kind": "conversation"
+          },
+          {
+            "segment_id": "22222222-2222-4222-8222-222222222222",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "overlap",
+            "start_ms": 3000,
+            "text": "第一版内容。",
+            "trusted_role": "elder",
+            "text_revision": 1,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
     }
   ],
   "output_cases": [
@@ -90,7 +180,7 @@
             "candidate_id": "boundary-1",
             "code": "elder_explicit_boundary",
             "abstract_scope": "family conflict",
-            "evidence_segment_ids": ["33333333-3333-4333-8333-333333333333"]
+            "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"]
           }
         ]
       }
@@ -192,6 +282,54 @@
         ],
         "boundary_candidates": []
       }
+    },
+    {
+      "name": "schema_valid_evidence_outside_context",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1",
+        "operations": [
+          {
+            "operation_id": "op-outside",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "outside.batch",
+              "value_kind": "exact",
+              "value": "outside",
+              "status": "current"
+            },
+            "evidence_segment_ids": ["33333333-3333-4333-8333-333333333333"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    }
+  ],
+  "semantic_cases": [
+    {
+      "name": "valid_new_evidence_pair",
+      "context_case": "valid_new_batch_with_overlap",
+      "output_case": "valid_new_fact_and_boundary",
+      "valid": true
+    },
+    {
+      "name": "duplicate_segment_id_rejected",
+      "context_case": "schema_valid_duplicate_segment_ids",
+      "output_case": "valid_new_fact_and_boundary",
+      "valid": false
+    },
+    {
+      "name": "evidence_outside_new_membership_rejected",
+      "context_case": "valid_new_batch_with_overlap",
+      "output_case": "schema_valid_evidence_outside_context",
+      "valid": false
     }
   ]
 }
