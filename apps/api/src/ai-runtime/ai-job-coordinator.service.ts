@@ -7,10 +7,14 @@ import type {
   AiJobInputSegment,
   AiJobStatus,
   AiJobType,
+  MemoryProvenanceState,
   Prisma,
 } from '../generated/prisma/client.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
-import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
+import {
+  AiOutputEligibilityService,
+  isCurrentMemoryProvenanceReadable,
+} from './ai-output-eligibility.service.js';
 import {
   canonicalJson,
   effectiveTextDigest,
@@ -400,6 +404,7 @@ export class AiJobCoordinatorService {
       for (const [memoryOrder, resolution] of resolutions.entries()) {
         if (
           policy.blockedCanonicalKeys.includes(resolution.canonicalKey) ||
+          !memoryProvenanceMatchesJob(request.jobType, resolution.provenanceState) ||
           !(await this.memoryResolutionIsEligible(tx, request.actorId, resolution))
         ) {
           throw new Error('AI_MEMORY_SCOPE_INELIGIBLE');
@@ -832,6 +837,7 @@ export class AiJobCoordinatorService {
         resolution === null ||
         resolution.status !== 'current' ||
         resolution.resolutionRevision !== memory.resolutionRevision ||
+        !memoryProvenanceMatchesJob(persistedJob.jobType, resolution.provenanceState) ||
         currentPolicy.blockedCanonicalKeys.includes(resolution.canonicalKey) ||
         !(await this.memoryResolutionIsEligible(tx, job.requestedBy, resolution))
       ) {
@@ -889,8 +895,10 @@ export class AiJobCoordinatorService {
       aiDerivedOutputId: string | null;
       authority: string;
       memoryRetentionRootId: string | null;
+      provenanceState: MemoryProvenanceState | null;
     },
   ): Promise<boolean> {
+    if (!isCurrentMemoryProvenanceReadable(resolution.provenanceState)) return false;
     if (resolution.authority === 'automatic') {
       return (
         resolution.aiDerivedOutputId !== null &&
@@ -1090,6 +1098,15 @@ export class AiJobCoordinatorService {
   private async lock(tx: Prisma.TransactionClient, value: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${value}, 0))`;
   }
+}
+
+function memoryProvenanceMatchesJob(
+  jobType: AiJobType,
+  state: MemoryProvenanceState | null,
+): boolean {
+  if (jobType === 'working_memory_maintain') return state === 'active';
+  if (jobType === 'memory_extract') return state === null;
+  return isCurrentMemoryProvenanceReadable(state);
 }
 
 function sameValues(left: readonly string[], right: readonly string[]): boolean {

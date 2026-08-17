@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { AiOutputEligibilityService } from '../ai-runtime/ai-output-eligibility.service.js';
+import {
+  AiOutputEligibilityService,
+  isCurrentMemoryProvenanceReadable,
+} from '../ai-runtime/ai-output-eligibility.service.js';
 import { manifestHash } from '../ai-runtime/ai-provenance.js';
 import { AiPolicyService } from '../ai-runtime/ai-policy.service.js';
 import { PrismaService } from '../database/prisma.service.js';
@@ -66,6 +69,7 @@ export class MemoryWorkingSnapshotReader {
           resolution === undefined ||
           resolution.projectId !== projectId ||
           resolution.status !== 'current' ||
+          !isCurrentMemoryProvenanceReadable(resolution.provenanceState) ||
           resolution.layer !== 'working' ||
           resolution.semanticKind === null ||
           resolution.semanticStatus === null ||

@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { AiJobCoordinatorService } from '../ai-runtime/ai-job-coordinator.service.js';
-import { AiOutputEligibilityService } from '../ai-runtime/ai-output-eligibility.service.js';
+import {
+  AiOutputEligibilityService,
+  isCurrentMemoryProvenanceReadable,
+} from '../ai-runtime/ai-output-eligibility.service.js';
 import {
   canonicalJson,
   EMPTY_MANIFEST_HASH,
@@ -14,6 +17,10 @@ import { AiPolicyService } from '../ai-runtime/ai-policy.service.js';
 import { StructuredAiProvider } from '../ai-runtime/structured-ai.provider.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import {
+  MEMORY_MAINTAINER_RUNTIME_CONFIG,
+  type MemoryMaintainerRuntimeConfig,
+} from './memory-maintainer.runtime.js';
 
 export interface CurrentMemoryItem {
   authority: 'automatic' | 'human_confirmed' | 'system_migration';
@@ -32,6 +39,8 @@ export class CurrentMemoryReader {
     private readonly prisma: PrismaService,
     private readonly eligibility: AiOutputEligibilityService,
     private readonly policy: AiPolicyService,
+    @Inject(MEMORY_MAINTAINER_RUNTIME_CONFIG)
+    private readonly memoryMaintainerConfig: MemoryMaintainerRuntimeConfig,
   ) {}
 
   public async list(actorId: string, projectId: string): Promise<readonly CurrentMemoryItem[]> {
@@ -39,12 +48,17 @@ export class CurrentMemoryReader {
     const blockedCanonicalKeys = new Set(policy.blockedCanonicalKeys);
     const rows = await this.prisma.memoryResolution.findMany({
       orderBy: [{ memoryType: 'asc' }, { canonicalKey: 'asc' }, { id: 'asc' }],
-      where: { projectId, status: 'current' },
+      where: {
+        projectId,
+        provenanceState: this.memoryMaintainerConfig.enabled ? 'active' : null,
+        status: 'current',
+      },
     });
     const visible: CurrentMemoryItem[] = [];
     for (const row of rows) {
       if (
         blockedCanonicalKeys.has(row.canonicalKey) ||
+        !isCurrentMemoryProvenanceReadable(row.provenanceState) ||
         !(await this.eligibility.isMemoryResolutionEligible(actorId, projectId, row.id))
       )
         continue;
@@ -194,6 +208,7 @@ export class MemoryService {
         canonicalKey: claim.canonicalKey,
         memoryType: claim.memoryType,
         projectId,
+        provenanceState: null,
         status: 'current',
       },
     });

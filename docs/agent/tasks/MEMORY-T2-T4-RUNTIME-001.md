@@ -38,3 +38,9 @@
 - P1-3：仅 `AI_MEMORY_INPUT_DRIFT` cancelled terminal 可从稳定 base trigger 派生 deterministic rebase identity；failed 仍按原 identity/retry predecessor，其他 cancelled terminal 不被伪装为 retry。
 - P1-4：legacy profile 仍只接受旧 `memory_extract` lane identity；P1 profile 只接受同 project/basis session、合法 `memory-p1-v1.1:*` terminal job，并按 succeeded snapshot 或 `MEMORY_UNJUDGED` authority 验证。
 - 当前仍为 `REVIEW`。本次集中修复的新 exact head/CI 由提交后的 PR #68 review package 绑定；不自宣 PASS/DONE/merge。
+
+## `7f5a413` re-review 邻接修复
+
+- `7f5a4134af3154ce9f04088142df1a62e817523f` / CI `32021995353` 的正式 re-review comment `5315170627` 为 `REQUEST_CHANGES`，P0=0/P1=1/P2=0；原四项 finding 均 CLOSED，只剩 detached current-reader 邻接 P1。
+- profile authority：legacy reader 只接受 `provenanceState=NULL`；P1 reader 只接受 `active`。底层 eligibility 对各自合法 legacy/active 保持支持，但一律拒绝 detached_thread/detached_session/detached_session_thread；`NULL` 不被猜成 P1 authority。
+- 全库 `status=current` memory consumer 已扫描；coordinator freeze/CAS、AI output dependency、DecisionTrace eligibility、v1.1 snapshot reader 和 legacy predecessor 均无 detached 绕过。retention 状态更新不是 reader，未扩 scope；P2 未实现。

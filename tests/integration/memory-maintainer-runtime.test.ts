@@ -5,12 +5,15 @@ import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AiJobCoordinatorService } from '../../apps/api/src/ai-runtime/ai-job-coordinator.service.js';
+import { AiOutputEligibilityService } from '../../apps/api/src/ai-runtime/ai-output-eligibility.service.js';
 import { AiRetentionService } from '../../apps/api/src/ai-runtime/ai-retention.service.js';
 import { DecisionTraceService } from '../../apps/api/src/ai-runtime/decision-trace.service.js';
 import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import type { AiJob } from '../../apps/api/src/generated/prisma/client.js';
+import { InterviewContextService } from '../../apps/api/src/memory/interview-context.service.js';
+import { CurrentMemoryReader } from '../../apps/api/src/memory/memory.service.js';
 import {
   LocalTestMemoryMaintainerProvider,
   MemoryMaintainerProvider,
@@ -18,6 +21,7 @@ import {
   type MemoryMaintainerOutputV11,
 } from '../../apps/api/src/memory/memory-maintainer.provider.js';
 import {
+  MEMORY_MAINTAINER_RUNTIME_CONFIG,
   MemoryMaintainerClock,
   MemoryMaintainerFailpoint,
   type MemoryMaintainerFailpointStage,
@@ -32,12 +36,16 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jobs: AiJobCoordinatorService;
+  let eligibility: AiOutputEligibilityService;
   let retention: AiRetentionService;
   let traces: DecisionTraceService;
   let realtime: RealtimeRuntimeService;
   let validator: MemoryMaintainerV11Validator;
   let deletion: LocalTestDeletionScopeFixtureReader;
   let snapshots: MemoryWorkingSnapshotReader;
+  let currentMemory: CurrentMemoryReader;
+  let contexts: InterviewContextService;
+  let profileConfig: MemoryMaintainerRuntimeConfig;
 
   const actorId = randomUUID();
   const projectId = randomUUID();
@@ -60,12 +68,16 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     await app.init();
     prisma = app.get(PrismaService);
     jobs = app.get(AiJobCoordinatorService);
+    eligibility = app.get(AiOutputEligibilityService);
     retention = app.get(AiRetentionService);
     traces = app.get(DecisionTraceService);
     realtime = app.get(RealtimeRuntimeService);
     validator = app.get(MemoryMaintainerV11Validator);
     deletion = app.get(LocalTestDeletionScopeFixtureReader);
     snapshots = app.get(MemoryWorkingSnapshotReader);
+    currentMemory = app.get(CurrentMemoryReader);
+    contexts = app.get(InterviewContextService);
+    profileConfig = app.get(MEMORY_MAINTAINER_RUNTIME_CONFIG);
     await prisma.user.create({
       data: {
         displayName: 'Fictional memory runtime listener',
@@ -106,6 +118,18 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       where: { memoryResolutionId: { in: resolutionIds } },
     });
     await prisma.memoryClaimEvidence.deleteMany({ where: { memoryClaimId: { in: claimIds } } });
+    const contextIds = (
+      await prisma.interviewContextSnapshot.findMany({
+        select: { id: true },
+        where: { projectId },
+      })
+    ).map(({ id }) => id);
+    await prisma.contextSnapshotMemory.deleteMany({
+      where: { contextSnapshotId: { in: contextIds } },
+    });
+    await prisma.contextSnapshotActualQuestion.deleteMany({
+      where: { contextSnapshotId: { in: contextIds } },
+    });
     await prisma.aiJobInputMemory.deleteMany({
       where: {
         aiJobId: {
@@ -207,6 +231,18 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
         memoryResolutionId: resolutionId,
       },
     });
+    expect(await eligibility.isMemoryResolutionEligible(actorId, projectId, resolutionId)).toBe(
+      true,
+    );
+    const legacyProfileMemory = await currentMemory.list(actorId, projectId);
+    expect(legacyProfileMemory.some(({ id }) => id === resolutionId)).toBe(true);
+    const p1Ids = (
+      await prisma.memoryResolution.findMany({
+        select: { id: true },
+        where: { projectId, provenanceState: 'active' },
+      })
+    ).map(({ id }) => id);
+    expect(legacyProfileMemory.some(({ id }) => p1Ids.includes(id))).toBe(false);
     const seeded = await seedSession(['工作记忆[fact:event:legacy-check]=不读取旧 sentinel']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
@@ -622,6 +658,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('detaches authority provenance across thread and session deletion without blocking cleanup', async () => {
+    profileConfig.enabled = true;
     const seeded = await seedSession(['工作记忆[fact:event:delete-provenance]=删除邻接']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
@@ -632,8 +669,26 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     const member = await prisma.memoryResolutionMember.findFirstOrThrow({
       where: { memoryResolutionId: resolution.id },
     });
+    const claim = await prisma.memoryClaim.findUniqueOrThrow({
+      where: { id: member.memoryClaimId },
+    });
     const threadId = resolution.threadId;
     if (threadId === null) throw new Error('MEMORY_THREAD_REQUIRED');
+    if (resolution.aiDerivedOutputId === null || claim.aiDerivedOutputId === null)
+      throw new Error('MEMORY_DERIVED_OUTPUT_REQUIRED');
+    expect(await eligibility.isMemoryResolutionEligible(actorId, projectId, resolution.id)).toBe(
+      true,
+    );
+    expect(await eligibility.isEligible(actorId, resolution.aiDerivedOutputId)).toBe(true);
+    expect(await eligibility.isEligible(actorId, claim.aiDerivedOutputId)).toBe(true);
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(({ id }) => id === resolution.id),
+    ).toBe(true);
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(
+        ({ canonicalKey }) => canonicalKey === 'legacy.sentinel',
+      ),
+    ).toBe(false);
 
     await prisma.memoryThread.delete({ where: { id: threadId } });
     expect(
@@ -655,6 +710,27 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       sourceSessionId: seeded.sessionId,
       threadId: null,
     });
+    expect(await eligibility.isMemoryResolutionEligible(actorId, projectId, resolution.id)).toBe(
+      false,
+    );
+    expect(await eligibility.isEligible(actorId, resolution.aiDerivedOutputId)).toBe(false);
+    expect(await eligibility.isEligible(actorId, claim.aiDerivedOutputId)).toBe(false);
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(({ id }) => id === resolution.id),
+    ).toBe(false);
+    const threadDetachedContextId = await contexts.create({
+      actorId,
+      consumerSessionId: seeded.sessionId,
+      contextBuilderVersion: 'dev-008b2-opening-context-v2',
+      expiresAt: new Date(clock.now().getTime() + 60_000),
+      projectId,
+      requestId: randomUUID(),
+    });
+    expect(
+      await prisma.contextSnapshotMemory.count({
+        where: { contextSnapshotId: threadDetachedContextId, memoryResolutionId: resolution.id },
+      }),
+    ).toBe(0);
 
     await prisma.aiJobSessionScope.deleteMany({ where: { sessionId: seeded.sessionId } });
     await prisma.aiJobInputSegment.deleteMany({ where: { sessionId: seeded.sessionId } });
@@ -673,9 +749,79 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       sourceSessionId: null,
       threadId: null,
     });
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(({ id }) => id === resolution.id),
+    ).toBe(false);
     expect(await prisma.transcriptSegment.count({ where: { sessionId: seeded.sessionId } })).toBe(
       0,
     );
+
+    const sessionOnly = await seedSession([
+      '工作记忆[fact:event:delete-session-provenance]=仅删除会话',
+    ]);
+    const keeper = await seedSession([]);
+    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+      sessionOnly.sessionId,
+    );
+    const sessionResolution = await prisma.memoryResolution.findFirstOrThrow({
+      where: { canonicalKey: 'delete-session-provenance', projectId, status: 'current' },
+    });
+    const sessionMember = await prisma.memoryResolutionMember.findFirstOrThrow({
+      where: { memoryResolutionId: sessionResolution.id },
+    });
+    if (sessionResolution.threadId === null) throw new Error('MEMORY_THREAD_REQUIRED');
+    await prisma.memoryThread.update({
+      data: { originSessionId: keeper.sessionId },
+      where: { id: sessionResolution.threadId },
+    });
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(({ id }) => id === sessionResolution.id),
+    ).toBe(true);
+    await prisma.aiJobSessionScope.deleteMany({ where: { sessionId: sessionOnly.sessionId } });
+    await prisma.aiJobInputSegment.deleteMany({ where: { sessionId: sessionOnly.sessionId } });
+    await prisma.interviewSession.delete({ where: { id: sessionOnly.sessionId } });
+    expect(
+      await prisma.memoryResolution.findUniqueOrThrow({ where: { id: sessionResolution.id } }),
+    ).toMatchObject({
+      provenanceState: 'detached_session',
+      sourceSessionId: null,
+      threadId: sessionResolution.threadId,
+    });
+    expect(
+      await prisma.memoryClaim.findUniqueOrThrow({ where: { id: sessionMember.memoryClaimId } }),
+    ).toMatchObject({
+      provenanceState: 'detached_session',
+      sourceSessionId: null,
+      threadId: sessionResolution.threadId,
+    });
+    expect(
+      await eligibility.isMemoryResolutionEligible(actorId, projectId, sessionResolution.id),
+    ).toBe(false);
+    expect(
+      (await currentMemory.list(actorId, projectId)).some(({ id }) => id === sessionResolution.id),
+    ).toBe(false);
+    const sessionDetachedContextId = await contexts.create({
+      actorId,
+      consumerSessionId: keeper.sessionId,
+      contextBuilderVersion: 'dev-008b2-opening-context-v2',
+      expiresAt: new Date(clock.now().getTime() + 60_000),
+      projectId,
+      requestId: randomUUID(),
+    });
+    expect(
+      await prisma.contextSnapshotMemory.count({
+        where: {
+          contextSnapshotId: sessionDetachedContextId,
+          memoryResolutionId: sessionResolution.id,
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.contextSnapshotMemory.count({
+        where: { contextSnapshotId: sessionDetachedContextId, memoryResolutionId: resolution.id },
+      }),
+    ).toBe(0);
+    profileConfig.enabled = false;
   });
 
   function createRuntime(

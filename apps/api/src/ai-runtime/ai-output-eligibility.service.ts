@@ -1,10 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import type { AiJobInputMemory, AiJobInputSegment, Prisma } from '../generated/prisma/client.js';
+import type {
+  AiJobInputMemory,
+  AiJobInputSegment,
+  MemoryProvenanceState,
+  Prisma,
+} from '../generated/prisma/client.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { effectiveTextDigest, manifestHash, sha256 } from './ai-provenance.js';
 import { AiPolicyService } from './ai-policy.service.js';
+
+export function isCurrentMemoryProvenanceReadable(state: MemoryProvenanceState | null): boolean {
+  return state === null || state === 'active';
+}
 
 @Injectable()
 export class AiOutputEligibilityService {
@@ -21,6 +30,18 @@ export class AiOutputEligibilityService {
     try {
       const output = await db.aiDerivedOutput.findUnique({ where: { id: outputId } });
       if (output === null || output.status !== 'current') return false;
+      if (output.outputType === 'memory_claim') {
+        const claim = await db.memoryClaim.findUnique({ where: { id: output.businessOutputId } });
+        if (claim === null || !isCurrentMemoryProvenanceReadable(claim.provenanceState))
+          return false;
+      }
+      if (output.outputType === 'memory_resolution') {
+        const resolution = await db.memoryResolution.findUnique({
+          where: { id: output.businessOutputId },
+        });
+        if (resolution === null || !isCurrentMemoryProvenanceReadable(resolution.provenanceState))
+          return false;
+      }
       const job = await db.aiJob.findUnique({ where: { id: output.aiJobId } });
       if (
         job === null ||
@@ -118,6 +139,7 @@ export class AiOutputEligibilityService {
             : null;
         if (
           resolution === null ||
+          !isCurrentMemoryProvenanceReadable(resolution.provenanceState) ||
           (resolution.status !== 'current' &&
             outputResolution?.supersedesResolutionId !== resolution.id) ||
           resolution.resolutionRevision !== input.resolutionRevision
@@ -180,6 +202,7 @@ export class AiOutputEligibilityService {
         resolution === null ||
         resolution.projectId !== projectId ||
         resolution.status !== 'current' ||
+        !isCurrentMemoryProvenanceReadable(resolution.provenanceState) ||
         policy.blockedCanonicalKeys.includes(resolution.canonicalKey)
       ) {
         return false;

@@ -85,6 +85,7 @@
 | DB/Context/Trace/CAS exact revision and stale/late fencing | T0/Observability | textRevision 0、policy/deletion/transcript/target/boundary drift、stale late callback tests | REVIEW |
 | Existing-target immutable identity | T2/Foundation + T4/P1 | formal normal/disputed counterexamples + runtime zero-write canonical/type/semantic/thread CAS | REVIEW |
 | Legacy/P1 opening provenance profiles | T4/P1 + T18-T19/P6 | legacy `memory_extract` regression；P1 succeeded snapshot + `MEMORY_UNJUDGED` persisted opening integration | REVIEW |
+| Detached authority cannot re-enter current Context | T2/Foundation + T4/P1 | profile-strict CurrentMemoryReader、shared output/dependency/direct eligibility、coordinator freeze/CAS、snapshot reader；PostgreSQL thread/session delete + opening membership | REVIEW |
 
 ## T0 traceability closeout
 

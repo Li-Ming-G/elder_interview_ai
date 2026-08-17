@@ -16,6 +16,7 @@
 - AI cleanup 只 detach consumption pointer；transcript delete 才 CASCADE consumption；P1 failure 与 transcript ingestion 隔离。
 - PR #68 old `4bda58c` / CI `32017818045` 的四项正式 P1 已集中修复：forward-only provenance detach lifecycle、target identity 双层 CAS、cancelled input-drift deterministic rebase、legacy/P1 opening provenance profile。
 - system-rejection terminal 现在也持久化精确 session scope/final watermark，使 `MEMORY_UNJUDGED` 既可审计也能被 P1 opening reader 严格验证。
+- `7f5a413` re-review 已确认原四项 CLOSED，但 comment `5315170627` 新增 detached current-reader P1=1；本轮候选以 profile-strict CurrentMemoryReader + shared eligibility/freeze/snapshot predicate 关闭，不改 migration、不扩 P2。
 
 ## old `4bda58c` 验证历史
 
@@ -37,6 +38,7 @@
 - formal/runtime targeted unit 2 files / 62 tests、完整 unit 73 files / 510 tests：PASS。
 - runtime + post-session targeted PostgreSQL integration 2 files / 30 tests、完整 PostgreSQL integration 16 files / 128 tests：PASS。
 - format、lint、typecheck、build、Prisma validate、`git diff --check`：PASS。新 exact-head CI 在本轮唯一提交/push 后只运行一次。
+- detached-reader 定向验证：相关 unit 3 files / 67 tests PASS；PostgreSQL legacy + runtime + post-session 3 files / 38 tests PASS，覆盖 active、legacy profile、P1-profile legacy-null、三种 detached、resolution/claim eligibility 与 opening Context membership。
 
 ## 未完成与边界
 
@@ -50,3 +52,4 @@
 - PR #66 accepted `2244450` / CI `31994482841` / PASS `5312635580` / merge-main `27e8d8d` / CI `32001983350`；
 - PR #67 old `fdd309a` / CI `32004656762` / REQUEST_CHANGES `5313116887`；accepted `02706534` / CI `32006749030` / PASS `5313281208` / merge-main `d48e022a` / CI `32007442074`。
 - PR #68 old `4bda58c` / CI `32017818045` / REQUEST_CHANGES comments `5314799838`、`5314826620`（P0=0/P1=4/P2=0）。
+- PR #68 next `7f5a413` / CI `32021995353` / re-review REQUEST_CHANGES comment `5315170627`（P0=0/P1=1/P2=0；原四项 CLOSED，唯一新项为 detached current reader）。
