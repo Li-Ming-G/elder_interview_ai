@@ -50,6 +50,8 @@ export function validateMemoryEvolutionPair(
   if (checkpoint === null || members === null || candidates === null || revisions === null) {
     return result(['EVOLUTION_REQUIRED_COLLECTION']);
   }
+  if (asString(out.checkpoint_id) !== asString(checkpoint.checkpoint_id))
+    errors.push('EVOLUTION_CHECKPOINT_ID_MISMATCH');
   if (asString(ctx.project_id) === null || asString(ctx.source_session_id) === null)
     errors.push('EVOLUTION_SCOPE_REQUIRED');
   if (asString(checkpoint.source_working_snapshot_contract_version) !== 'memory-maintainer-v1.1')
@@ -59,7 +61,12 @@ export function validateMemoryEvolutionPair(
     errors.push('EVOLUTION_POLICY_DRIFT');
   if (asString(checkpoint.retention_policy_version) !== asString(policy?.retention_policy_version))
     errors.push('EVOLUTION_RETENTION_DRIFT');
+  if (asString(policy?.deletion_scope_status) !== 'active')
+    errors.push('EVOLUTION_DELETION_SCOPE_NOT_ACTIVE');
+  if (asString(policy?.retention_status) !== 'active')
+    errors.push('EVOLUTION_RETENTION_NOT_ACTIVE');
   const sourceIds = new Set<string>();
+  const sourceMembers = new Map<string, JsonObject>();
   const orders: number[] = [];
   for (const item of members) {
     const m = object(item);
@@ -67,7 +74,10 @@ export function validateMemoryEvolutionPair(
     const order = number(m?.input_order);
     if (id === null) errors.push('EVOLUTION_SOURCE_ID_REQUIRED');
     else if (sourceIds.has(id)) errors.push('EVOLUTION_SOURCE_ID_DUPLICATE');
-    else sourceIds.add(id);
+    else {
+      sourceIds.add(id);
+      if (m !== null) sourceMembers.set(id, m);
+    }
     if (order !== null) orders.push(order);
   }
   if (
@@ -121,6 +131,36 @@ export function validateMemoryEvolutionPair(
       errors.push('EVOLUTION_RESOLUTION_NOT_IN_CHECKPOINT');
     if (identity && resolutionId !== asString(identity.origin_resolution_id))
       errors.push('EVOLUTION_IDENTITY_ORIGIN_MISMATCH');
+    const source = resolutionId === null ? undefined : sourceMembers.get(resolutionId);
+    if (
+      source &&
+      number(revision?.source_resolution_revision) !== number(source.resolution_revision)
+    )
+      errors.push('EVOLUTION_RESOLUTION_REVISION_MISMATCH');
+    if (source && asString(revision?.source_semantic_status) !== asString(source.semantic_status))
+      errors.push('EVOLUTION_RESOLUTION_SEMANTIC_STATUS_MISMATCH');
+    const sourceClaimCount = source === undefined ? null : number(source.claim_count);
+    if (sourceClaimCount === null) errors.push('EVOLUTION_CLAIM_COUNT_UNAVAILABLE');
+    if (source && asString(source.boundary_status) === 'active')
+      errors.push('EVOLUTION_BOUNDARY_MUST_NOT_PROMOTE');
+    const checkpointRefs = array(revision?.checkpoint_member_refs) ?? [];
+    if (checkpointRefs.length !== members.length) errors.push('EVOLUTION_CHECKPOINT_MEMBER_PARITY');
+    for (let index = 0; index < members.length; index += 1) {
+      const expected = object(members[index]);
+      const actual = object(checkpointRefs[index]);
+      if (
+        !expected ||
+        !actual ||
+        asString(actual.memory_resolution_id) !== asString(expected.memory_resolution_id) ||
+        number(actual.resolution_revision) !== number(expected.resolution_revision) ||
+        asString(actual.semantic_status) !== asString(expected.semantic_status) ||
+        number(actual.claim_count) !== number(expected.claim_count) ||
+        asString(actual.boundary_status) !== asString(expected.boundary_status) ||
+        asString(actual.membership_digest) !== asString(expected.membership_digest) ||
+        number(actual.input_order) !== number(expected.input_order)
+      )
+        errors.push('EVOLUTION_CHECKPOINT_MEMBER_MISMATCH');
+    }
     const revisionMembers = array(revision?.members) ?? [];
     const memberOrders = revisionMembers
       .map((m) => number(object(m)?.input_order))
@@ -169,6 +209,19 @@ export function validateMemoryEvolutionPair(
       errors.push('EVOLUTION_FINAL_TERMINAL_REQUIRED');
     if (asString(revision?.source_semantic_status) === 'unavailable')
       errors.push('EVOLUTION_SEMANTIC_UNAVAILABLE');
+    if (sourceClaimCount !== null && revisionMembers.length < sourceClaimCount)
+      errors.push('EVOLUTION_CLAIM_COUNT_MISMATCH');
+    if (asString(revision?.source_semantic_status) === 'disputed') {
+      const claims = new Set(
+        revisionMembers
+          .map((member) => asString(object(member)?.memory_claim_id))
+          .filter((id): id is string => id !== null),
+      );
+      if (claims.size < Math.max(2, sourceClaimCount ?? 2))
+        errors.push('EVOLUTION_DISPUTED_CLAIMS_REQUIRED');
+    }
+    if (Array.isArray(revision?.boundary_effects) && revision.boundary_effects.length > 0)
+      errors.push('EVOLUTION_BOUNDARY_MUST_NOT_PROMOTE');
   }
   return result(errors);
 }
@@ -188,6 +241,12 @@ export function validateLongConsolidationPair(
   if (asString(source.terminal_status) !== 'succeeded') errors.push('LONG_FINAL_TERMINAL_REQUIRED');
   if (asString(job.source_final_checkpoint_id) !== asString(source.checkpoint_id))
     errors.push('LONG_CHECKPOINT_MISMATCH');
+  if (asString(job.source_mid_manifest_hash) !== asString(manifest.revision_manifest_hash))
+    errors.push('LONG_MID_MANIFEST_HASH_MISMATCH');
+  const policy = object(ctx.policy);
+  if (asString(policy?.deletion_scope_status) !== 'active')
+    errors.push('LONG_DELETION_SCOPE_NOT_ACTIVE');
+  if (asString(policy?.retention_status) !== 'active') errors.push('LONG_RETENTION_NOT_ACTIVE');
   if (
     asString(ctx.project_id) !== asString(object(job.source_scope)?.project_id) &&
     object(job.source_scope) !== null
@@ -207,14 +266,42 @@ export function validateLongConsolidationPair(
       .filter((v): v is string => v !== null),
   );
   if (sourceIds.size !== midRows.length) errors.push('LONG_MID_SOURCE_DUPLICATE');
+  if (
+    asString(manifest.manifest_algorithm_version) === 'memory-evolution-canonical-v1' &&
+    asString(manifest.revision_manifest_hash) !==
+      sha256CanonicalJson(
+        midRows.map((row) => {
+          const mid = object(row) ?? {};
+          return [
+            mid.layer_revision_id,
+            mid.layer_identity_id,
+            mid.resolution_id,
+            mid.resolution_revision,
+            mid.semantic_status,
+            mid.boundary_status,
+            mid.membership_digest,
+            mid.input_order,
+            mid.source_job_id,
+          ];
+        }),
+      )
+  )
+    errors.push('LONG_MID_MANIFEST_HASH_INVALID');
+  const midByRevisionId = new Map<string, JsonObject>();
   for (const row of midRows) {
     const mid = object(row);
+    const midId = asString(mid?.layer_revision_id);
+    if (midId !== null && mid !== null) midByRevisionId.set(midId, mid);
     if (asString(mid?.project_id) !== asString(ctx.project_id))
       errors.push('LONG_MID_SCOPE_MISMATCH');
     if (asString(mid?.source_session_id) !== asString(ctx.source_session_id))
       errors.push('LONG_MID_CROSS_SESSION');
+    if (asString(mid?.boundary_status) === 'active') errors.push('LONG_BOUNDARY_MUST_NOT_PROMOTE');
+    if (asString(mid?.semantic_status) === 'disputed' && (number(mid?.claim_count) ?? 0) < 2)
+      errors.push('LONG_DISPUTED_CLAIMS_REQUIRED');
   }
   const outputRows = array(out.revision_candidates) ?? [];
+  const referencedMidIds: string[] = [];
   for (const row of outputRows) {
     const rev = object(row);
     if (!rev) {
@@ -222,14 +309,57 @@ export function validateLongConsolidationPair(
       continue;
     }
     if (asString(rev.target_layer) !== 'long') errors.push('LONG_TARGET_LAYER_INVALID');
-    for (const id of array(rev.source_mid_revision_ids) ?? [])
-      if (!sourceIds.has(String(id))) errors.push('LONG_SOURCE_REVISION_UNKNOWN');
+    for (const id of array(rev.source_mid_revision_ids) ?? []) {
+      const value = String(id);
+      referencedMidIds.push(value);
+      if (!sourceIds.has(value)) errors.push('LONG_SOURCE_REVISION_UNKNOWN');
+      const mid = midByRevisionId.get(value);
+      if (mid !== undefined) {
+        if (asString(rev.layer_identity_id) !== asString(mid.layer_identity_id))
+          errors.push('LONG_LAYER_IDENTITY_MISMATCH');
+        if (asString(rev.source_resolution_id) !== asString(mid.resolution_id))
+          errors.push('LONG_RESOLUTION_ID_MISMATCH');
+        if (number(rev.source_resolution_revision) !== number(mid.resolution_revision))
+          errors.push('LONG_RESOLUTION_REVISION_MISMATCH');
+        if (asString(rev.source_semantic_status) !== asString(mid.semantic_status))
+          errors.push('LONG_SEMANTIC_STATUS_MISMATCH');
+      }
+    }
     const orders = (array(rev.members) ?? [])
       .map((m) => number(object(m)?.input_order))
       .filter((v): v is number => v !== null);
     if (number(rev.expected_member_count) !== orders.length || !isContiguous(orders))
       errors.push('LONG_OUTPUT_MEMBER_PARITY');
+    if (
+      asString(rev.manifest_algorithm_version) === 'memory-evolution-canonical-v1' &&
+      asString(rev.member_manifest_hash) !==
+        sha256CanonicalJson(
+          (array(rev.members) ?? []).map((item) => {
+            const member = object(item) ?? {};
+            return [
+              member.memory_claim_id,
+              member.role,
+              member.input_order,
+              member.evidence_membership_digest,
+            ];
+          }),
+        )
+    )
+      errors.push('LONG_OUTPUT_MANIFEST_MISMATCH');
   }
+  const orderedMidIds = midRows
+    .slice()
+    .sort(
+      (left, right) =>
+        (number(object(left)?.input_order) ?? -1) - (number(object(right)?.input_order) ?? -1),
+    )
+    .map((row) => asString(object(row)?.layer_revision_id))
+    .filter((id): id is string => id !== null);
+  if (
+    referencedMidIds.length !== orderedMidIds.length ||
+    referencedMidIds.some((id, index) => id !== orderedMidIds[index])
+  )
+    errors.push('LONG_SOURCE_REVISION_SET_MISMATCH');
   if (findForbiddenKey(ctx) || findForbiddenKey(out)) errors.push('LONG_RAW_CONTENT_FORBIDDEN');
   return result(errors);
 }
@@ -262,11 +392,15 @@ export function validateDecisionTraceV11(
   const snapshot = object(roots?.source_working_snapshot);
   const checkpoint = object(roots?.checkpoint);
   const retention = object(roots?.retention);
+  const kind = asString(value.trace_kind);
+  if (kind !== 'question_orchestration' && checkpoint === null)
+    errors.push('TRACE_CHECKPOINT_REQUIRED');
   if (
     asString(snapshot?.status) !== 'active' ||
     asString(checkpoint?.status) === 'hidden' ||
     asString(checkpoint?.status) === 'detached' ||
-    asString(retention?.status) !== 'active'
+    asString(retention?.status) !== 'active' ||
+    asString(retention?.deletion_scope_status) !== 'active'
   )
     errors.push('TRACE_ROOT_NOT_READABLE');
   if (
@@ -274,7 +408,62 @@ export function validateDecisionTraceV11(
     asString(snapshot?.session_id) !== asString(value.session_id)
   )
     errors.push('TRACE_ROOT_SCOPE_MISMATCH');
-  const kind = asString(value.trace_kind);
+  const checkpointResolutionIds = new Set((array(checkpoint?.resolution_ids) ?? []).map(String));
+  const checkpointIdentityIds = new Set((array(checkpoint?.layer_identity_ids) ?? []).map(String));
+  const checkpointRevisionIds = new Set((array(checkpoint?.layer_revision_ids) ?? []).map(String));
+  if (
+    checkpointResolutionIds.size !== (array(checkpoint?.resolution_ids) ?? []).length ||
+    checkpointIdentityIds.size !== (array(checkpoint?.layer_identity_ids) ?? []).length ||
+    checkpointRevisionIds.size !== (array(checkpoint?.layer_revision_ids) ?? []).length
+  )
+    errors.push('TRACE_ROOT_ID_DUPLICATE');
+  const checkpointMembershipRefs = array(checkpoint?.membership_refs) ?? [];
+  if (checkpointMembershipRefs.length !== rows.length)
+    errors.push('TRACE_ROOT_MEMBERSHIP_COUNT_MISMATCH');
+  const checkpointRefsByRevision = new Map<string, JsonObject>();
+  for (const ref of checkpointMembershipRefs) {
+    const item = object(ref);
+    const id = asString(item?.layer_revision_id);
+    if (id === null || item === null) errors.push('TRACE_ROOT_MEMBERSHIP_REF_INVALID');
+    else if (checkpointRefsByRevision.has(id)) errors.push('TRACE_ROOT_MEMBERSHIP_DUPLICATE');
+    else checkpointRefsByRevision.set(id, item);
+  }
+  const jobId = asString(object(roots?.ai_job)?.job_id);
+  for (const row of rows) {
+    const membership = object(row);
+    if (!membership) continue;
+    if (asString(membership.source_job_id) !== jobId) errors.push('TRACE_SOURCE_JOB_MISMATCH');
+    if (
+      asString(membership.project_id) !== asString(value.project_id) ||
+      asString(membership.session_id) !== asString(value.session_id)
+    )
+      errors.push('TRACE_MEMBERSHIP_SCOPE_MISMATCH');
+    if (!checkpointResolutionIds.has(String(membership.resolution_id)))
+      errors.push('TRACE_RESOLUTION_REF_UNKNOWN');
+    if (!checkpointIdentityIds.has(String(membership.layer_identity_id)))
+      errors.push('TRACE_LAYER_IDENTITY_REF_UNKNOWN');
+    if (!checkpointRevisionIds.has(String(membership.layer_revision_id)))
+      errors.push('TRACE_LAYER_REVISION_REF_UNKNOWN');
+    const rootRef = checkpointRefsByRevision.get(String(membership.layer_revision_id));
+    if (rootRef === undefined) errors.push('TRACE_ROOT_MEMBERSHIP_REF_UNKNOWN');
+    else {
+      for (const key of [
+        'layer_identity_id',
+        'layer',
+        'project_id',
+        'session_id',
+        'resolution_id',
+        'resolution_revision',
+        'membership_digest',
+        'role',
+        'input_order',
+        'source_job_id',
+      ]) {
+        if (String(rootRef[key]) !== String(membership[key]))
+          errors.push('TRACE_MEMBERSHIP_ROOT_PARITY');
+      }
+    }
+  }
   if (
     kind !== 'question_orchestration' &&
     (value.decision_outcome !== undefined || value.director_invoked !== undefined)

@@ -12,3 +12,7 @@
 ## Acceptance boundary
 
 The contract candidate covers strict closed machine shapes, canonical digest/order/count/scope/identity checks, Long raw-content prohibition, Trace root readability and P1 terminal ordering. Duplicate/concurrent/replay/crash/late/CAS/transaction behavior is recorded as `pending_runtime`, not contract PASS. P2-B requires independent PASS and merge; P2-C requires runtime adversarial evidence; P2-D requires P2-C acceptance and separate provider/data governance.
+
+## Review gate history
+
+The first complete candidate (`8d48cd5` / CI `32028717254`) received independent `REQUEST_CHANGES` for five contract-level gaps: cross-document checkpoint/revision parity; Long Mid manifest/source parity; Trace membership root provenance; disputed/Boundary/deletion-retention fail-closed semantics; and strict calendar date-time validation. The correction stays within P2-A and must receive a fresh exact-head CI plus independent review before any PASS, merge, or P2-B start.

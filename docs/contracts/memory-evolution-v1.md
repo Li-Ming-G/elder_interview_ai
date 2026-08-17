@@ -18,11 +18,11 @@ P2 terminal 顺序固定为：`P1 final terminal -> P2 final Mid terminal -> P2 
 ## 2. 正式数据对象
 
 - `MemoryEvolutionCheckpoint`：`root_identity`、`expected_member_count`、`member_manifest_hash`、`ai_job_id`、`policy_revision`、`retention_policy_version`、P1 `source_working_snapshot_*`、`source_thread_*` 与 final terminal references。append-only。
-- `CheckpointMember`：`memory_resolution_id`、`resolution_revision`、`membership_digest`、`input_order`。只允许同 project/session 的 P1 snapshot member，缺失、重复、乱序、count/hash 不一致整 checkpoint fail closed。
+- `CheckpointMember`：`memory_resolution_id`、`resolution_revision`、`semantic_status`、`claim_count`、`boundary_status`、`membership_digest`、`input_order`。只允许同 project/session 的 P1 snapshot member；缺失、重复、乱序、count/hash、claim-count 或 Boundary 状态不一致整 checkpoint fail closed。`disputed` 至少需要两个权威 claim，`active` Boundary 永不 promotion。
 - `MemoryLayerIdentity`：稳定 `project_id + origin_session_id + origin_thread_id + origin_resolution_id` identity。T6 `A -> B -> A` 必须复用 A 的 identity，不得创建 M17 类重复 identity。
 - `MemoryLayerRevision`：`mid|long` append-only revision，含独立 `lifecycle_status`、source/checkpoint/job/resolution/predecessor references、count/hash。semantic status 只引用 `MemoryResolution.semantic_status`，不得复用 layer lifecycle 表达语义。
 - `RevisionMember`：`memory_claim_id`、`role`、`input_order`、`evidence_membership_digest`；不得包含 claim value 或 evidence 正文。任一 member 失效时整个 revision count/hash 失败关闭。
-- `LongJobProjection`：reference-only terminal projection；只含 job identity/status/attempt/retry、source final checkpoint 和 manifest references。
+- `LongJobProjection`：reference-only terminal projection；只含 job identity/status/attempt/retry、source final checkpoint、Mid manifest algorithm/hash 和 manifest references。Long validator 必须逐项校验 source Mid revision 的 identity、resolution revision/status、scope 与 manifest parity。
 
 Layer revision 不拥有 Claim/Resolution value。自动 P2 不得覆盖 human authority；correction/supersede/disputed 只能引用 MemoryModule 已产生的 Resolution revision。Boundary 永不 promotion；只有既有 authority 的明确撤回可将 Boundary 改为 `revoked`，P2 output 中不存在 Boundary mutation。
 
@@ -48,7 +48,7 @@ Layer revision 不拥有 Claim/Resolution value。自动 P2 不得覆盖 human a
 
 Mid 只允许同 `project_id + source_session_id`。跨 session consolidation 只允许 Long，且始终禁止跨 project。Long 只能在 session completed、P1 final succeeded、P2 final Mid succeeded 后运行，并从完整 Mid manifest 读取 reference-only input。
 
-Long context/output/trace 机械禁止任何键名包含 `value`、`text`、`transcript`、`prompt`、`context`、`summary`、`narrative`（版本字段 `context_schema_version` 除外）。Long 可以保留 claim/resolution/layer/job identity、revision、role、order、digest 与 lifecycle reference，不能生成新的事实正文。
+Long context/output/trace 机械禁止任何键名包含 `value`、`text`、`transcript`、`prompt`、`context`、`summary`、`narrative`（版本字段 `context_schema_version` 除外）。Long 可以保留 claim/resolution/layer/job identity、revision、role、order、digest 与 lifecycle reference，不能生成新的事实正文。Decision Trace v1.1 的 checkpoint 必须携带完整 `membership_refs`；每个 trace membership 的 job/project/session/layer/resolution/revision/digest/order 必须与 root ref 逐字段相等，删除 scope 或 retention 非 active 直接不可读。
 
 ## 6. Machine artifacts
 

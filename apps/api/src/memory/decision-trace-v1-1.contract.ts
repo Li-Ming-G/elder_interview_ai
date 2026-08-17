@@ -11,6 +11,30 @@ export const DECISION_TRACE_V11_VERSION = 'decision-trace-v1.1' as const;
 export const DECISION_TRACE_V11_SCHEMA_PATH =
   'docs/contracts/decision-trace-v1.1.schema.json' as const;
 
+function isStrictUtcDateTime(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?Z$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const millisecond = Number(match[7] ?? 0);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59 || millisecond > 999)
+    return false;
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second, millisecond));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day &&
+    date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute &&
+    date.getUTCSeconds() === second &&
+    date.getUTCMilliseconds() === millisecond
+  );
+}
+
 export interface DecisionTraceV11Contract {
   loaded_version: typeof DECISION_TRACE_V11_VERSION;
   schema_sha256: string;
@@ -30,7 +54,7 @@ export function loadDecisionTraceV11Contract(
   if (schema.$id === undefined || schema.title === undefined)
     throw new Error('DECISION_TRACE_V11_SCHEMA_METADATA_REQUIRED');
   const AjvConstructor = Ajv2020 as unknown as new (options: object) => {
-    addFormat(name: string, format: RegExp): void;
+    addFormat(name: string, format: RegExp | ((value: string) => boolean)): void;
     compile(schema: object): (value: unknown) => boolean;
   };
   const ajv = new AjvConstructor({
@@ -43,7 +67,7 @@ export function loadDecisionTraceV11Contract(
     'uuid',
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   );
-  ajv.addFormat('date-time', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/);
+  ajv.addFormat('date-time', isStrictUtcDateTime);
   const validateSchema = ajv.compile(schema);
   return {
     loaded_version: DECISION_TRACE_V11_VERSION,

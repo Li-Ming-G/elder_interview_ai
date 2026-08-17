@@ -46,11 +46,13 @@
     "layer_identities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layerIdentity" } },
     "policy": {
       "type": "object", "additionalProperties": false,
-      "required": ["policy_revision", "deletion_scope_digest", "retention_policy_version"],
+      "required": ["policy_revision", "deletion_scope_digest", "retention_policy_version", "deletion_scope_status", "retention_status"],
       "properties": {
         "policy_revision": { "type": "string", "minLength": 1 },
         "deletion_scope_digest": { "$ref": "#/$defs/digest" },
-        "retention_policy_version": { "type": "string", "minLength": 1 }
+        "retention_policy_version": { "type": "string", "minLength": 1 },
+        "deletion_scope_status": { "enum": ["active", "deleted", "unknown", "cleanup_failed"] },
+        "retention_status": { "enum": ["active", "expired", "hidden", "unknown"] }
       }
     }
   },
@@ -59,11 +61,13 @@
     "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "checkpointMember": {
       "type": "object", "additionalProperties": false,
-      "required": ["memory_resolution_id", "resolution_revision", "semantic_status", "membership_digest", "input_order"],
+      "required": ["memory_resolution_id", "resolution_revision", "semantic_status", "claim_count", "boundary_status", "membership_digest", "input_order"],
       "properties": {
         "memory_resolution_id": { "$ref": "#/$defs/uuid" },
         "resolution_revision": { "type": "integer", "minimum": 1 },
         "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "claim_count": { "type": "integer", "minimum": 1 },
+        "boundary_status": { "enum": ["none", "active", "revoked", "superseded"] },
         "membership_digest": { "$ref": "#/$defs/digest" },
         "input_order": { "type": "integer", "minimum": 0 }
       }

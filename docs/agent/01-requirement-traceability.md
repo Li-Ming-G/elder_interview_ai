@@ -93,9 +93,9 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| Working -> Mid checkpoint/layer identity/revision membership | T5-T8/P2; P1 source snapshot/thread boundary | `memory-evolution-v1` schemas, fixtures, pure validator | REVIEW |
-| Long terminal reference-only consolidation | T8/P2; T0 references; P3/P4 post-action | Long schemas/fixtures; recursive raw-content denial | REVIEW |
-| Trace v1.1 typed roots, outcomes, membership references | T0 Observability; P1/P2/P6 references | v1.1 schema, strict loader, raw schema SHA-256 and semantic validator | REVIEW |
+| Working -> Mid checkpoint/layer identity/revision membership | T5-T8/P2; P1 source snapshot/thread boundary | `memory-evolution-v1` schemas, claim/boundary facts, canonical count/order/hash and cross-document pure validator | REVIEW |
+| Long terminal reference-only consolidation | T8/P2; T0 references; P3/P4 post-action | Long schemas/fixtures; Mid manifest algorithm/hash parity; recursive raw-content denial and source revision checks | REVIEW |
+| Trace v1.1 typed roots, outcomes, membership references | T0 Observability; P1/P2/P6 references | v1.1 schema, strict calendar loader, raw schema SHA-256, complete root membership refs and semantic validator | REVIEW |
 | P2-B/C/D gates and runtime assertions | P2 governance | REV-061, ADR-049, `pending_runtime` result | REVIEW |
 
 REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.

@@ -36,6 +36,8 @@
               "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
               "resolution_revision": 2,
               "semantic_status": "current",
+              "claim_count": 1,
+              "boundary_status": "none",
               "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
               "input_order": 0
             }
@@ -54,7 +56,9 @@
         "policy": {
           "policy_revision": "p2-1",
           "deletion_scope_digest": "abababababababababababababababababababababababababababababababab",
-          "retention_policy_version": "r1"
+          "retention_policy_version": "r1",
+          "deletion_scope_status": "active",
+          "retention_status": "active"
         }
       },
       "output": {
@@ -80,6 +84,17 @@
                 "role": "primary",
                 "input_order": 0,
                 "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+              }
+            ],
+            "checkpoint_member_refs": [
+              {
+                "memory_resolution_id": "88888888-8888-4888-8888-888888888888",
+                "resolution_revision": 2,
+                "semantic_status": "current",
+                "claim_count": 1,
+                "boundary_status": "none",
+                "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+                "input_order": 0
               }
             ]
           }
@@ -169,16 +184,18 @@
     {
       "name": "uncertain resolution remains reference-only",
       "base": "T5 park Mid",
-      "valid": true,
+      "valid": false,
       "path": "output.revision_candidates.0.source_semantic_status",
-      "value": "uncertain"
+      "value": "uncertain",
+      "expected_error": "EVOLUTION_RESOLUTION_SEMANTIC_STATUS_MISMATCH"
     },
     {
       "name": "disputed resolution remains Resolution-owned",
       "base": "T5 park Mid",
-      "valid": true,
+      "valid": false,
       "path": "output.revision_candidates.0.source_semantic_status",
-      "value": "disputed"
+      "value": "disputed",
+      "expected_error": "EVOLUTION_DISPUTED_CLAIMS_REQUIRED"
     },
     {
       "name": "cross session Mid rejected",
@@ -195,6 +212,30 @@
       "path": "context.policy.retention_policy_version",
       "value": "expired",
       "expected_error": "EVOLUTION_RETENTION_DRIFT"
+    },
+    {
+      "name": "checkpoint identity drift",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.checkpoint_id",
+      "value": "99999999-9999-4999-8999-999999999999",
+      "expected_error": "EVOLUTION_CHECKPOINT_ID_MISMATCH"
+    },
+    {
+      "name": "active Boundary cannot promote",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.members.0.boundary_status",
+      "value": "active",
+      "expected_error": "EVOLUTION_BOUNDARY_MUST_NOT_PROMOTE"
+    },
+    {
+      "name": "deletion scope unknown",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.policy.deletion_scope_status",
+      "value": "unknown",
+      "expected_error": "EVOLUTION_DELETION_SCOPE_NOT_ACTIVE"
     }
   ]
 }

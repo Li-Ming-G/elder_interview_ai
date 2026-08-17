@@ -7,3 +7,5 @@
 下一审查者需核对：strict schema compilation and format failures; semantic-invalid fixture primary error codes; canonical `[]` digest golden; Long recursive raw-key denial; Trace v1.1 root/readability/trace-kind rules; changed-file diff contains no Prisma/runtime/provider and does not touch `.codex/iteration-learning.md`. Runtime adversarial matrix remains pending.
 
 PR #69 initial exact head `466124058a2358b4afeef6e8433aedf43650ff58` / CI `32028285170` remains recorded as lint-only failure (three non-null assertions). Narrow explicit-guard fix is ready locally; next push/CI is pending. Status remains `REVIEW`.
+
+独立复审已对 `8d48cd5ec25dc6951f4f8a6af07ee93aad027b1a` / CI `32028717254` 给出 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）。本次修正仅补 P2-A machine contract：checkpoint/revision parity、Long Mid manifest parity、Trace membership root provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间。未进入 Prisma/runtime/provider/P2-B/C/D/P3/P4；修正完成前保持 REVIEW。

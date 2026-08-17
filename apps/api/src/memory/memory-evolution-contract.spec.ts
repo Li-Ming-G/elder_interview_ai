@@ -43,6 +43,7 @@ describe('Memory Evolution P2-A machine contracts', () => {
   });
 
   it('validates evolution schema and semantic pair', () => {
+    expect(baseEvolution.valid).toBe(true);
     expect(
       compile('docs/contracts/memory-evolution-context-v1.schema.json')(baseEvolution.context),
     ).toBe(true);
@@ -107,6 +108,11 @@ describe('Memory Evolution P2-A machine contracts', () => {
       snapshot_id: 'not-a-uuid',
     };
     expect(loader.validate(invalid).valid).toBe(false);
+    const invalidDate = structuredClone(trace.base) as Record<string, unknown>;
+    const invalidRoots = invalidDate.roots as Record<string, unknown>;
+    const invalidCheckpoint = invalidRoots.checkpoint as Record<string, unknown>;
+    invalidCheckpoint.completed_at = '2026-02-30T00:00:00.000Z';
+    expect(loader.validate(invalidDate).valid).toBe(false);
   });
 
   it.each(trace.cases)('checks trace case $name', (fixture) => {
