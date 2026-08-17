@@ -98,12 +98,12 @@ export function validateMemoryEvolutionPair(
   for (const item of candidates) {
     const identity = object(item);
     const id = asString(identity?.layer_identity_id);
-    if (id !== null) {
+    if (id !== null && identity !== null) {
       if (identityMap.has(id)) errors.push('EVOLUTION_IDENTITY_DUPLICATE');
-      identityMap.set(id, identity!);
-      if (asString(identity?.project_id) !== asString(ctx.project_id))
+      identityMap.set(id, identity);
+      if (asString(identity.project_id) !== asString(ctx.project_id))
         errors.push('EVOLUTION_IDENTITY_PROJECT_MISMATCH');
-      if (asString(identity?.origin_session_id) !== asString(ctx.source_session_id))
+      if (asString(identity.origin_session_id) !== asString(ctx.source_session_id))
         errors.push('EVOLUTION_IDENTITY_SESSION_MISMATCH');
     }
   }

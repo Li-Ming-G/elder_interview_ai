@@ -57,8 +57,9 @@ describe('Memory Evolution P2-A machine contracts', () => {
   it.each(evolution.semantic_cases)('rejects evolution semantic case $name', (fixture) => {
     const context = structuredClone(baseEvolution.context);
     const output = structuredClone(baseEvolution.output);
-    const target = fixture.path?.startsWith('context.') ? context : output;
-    setPath(target, fixture.path!.replace(/^(context|output)\./, ''), fixture.value);
+    if (fixture.path === undefined) throw new Error('EVOLUTION_FIXTURE_PATH_REQUIRED');
+    const target = fixture.path.startsWith('context.') ? context : output;
+    setPath(target, fixture.path.replace(/^(context|output)\./, ''), fixture.value);
     const result = validateMemoryEvolutionPair(context, output);
     expect(result.valid).toBe(fixture.valid);
     if (fixture.expected_error) expect(result.errors).toContain(fixture.expected_error);
@@ -77,8 +78,9 @@ describe('Memory Evolution P2-A machine contracts', () => {
   it.each(long.semantic_cases)('rejects Long semantic case $name', (fixture) => {
     const context = structuredClone(long.context);
     const output = structuredClone(long.output);
-    const target = fixture.path?.startsWith('context.') ? context : output;
-    setPath(target, fixture.path!.replace(/^(context|output)\./, ''), fixture.value);
+    if (fixture.path === undefined) throw new Error('LONG_FIXTURE_PATH_REQUIRED');
+    const target = fixture.path.startsWith('context.') ? context : output;
+    setPath(target, fixture.path.replace(/^(context|output)\./, ''), fixture.value);
     const result = validateLongConsolidationPair(context, output);
     expect(result.valid).toBe(fixture.valid);
     expect(result.errors).toContain(fixture.expected_error);
