@@ -1,6 +1,6 @@
 # MEMORY-T2-T4-CORE-001｜Memory Core 与最薄下一问消费链
 
-状态：`REVIEW`
+状态：`DONE`
 
 ## 目标
 
@@ -39,3 +39,7 @@
 - Boundary candidate 会使 pipeline `continue_listening`，不会继续追问已明确拒绝的范围。
 - mid/long 缺失保持空/不可用，不伪造事实。
 - `pnpm --filter @elder-interview/api typecheck`、lint/build 与 memory-core/full unit tests 通过；exact-head CI `31940833720` for `2cda800` passed its full verify matrix.
+
+## 接收记录
+
+REV-059 独立接收 exact head `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`，结论 `PASS`、P0/P1/P2=0；PR #65 strict merge-only 后 main 为 `081b404e613d373ab97365e691f8845e853d304f`，main CI `31989367027` SUCCESS。接收只覆盖 candidate/local seam，不把 candidate contract、错误旧 trigger 逻辑、Prisma/runtime/P2/P3/P4/真实 provider 扩大为正式完成。

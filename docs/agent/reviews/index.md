@@ -15,3 +15,5 @@ REV-053 记录 PR #55：content `0101837` / CI `31798421917` 与 integration `d6
 REV-054 记录 PR #56 DEV-008B2（branch-local REV-052）：old `0e703af` / CI `31800324817` REQUEST_CHANGES P1=3 与 next `996994f` / CI `31812498482` REQUEST_CHANGES P1=1 永久保留；accepted `90ce5b35` / CI `31820768146` 获临时授权总控独立 PASS（P0/P1/P2=0），merge/main `4b59c4d3` / CI `31821662034` SUCCESS。DONE 仅限 fail-closed/provider-neutral 范围。
 
 MEMORY-T0-TRACE final closeout: REV-058 records independent PASS for `40cc61e12ef63096474fe63b69463920f2d6a7c4` / CI `31936839303`, merge/main `a9363dcd` / CI `31937348480` SUCCESS. Old REQUEST_CHANGES heads and all failure history remain immutable. PASS is limited to T0 / Foundation-Observability reference-only implementation; P1-P6 producers, real provider/data/public deployment remain blocked.
+
+MEMORY-T2-T4-CORE-001: [`REV-059`](REV-059.md) records independent PASS for PR #65 exact head `7d0a0460` / CI `31941029795`, merge/main `081b404e` / main CI `31989367027` SUCCESS. PASS is limited to the candidate/local seam; formal T2/T4 authority and durable runtime remain separate.
