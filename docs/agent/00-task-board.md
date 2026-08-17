@@ -96,6 +96,10 @@
 - 表格中的未启动下游任务是路线级工作包；任何任务进入 `READY` 前必须补齐 `10` 要求的正式任务字段。`READY` 只表示其明确子集可执行，不等于父任务或真实试点门禁通过。
 | MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | REVIEW | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 两轮 REQUEST_CHANGES，当前五项 P1 定向修复候选待审 | `docs/contracts/decision-trace-v1.schema.json`；`docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`；REV-057 | old `b34000a6` / CI `31922715469` P1=5 与 `b137b44` / CI `31924593302` P1=5 永久保留；等待新 exact-head CI 与项目负责人定向复审。P1–P6 producer、真实 provider/数据/公网均未启动 |
 
+## 2026-08-16 memory-core implementation slice
+
+`MEMORY-T2-T4-CORE-001` is `REVIEW` on branch `codex/memory-t2-t4-core-001`. It maps `T2/Foundation + Memory Contract`, `T3/Foundation + P6 provider-neutral seam`, `T4/P1 Working Memory`, plus the thinnest `P3/P4` consumer path. The candidate contract is `docs/contracts/memory-core-v1-candidate.md`; it is explicitly not a formal machine authority. The slice provides candidate-only Working operations, evidence references, deterministic retrieval, candidate Context assembly and a local/test next-question pipeline. Formal Context V2, Prisma projections, P2/P5 expansion, real provider/data and production gates remain separate and blocked.
+
 ## 2026-08-16 governance closeout update
 
 `MEMORY-T0-TRACE` T0 / Foundation-Observability implementation is accepted within REV-058: exact head `40cc61e` / CI `31936839303` independent PASS, merged/main `a9363dcd` / CI `31937348480` SUCCESS. The task is DONE only for the reference-only, fail-closed trace/recovery scope. SPEC-MEMORY-SYSTEM-V1 remains REVIEW for later T1-T27 work; P1-P6 producers, real provider/secret/data, public deployment and formal v2 remain blocked/not started.
