@@ -17,9 +17,9 @@
 
 `transcript_segment.text_revision` 是从 `0` 开始的非负整数：`0` 表示从未发生正式文字修订，`N` 表示已完成 `N` 次正式文字修订。Context v1.1 明确允许 `0`、拒绝 `-1`。
 
-freeze、`memory_maintenance_input_segment`、`ai_job_input_segment`、Decision Trace transcript membership、claim evidence 和 writeback CAS 必须逐值复制当时数据库的 `text_revision`。任何 reader、mapper 或 validator 都不得执行 `+1`、`-1`、truthy fallback 或“0 表示缺失”的转换。writeback 重查使用 `database.text_revision = frozen.text_revision`；不相等则整批失败关闭。`speaker_role_revision` 和 digest 同样逐值比较，但本修订不改变其既有含义。
+freeze、`memory_maintenance_input_segment`、`ai_job_input_segment`、Decision Trace transcript membership、claim evidence 和 writeback CAS 必须逐值复制当时数据库的 `text_revision`。DB、Context membership、Decision Trace membership 与 writeback CAS 四层必须拥有完全相同的 segment key set、unique count 和逐 key revision；任一层缺失、额外、重复或 revision 不同都使整批失败。任何 reader、mapper 或 validator 都不得执行 `+1`、`-1`、truthy fallback 或“0 表示缺失”的转换。writeback 重查使用 `database.text_revision = frozen.text_revision`；不相等则整批失败关闭。`speaker_role_revision` 和 digest 同样逐值比较，但本修订不改变其既有含义。
 
-纯函数 `validateMemoryMaintainerRevisionParity` 同时比较 DB、Context membership、Decision Trace membership 和 CAS observations；fixtures 机械证明 DB `0` 的四处 `0` 可通过，而 `0 -> 1` 偏移与负数均被拒绝。
+纯函数 `validateMemoryMaintainerRevisionParity` 同时比较 DB、Context membership、Decision Trace membership 和 CAS observations；fixtures 机械证明 DB `0` 的四处 `0` 可通过，而 `0 -> 1` 偏移、负数、四层分别遗漏、额外 key 和四层分别重复均被拒绝。
 
 ## 3. Semantic 与 lifecycle 分离
 
@@ -38,12 +38,12 @@ freeze、`memory_maintenance_input_segment`、`ai_job_input_segment`、Decision 
 `semantic_status=disputed` 时必须满足全部条件：
 
 1. `resolution_kind=conflict_set`，top-level `value_kind/value` 为 `null`；
-2. 完整 proposed state 至少含两个 claims；
-3. operation 指向同 project 既有 `target_resolution_id + expected_resolution_revision`；
+2. 完整 proposed state 至少含两个不同的、eligible `claim_id`；每个 ID 必须是 target resolution 在当前同 project Context 中冻结的 claim member，不能用不同 `claim_key` 重复同一 claim 凑数；
+3. operation 的 `target_resolution_id` 必须存在于同 project `current_working_memory`，且 `expected_resolution_revision` 与该 Context revision 精确相等；随机 UUID、历史/superseded target 或任意正整数 revision 均不可接受；
 4. operation kind 不得为 `NEW|BRANCH|RELATED`；
 5. 每个 claim 的 evidence 都属于该 operation 且属于本 job 的 `new + trusted elder + conversation` membership。
 
-Schema 机械约束 conflict set 和 claim count；纯 semantic validator 机械拒绝 `NEW|BRANCH|RELATED + disputed`、缺 target/revision、value-kind 映射漂移和 evidence 越界。
+Schema 机械约束 conflict set 和 claim count；纯 semantic validator 机械拒绝 `NEW|BRANCH|RELATED + disputed`、target 不在 current Context、revision 不精确、重复/非 eligible claim identity、value-kind 映射漂移和 evidence 越界。Context 是 freeze 后的单 project authority，因此“存在于 current Context”同时是 project scope 和 current lifecycle 的机械证明。
 
 ## 4. Failed retry 与 trigger dedupe
 
@@ -157,8 +157,12 @@ stale running terminalize 为 failed 后，同 identity 可按 §4 创建新 att
 - `apps/api/src/memory/memory-maintainer-contract-v1-1.ts` pure validators
 - `apps/api/src/memory/memory-maintainer-contract-v1-1.spec.ts` contract tests
 
-接收必须机械覆盖：v1 三文件 SHA-256 不变；revision `0/-1/+1`；semantic/lifecycle 分离；disputed conflict set/two claims/existing target；failed retry/live dedupe/non-maintainer uniqueness；cleanup pointer detach 后仍 consumed；同 segment consumption 唯一；PASS/merge gate 与 producer cutover。当前任务状态保持 `REVIEW`，执行 Agent 不宣布 PASS、DONE 或 merge。
+接收必须机械覆盖：v1 三文件 SHA-256 不变；revision `0/-1/+1` 与 DB/Context/Trace/CAS 完整 key-set/count/revision parity；semantic/lifecycle 分离；disputed conflict set、current Context exact target/revision、两个 distinct eligible claim IDs；failed retry/live dedupe/non-maintainer uniqueness与双向 namespace；cleanup pointer detach 后仍 consumed；同 segment consumption 唯一；PASS/merge gate 与 producer cutover。当前任务状态保持 `REVIEW`，执行 Agent 不宣布 PASS、DONE 或 merge。
 
 ## 9. 明确后置
 
 Prisma schema、forward migration、repository/scanner/final-flush、post-session cutover runtime、P2、正式 P3/P4/Context V2、真实 provider/secret/data、UI 和生产试点全部由后续独立任务实现并复审。
+
+## 10. Review history
+
+PR #67 old exact head `fdd309a97e5979b092f1ef094f62c1eaecf47071` / CI `32004656762` SUCCESS 获正式 `REQUEST_CHANGES`（comment `5313116887`，P0=0/P1=2/P2=1）：revision parity 缺完整集合相等、disputed 未绑定 current Context/eligible distinct claims、dedupe validator 未执行 SQL namespace。该 old head/CI/结论永久保留；本节记录定向修复目标，不表示新 head 已 PASS。

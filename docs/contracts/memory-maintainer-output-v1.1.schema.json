@@ -42,8 +42,11 @@
     "proposedClaim": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["claim_key", "value_kind", "value", "evidence_segment_ids"],
+      "required": ["claim_id", "claim_key", "value_kind", "value", "evidence_segment_ids"],
       "properties": {
+        "claim_id": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+        },
         "claim_key": { "type": "string", "minLength": 1, "maxLength": 160 },
         "value_kind": { "$ref": "#/$defs/valueKind" },
         "value": true,

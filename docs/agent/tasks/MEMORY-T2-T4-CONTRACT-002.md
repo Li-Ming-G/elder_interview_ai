@@ -41,3 +41,11 @@
 - v1.1 contract fixtures 覆盖六类 Correction 正反例；
 - format、typecheck、target lint、git diff check 和 exact-head CI SUCCESS；
 - 项目负责人或被明确授权的独立 reviewer 绑定 exact head 给出结论。
+
+## Review history
+
+- PR #67 old exact head `fdd309a97e5979b092f1ef094f62c1eaecf47071` / CI `32004656762` SUCCESS 获正式 `REQUEST_CHANGES`（comment `5313116887`，P0=0/P1=2/P2=1）。
+- P1-1：revision parity 必须比较 DB/Context/Trace/CAS 完整 key set、count、revision，并补四层遗漏、额外、重复反例。
+- P1-2：disputed target 必须存在于同 project current Context 且 revision 精确匹配；至少两个 distinct eligible claim IDs，随机 target/rev999/duplicate claim 必须失败。
+- P2：dedupe validator 必须与 SQL namespace 一致，Maintainer 只允许 `memory-p1-v1.1:*`，non-maintainer 禁止该 namespace。
+- old head/CI/结论永久保留；定向修复形成一个新 head 后只运行一次完整 CI，任务继续 REVIEW。

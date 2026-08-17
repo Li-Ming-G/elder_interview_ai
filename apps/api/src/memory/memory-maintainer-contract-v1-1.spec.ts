@@ -34,6 +34,14 @@ interface Fixtures {
     output_case: string;
     valid: boolean;
   }[];
+  disputed_target_cases: {
+    name: string;
+    target_resolution_id: string;
+    expected_resolution_revision: number;
+    duplicate_second_claim_identity: boolean;
+    expected_error: string;
+    valid: boolean;
+  }[];
   revision_cases: { name: string; valid: boolean; value: RevisionParityInput }[];
   dedupe_cases: { name: string; valid: boolean; jobs: JobDedupeObservation[] }[];
   consumption_cases: {
@@ -104,6 +112,43 @@ describe('Memory Maintainer v1.1 forward machine contract', () => {
       expect(result.errors).toContain('MEMORY_DISPUTED_REQUIRES_EXISTING_TARGET_OPERATION');
     },
   );
+
+  it.each(fixtures.disputed_target_cases)('validates disputed target fixture $name', (fixture) => {
+    const context = fixtures.context_cases.find(
+      ({ name }) => name === 'valid_zero_revision_and_independent_statuses',
+    );
+    const source = fixtures.output_cases.find(
+      ({ name }) => name === 'valid_disputed_existing_update',
+    );
+    expect(context).toBeDefined();
+    expect(source).toBeDefined();
+    const output = structuredClone(source?.value) as {
+      operations: {
+        target_resolution_id: string;
+        expected_resolution_revision: number;
+        proposed_state: { claims: Record<string, unknown>[] };
+      }[];
+    };
+    const operation = output.operations[0];
+    expect(operation).toBeDefined();
+    if (operation === undefined) throw new Error('DISPUTED_OPERATION_FIXTURE_REQUIRED');
+    operation.target_resolution_id = fixture.target_resolution_id;
+    operation.expected_resolution_revision = fixture.expected_resolution_revision;
+    if (fixture.duplicate_second_claim_identity) {
+      const firstClaim = operation.proposed_state.claims[0];
+      const secondClaim = operation.proposed_state.claims[1];
+      expect(firstClaim).toBeDefined();
+      expect(secondClaim).toBeDefined();
+      if (firstClaim === undefined || secondClaim === undefined) {
+        throw new Error('TWO_DISPUTED_CLAIM_FIXTURES_REQUIRED');
+      }
+      secondClaim.claim_id = firstClaim.claim_id;
+    }
+
+    const result = validateMemoryMaintainerV11SemanticPair(context?.value, output);
+    expect(result.valid, result.errors.join(',')).toBe(fixture.valid);
+    expect(result.errors).toContain(fixture.expected_error);
+  });
 
   it.each(fixtures.revision_cases)('validates exact revision fixture $name', (fixture) => {
     const result = validateMemoryMaintainerRevisionParity(fixture.value);

@@ -494,9 +494,10 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - 状态：`Proposed / REVIEW`；唯一 iteration-coach/独立审计结论为 `Correction`，本任务不启动第二次审计。
 - 映射：`T2/Foundation + T4/P1 + T18-T19/P6`，并以 T0/Observability 锁定 DB/Context/Trace/CAS revision parity。
 - 前向版本：不改写 PR #66 接收的 v1 Schema/fixtures；v1 保留为 `accepted-history/pre-runtime-superseded`。runtime 只有在 v1.1 exact-head 独立 PASS 且 merge 后才能加载 v1.1，禁止加载 v1。
-- Revision：`text_revision=0` 是合法“从未正式修订”，所有 membership/Trace/CAS 原样使用 DB revision，禁止 offset。
-- Status：新增 legacy-nullable `MemoryResolution.semantic_status=current|uncertain|disputed`；NULL=unavailable。既有 resolution `status=current|pending_review|superseded` 只表示 lifecycle。disputed 必须更新 existing target/revision、`conflict_set` 且至少两个 claims；自动 NEW/BRANCH/RELATED 不得 disputed。
-- Retry：新增 `working_memory_maintain`。non-maintainer trigger identity 继续任意状态唯一；Maintainer 仅 `pending|running|succeeded` 占唯一 slot，failed 可由同 identity 的新 request/attempt/retry_of 重试，失败 row 不删除或复活。
+- Revision：`text_revision=0` 是合法“从未正式修订”，DB/Context/Trace/CAS 四层 segment key set、unique count 和逐 key revision 必须完全相同，禁止遗漏/额外/重复/offset。
+- Status：新增 legacy-nullable `MemoryResolution.semantic_status=current|uncertain|disputed`；NULL=unavailable。既有 resolution `status=current|pending_review|superseded` 只表示 lifecycle。disputed 必须精确引用 same-project current Context target/revision、`conflict_set` 且至少两个 distinct eligible claim IDs；自动 NEW/BRANCH/RELATED 不得 disputed。
+- Retry：新增 `working_memory_maintain`。non-maintainer trigger identity 继续任意状态唯一；Maintainer 仅 `pending|running|succeeded` 占唯一 slot，failed 可由同 identity 的新 request/attempt/retry_of 重试，失败 row 不删除或复活。Maintainer identity 必须在 `memory-p1-v1.1:*` namespace，non-maintainer 双向禁止该 namespace。
 - Consumption：consumption 以 unique transcript segment 为 owner；transcript delete CASCADE，snapshot/job-input cleanup SET NULL。pending 不依赖 AI pointer，成功 writeback 原子建立 consumption。
 - Cutover：正式 P1 启用时必须同时禁止旧 post-session `MemoryService.extract/memory_extract` producer；post-session lane 只委托同一 P1 final flush 或投影其 terminal outcome，未消费 final 只由同一 P1 scanner/final-flush authority 处理。
 - 后置：Prisma/migration/repository/runtime cutover、P2/P3/P4/P5、真实 provider/data/UI 另立任务；本 ADR 当前不接收实现。
+- 审查历史：PR #67 old `fdd309a` / CI `32004656762` 正式 `REQUEST_CHANGES`（P0=0/P1=2/P2=1，comment `5313116887`）永久保留；当前只形成三项定向修复，不表示 ADR 已 Accepted。

@@ -4,7 +4,7 @@
 
 ## 当前接收对象
 
-| MEMORY-T2-T4-CONTRACT-002 | [交接](handoffs/MEMORY-T2-T4-CONTRACT-002.md)、[任务卡](tasks/MEMORY-T2-T4-CONTRACT-002.md)、[v1.1 契约](../contracts/memory-maintainer-v1.1.md)、v1.1 Schema/fixtures/pure validators、ADR-047 | T2/Foundation + T4/P1 + T18-T19/P6 前向 contract correction 独立审查 | base `main@27e8d8d` / CI `32001983350`；唯一独立审计结论 Correction。新增 revision parity、semantic/lifecycle、failed retry/dedupe、transcript-owned consumption、single-producer cutover 正反例；v1 三 machine artifacts 由 SHA-256 保护 | REVIEW；当前不改 Prisma/migration/runtime，不自宣 PASS/DONE/merge。形成 non-Draft PR exact-head CI 后交项目负责人/明确授权 reviewer；后续 runtime 只能加载已 PASS/merge 的 v1.1 |
+| MEMORY-T2-T4-CONTRACT-002 | [交接](handoffs/MEMORY-T2-T4-CONTRACT-002.md)、[任务卡](tasks/MEMORY-T2-T4-CONTRACT-002.md)、[PR #67](https://github.com/Li-Ming-G/elder_interview_ai/pull/67)、[v1.1 契约](../contracts/memory-maintainer-v1.1.md)、ADR-047 | T2/Foundation + T4/P1 + T18-T19/P6 定向修复后复审 | old `fdd309a` / CI `32004656762` 正式 REQUEST_CHANGES（P1=2/P2=1，comment `5313116887`）永久保留；当前补 full-set revision parity、current target/exact revision/distinct eligible claims、双向 identity namespace；v1 SHA 不变 | REVIEW；不改 Prisma/migration/runtime，不自宣 PASS/DONE/merge。形成一个新 head 后只跑一次完整 CI并回传；后续 runtime 只能加载已 PASS/merge 的 v1.1 |
 
 | MEMORY-T2-T4-CONTRACT-001 | [任务卡](tasks/MEMORY-T2-T4-CONTRACT-001.md)、[v1 历史契约](../contracts/memory-maintainer-v1.md)、[PR #66](https://github.com/Li-Ming-G/elder_interview_ai/pull/66)、ADR-046 | 已接收历史；由 CONTRACT-002 前向修订 | accepted `2244450` / CI `31994482841` / PASS comment `5312635580`；merge/main `27e8d8d` / CI `32001983350` SUCCESS | DONE/PASS history 永久保留；v1 标记 pre-runtime-superseded，Schema/fixtures bytes 不改，runtime 不加载 |
 

@@ -7,6 +7,7 @@
 - base：`main@27e8d8d6aaa523b3298b5d64f6f27240696c542c` / CI `32001983350` SUCCESS。
 - v1 history：PR #66 accepted `224445064613cb2abd24a7c761052b7679bbcbd6` / CI `31994482841` / PASS `5312635580` / merge `27e8d8d`。
 - 唯一 iteration-coach/独立审计结论：`Correction`；未启动第二次。
+- PR #67 old exact head `fdd309a97e5979b092f1ef094f62c1eaecf47071` / CI `32004656762` SUCCESS 获正式 `REQUEST_CHANGES`（comment `5313116887`，P0=0/P1=2/P2=1）；old head/CI/结论永久保留。
 
 ## 实际改动
 
@@ -15,16 +16,18 @@
 3. 冻结 text revision 0/exact parity、semantic/lifecycle 分离、existing disputed conflict set、failed stable-identity retry、partial unique SQL、transcript-owned consumption 和单 producer final-flush cutover。
 4. 同步 `04/07/08/09/10`、task/board/trace、ADR-047、handoff/review indexes。
 5. 未修改 Prisma、migration、repository、runtime、post-session producer、UI 或 `.codex/iteration-learning.md`。
+6. 定向修复把 revision parity 提升为 DB/Context/Trace/CAS 完整 key-set/count/revision 相等；disputed 精确绑定 current Context target/revision 与两个 distinct eligible claim IDs；dedupe 执行 SQL 双向 namespace。
 
 ## 验证
 
-- v1 + v1.1 targeted contract suite：2 files / 45 tests PASS。
+- v1 + v1.1 targeted contract suite：2 files / 59 tests PASS（定向修复阶段当前结果）。
 - workspace `format:check`：PASS。
 - workspace `typecheck`：PASS。
 - target ESLint（v1.1 validator/spec）：PASS。
 - modified Markdown relative links：PASS。
 - `git diff --cached --check`：PASS。
-- exact-head CI：待提交后只运行一次并补充。
+- old exact-head CI `32004656762`：SUCCESS，但绑定已 REQUEST_CHANGES 的 `fdd309a`，不得作为修复 head 证据。
+- repaired exact-head CI：待形成一个新提交后只运行一次并通过 PR 评论回传，不再修改该 head。
 
 ## 后续 reviewer / runtime 边界
 

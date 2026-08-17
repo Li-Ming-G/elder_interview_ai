@@ -65,12 +65,12 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| text revision 0 and exact DB/Context/Trace/CAS parity | T2/Foundation + T0/Observability | v1.1 Context Schema、revision fixtures、pure parity validator、`04` §14 | REVIEW |
-| Semantic status is independent from resolution lifecycle; disputed is existing conflict set | T2/Foundation + T4/P1 | v1.1 Context/Output Schema、semantic fixtures/validator、`07` §21 | REVIEW |
-| Failed stable identity retries without weakening other job dedupe | T18-T19/P6 | v1.1 contract §4、dedupe fixtures/validator | REVIEW；runtime migration later |
+| text revision 0 and exact DB/Context/Trace/CAS parity | T2/Foundation + T0/Observability | v1.1 Context Schema、完整 key-set/count/revision fixtures、pure parity validator、`04` §14 | REVIEW；old `fdd309a` P1-1 定向修复 |
+| Semantic status is independent from resolution lifecycle; disputed is existing current Context conflict set | T2/Foundation + T4/P1 | v1.1 Context/Output Schema、target/revision/distinct eligible claim fixtures/validator、`07` §21 | REVIEW；old `fdd309a` P1-2 定向修复 |
+| Failed stable identity retries without weakening other job dedupe | T18-T19/P6 | v1.1 contract §4、双向 namespace + dedupe fixtures/validator | REVIEW；old `fdd309a` P2 定向修复；runtime migration later |
 | Consumption survives AI cleanup and follows transcript deletion | T2/Foundation + T18-T19/P6 | v1.1 contract §5、consumption fixtures/validator、`08` §23 | REVIEW；runtime FK test later |
 | Post-session and scanner share one P1 authority at cutover | T4/P1 + T18-T19/P6 | v1.1 contract §6、cutover fixtures/validator、ADR-047 | REVIEW；runtime later |
-| Accepted v1 bytes and PR #66 evidence remain immutable | Governance / T0 | SHA-256 contract tests、board/review/handoff indexes | REVIEW；await exact-head CI/review |
+| Accepted v1 bytes and PR #66 evidence remain immutable | Governance / T0 | SHA-256 contract tests、board/review/handoff indexes；PR #67 old `fdd309a` / CI `32004656762` REQUEST_CHANGES history | REVIEW；await repaired exact-head CI/review |
 
 ## T0 traceability closeout
 

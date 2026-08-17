@@ -42,6 +42,13 @@ export interface ProducerCutoverState {
 
 type JsonObject = Record<string, unknown>;
 
+interface CurrentResolutionTruth {
+  revision: number;
+  eligibleClaimIds: ReadonlySet<string>;
+}
+
+const MAINTAINER_TRIGGER_NAMESPACE = 'memory-p1-v1.1:';
+
 /** Cross-document rules for the forward-only Memory Maintainer v1.1 contract. */
 export function validateMemoryMaintainerV11SemanticPair(
   context: unknown,
@@ -53,6 +60,7 @@ export function validateMemoryMaintainerV11SemanticPair(
   const memberships = asArray(contextObject?.transcript_membership);
   const newElderIds = new Set<string>();
   const allIds = new Set<string>();
+  const currentResolutions = new Map<string, CurrentResolutionTruth>();
 
   if (memberships === null) {
     errors.push('MEMORY_CONTEXT_MEMBERSHIP_REQUIRED');
@@ -75,7 +83,26 @@ export function validateMemoryMaintainerV11SemanticPair(
   }
 
   for (const memory of asArray(contextObject?.current_working_memory) ?? []) {
-    validateResolutionSemantics(asObject(memory), errors, 'MEMORY_CONTEXT');
+    const memoryObject = asObject(memory);
+    validateResolutionSemantics(memoryObject, errors, 'MEMORY_CONTEXT');
+    const resolutionId = asString(memoryObject?.resolution_id);
+    const revision = memoryObject?.revision;
+    if (resolutionId !== null && isPositiveInteger(revision)) {
+      if (currentResolutions.has(resolutionId)) {
+        errors.push('MEMORY_CONTEXT_RESOLUTION_ID_DUPLICATE');
+      }
+      const eligibleClaimIds = new Set<string>();
+      for (const claim of asArray(memoryObject?.claims) ?? []) {
+        const claimId = asString(asObject(claim)?.claim_id);
+        if (claimId === null) continue;
+        if (eligibleClaimIds.has(claimId)) errors.push('MEMORY_CONTEXT_CLAIM_ID_DUPLICATE');
+        eligibleClaimIds.add(claimId);
+      }
+      currentResolutions.set(resolutionId, {
+        eligibleClaimIds,
+        revision,
+      });
+    }
   }
   for (const memory of asArray(contextObject?.session_mid_index) ?? []) {
     validateResolutionSemantics(asObject(memory), errors, 'MEMORY_CONTEXT');
@@ -105,21 +132,46 @@ export function validateMemoryMaintainerV11SemanticPair(
           if (kind === 'NEW' || kind === 'BRANCH' || kind === 'RELATED') {
             errors.push('MEMORY_DISPUTED_REQUIRES_EXISTING_TARGET_OPERATION');
           }
-          if (
-            asString(operationObject?.target_resolution_id) === null ||
-            !isPositiveInteger(operationObject?.expected_resolution_revision)
-          ) {
+          const targetResolutionId = asString(operationObject?.target_resolution_id);
+          const expectedRevision = operationObject?.expected_resolution_revision;
+          if (targetResolutionId === null || !isPositiveInteger(expectedRevision)) {
             errors.push('MEMORY_DISPUTED_REQUIRES_EXISTING_TARGET_REVISION');
+          } else {
+            const target = currentResolutions.get(targetResolutionId);
+            if (target === undefined) {
+              errors.push('MEMORY_DISPUTED_TARGET_NOT_IN_CURRENT_CONTEXT');
+            } else if (target.revision !== expectedRevision) {
+              errors.push('MEMORY_DISPUTED_TARGET_REVISION_MISMATCH');
+            }
           }
         }
 
         const claimKeys = new Set<string>();
+        const disputedClaimIds = new Set<string>();
+        const disputedTarget =
+          proposedState.semantic_status === 'disputed'
+            ? currentResolutions.get(asString(operationObject?.target_resolution_id) ?? '')
+            : undefined;
         for (const claim of asArray(proposedState.claims) ?? []) {
           const claimObject = asObject(claim);
           const claimKey = asString(claimObject?.claim_key);
           if (claimKey !== null) {
             if (claimKeys.has(claimKey)) errors.push('MEMORY_OUTPUT_CLAIM_KEY_DUPLICATE');
             claimKeys.add(claimKey);
+          }
+          if (proposedState.semantic_status === 'disputed') {
+            const claimId = asString(claimObject?.claim_id);
+            if (claimId === null) {
+              errors.push('MEMORY_DISPUTED_CLAIM_ID_REQUIRED');
+            } else {
+              if (disputedClaimIds.has(claimId)) {
+                errors.push('MEMORY_DISPUTED_CLAIM_ID_DUPLICATE');
+              }
+              disputedClaimIds.add(claimId);
+              if (disputedTarget !== undefined && !disputedTarget.eligibleClaimIds.has(claimId)) {
+                errors.push('MEMORY_DISPUTED_CLAIM_NOT_ELIGIBLE');
+              }
+            }
           }
           const claimEvidence = new Set(stringItems(asArray(claimObject?.evidence_segment_ids)));
           validateEvidence(claimEvidence, newElderIds, errors, 'MEMORY_CLAIM_EVIDENCE');
@@ -128,6 +180,9 @@ export function validateMemoryMaintainerV11SemanticPair(
               errors.push('MEMORY_CLAIM_EVIDENCE_OUTSIDE_OPERATION');
             }
           }
+        }
+        if (proposedState.semantic_status === 'disputed' && disputedClaimIds.size < 2) {
+          errors.push('MEMORY_DISPUTED_REQUIRES_TWO_DISTINCT_ELIGIBLE_CLAIMS');
         }
       }
     }
@@ -157,20 +212,17 @@ export function validateMemoryMaintainerRevisionParity(
   input: RevisionParityInput,
 ): MemoryMaintainerV11ValidationResult {
   const errors: string[] = [];
-  const database = new Map<string, number>();
+  const database = collectRevisionSet(input.database, 'DATABASE', errors);
 
-  for (const item of input.database) {
-    if (!isNonNegativeInteger(item.text_revision)) {
-      errors.push('MEMORY_DATABASE_TEXT_REVISION_INVALID');
-      continue;
-    }
-    if (database.has(item.segment_id)) errors.push('MEMORY_DATABASE_SEGMENT_DUPLICATE');
-    database.set(item.segment_id, item.text_revision);
-  }
-
-  validateRevisionSet(input.context_membership, database, 'CONTEXT', errors);
-  validateRevisionSet(input.decision_trace_membership, database, 'TRACE', errors);
-  validateRevisionSet(input.writeback_cas, database, 'CAS', errors);
+  validateRevisionSet(input.context_membership, input.database.length, database, 'CONTEXT', errors);
+  validateRevisionSet(
+    input.decision_trace_membership,
+    input.database.length,
+    database,
+    'TRACE',
+    errors,
+  );
+  validateRevisionSet(input.writeback_cas, input.database.length, database, 'CAS', errors);
   return result(errors);
 }
 
@@ -181,6 +233,14 @@ export function validateMemoryMaintainerJobDedupe(
   const errors: string[] = [];
   const byIdentity = new Map<string, JobDedupeObservation[]>();
   for (const job of jobs) {
+    const isMaintainer = job.job_type === 'working_memory_maintain';
+    const isMaintainerIdentity = job.trigger_identity.startsWith(MAINTAINER_TRIGGER_NAMESPACE);
+    if (isMaintainer && !isMaintainerIdentity) {
+      errors.push('AI_JOB_MAINTAINER_TRIGGER_NAMESPACE_REQUIRED');
+    }
+    if (!isMaintainer && isMaintainerIdentity) {
+      errors.push('AI_JOB_NON_MAINTAINER_TRIGGER_NAMESPACE_FORBIDDEN');
+    }
     const group = byIdentity.get(job.trigger_identity) ?? [];
     group.push(job);
     byIdentity.set(job.trigger_identity, group);
@@ -319,24 +379,44 @@ function validateEvidence(
 
 function validateRevisionSet(
   observations: readonly RevisionObservation[],
+  expectedCount: number,
   database: ReadonlyMap<string, number>,
   label: string,
   errors: string[],
 ): void {
-  const seen = new Set<string>();
+  const observed = collectRevisionSet(observations, label, errors);
+  if (observations.length !== expectedCount || observed.size !== database.size) {
+    errors.push(`MEMORY_${label}_SEGMENT_COUNT_MISMATCH`);
+  }
+  for (const segmentId of database.keys()) {
+    if (!observed.has(segmentId)) errors.push(`MEMORY_${label}_SEGMENT_MISSING`);
+  }
+  for (const segmentId of observed.keys()) {
+    if (!database.has(segmentId)) errors.push(`MEMORY_${label}_SEGMENT_EXTRA`);
+  }
+  for (const [segmentId, revision] of observed) {
+    const databaseRevision = database.get(segmentId);
+    if (databaseRevision !== undefined && revision !== databaseRevision) {
+      errors.push(`MEMORY_${label}_TEXT_REVISION_MISMATCH`);
+    }
+  }
+}
+
+function collectRevisionSet(
+  observations: readonly RevisionObservation[],
+  label: string,
+  errors: string[],
+): Map<string, number> {
+  const observed = new Map<string, number>();
   for (const item of observations) {
-    if (seen.has(item.segment_id)) errors.push(`MEMORY_${label}_SEGMENT_DUPLICATE`);
-    seen.add(item.segment_id);
+    if (observed.has(item.segment_id)) errors.push(`MEMORY_${label}_SEGMENT_DUPLICATE`);
     if (!isNonNegativeInteger(item.text_revision)) {
       errors.push(`MEMORY_${label}_TEXT_REVISION_INVALID`);
       continue;
     }
-    const databaseRevision = database.get(item.segment_id);
-    if (databaseRevision === undefined) errors.push(`MEMORY_${label}_SEGMENT_NOT_IN_DATABASE`);
-    else if (item.text_revision !== databaseRevision) {
-      errors.push(`MEMORY_${label}_TEXT_REVISION_MISMATCH`);
-    }
+    if (!observed.has(item.segment_id)) observed.set(item.segment_id, item.text_revision);
   }
+  return observed;
 }
 
 function result(errors: string[]): MemoryMaintainerV11ValidationResult {
