@@ -1,0 +1,773 @@
+{
+  "historical_v1_sha256": {
+    "docs/contracts/memory-maintainer-context-v1.schema.json": "841dc6bbda2828d1900880b115b4dd562cf010abdbeb2ce5c27a2e3dbbafb568",
+    "docs/contracts/memory-maintainer-output-v1.schema.json": "234a21259bddc8b0afcc0ac5a94435047d6ab049444497b579a7f836ac893617",
+    "docs/contracts/fixtures/memory-maintainer-v1.fixtures.json": "5d5a6758df2868f1fa256afebda2ff4e8b6ba56302b9809a1070b1c4a95def43"
+  },
+  "context_cases": [
+    {
+      "name": "valid_zero_revision_and_independent_statuses",
+      "valid": true,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.1",
+        "trigger": {
+          "kind": "batch_threshold",
+          "identity": "memory-p1-v1.1:session-a:manifest-a"
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "我在那里教过书。",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          },
+          {
+            "segment_id": "22222222-2222-4222-8222-222222222222",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 2000,
+            "text": "也有人记得我在医院工作。",
+            "trusted_role": "elder",
+            "text_revision": 2,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [
+          {
+            "resolution_id": "33333333-3333-4333-8333-333333333333",
+            "revision": 3,
+            "thread_id": "44444444-4444-4444-8444-444444444444",
+            "semantic_kind": "fact",
+            "memory_type": "event",
+            "canonical_key": "career.primary",
+            "value_kind": "exact",
+            "value": { "summary": "worked as a teacher" },
+            "resolution_kind": "single",
+            "semantic_status": "uncertain",
+            "resolution_status": "current",
+            "claims": [
+              {
+                "claim_id": "55555555-5555-4555-8555-555555555555",
+                "value_kind": "exact",
+                "value": { "summary": "worked as a teacher" }
+              },
+              {
+                "claim_id": "66666666-6666-4666-8666-666666666666",
+                "value_kind": "exact",
+                "value": { "summary": "worked at a hospital" }
+              }
+            ]
+          }
+        ],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "invalid_negative_text_revision",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.1",
+        "trigger": { "kind": "time_threshold", "identity": "negative-revision" },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "无正式修订。",
+            "trusted_role": "elder",
+            "text_revision": -1,
+            "speaker_role_revision": 0,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    }
+  ],
+  "output_cases": [
+    {
+      "name": "valid_new_current_fact",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-new",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.teaching",
+              "value_kind": "exact",
+              "value": { "summary": "worked as a teacher" },
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-teacher",
+                  "value_kind": "exact",
+                  "value": { "summary": "worked as a teacher" },
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "valid_disputed_existing_update",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-disputed",
+            "kind": "CONTINUE",
+            "target_resolution_id": "33333333-3333-4333-8333-333333333333",
+            "expected_resolution_revision": 3,
+            "anchor_thread_id": "44444444-4444-4444-8444-444444444444",
+            "expected_anchor_thread_revision": 2,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.primary",
+              "value_kind": null,
+              "value": null,
+              "resolution_kind": "conflict_set",
+              "semantic_status": "disputed",
+              "claims": [
+                {
+                  "claim_id": "55555555-5555-4555-8555-555555555555",
+                  "claim_key": "claim-teacher",
+                  "value_kind": "exact",
+                  "value": { "summary": "worked as a teacher" },
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                },
+                {
+                  "claim_id": "66666666-6666-4666-8666-666666666666",
+                  "claim_key": "claim-hospital",
+                  "value_kind": "exact",
+                  "value": { "summary": "worked at a hospital" },
+                  "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"]
+                }
+              ]
+            },
+            "evidence_segment_ids": [
+              "11111111-1111-4111-8111-111111111111",
+              "22222222-2222-4222-8222-222222222222"
+            ],
+            "reason_code": "conflicting_claims"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_disputed_single_claim",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-one-claim",
+            "kind": "CONTINUE",
+            "target_resolution_id": "33333333-3333-4333-8333-333333333333",
+            "expected_resolution_revision": 3,
+            "anchor_thread_id": "44444444-4444-4444-8444-444444444444",
+            "expected_anchor_thread_revision": 2,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.primary",
+              "value_kind": null,
+              "value": null,
+              "resolution_kind": "conflict_set",
+              "semantic_status": "disputed",
+              "claims": [
+                {
+                  "claim_id": "55555555-5555-4555-8555-555555555555",
+                  "claim_key": "only-claim",
+                  "value_kind": "exact",
+                  "value": "teacher",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "conflicting_claims"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "schema_valid_disputed_new",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-disputed-new",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.primary",
+              "value_kind": null,
+              "value": null,
+              "resolution_kind": "conflict_set",
+              "semantic_status": "disputed",
+              "claims": [
+                {
+                  "claim_id": "55555555-5555-4555-8555-555555555555",
+                  "claim_key": "teacher",
+                  "value_kind": "exact",
+                  "value": "teacher",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                },
+                {
+                  "claim_id": "66666666-6666-4666-8666-666666666666",
+                  "claim_key": "hospital",
+                  "value_kind": "exact",
+                  "value": "hospital",
+                  "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"]
+                }
+              ]
+            },
+            "evidence_segment_ids": [
+              "11111111-1111-4111-8111-111111111111",
+              "22222222-2222-4222-8222-222222222222"
+            ],
+            "reason_code": "conflicting_claims"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "schema_valid_value_kind_mapping_mismatch",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-mapping-mismatch",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.primary",
+              "value_kind": "exact",
+              "value": "teacher",
+              "resolution_kind": "unknown",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "teacher",
+                  "value_kind": "exact",
+                  "value": "teacher",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_provider_sets_lifecycle_status",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.1",
+        "operations": [
+          {
+            "operation_id": "op-lifecycle",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "career.primary",
+              "value_kind": "exact",
+              "value": "teacher",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "resolution_status": "superseded",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "teacher",
+                  "value_kind": "exact",
+                  "value": "teacher",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    }
+  ],
+  "semantic_cases": [
+    {
+      "name": "valid_new_current_pair",
+      "context_case": "valid_zero_revision_and_independent_statuses",
+      "output_case": "valid_new_current_fact",
+      "valid": true
+    },
+    {
+      "name": "valid_disputed_existing_pair",
+      "context_case": "valid_zero_revision_and_independent_statuses",
+      "output_case": "valid_disputed_existing_update",
+      "valid": true
+    },
+    {
+      "name": "disputed_new_rejected_semantically",
+      "context_case": "valid_zero_revision_and_independent_statuses",
+      "output_case": "schema_valid_disputed_new",
+      "valid": false
+    },
+    {
+      "name": "value_kind_mapping_mismatch_rejected",
+      "context_case": "valid_zero_revision_and_independent_statuses",
+      "output_case": "schema_valid_value_kind_mapping_mismatch",
+      "valid": false
+    }
+  ],
+  "disputed_target_cases": [
+    {
+      "name": "random_target_is_rejected",
+      "target_resolution_id": "77777777-7777-4777-8777-777777777777",
+      "expected_resolution_revision": 3,
+      "duplicate_second_claim_identity": false,
+      "expected_error": "MEMORY_DISPUTED_TARGET_NOT_IN_CURRENT_CONTEXT",
+      "valid": false
+    },
+    {
+      "name": "revision_999_is_rejected",
+      "target_resolution_id": "33333333-3333-4333-8333-333333333333",
+      "expected_resolution_revision": 999,
+      "duplicate_second_claim_identity": false,
+      "expected_error": "MEMORY_DISPUTED_TARGET_REVISION_MISMATCH",
+      "valid": false
+    },
+    {
+      "name": "duplicate_claim_identity_is_rejected",
+      "target_resolution_id": "33333333-3333-4333-8333-333333333333",
+      "expected_resolution_revision": 3,
+      "duplicate_second_claim_identity": true,
+      "expected_error": "MEMORY_DISPUTED_CLAIM_ID_DUPLICATE",
+      "valid": false
+    }
+  ],
+  "revision_cases": [
+    {
+      "name": "zero_revision_is_copied_exactly",
+      "valid": true,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "plus_one_revision_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 1 }],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 1 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 1 }]
+      }
+    },
+    {
+      "name": "negative_revision_is_rejected_everywhere",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": -1 }],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": -1 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": -1 }]
+      }
+    },
+    {
+      "name": "database_layer_omission_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "decision_trace_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "writeback_cas": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ]
+      }
+    },
+    {
+      "name": "context_layer_omission_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "decision_trace_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "writeback_cas": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ]
+      }
+    },
+    {
+      "name": "trace_layer_omission_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "context_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ]
+      }
+    },
+    {
+      "name": "cas_layer_omission_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "context_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "decision_trace_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-b", "text_revision": 2 }
+        ],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "extra_segment_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-extra", "text_revision": 0 }
+        ],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "database_duplicate_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-a", "text_revision": 0 }
+        ],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "context_duplicate_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-a", "text_revision": 0 }
+        ],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "trace_duplicate_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "decision_trace_membership": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-a", "text_revision": 0 }
+        ],
+        "writeback_cas": [{ "segment_id": "segment-a", "text_revision": 0 }]
+      }
+    },
+    {
+      "name": "cas_duplicate_is_rejected",
+      "valid": false,
+      "value": {
+        "database": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "context_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "decision_trace_membership": [{ "segment_id": "segment-a", "text_revision": 0 }],
+        "writeback_cas": [
+          { "segment_id": "segment-a", "text_revision": 0 },
+          { "segment_id": "segment-a", "text_revision": 0 }
+        ]
+      }
+    }
+  ],
+  "dedupe_cases": [
+    {
+      "name": "maintainer_failed_identity_can_retry",
+      "valid": true,
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "status": "failed",
+          "trigger_identity": "memory-p1-v1.1:stable-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        },
+        {
+          "job_type": "working_memory_maintain",
+          "status": "pending",
+          "trigger_identity": "memory-p1-v1.1:stable-a",
+          "attempt": 2,
+          "retry_of_attempt": 1
+        }
+      ]
+    },
+    {
+      "name": "maintainer_concurrent_live_attempts_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "status": "running",
+          "trigger_identity": "memory-p1-v1.1:stable-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        },
+        {
+          "job_type": "working_memory_maintain",
+          "status": "pending",
+          "trigger_identity": "memory-p1-v1.1:stable-a",
+          "attempt": 2,
+          "retry_of_attempt": 1
+        }
+      ]
+    },
+    {
+      "name": "non_maintainer_keeps_global_identity_uniqueness",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "memory_extract",
+          "status": "failed",
+          "trigger_identity": "legacy-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        },
+        {
+          "job_type": "memory_extract",
+          "status": "pending",
+          "trigger_identity": "legacy-a",
+          "attempt": 2,
+          "retry_of_attempt": 1
+        }
+      ]
+    },
+    {
+      "name": "maintainer_namespace_cannot_collide_with_non_maintainer",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "memory_extract",
+          "status": "succeeded",
+          "trigger_identity": "memory-p1-v1.1:cross-type-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        },
+        {
+          "job_type": "working_memory_maintain",
+          "status": "failed",
+          "trigger_identity": "memory-p1-v1.1:cross-type-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        }
+      ]
+    },
+    {
+      "name": "maintainer_legacy_namespace_is_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "status": "failed",
+          "trigger_identity": "legacy-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        }
+      ]
+    },
+    {
+      "name": "non_maintainer_p1_namespace_is_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "memory_extract",
+          "status": "failed",
+          "trigger_identity": "memory-p1-v1.1:legacy-a",
+          "attempt": 1,
+          "retry_of_attempt": null
+        }
+      ]
+    }
+  ],
+  "consumption_cases": [
+    {
+      "name": "cleanup_detached_consumption_stays_consumed",
+      "valid": true,
+      "transcript_segment_id": "segment-a",
+      "pending": false,
+      "consumptions": [
+        {
+          "transcript_segment_id": "segment-a",
+          "snapshot_id": null,
+          "ai_job_input_segment_id": null
+        }
+      ]
+    },
+    {
+      "name": "unconsumed_segment_is_pending",
+      "valid": true,
+      "transcript_segment_id": "segment-b",
+      "pending": true,
+      "consumptions": [
+        {
+          "transcript_segment_id": "segment-a",
+          "snapshot_id": null,
+          "ai_job_input_segment_id": null
+        }
+      ]
+    },
+    {
+      "name": "duplicate_segment_consumption_rejected",
+      "valid": false,
+      "transcript_segment_id": "segment-a",
+      "pending": false,
+      "consumptions": [
+        {
+          "transcript_segment_id": "segment-a",
+          "snapshot_id": "snapshot-a",
+          "ai_job_input_segment_id": "input-a"
+        },
+        {
+          "transcript_segment_id": "segment-a",
+          "snapshot_id": null,
+          "ai_job_input_segment_id": null
+        }
+      ]
+    }
+  ],
+  "cutover_cases": [
+    {
+      "name": "p1_delegated_final_flush_is_valid_after_pass_merge",
+      "valid": true,
+      "value": {
+        "contract_review_status": "pass",
+        "contract_merged": true,
+        "loaded_contract_version": "memory-maintainer-v1.1",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": false,
+        "post_session_memory_lane": "delegate_p1_final_flush",
+        "unconsumed_final_authority": "p1"
+      }
+    },
+    {
+      "name": "p1_dual_producer_is_rejected",
+      "valid": false,
+      "value": {
+        "contract_review_status": "pass",
+        "contract_merged": true,
+        "loaded_contract_version": "memory-maintainer-v1.1",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": true,
+        "post_session_memory_lane": "legacy_memory_extract",
+        "unconsumed_final_authority": "legacy_memory_extract"
+      }
+    },
+    {
+      "name": "p1_before_contract_pass_merge_is_rejected",
+      "valid": false,
+      "value": {
+        "contract_review_status": "review",
+        "contract_merged": false,
+        "loaded_contract_version": "memory-maintainer-v1",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": false,
+        "post_session_memory_lane": "delegate_p1_final_flush",
+        "unconsumed_final_authority": "p1"
+      }
+    }
+  ]
+}

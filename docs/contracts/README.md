@@ -14,8 +14,9 @@ DEV-008A4 / ADR-037 / REV-047 的普通首次访谈行为修订不新增 REST DT
 - `interview-director-context.schema.json`：`InterviewDirectorContextV1`，正式；是 Director 实际输入字段、类型、必填性、枚举和边界的唯一技术结构；
 - `interview-director-output.schema.json`：`InterviewDirectorOutputV1`，正式；是 Director 实际输出字段、类型、必填性、枚举和交叉约束的唯一技术结构；
 - `decision-trace-v1.schema.json`：`QuestionOrchestrationDecisionTraceV1`，T0 已接收的正式字段/枚举约束；只允许保存 ID、revision、hash、版本、typed membership references、状态、分数/排序、result IDs 和耗时，不允许保存完整 prompt、context、transcript 或 provider payload。P1–P6 映射与 retention/authorization 边界见 `docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`。
-- `memory-maintainer-context-v1.schema.json` 与 `memory-maintainer-output-v1.schema.json`：`MEMORY-T2-T4-CONTRACT-001` 的正式候选 Context/Output machine contract；当前状态 `REVIEW`，只有 exact-head 独立 PASS/merge 后才可由 runtime producer 加载。冻结 `new|overlap` membership、至少一个 new trusted elder、真实 revision、完整 proposed next state、expected target revision 和 candidate-only boundary；不保存 chain-of-thought 或完整 provider payload。跨文档 evidence/ID 约束由 `apps/api/src/memory/memory-maintainer-contract.ts` 纯函数校验。
-- `fixtures/memory-maintainer-v1.fixtures.json`：上述两份 Schema 的正反例；跨 membership/ownership/Hybrid Trigger/事务/恢复的 semantic invariants 由正式 Markdown 契约和后续 runtime 测试执行。
+- `memory-maintainer-context-v1.schema.json`、`memory-maintainer-output-v1.schema.json` 与 `fixtures/memory-maintainer-v1.fixtures.json`：PR #66 已接收的 `MEMORY-T2-T4-CONTRACT-001` 历史 machine contract，状态 `ACCEPTED-HISTORY / PRE-RUNTIME-SUPERSEDED`。三文件字节由 v1.1 contract test 的 SHA-256 固定保护；runtime 不得加载 v1。
+- `memory-maintainer-context-v1.1.schema.json` 与 `memory-maintainer-output-v1.1.schema.json`：`MEMORY-T2-T4-CONTRACT-002` 的 forward runtime candidate，当前 `REVIEW`。修正 text revision 0、semantic/lifecycle 分离、disputed conflict set、failed retry/dedupe、transcript-owned consumption 和唯一 producer cutover；只有本任务 exact-head 独立 PASS/merge 后才可加载。
+- `fixtures/memory-maintainer-v1.1.fixtures.json`：v1.1 Schema、跨文档 semantic、revision parity、job dedupe、consumption 与 producer cutover 正反例；由 `apps/api/src/memory/memory-maintainer-contract-v1-1.ts` 纯函数机械验证。
 - `export-manifest.schema.json`：导出资料包清单。
 - `streaming-asr-provider-v2.schema.json`：`StreamingAsrAdapter v2` 供应商中立 lifecycle/result/drain/error 正式 Schema；
 - `tencent-realtime-asr-v2.profile.json`：腾讯实时 ASR V2 正式 profile，含 verified/inference/unknown 及实际 query、参数省略和 canonical signature 规则；

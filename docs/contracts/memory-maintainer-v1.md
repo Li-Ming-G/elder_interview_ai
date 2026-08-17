@@ -1,6 +1,6 @@
 # Memory Maintainer V1 正式契约
 
-状态：`REVIEW`。本契约只有在 exact-head 独立审查 `PASS` 并合入后，才可作为 migration 和 runtime producer 的实现依据。
+状态：`ACCEPTED-HISTORY / PRE-RUNTIME-SUPERSEDED`。PR #66 accepted head `224445064613cb2abd24a7c761052b7679bbcbd6` / CI `31994482841` / PASS comment `5312635580` 已接收并合入 `main@27e8d8d6aaa523b3298b5d64f6f27240696c542c`（main CI `32001983350`）。该历史永久保留，但独立 Correction 在任何 runtime 开工前发现 revision、semantic/lifecycle、failed retry、consumption ownership 和 producer cutover 缺口，因此 runtime 不得加载本 v1；后续唯一可加载候选为经 exact-head `PASS` 且 merge 后的 [`memory-maintainer-v1.1`](memory-maintainer-v1.1.md)。本文件以及已接收的 v1 Schema/fixtures 不原地改写其历史语义。
 
 ## 1. 架构映射
 

@@ -1,6 +1,6 @@
 # MEMORY-T2-T4-CONTRACT-001｜正式 P1 Memory Maintainer 契约
 
-状态：`REVIEW`
+状态：`DONE / PASS / ACCEPTED-HISTORY / PRE-RUNTIME-SUPERSEDED`
 
 ## 目标
 
@@ -46,3 +46,9 @@
 - 两份 Schema + cross-document semantic fixtures：14/14 PASS；
 - `format:check`、workspace `typecheck`、目标测试文件 ESLint、`git diff --check` PASS；
 - 一次全仓 lint 先发现新测试缺显式返回类型，已修复；随后仅因本机 ignored `tmp/dev008a4-sandbox` 不在 TypeScript project 而失败。未删除该历史目录；目标源文件 lint PASS，最终 exact-head CI 将在 clean checkout 复核全仓 lint。
+
+## 接收与前向取代
+
+- PR #66 accepted head `224445064613cb2abd24a7c761052b7679bbcbd6` / CI `31994482841` / PASS comment `5312635580`；merge `27e8d8d6aaa523b3298b5d64f6f27240696c542c` / main CI `32001983350` SUCCESS。
+- 后续独立 Correction 在 runtime 前发现六类契约缺口；不撤销上述 PASS，也不改写 v1 Schema/fixtures 字节。v1 作为 accepted history 保留，但 runtime 不得加载。
+- 前向修订由 `MEMORY-T2-T4-CONTRACT-002` / v1.1 承接；只有 v1.1 exact-head PASS/merge 后才可启动 runtime。

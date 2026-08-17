@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/memory-maintainer-output-v1.1.schema.json",
+  "title": "MemoryMaintainerOutputV1_1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["output_schema_version", "operations", "boundary_candidates"],
+  "properties": {
+    "output_schema_version": { "const": "memory-maintainer-output-v1.1" },
+    "operations": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "boundary_candidates": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/boundaryCandidate" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "memoryType": {
+      "enum": [
+        "person",
+        "relationship",
+        "place",
+        "event",
+        "time",
+        "time_range",
+        "important_choice",
+        "reason_clue",
+        "unfinished_story"
+      ]
+    },
+    "valueKind": { "enum": ["exact", "range", "unknown"] },
+    "memorySemanticStatus": { "enum": ["current", "uncertain", "disputed"] },
+    "memoryResolutionKind": { "enum": ["single", "range", "unknown", "conflict_set"] },
+    "proposedClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "claim_key", "value_kind", "value", "evidence_segment_ids"],
+      "properties": {
+        "claim_id": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+        },
+        "claim_key": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "value_kind": { "$ref": "#/$defs/valueKind" },
+        "value": true,
+        "evidence_segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    },
+    "proposedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semantic_kind",
+        "memory_type",
+        "canonical_key",
+        "value_kind",
+        "value",
+        "resolution_kind",
+        "semantic_status",
+        "claims"
+      ],
+      "properties": {
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "memory_type": { "$ref": "#/$defs/memoryType" },
+        "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "value_kind": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/valueKind" }]
+        },
+        "value": true,
+        "resolution_kind": { "$ref": "#/$defs/memoryResolutionKind" },
+        "semantic_status": { "$ref": "#/$defs/memorySemanticStatus" },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/proposedClaim" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "semantic_status": { "const": "disputed" } },
+            "required": ["semantic_status"]
+          },
+          "then": {
+            "properties": {
+              "resolution_kind": { "const": "conflict_set" },
+              "value_kind": { "type": "null" },
+              "value": { "type": "null" },
+              "claims": { "type": "array", "minItems": 2 }
+            }
+          },
+          "else": {
+            "properties": {
+              "resolution_kind": { "enum": ["single", "range", "unknown"] },
+              "value_kind": { "$ref": "#/$defs/valueKind" }
+            }
+          }
+        }
+      ]
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "kind",
+        "target_resolution_id",
+        "expected_resolution_revision",
+        "anchor_thread_id",
+        "expected_anchor_thread_revision",
+        "proposed_state",
+        "evidence_segment_ids",
+        "reason_code"
+      ],
+      "properties": {
+        "operation_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "kind": {
+          "enum": [
+            "CONTINUE",
+            "BRANCH",
+            "RESUME",
+            "NEW",
+            "DUPLICATE",
+            "SUPPLEMENT",
+            "RELATED",
+            "UNCERTAIN"
+          ]
+        },
+        "target_resolution_id": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+        },
+        "expected_resolution_revision": { "type": ["integer", "null"], "minimum": 1 },
+        "anchor_thread_id": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }]
+        },
+        "expected_anchor_thread_revision": { "type": ["integer", "null"], "minimum": 1 },
+        "proposed_state": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/proposedState" }]
+        },
+        "evidence_segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "reason_code": {
+          "enum": [
+            "same_canonical_key",
+            "explicit_correction",
+            "same_topic",
+            "new_topic",
+            "duplicate_content",
+            "uncertain_value",
+            "conflicting_claims"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "DUPLICATE" } }, "required": ["kind"] },
+          "then": { "properties": { "proposed_state": { "type": "null" } } },
+          "else": { "properties": { "proposed_state": { "$ref": "#/$defs/proposedState" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "enum": ["CONTINUE", "SUPPLEMENT", "DUPLICATE", "RESUME"] }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "target_resolution_id": { "$ref": "#/$defs/uuid" },
+              "expected_resolution_revision": { "type": "integer", "minimum": 1 },
+              "anchor_thread_id": { "$ref": "#/$defs/uuid" },
+              "expected_anchor_thread_revision": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["NEW", "BRANCH", "RELATED"] } },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "target_resolution_id": { "type": "null" },
+              "expected_resolution_revision": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "enum": ["BRANCH", "RELATED"] } },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "anchor_thread_id": { "$ref": "#/$defs/uuid" },
+              "expected_anchor_thread_revision": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "NEW" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "anchor_thread_id": { "type": "null" },
+              "expected_anchor_thread_revision": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "UNCERTAIN" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/proposedState" },
+                  { "properties": { "semantic_status": { "const": "uncertain" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "boundaryCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "code", "abstract_scope", "evidence_segment_ids"],
+      "properties": {
+        "candidate_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "code": { "const": "elder_explicit_boundary" },
+        "abstract_scope": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "evidence_segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    }
+  }
+}
