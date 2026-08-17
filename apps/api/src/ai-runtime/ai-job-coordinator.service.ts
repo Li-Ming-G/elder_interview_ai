@@ -11,7 +11,13 @@ import type {
 } from '../generated/prisma/client.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
-import { canonicalJson, effectiveTextDigest, manifestHash, sha256 } from './ai-provenance.js';
+import {
+  canonicalJson,
+  effectiveTextDigest,
+  EMPTY_MANIFEST_HASH,
+  manifestHash,
+  sha256,
+} from './ai-provenance.js';
 import { AiPolicyService } from './ai-policy.service.js';
 import type { FrozenProviderSegment } from './structured-ai.provider.js';
 
@@ -658,6 +664,9 @@ export class AiJobCoordinatorService {
       if (existing !== null) return this.hydrateReplay(tx, existing.id);
       const project = await tx.elderProject.findUnique({ where: { id: request.projectId } });
       const sessions = await tx.interviewSession.findMany({
+        include: {
+          transcriptSegments: { orderBy: [{ startMs: 'desc' }, { id: 'desc' }], take: 1 },
+        },
         where: { id: { in: sessionIds }, projectId: request.projectId },
       });
       if (project === null || sessions.length !== sessionIds.length) return null;
@@ -692,6 +701,26 @@ export class AiJobCoordinatorService {
           triggerDedupeKey,
         },
       });
+      const sessionById = new Map(sessions.map((session) => [session.id, session]));
+      for (const [inputOrder, sessionId] of sessionIds.entries()) {
+        const session = sessionById.get(sessionId);
+        if (session === undefined) throw new Error('AI_SYSTEM_REJECTION_SESSION_MISSING');
+        const finalWatermark = session.transcriptSegments[0];
+        await tx.aiJobSessionScope.create({
+          data: {
+            aiJobId: created.id,
+            eligibleSegmentCount: 0,
+            id: randomUUID(),
+            inputOrder,
+            maxSegmentId: finalWatermark?.id ?? null,
+            maxSegmentStartMs: finalWatermark?.startMs ?? null,
+            scopeReason: `${request.jobType}:system_rejection`,
+            segmentManifestHash: EMPTY_MANIFEST_HASH,
+            sessionId,
+            speakerRoleRevision: session.speakerRoleRevision,
+          },
+        });
+      }
       return this.hydrateReplay(tx, created.id);
     });
   }

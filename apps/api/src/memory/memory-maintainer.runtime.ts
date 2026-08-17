@@ -96,6 +96,13 @@ interface SelectedBatch {
   triggerKind: MemoryMaintainerTriggerKind;
 }
 
+interface PreparedAttempt {
+  attemptNo: number;
+  currentResolutionIds: string[];
+  prior: AiJob | null;
+  triggerIdentity: string;
+}
+
 @Injectable()
 export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   private readonly active = new Map<string, Promise<void>>();
@@ -339,36 +346,10 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   private async runBatch(batch: SelectedBatch): Promise<void> {
     await this.failpoint.hit('before_freeze');
-    const prior = await this.prisma.aiJob.findFirst({
-      orderBy: { attemptNo: 'desc' },
-      where: { jobType: 'working_memory_maintain', triggerDedupeKey: batch.triggerIdentity },
-    });
-    if (prior !== null && ['pending', 'running', 'succeeded'].includes(prior.status)) return;
-    if (prior !== null && prior.status !== 'failed') return;
-    const attemptNo = (prior?.attemptNo ?? 0) + 1;
-    const requestId = stableUuid(`${batch.triggerIdentity}:attempt:${String(attemptNo)}`);
-    const currentResolutionIds =
-      prior === null
-        ? (
-            await this.prisma.memoryResolution.findMany({
-              select: { id: true },
-              where: {
-                layer: 'working',
-                projectId: batch.projectId,
-                semanticKind: { not: null },
-                semanticStatus: { not: null },
-                status: 'current',
-                threadId: { not: null },
-              },
-            })
-          ).map(({ id }) => id)
-        : (
-            await this.prisma.aiJobInputMemory.findMany({
-              orderBy: { inputOrder: 'asc' },
-              select: { memoryResolutionId: true },
-              where: { aiJobId: prior.id },
-            })
-          ).map(({ memoryResolutionId }) => memoryResolutionId);
+    const prepared = await this.prepareAttempt(batch);
+    if (prepared === null) return;
+    const { attemptNo, currentResolutionIds, prior, triggerIdentity } = prepared;
+    const requestId = stableUuid(`${triggerIdentity}:attempt:${String(attemptNo)}`);
     const ordered = [...batch.overlapSegments, ...batch.newSegments];
     const kindBySegment = new Map<string, 'new' | 'overlap'>([
       ...batch.overlapSegments.map((segment) => [segment.id, 'overlap'] as const),
@@ -385,7 +366,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       requestId,
       ...(prior === null ? {} : { retryOfJobId: prior.id }),
       sessionIds: [batch.sessionId],
-      triggerDedupeKey: batch.triggerIdentity,
+      triggerDedupeKey: triggerIdentity,
       trustedRole: 'elder',
       trustedRoles: ['elder', 'interviewer'],
       afterFreeze: async (tx, frozen) => {
@@ -407,7 +388,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     });
     if (job.replayed) return;
     await this.failpoint.hit('after_freeze');
-    const context = await this.buildContext(job, batch.triggerKind, batch.triggerIdentity);
+    const context = await this.buildContext(job, batch.triggerKind, triggerIdentity);
     const validatedContext = this.validator.validateContext(context);
     const trace = await this.traces.begin({
       activeThreadId: validatedContext.active_thread?.thread_id ?? null,
@@ -463,6 +444,79 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     await this.failpoint.hit('after_writeback');
   }
 
+  private async prepareAttempt(batch: SelectedBatch): Promise<PreparedAttempt | null> {
+    let triggerIdentity = batch.triggerIdentity;
+    for (let depth = 0; depth < 16; depth += 1) {
+      const prior = await this.prisma.aiJob.findFirst({
+        orderBy: { attemptNo: 'desc' },
+        where: { jobType: 'working_memory_maintain', triggerDedupeKey: triggerIdentity },
+      });
+      if (prior === null) {
+        return {
+          attemptNo: 1,
+          currentResolutionIds: (await this.currentAuthority(batch.projectId)).map(({ id }) => id),
+          prior: null,
+          triggerIdentity,
+        };
+      }
+      if (['pending', 'running', 'succeeded'].includes(prior.status)) return null;
+      if (prior.status === 'failed') {
+        return {
+          attemptNo: prior.attemptNo + 1,
+          currentResolutionIds: (
+            await this.prisma.aiJobInputMemory.findMany({
+              orderBy: { inputOrder: 'asc' },
+              select: { memoryResolutionId: true },
+              where: { aiJobId: prior.id },
+            })
+          ).map(({ memoryResolutionId }) => memoryResolutionId),
+          prior,
+          triggerIdentity,
+        };
+      }
+      if (prior.status !== 'cancelled' || prior.failureCode !== 'AI_MEMORY_INPUT_DRIFT')
+        return null;
+      const authority = await this.currentAuthority(batch.projectId);
+      const authorityDigest = sha256(canonicalJson(authority));
+      triggerIdentity = `${batch.triggerIdentity}:rebase:${sha256(`${prior.id}:${authorityDigest}`).slice(0, 24)}`;
+    }
+    throw new Error('MEMORY_REBASE_DEPTH_EXCEEDED');
+  }
+
+  private currentAuthority(projectId: string): Promise<
+    {
+      canonicalKey: string;
+      id: string;
+      memoryType: string;
+      resolutionRevision: number;
+      semanticKind: string | null;
+      semanticStatus: string | null;
+      threadId: string | null;
+    }[]
+  > {
+    return this.prisma.memoryResolution.findMany({
+      orderBy: { id: 'asc' },
+      select: {
+        canonicalKey: true,
+        id: true,
+        memoryType: true,
+        resolutionRevision: true,
+        semanticKind: true,
+        semanticStatus: true,
+        threadId: true,
+      },
+      where: {
+        layer: 'working',
+        projectId,
+        provenanceState: 'active',
+        semanticKind: { not: null },
+        semanticStatus: { not: null },
+        status: 'current',
+        threadId: { not: null },
+      },
+    });
+  }
+
   private async buildContext(
     job: FrozenAiJob,
     triggerKind: MemoryMaintainerTriggerKind,
@@ -476,7 +530,10 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     );
     const resolutions = await this.prisma.memoryResolution.findMany({
       orderBy: { id: 'asc' },
-      where: { id: { in: job.memories.map(({ resolutionId }) => resolutionId) } },
+      where: {
+        id: { in: job.memories.map(({ resolutionId }) => resolutionId) },
+        provenanceState: 'active',
+      },
     });
     const members = await this.prisma.memoryResolutionMember.findMany({
       orderBy: [{ memoryResolutionId: 'asc' }, { memberOrder: 'asc' }],
@@ -659,6 +716,11 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         current === null ||
         current.projectId !== job.projectId ||
         current.status !== 'current' ||
+        current.provenanceState !== 'active' ||
+        current.layer !== 'working' ||
+        current.canonicalKey !== memory.canonical_key ||
+        current.memoryType !== memory.memory_type ||
+        current.semanticKind !== memory.semantic_kind ||
         current.semanticStatus !== memory.semantic_status ||
         current.resolutionRevision !== memory.revision ||
         current.threadId !== memory.thread_id
@@ -710,6 +772,8 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         operation.target_resolution_id === null
           ? null
           : await tx.memoryResolution.findUnique({ where: { id: operation.target_resolution_id } });
+      if (operation.target_resolution_id !== null && target === null)
+        throw new Error('MEMORY_TARGET_CAS_FAILED');
       if (target !== null) {
         if (touchedTargets.has(target.id)) throw new Error('MEMORY_BATCH_TARGET_DUPLICATE');
         touchedTargets.add(target.id);
@@ -717,7 +781,12 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           target.projectId !== job.projectId ||
           target.status !== 'current' ||
           target.layer !== 'working' ||
+          target.provenanceState !== 'active' ||
           target.authority === 'human_confirmed' ||
+          target.canonicalKey !== state.canonical_key ||
+          target.memoryType !== state.memory_type ||
+          target.semanticKind !== state.semantic_kind ||
+          target.threadId !== operation.anchor_thread_id ||
           target.resolutionRevision !== operation.expected_resolution_revision ||
           !job.memories.some(({ resolutionId }) => resolutionId === target.id)
         )
@@ -797,6 +866,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           layer: 'working',
           memoryType: state.memory_type,
           projectId: job.projectId,
+          provenanceState: 'active',
           resolutionKind: state.resolution_kind,
           resolutionRevision: (target?.resolutionRevision ?? 0) + 1,
           resolvedValueJson: (state.semantic_status === 'disputed'
@@ -979,6 +1049,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         memoryType: state.memory_type,
         normalizedValueDigest: sha256(canonicalJson(valueJson)),
         projectId: job.projectId,
+        provenanceState: 'active',
         semanticKind: state.semantic_kind,
         sourceSessionId: batch.sessionId,
         threadId,
@@ -1058,6 +1129,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       where: {
         layer: 'working',
         projectId: job.projectId,
+        provenanceState: 'active',
         semanticKind: { not: null },
         semanticStatus: { not: null },
         status: 'current',

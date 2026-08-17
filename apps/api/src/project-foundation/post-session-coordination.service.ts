@@ -708,7 +708,7 @@ function laneFact(
   }
   const unavailable = unavailableJobIds.has(job.id);
   const status: PostSessionAnalysisLaneProjection['status'] =
-    job.status === 'succeeded' && unjudged
+    unjudged && ['succeeded', 'cancelled'].includes(job.status)
       ? 'unjudged'
       : job.status === 'succeeded'
         ? 'succeeded'

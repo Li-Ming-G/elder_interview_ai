@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AiJobCoordinatorService } from '../../apps/api/src/ai-runtime/ai-job-coordinator.service.js';
+import { AiRetentionService } from '../../apps/api/src/ai-runtime/ai-retention.service.js';
 import { DecisionTraceService } from '../../apps/api/src/ai-runtime/decision-trace.service.js';
 import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { createApplication } from '../../apps/api/src/create-application.js';
@@ -31,6 +32,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let jobs: AiJobCoordinatorService;
+  let retention: AiRetentionService;
   let traces: DecisionTraceService;
   let realtime: RealtimeRuntimeService;
   let validator: MemoryMaintainerV11Validator;
@@ -58,6 +60,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     await app.init();
     prisma = app.get(PrismaService);
     jobs = app.get(AiJobCoordinatorService);
+    retention = app.get(AiRetentionService);
     traces = app.get(DecisionTraceService);
     realtime = app.get(RealtimeRuntimeService);
     validator = app.get(MemoryMaintainerV11Validator);
@@ -481,8 +484,56 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     });
     targetProvider.resolveNext();
     await expect(targetRun).rejects.toThrow('AI_MEMORY_INPUT_DRIFT');
+    expect(await businessCounts(targetSession.sessionId)).toMatchObject({
+      consumptions: 0,
+      snapshots: 0,
+    });
     await prisma.memoryResolution.update({ data: { status: 'current' }, where: { id: target.id } });
+    await Promise.all([
+      createRuntime(new LocalTestMemoryMaintainerProvider()).reconcilePersistedState(),
+      createRuntime(new LocalTestMemoryMaintainerProvider()).reconcilePersistedState(),
+      createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        targetSession.sessionId,
+      ),
+    ]);
+    const rebased = await maintainerJobs(targetSession.sessionId);
+    expect(rebased.map(({ status }) => status).sort()).toEqual(['cancelled', 'succeeded']);
+    expect(rebased.filter(({ status }) => status === 'succeeded')).toHaveLength(1);
+    expect(rebased.find(({ status }) => status === 'succeeded')?.triggerDedupeKey).toMatch(
+      /:rebase:[0-9a-f]{24}$/,
+    );
+    expect(
+      await prisma.memoryWorkingConsumption.count({
+        where: { sessionId: targetSession.sessionId },
+      }),
+    ).toBe(1);
   });
+
+  it.each(['normal', 'disputed'] as const)(
+    'enforces runtime target identity CAS against malicious %s output',
+    async (mode) => {
+      const base = await seedSession([`工作记忆[fact:event:cas-${mode}-base]=基线`]);
+      await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        base.sessionId,
+      );
+      const next = await seedSession([`恶意目标漂移:${mode}`]);
+      const before = await prisma.memoryResolution.count({ where: { projectId } });
+      await expect(
+        createRuntime(
+          new TargetIdentityDriftProvider(mode),
+          new OneShotFailpoint(null),
+          new BypassOutputValidator(),
+        ).requestFinalFlush(next.sessionId),
+      ).rejects.toThrow('MEMORY_TARGET_CAS_FAILED');
+      expect(await prisma.memoryResolution.count({ where: { projectId } })).toBe(before);
+      expect(await businessCounts(next.sessionId)).toMatchObject({
+        claims: 0,
+        consumptions: 0,
+        resolutions: 0,
+        snapshots: 0,
+      });
+    },
+  );
 
   it('keeps the last complete snapshot visible while a newer writeback fails', async () => {
     const seeded = await seedSession(['工作记忆[fact:event:visible-old]=旧快照']);
@@ -552,25 +603,91 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     });
     const job = (await maintainerJobs(seeded.sessionId)).at(-1);
     expect(job).toBeDefined();
-    await prisma.aiJob.delete({ where: { id: job?.id } });
+    if (job === undefined) throw new Error('MEMORY_JOB_REQUIRED');
+    await prisma.aiJob.update({
+      data: { expiresAt: new Date(clock.now().getTime() - 1) },
+      where: { id: job.id },
+    });
+    const cleanupRequestId = randomUUID();
+    await retention.hideExpired('ai_job', job.id, cleanupRequestId, clock.now());
     expect(
       await prisma.memoryWorkingConsumption.findFirst({ where: { sessionId: seeded.sessionId } }),
     ).toMatchObject({ aiJobInputSegmentId: null, memoryWorkingSnapshotId: null });
+    await retention.purge('ai_job', job.id, cleanupRequestId);
+    expect(await prisma.aiJob.findUnique({ where: { id: job.id } })).toBeNull();
     await prisma.transcriptSegment.deleteMany({ where: { sessionId: seeded.sessionId } });
     expect(
       await prisma.memoryWorkingConsumption.count({ where: { sessionId: seeded.sessionId } }),
     ).toBe(0);
   });
 
+  it('detaches authority provenance across thread and session deletion without blocking cleanup', async () => {
+    const seeded = await seedSession(['工作记忆[fact:event:delete-provenance]=删除邻接']);
+    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+      seeded.sessionId,
+    );
+    const resolution = await prisma.memoryResolution.findFirstOrThrow({
+      where: { canonicalKey: 'delete-provenance', projectId, status: 'current' },
+    });
+    const member = await prisma.memoryResolutionMember.findFirstOrThrow({
+      where: { memoryResolutionId: resolution.id },
+    });
+    const threadId = resolution.threadId;
+    if (threadId === null) throw new Error('MEMORY_THREAD_REQUIRED');
+
+    await prisma.memoryThread.delete({ where: { id: threadId } });
+    expect(
+      await prisma.memoryResolution.findUniqueOrThrow({ where: { id: resolution.id } }),
+    ).toMatchObject({
+      layer: 'working',
+      provenanceState: 'detached_thread',
+      semanticKind: 'fact',
+      semanticStatus: 'current',
+      sourceSessionId: seeded.sessionId,
+      threadId: null,
+    });
+    expect(
+      await prisma.memoryClaim.findUniqueOrThrow({ where: { id: member.memoryClaimId } }),
+    ).toMatchObject({
+      layer: 'working',
+      provenanceState: 'detached_thread',
+      semanticKind: 'fact',
+      sourceSessionId: seeded.sessionId,
+      threadId: null,
+    });
+
+    await prisma.aiJobSessionScope.deleteMany({ where: { sessionId: seeded.sessionId } });
+    await prisma.aiJobInputSegment.deleteMany({ where: { sessionId: seeded.sessionId } });
+    await prisma.interviewSession.delete({ where: { id: seeded.sessionId } });
+    expect(
+      await prisma.memoryResolution.findUniqueOrThrow({ where: { id: resolution.id } }),
+    ).toMatchObject({
+      provenanceState: 'detached_session_thread',
+      sourceSessionId: null,
+      threadId: null,
+    });
+    expect(
+      await prisma.memoryClaim.findUniqueOrThrow({ where: { id: member.memoryClaimId } }),
+    ).toMatchObject({
+      provenanceState: 'detached_session_thread',
+      sourceSessionId: null,
+      threadId: null,
+    });
+    expect(await prisma.transcriptSegment.count({ where: { sessionId: seeded.sessionId } })).toBe(
+      0,
+    );
+  });
+
   function createRuntime(
     provider: MemoryMaintainerProvider,
     failpoint: MemoryMaintainerFailpoint = new OneShotFailpoint(null),
+    outputValidator: MemoryMaintainerV11Validator = validator,
   ): MemoryMaintainerRuntime {
     return new MemoryMaintainerRuntime(
       prisma,
       jobs,
       provider,
-      validator,
+      outputValidator,
       traces,
       realtime,
       clock,
@@ -736,6 +853,84 @@ class CountingProvider extends MemoryMaintainerProvider {
     return Promise.resolve({
       boundary_candidates: [],
       operations: [],
+      output_schema_version: 'memory-maintainer-output-v1.1',
+    });
+  }
+}
+
+class BypassOutputValidator extends MemoryMaintainerV11Validator {
+  public override validateOutput(
+    _context: MemoryMaintainerContextV11,
+    value: unknown,
+  ): MemoryMaintainerOutputV11 {
+    return value as MemoryMaintainerOutputV11;
+  }
+}
+
+class TargetIdentityDriftProvider extends MemoryMaintainerProvider {
+  public constructor(private readonly mode: 'normal' | 'disputed') {
+    super();
+  }
+
+  public override maintain(
+    context: MemoryMaintainerContextV11,
+  ): Promise<MemoryMaintainerOutputV11> {
+    const target = context.current_working_memory.at(-1);
+    const segment = context.transcript_membership.find(
+      ({ membership_kind }) => membership_kind === 'new',
+    );
+    if (target === undefined || segment === undefined)
+      throw new Error('MALICIOUS_TARGET_FIXTURE_REQUIRED');
+    const disputed = this.mode === 'disputed';
+    return Promise.resolve({
+      boundary_candidates: [],
+      operations: [
+        {
+          anchor_thread_id: disputed ? randomUUID() : target.thread_id,
+          evidence_segment_ids: [segment.segment_id],
+          expected_anchor_thread_revision: context.active_thread?.revision ?? 1,
+          expected_resolution_revision: target.revision,
+          kind: 'SUPPLEMENT',
+          operation_id: `malicious:${this.mode}:${segment.segment_id}`,
+          proposed_state: {
+            canonical_key: disputed ? target.canonical_key : `${target.canonical_key}.drift`,
+            claims: disputed
+              ? [
+                  {
+                    claim_id: target.claims[0]?.claim_id ?? null,
+                    claim_key: 'malicious-disputed-a',
+                    evidence_segment_ids: [segment.segment_id],
+                    value: 'a',
+                    value_kind: 'exact',
+                  },
+                  {
+                    claim_id: target.claims[0]?.claim_id ?? null,
+                    claim_key: 'malicious-disputed-b',
+                    evidence_segment_ids: [segment.segment_id],
+                    value: 'b',
+                    value_kind: 'exact',
+                  },
+                ]
+              : [
+                  {
+                    claim_id: null,
+                    claim_key: 'malicious-normal',
+                    evidence_segment_ids: [segment.segment_id],
+                    value: 'drift',
+                    value_kind: 'exact',
+                  },
+                ],
+            memory_type: target.memory_type,
+            resolution_kind: disputed ? 'conflict_set' : 'single',
+            semantic_kind: target.semantic_kind,
+            semantic_status: disputed ? 'disputed' : 'current',
+            value: disputed ? null : 'drift',
+            value_kind: disputed ? null : 'exact',
+          },
+          reason_code: disputed ? 'conflicting_claims' : 'explicit_correction',
+          target_resolution_id: target.resolution_id,
+        },
+      ],
       output_schema_version: 'memory-maintainer-output-v1.1',
     });
   }

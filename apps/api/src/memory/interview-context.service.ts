@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { AiJobCoordinatorService } from '../ai-runtime/ai-job-coordinator.service.js';
 import { AiOutputEligibilityService } from '../ai-runtime/ai-output-eligibility.service.js';
 import { EMPTY_MANIFEST_HASH, manifestHash } from '../ai-runtime/ai-provenance.js';
 import { PrismaService } from '../database/prisma.service.js';
+import type { AiJob } from '../generated/prisma/client.js';
 import {
   postSessionLaneTriggerKey,
   postSessionTriggerIdentity,
@@ -15,6 +16,10 @@ import {
   type ActualAskedItem,
 } from '../question-evidence/question-evidence.service.js';
 import { CurrentMemoryReader, type CurrentMemoryItem } from './memory.service.js';
+import {
+  MEMORY_MAINTAINER_RUNTIME_CONFIG,
+  type MemoryMaintainerRuntimeConfig,
+} from './memory-maintainer.runtime.js';
 
 export type PostSessionTerminalOutcome =
   'succeeded' | 'unjudged' | 'failed' | 'cancelled' | 'unavailable';
@@ -46,6 +51,8 @@ export class InterviewContextService {
     private readonly eligibility: AiOutputEligibilityService,
     private readonly memory: CurrentMemoryReader,
     private readonly actualAsked: ActualAskedReader,
+    @Inject(MEMORY_MAINTAINER_RUNTIME_CONFIG)
+    private readonly memoryMaintainerConfig: MemoryMaintainerRuntimeConfig,
   ) {}
 
   public async create(input: {
@@ -227,11 +234,7 @@ export class InterviewContextService {
       consumerSession.sequenceNo !== basisSession.sequenceNo + 1 ||
       snapshot.basisAnalysisTriggerIdentity !==
         postSessionTriggerIdentity(basisSession.id, completedAt) ||
-      memoryLaneJob.projectId !== snapshot.projectId ||
-      memoryLaneJob.jobType !== 'memory_extract' ||
-      memoryLaneJob.triggerDedupeKey !==
-        postSessionLaneTriggerKey(snapshot.basisAnalysisTriggerIdentity, 'memory_extract') ||
-      !outcomeMatchesJob(snapshot.memoryLaneOutcome, memoryLaneJob.status) ||
+      !(await this.memoryLaneProvenanceValid(snapshot, memoryLaneJob)) ||
       actualLaneJob.projectId !== snapshot.projectId ||
       actualLaneJob.jobType !== 'actual_question_reconcile' ||
       actualLaneJob.triggerDedupeKey !==
@@ -281,10 +284,80 @@ export class InterviewContextService {
       snapshotId: snapshot.id,
     };
   }
+
+  private async memoryLaneProvenanceValid(
+    snapshot: {
+      basisAnalysisTriggerIdentity: string | null;
+      basisSessionId: string | null;
+      memoryLaneOutcome: string | null;
+      projectId: string;
+    },
+    job: AiJob,
+  ): Promise<boolean> {
+    if (
+      snapshot.basisAnalysisTriggerIdentity === null ||
+      snapshot.basisSessionId === null ||
+      snapshot.memoryLaneOutcome === null ||
+      job.projectId !== snapshot.projectId ||
+      !outcomeMatchesJob(snapshot.memoryLaneOutcome, job.status)
+    ) {
+      return false;
+    }
+    if (!this.memoryMaintainerConfig.enabled) {
+      return (
+        job.jobType === 'memory_extract' &&
+        job.triggerDedupeKey ===
+          postSessionLaneTriggerKey(snapshot.basisAnalysisTriggerIdentity, 'memory_extract')
+      );
+    }
+    const scopes = await this.prisma.aiJobSessionScope.findMany({
+      select: { sessionId: true },
+      where: { aiJobId: job.id },
+    });
+    if (
+      job.jobType !== 'working_memory_maintain' ||
+      !isP1TriggerIdentity(job.triggerDedupeKey, snapshot.basisSessionId) ||
+      scopes.length !== 1 ||
+      scopes[0]?.sessionId !== snapshot.basisSessionId
+    ) {
+      return false;
+    }
+    if (snapshot.memoryLaneOutcome === 'succeeded') {
+      return (
+        job.status === 'succeeded' &&
+        job.failureCode === null &&
+        (await this.prisma.memoryWorkingSnapshot.count({
+          where: {
+            aiJobId: job.id,
+            projectId: snapshot.projectId,
+            sourceSessionId: snapshot.basisSessionId,
+          },
+        })) === 1
+      );
+    }
+    if (snapshot.memoryLaneOutcome === 'unjudged') {
+      return (
+        ['succeeded', 'cancelled'].includes(job.status) &&
+        job.failureCode === 'MEMORY_UNJUDGED' &&
+        (await this.prisma.memoryWorkingSnapshot.count({ where: { aiJobId: job.id } })) === 0
+      );
+    }
+    return true;
+  }
+}
+
+function isP1TriggerIdentity(identity: string | null, sessionId: string): boolean {
+  if (identity === null) return false;
+  const prefix = `memory-p1-v1.1:${sessionId}:`;
+  if (!identity.startsWith(prefix)) return false;
+  return /^(?:[0-9a-f]{40}(?::rebase:[0-9a-f]{24})?|final-unjudged:[0-9a-f]{32})$/.test(
+    identity.slice(prefix.length),
+  );
 }
 
 function outcomeMatchesJob(outcome: string, status: string): boolean {
-  if (outcome === 'succeeded' || outcome === 'unjudged') return status === 'succeeded';
+  if (outcome === 'succeeded') return status === 'succeeded';
+  if (outcome === 'unjudged') return status === 'succeeded' || status === 'cancelled';
   if (outcome === 'cancelled') return status === 'cancelled';
   return status === 'failed' || status === 'cancelled';
 }

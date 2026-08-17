@@ -4,7 +4,7 @@
 
 ## 当前接收对象
 
-| MEMORY-T2-T4-RUNTIME-001 | [交接](handoffs/MEMORY-T2-T4-RUNTIME-001.md)、[任务卡](tasks/MEMORY-T2-T4-RUNTIME-001.md)、ADR-048 | non-Draft PR exact-head 独立审查 | forward-only migration、durable runtime/snapshot/consumption、single producer cutover 与 failure matrix 候选已形成；PR/head/CI 待回填 | REVIEW；不接真实 provider/data/Context V2/P2-P4/UI，不自宣 PASS/DONE/merge |
+| MEMORY-T2-T4-RUNTIME-001 | [PR #68](https://github.com/Li-Ming-G/elder_interview_ai/pull/68)、[REV-060](reviews/REV-060.md)、[交接](handoffs/MEMORY-T2-T4-RUNTIME-001.md)、[任务卡](tasks/MEMORY-T2-T4-RUNTIME-001.md)、ADR-048 | 新 exact-head CI + 项目负责人定向复审 | old `4bda58c` / CI `32017818045` / REQUEST_CHANGES `5314799838`+`5314826620` 永久保留；四项 P1 集中修复已形成候选 | REVIEW；不接真实 provider/data/Context V2/P2-P4/UI，不自宣 PASS/DONE/merge |
 
 | MEMORY-T2-T4-CONTRACT-002 | [交接](handoffs/MEMORY-T2-T4-CONTRACT-002.md)、[任务卡](tasks/MEMORY-T2-T4-CONTRACT-002.md)、[PR #67](https://github.com/Li-Ming-G/elder_interview_ai/pull/67)、[v1.1 契约](../contracts/memory-maintainer-v1.1.md)、ADR-047 | MEMORY-T2-T4-RUNTIME-001 | old `fdd309a` / CI `32004656762` / REQUEST_CHANGES `5313116887` 永久保留；accepted `02706534` / CI `32006749030` / PASS `5313281208`；merge/main `d48e022a` / CI `32007442074` SUCCESS | DONE/PASS contract-only；runtime 独立 REVIEW |
 

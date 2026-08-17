@@ -288,6 +288,13 @@ enum MemoryMaintenanceMembershipKind {
   overlap
 }
 
+enum MemoryProvenanceState {
+  active
+  detached_session
+  detached_thread
+  detached_session_thread
+}
+
 enum MemoryResolutionKind {
   single
   range
@@ -936,23 +943,24 @@ model MemoryRetentionRoot {
 }
 
 model MemoryClaim {
-  id                    String              @id @default(uuid()) @db.Uuid
-  projectId             String              @map("project_id") @db.Uuid
-  aiJobId               String?             @map("ai_job_id") @db.Uuid
-  memoryRetentionRootId String?             @map("memory_retention_root_id") @db.Uuid
-  aiDerivedOutputId     String?             @unique @map("ai_derived_output_id") @db.Uuid
-  memoryType            MemoryType          @map("memory_type")
-  canonicalKey          String              @map("canonical_key") @db.VarChar(240)
-  valueKind             MemoryValueKind     @map("value_kind")
-  valueJson             Json                @map("value_json") @db.JsonB
-  normalizedValueDigest String              @map("normalized_value_digest") @db.Char(64)
-  authority             MemoryAuthority     @default(automatic)
-  explicitCorrection    Boolean             @default(false) @map("explicit_correction")
-  semanticKind          MemorySemanticKind? @map("semantic_kind")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  projectId             String                 @map("project_id") @db.Uuid
+  aiJobId               String?                @map("ai_job_id") @db.Uuid
+  memoryRetentionRootId String?                @map("memory_retention_root_id") @db.Uuid
+  aiDerivedOutputId     String?                @unique @map("ai_derived_output_id") @db.Uuid
+  memoryType            MemoryType             @map("memory_type")
+  canonicalKey          String                 @map("canonical_key") @db.VarChar(240)
+  valueKind             MemoryValueKind        @map("value_kind")
+  valueJson             Json                   @map("value_json") @db.JsonB
+  normalizedValueDigest String                 @map("normalized_value_digest") @db.Char(64)
+  authority             MemoryAuthority        @default(automatic)
+  explicitCorrection    Boolean                @default(false) @map("explicit_correction")
+  semanticKind          MemorySemanticKind?    @map("semantic_kind")
   layer                 MemoryLayer?
-  sourceSessionId       String?             @map("source_session_id") @db.Uuid
-  threadId              String?             @map("thread_id") @db.Uuid
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  provenanceState       MemoryProvenanceState? @map("provenance_state")
+  sourceSessionId       String?                @map("source_session_id") @db.Uuid
+  threadId              String?                @map("thread_id") @db.Uuid
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([projectId, memoryType, canonicalKey])
   @@map("memory_claim")
@@ -988,6 +996,7 @@ model MemoryResolution {
   semanticKind           MemorySemanticKind?    @map("semantic_kind")
   layer                  MemoryLayer?
   semanticStatus         MemorySemanticStatus?  @map("semantic_status")
+  provenanceState        MemoryProvenanceState? @map("provenance_state")
   sourceSessionId        String?                @map("source_session_id") @db.Uuid
   threadId               String?                @map("thread_id") @db.Uuid
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)

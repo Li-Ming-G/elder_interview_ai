@@ -43,8 +43,12 @@ export interface ProducerCutoverState {
 type JsonObject = Record<string, unknown>;
 
 interface CurrentResolutionTruth {
+  canonicalKey: string;
   revision: number;
   eligibleClaimIds: ReadonlySet<string>;
+  memoryType: string;
+  semanticKind: string;
+  threadId: string;
 }
 
 const MAINTAINER_TRIGGER_NAMESPACE = 'memory-p1-v1.1:';
@@ -99,8 +103,12 @@ export function validateMemoryMaintainerV11SemanticPair(
         eligibleClaimIds.add(claimId);
       }
       currentResolutions.set(resolutionId, {
+        canonicalKey: asString(memoryObject?.canonical_key) ?? '',
         eligibleClaimIds,
+        memoryType: asString(memoryObject?.memory_type) ?? '',
         revision,
+        semanticKind: asString(memoryObject?.semantic_kind) ?? '',
+        threadId: asString(memoryObject?.thread_id) ?? '',
       });
     }
   }
@@ -124,6 +132,32 @@ export function validateMemoryMaintainerV11SemanticPair(
       validateEvidence(operationEvidence, newElderIds, errors, 'MEMORY_OUTPUT_EVIDENCE');
 
       const proposedState = asObject(operationObject?.proposed_state);
+      const targetResolutionId = asString(operationObject?.target_resolution_id);
+      const target =
+        targetResolutionId === null ? undefined : currentResolutions.get(targetResolutionId);
+      if (targetResolutionId !== null) {
+        if (target === undefined) {
+          errors.push('MEMORY_TARGET_NOT_IN_CURRENT_CONTEXT');
+        } else {
+          if (operationObject?.expected_resolution_revision !== target.revision) {
+            errors.push('MEMORY_TARGET_REVISION_MISMATCH');
+          }
+          if (asString(operationObject?.anchor_thread_id) !== target.threadId) {
+            errors.push('MEMORY_TARGET_THREAD_IDENTITY_MISMATCH');
+          }
+          if (proposedState !== null) {
+            if (asString(proposedState.canonical_key) !== target.canonicalKey) {
+              errors.push('MEMORY_TARGET_CANONICAL_KEY_MISMATCH');
+            }
+            if (asString(proposedState.memory_type) !== target.memoryType) {
+              errors.push('MEMORY_TARGET_MEMORY_TYPE_MISMATCH');
+            }
+            if (asString(proposedState.semantic_kind) !== target.semanticKind) {
+              errors.push('MEMORY_TARGET_SEMANTIC_KIND_MISMATCH');
+            }
+          }
+        }
+      }
       if (proposedState !== null) {
         validateResolutionSemantics(proposedState, errors, 'MEMORY_OUTPUT');
         const semanticStatus = proposedState.semantic_status;
@@ -132,12 +166,10 @@ export function validateMemoryMaintainerV11SemanticPair(
           if (kind === 'NEW' || kind === 'BRANCH' || kind === 'RELATED') {
             errors.push('MEMORY_DISPUTED_REQUIRES_EXISTING_TARGET_OPERATION');
           }
-          const targetResolutionId = asString(operationObject?.target_resolution_id);
           const expectedRevision = operationObject?.expected_resolution_revision;
           if (targetResolutionId === null || !isPositiveInteger(expectedRevision)) {
             errors.push('MEMORY_DISPUTED_REQUIRES_EXISTING_TARGET_REVISION');
           } else {
-            const target = currentResolutions.get(targetResolutionId);
             if (target === undefined) {
               errors.push('MEMORY_DISPUTED_TARGET_NOT_IN_CURRENT_CONTEXT');
             } else if (target.revision !== expectedRevision) {

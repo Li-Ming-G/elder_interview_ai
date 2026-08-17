@@ -76,12 +76,15 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| Forward-only v1.1 authority migration and legacy-null sentinel | T2/Foundation | two Prisma migrations；fresh + 21→23 upgrade + repeat evidence | REVIEW |
-| Durable hybrid trigger, advisory lock, startup/periodic/final flush and retry | T4/P1 + T18-T19/P6 | `memory-maintainer.runtime.ts`、runtime integration trigger/concurrency/recovery cases | REVIEW |
+| Forward-only v1.1 authority migration and legacy-null sentinel | T2/Foundation | three Prisma migrations；fresh、current-main legacy sentinel、exact `4bda58c` CHECK enumeration/delete、repeat evidence | REVIEW |
+| Deletion-safe v1.1 provenance lifecycle | T2/Foundation + T18-T19/P6 | explicit active/detached states、session/thread BEFORE DELETE detach、PostgreSQL cleanup/delete adjacency | REVIEW |
+| Durable hybrid trigger, advisory lock, startup/periodic/final flush and retry | T4/P1 + T18-T19/P6 | stable base/rebase identity、runtime integration trigger/concurrency/recovery cases | REVIEW |
 | Atomic claim/resolution/thread/boundary/snapshot/consumption writeback | T2/Foundation + T4/P1 | failpoint transaction phases、operation matrix、old snapshot visibility | REVIEW |
 | Transcript-owned consumption and cleanup/delete lifecycle | T2/Foundation + T18-T19/P6 | pointer detach + transcript CASCADE PostgreSQL tests | REVIEW |
 | Single producer post-session cutover and P1 failure isolation | T4/P1 + T18-T19/P6 | cutover config validator、post-session delegation、transcript isolation tests | REVIEW |
 | DB/Context/Trace/CAS exact revision and stale/late fencing | T0/Observability | textRevision 0、policy/deletion/transcript/target/boundary drift、stale late callback tests | REVIEW |
+| Existing-target immutable identity | T2/Foundation + T4/P1 | formal normal/disputed counterexamples + runtime zero-write canonical/type/semantic/thread CAS | REVIEW |
+| Legacy/P1 opening provenance profiles | T4/P1 + T18-T19/P6 | legacy `memory_extract` regression；P1 succeeded snapshot + `MEMORY_UNJUDGED` persisted opening integration | REVIEW |
 
 ## T0 traceability closeout
 

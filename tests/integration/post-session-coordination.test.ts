@@ -11,6 +11,10 @@ import { DecisionTraceService } from '../../apps/api/src/ai-runtime/decision-tra
 import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import { InterviewContextService } from '../../apps/api/src/memory/interview-context.service.js';
+import {
+  MEMORY_MAINTAINER_RUNTIME_CONFIG,
+  type MemoryMaintainerRuntimeConfig,
+} from '../../apps/api/src/memory/memory-maintainer.runtime.js';
 import { CurrentMemoryReader } from '../../apps/api/src/memory/memory.service.js';
 import {
   FICTIONAL_CONTINUING_CONSENT_VERSION,
@@ -425,6 +429,13 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
     expect(contextSnapshot.basisAnalysisTriggerIdentity).toEqual(expect.any(String));
     expect(contextSnapshot.calibrationGateIdentity).toContain(secondStream.id);
     expect(contextSnapshot.memoryLaneJobId).toEqual(expect.any(String));
+    expect(
+      (
+        await prisma.aiJob.findUniqueOrThrow({
+          where: { id: contextSnapshot.memoryLaneJobId ?? undefined },
+        })
+      ).jobType,
+    ).toBe('memory_extract');
 
     coordinator.notifyFinalization(finalizationId);
     coordinator.notifyCalibration(consumerSessionId);
@@ -999,6 +1010,294 @@ describe('DEV-008B2 durable post-session and opening coordination', () => {
       'failed',
     );
   });
+});
+
+describe('MEMORY-T2-T4-RUNTIME-001 P1 opening provenance', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let coordinator: PostSessionCoordinationService;
+  const actorId = randomUUID();
+  const projectIds: string[] = [];
+
+  beforeAll(async () => {
+    const databaseUrl = process.env.TEST_DATABASE_URL;
+    if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
+    app = await createApplication(
+      loadApiConfig({
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-p1-opening-retention-pepper',
+        APP_ENV: 'test',
+        AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+        AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-p1-opening-auth-pepper',
+        DATABASE_URL: databaseUrl,
+      }),
+      { consentContinuationPolicyReader: new SyntheticConsentContinuationPolicyReader() },
+    );
+    await app.init();
+    prisma = app.get(PrismaService);
+    coordinator = app.get(PostSessionCoordinationService);
+    const p1Config = app.get<MemoryMaintainerRuntimeConfig>(MEMORY_MAINTAINER_RUNTIME_CONFIG);
+    p1Config.enabled = true;
+    p1Config.legacyMemoryExtractEnabled = false;
+    p1Config.postSessionMemoryLane = 'delegate_p1_final_flush';
+    p1Config.unconsumedFinalAuthority = 'p1';
+    await prisma.user.create({
+      data: {
+        displayName: 'P1 opening fictional listener',
+        email: `p1-opening-${actorId}@example.test`,
+        id: actorId,
+        passwordHash: 'test-only',
+        role: 'interviewer',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    coordinator.onModuleDestroy();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const sessionIds = (
+      await prisma.interviewSession.findMany({
+        select: { id: true },
+        where: { projectId: { in: projectIds } },
+      })
+    ).map(({ id }) => id);
+    const resolutionIds = (
+      await prisma.memoryResolution.findMany({
+        select: { id: true },
+        where: { projectId: { in: projectIds } },
+      })
+    ).map(({ id }) => id);
+    const claimIds = (
+      await prisma.memoryClaim.findMany({
+        select: { id: true },
+        where: { projectId: { in: projectIds } },
+      })
+    ).map(({ id }) => id);
+    await prisma.memoryResolutionMember.deleteMany({
+      where: { memoryResolutionId: { in: resolutionIds } },
+    });
+    await prisma.memoryClaimEvidence.deleteMany({ where: { memoryClaimId: { in: claimIds } } });
+    const contextIds = (
+      await prisma.interviewContextSnapshot.findMany({
+        select: { id: true },
+        where: { projectId: { in: projectIds } },
+      })
+    ).map(({ id }) => id);
+    await prisma.contextSnapshotMemory.deleteMany({
+      where: { contextSnapshotId: { in: contextIds } },
+    });
+    await prisma.contextSnapshotActualQuestion.deleteMany({
+      where: { contextSnapshotId: { in: contextIds } },
+    });
+    await prisma.aiJob.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.memoryResolution.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.memoryClaim.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.memoryThread.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.memoryBoundary.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.questionDisplayState.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.speakerCalibrationAttempt.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.transcriptSegment.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.speakerStream.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.sessionFinalization.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.sessionCaptureGeneration.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await prisma.audioObject.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.interviewSession.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.consentRecord.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.projectAssignment.deleteMany({ where: { projectId: { in: projectIds } } });
+    await prisma.elderProject.deleteMany({ where: { id: { in: projectIds } } });
+    await prisma.user.deleteMany({ where: { id: actorId } });
+    await app.close();
+  });
+
+  it.each(['succeeded', 'unjudged'] as const)(
+    'consumes P1 %s authority into one second-session opening attempt',
+    async (mode) => {
+      const seeded = await seedP1OpeningPair(mode);
+      coordinator.notifyFinalization(seeded.finalizationId);
+      coordinator.notifyCalibration(seeded.consumerSessionId);
+      await eventually(
+        async () =>
+          (await prisma.questionGenerationAttempt.count({
+            where: {
+              attemptKind: 'second_session_opening',
+              sessionId: seeded.consumerSessionId,
+            },
+          })) === 1,
+      );
+      const context = await prisma.interviewContextSnapshot.findFirstOrThrow({
+        where: { consumerSessionId: seeded.consumerSessionId },
+      });
+      const memoryJob = await prisma.aiJob.findUniqueOrThrow({
+        where: { id: context.memoryLaneJobId ?? undefined },
+      });
+      expect(memoryJob).toMatchObject({
+        failureCode: mode === 'unjudged' ? 'MEMORY_UNJUDGED' : null,
+        jobType: 'working_memory_maintain',
+        projectId: seeded.projectId,
+      });
+      expect(memoryJob.triggerDedupeKey).toMatch(
+        new RegExp(`^memory-p1-v1\\.1:${seeded.basisSessionId}:`),
+      );
+      expect(context.memoryLaneOutcome).toBe(mode);
+      expect(await prisma.memoryWorkingSnapshot.count({ where: { aiJobId: memoryJob.id } })).toBe(
+        mode === 'succeeded' ? 1 : 0,
+      );
+      expect(
+        await prisma.questionGenerationAttempt.count({
+          where: {
+            attemptKind: 'second_session_opening',
+            sessionId: seeded.consumerSessionId,
+          },
+        }),
+      ).toBe(1);
+    },
+  );
+
+  async function seedP1OpeningPair(mode: 'succeeded' | 'unjudged'): Promise<{
+    basisSessionId: string;
+    consumerSessionId: string;
+    finalizationId: string;
+    projectId: string;
+  }> {
+    const projectId = randomUUID();
+    const basisSessionId = randomUUID();
+    const consumerSessionId = randomUUID();
+    const completedAt = new Date();
+    projectIds.push(projectId);
+    await prisma.elderProject.create({
+      data: { createdBy: actorId, displayName: `P1 ${mode} fictional elder`, id: projectId },
+    });
+    await prisma.projectAssignment.create({ data: { projectId, userId: actorId } });
+    await prisma.consentRecord.create({
+      data: {
+        consentMethod: 'electronic',
+        consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
+        consentType: 'recording_transcription_ai',
+        consentedAt: completedAt,
+        createdBy: actorId,
+        projectId,
+        status: 'valid',
+      },
+    });
+    await prisma.interviewSession.createMany({
+      data: [
+        {
+          createdBy: actorId,
+          id: basisSessionId,
+          projectId,
+          sequenceNo: 1,
+          speakerRoleRevision: 1,
+          status: 'completed',
+        },
+        {
+          createdBy: actorId,
+          id: consumerSessionId,
+          projectId,
+          sequenceNo: 2,
+          speakerRoleRevision: 1,
+          status: 'recording',
+        },
+      ],
+    });
+    const basisStream = await prisma.speakerStream.create({
+      data: { closedAt: completedAt, sessionId: basisSessionId, status: 'closed' },
+    });
+    await prisma.transcriptSegment.createMany({
+      data: [
+        {
+          endMs: 900,
+          ingestKey: `p1-opening-elder-${basisSessionId}`,
+          originalRoleAuthority: 'user_confirmed',
+          originalSpeakerRole: 'elder',
+          originalText: mode === 'succeeded' ? '工作记忆[fact:place:opening.home]=苏州' : '嗯',
+          sessionId: basisSessionId,
+          source: 'fixture',
+          speakerRoleRevision: 1,
+          speakerStreamId: basisStream.id,
+          startMs: 0,
+        },
+        {
+          endMs: 1_900,
+          ingestKey: `p1-opening-interviewer-${basisSessionId}`,
+          originalRoleAuthority: 'user_confirmed',
+          originalSpeakerRole: 'interviewer',
+          originalText: '您小时候住在哪里？',
+          sessionId: basisSessionId,
+          source: 'fixture',
+          speakerRoleRevision: 1,
+          speakerStreamId: basisStream.id,
+          startMs: 1_000,
+        },
+      ],
+    });
+    const basisAudio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorId,
+        mimeType: 'audio/webm',
+        projectId,
+        purpose: 'interview',
+        sessionId: basisSessionId,
+        status: 'initiated',
+      },
+    });
+    const finalization = await prisma.sessionFinalization.create({
+      data: {
+        audioObjectId: basisAudio.id,
+        audioStatus: 'complete',
+        captureEndedAt: completedAt,
+        commitmentsChecksum: '9'.repeat(64),
+        completedAt,
+        createdBy: actorId,
+        expectedChunkCount: 1,
+        sessionId: basisSessionId,
+        stopRequestId: randomUUID(),
+        transcriptStatus: 'drained',
+      },
+    });
+    const consumerAudio = await prisma.audioObject.create({
+      data: {
+        createdBy: actorId,
+        mimeType: 'audio/webm',
+        projectId,
+        purpose: 'interview',
+        sessionId: consumerSessionId,
+        status: 'initiated',
+      },
+    });
+    const capture = await prisma.sessionCaptureGeneration.create({
+      data: {
+        audioObjectId: consumerAudio.id,
+        audioStreamId: randomUUID(),
+        confirmedActiveAt: completedAt,
+        generationNo: 0,
+        sessionId: consumerSessionId,
+        status: 'active',
+        timelineOffsetMs: 0,
+      },
+    });
+    const consumerStream = await prisma.speakerStream.create({
+      data: { captureGenerationId: capture.id, sessionId: consumerSessionId, status: 'active' },
+    });
+    await prisma.speakerCalibrationAttempt.create({
+      data: {
+        attemptNo: 1,
+        audioStreamId: capture.audioStreamId,
+        captureGenerationId: capture.id,
+        endMs: 200,
+        endSequenceNo: 2,
+        resolvedAt: completedAt,
+        resolvedBy: actorId,
+        resolvedRequestId: randomUUID(),
+        sessionId: consumerSessionId,
+        speakerStreamId: consumerStream.id,
+        startMs: 0,
+        startSequenceNo: 0,
+        startedBy: actorId,
+        startedRequestId: randomUUID(),
+        status: 'confirmed',
+      },
+    });
+    return { basisSessionId, consumerSessionId, finalizationId: finalization.id, projectId };
+  }
 });
 
 function terminalOutcome(status: string): 'succeeded' | 'failed' | 'cancelled' {

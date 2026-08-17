@@ -29,3 +29,12 @@
 - policy/deletion/transcript/evidence/target/boundary drift；
 - old snapshot visibility、zero-delta、transcript isolation；
 - format、lint、typecheck、unit、相关 PostgreSQL integration、build、diff check 与一次 exact-head CI。
+
+## PR #68 正式审查与集中修复
+
+- 首个实现 head `4bda58c22cc99cd2339767d2ceccfddc45176256` / exact-head CI `32017818045` SUCCESS 永久保留；项目负责人独立审查在 comments `5314799838`、`5314826620` 给出 `REQUEST_CHANGES`，正式合计 P0=0/P1=4/P2=0。
+- P1-1：不改写已评审 migration；新增 forward migration，把 v1.1 authority provenance 冻结为 `active|detached_session|detached_thread|detached_session_thread`，只确定性移除 official exact old-head 的两个旧 CHECK，并以 parent-delete trigger 在 FK 动作前原子 detach。
+- P1-2：formal semantic validator 与 runtime writeback CAS 同时冻结 target canonical key、memory type、semantic kind、resolution/thread identity；normal/disputed 恶意漂移均失败关闭且零业务写。
+- P1-3：仅 `AI_MEMORY_INPUT_DRIFT` cancelled terminal 可从稳定 base trigger 派生 deterministic rebase identity；failed 仍按原 identity/retry predecessor，其他 cancelled terminal 不被伪装为 retry。
+- P1-4：legacy profile 仍只接受旧 `memory_extract` lane identity；P1 profile 只接受同 project/basis session、合法 `memory-p1-v1.1:*` terminal job，并按 succeeded snapshot 或 `MEMORY_UNJUDGED` authority 验证。
+- 当前仍为 `REVIEW`。本次集中修复的新 exact head/CI 由提交后的 PR #68 review package 绑定；不自宣 PASS/DONE/merge。
