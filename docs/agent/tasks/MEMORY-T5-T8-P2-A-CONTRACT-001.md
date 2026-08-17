@@ -19,4 +19,4 @@ The first complete candidate (`8d48cd5` / CI `32028717254`) received independent
 
 The next candidate `bd299fb` / CI `32037158715` received a further independent `REQUEST_CHANGES` (P0=0/P1=4): cross-session Long source-set semantics, duplicate claim/layer identifiers, terminal reference conditions, and Trace member-manifest canonical parity. A second narrow correction is required before the same gates can close.
 
-The second correction is locally complete and remains unaccepted until a single new exact-head CI and independent review close all four findings. No P2-B implementation starts before that gate.
+The second correction is accepted for code review at exact head `fd31cd5587a6feeee888678a26b2c799a373b73f` / CI `32040317089` SUCCESS, with independent code result P0=0/P1=0. A docs-only governance sync remains before task acceptance because earlier text still said the fix was unpushed; no P2-B implementation starts before that record gate.
