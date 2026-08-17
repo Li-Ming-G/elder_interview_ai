@@ -522,3 +522,4 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - Decision Trace v1 不改字节；v1.1 新增 `trace_kind`、`memory_outcome`、typed source roots、layer/resolution membership refs 和 strict loader/version/raw schema digest。question-only `decision_outcome/director_invoked` 不得出现在 memory trace。
 - PR #68 accepted `f55da95` / PASS `5315324044` / merge-main `58794c4` / main CI `32024183820` 仅作为前置 accepted scope 事实，不扩大为 P2 runtime。
 - P2-A correction gate：`8d48cd5` / CI `32028717254` 的独立 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）要求 checkpoint/revision parity、Long Mid manifest parity、Trace root membership provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间；修正仍保持 `Proposed / REVIEW`，不得先行开启 P2-B。
+- 第二 correction gate：`bd299fb` / CI `32037158715` 的独立 `REQUEST_CHANGES`（P0=0/P1=4/P2=0）要求 Long source session set、claim/layer ID uniqueness、terminal reference conditions 与 Trace member manifest recomputation；当前仍不得合并或开启 P2-B。

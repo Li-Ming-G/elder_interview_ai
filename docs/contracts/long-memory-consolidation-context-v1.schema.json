@@ -4,11 +4,12 @@
   "title": "Long Memory Consolidation Context V1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["context_schema_version", "project_id", "source_session_id", "session_completed_at", "p2_final_checkpoint", "mid_manifest", "policy"],
+  "required": ["context_schema_version", "project_id", "source_session_id", "source_session_ids", "session_completed_at", "p2_final_checkpoint", "mid_manifest", "policy"],
   "properties": {
     "context_schema_version": { "const": "long-memory-consolidation-context-v1" },
     "project_id": { "$ref": "#/$defs/uuid" },
     "source_session_id": { "$ref": "#/$defs/uuid" },
+    "source_session_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/uuid" } },
     "session_completed_at": { "type": "string", "format": "date-time" },
     "p2_final_checkpoint": {
       "type": "object", "additionalProperties": false,

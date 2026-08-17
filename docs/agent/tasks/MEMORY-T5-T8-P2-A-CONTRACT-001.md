@@ -16,3 +16,7 @@ The contract candidate covers strict closed machine shapes, canonical digest/ord
 ## Review gate history
 
 The first complete candidate (`8d48cd5` / CI `32028717254`) received independent `REQUEST_CHANGES` for five contract-level gaps: cross-document checkpoint/revision parity; Long Mid manifest/source parity; Trace membership root provenance; disputed/Boundary/deletion-retention fail-closed semantics; and strict calendar date-time validation. The correction stays within P2-A and must receive a fresh exact-head CI plus independent review before any PASS, merge, or P2-B start.
+
+The next candidate `bd299fb` / CI `32037158715` received a further independent `REQUEST_CHANGES` (P0=0/P1=4): cross-session Long source-set semantics, duplicate claim/layer identifiers, terminal reference conditions, and Trace member-manifest canonical parity. A second narrow correction is required before the same gates can close.
+
+The second correction is locally complete and remains unaccepted until a single new exact-head CI and independent review close all four findings. No P2-B implementation starts before that gate.

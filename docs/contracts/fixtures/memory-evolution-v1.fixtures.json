@@ -236,6 +236,76 @@
       "path": "context.policy.deletion_scope_status",
       "value": "unknown",
       "expected_error": "EVOLUTION_DELETION_SCOPE_NOT_ACTIVE"
+    },
+    {
+      "name": "successful P1 final requires job",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "context.checkpoint.source_p1_final_status",
+      "value": "succeeded",
+      "expected_error": "EVOLUTION_FINAL_JOB_REQUIRED"
+    },
+    {
+      "name": "duplicate claim id",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates.0.members",
+      "value": [
+        {
+          "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "role": "primary",
+          "input_order": 0,
+          "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+        },
+        {
+          "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "role": "supporting",
+          "input_order": 1,
+          "evidence_membership_digest": "dededededededededededededededededededededededededededededededede"
+        }
+      ],
+      "expected_error": "EVOLUTION_CLAIM_ID_DUPLICATE"
+    },
+    {
+      "name": "duplicate layer identity",
+      "base": "T5 park Mid",
+      "valid": false,
+      "path": "output.revision_candidates",
+      "value": [
+        {
+          "candidate_key": "mid-1",
+          "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "target_layer": "mid",
+          "lifecycle_status": "current",
+          "source_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "source_resolution_revision": 2,
+          "source_semantic_status": "current",
+          "predecessor_layer_revision_id": null,
+          "hierarchy_consequence": "parked_to_mid",
+          "expected_member_count": 1,
+          "member_manifest_hash": "f49998103453ba09d29ea256fd498ed0dea015c44b514396a0bb7ea5bb6d5f28",
+          "manifest_algorithm_version": "memory-evolution-canonical-v1",
+          "checkpoint_member_refs": [{ "memory_resolution_id": "88888888-8888-4888-8888-888888888888", "resolution_revision": 2, "semantic_status": "current", "claim_count": 1, "boundary_status": "none", "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999", "input_order": 0 }],
+          "members": [{ "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "role": "primary", "input_order": 0, "evidence_membership_digest": "dededededededededededededededededededededededededededededededede" }]
+        },
+        {
+          "candidate_key": "mid-2",
+          "layer_identity_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "target_layer": "mid",
+          "lifecycle_status": "current",
+          "source_resolution_id": "88888888-8888-4888-8888-888888888888",
+          "source_resolution_revision": 2,
+          "source_semantic_status": "current",
+          "predecessor_layer_revision_id": null,
+          "hierarchy_consequence": "parked_to_mid",
+          "expected_member_count": 1,
+          "member_manifest_hash": "f49998103453ba09d29ea256fd498ed0dea015c44b514396a0bb7ea5bb6d5f28",
+          "manifest_algorithm_version": "memory-evolution-canonical-v1",
+          "checkpoint_member_refs": [{ "memory_resolution_id": "88888888-8888-4888-8888-888888888888", "resolution_revision": 2, "semantic_status": "current", "claim_count": 1, "boundary_status": "none", "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999", "input_order": 0 }],
+          "members": [{ "memory_claim_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "role": "primary", "input_order": 0, "evidence_membership_digest": "dededededededededededededededededededededededededededededededede" }]
+        }
+      ],
+      "expected_error": "EVOLUTION_LAYER_IDENTITY_DUPLICATE"
     }
   ]
 }

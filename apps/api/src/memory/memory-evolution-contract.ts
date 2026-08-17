@@ -65,6 +65,11 @@ export function validateMemoryEvolutionPair(
     errors.push('EVOLUTION_DELETION_SCOPE_NOT_ACTIVE');
   if (asString(policy?.retention_status) !== 'active')
     errors.push('EVOLUTION_RETENTION_NOT_ACTIVE');
+  if (
+    asString(checkpoint.source_p1_final_status) === 'succeeded' &&
+    !isUuid(checkpoint.source_p1_final_job_id)
+  )
+    errors.push('EVOLUTION_FINAL_JOB_REQUIRED');
   const sourceIds = new Set<string>();
   const sourceMembers = new Map<string, JsonObject>();
   const orders: number[] = [];
@@ -118,12 +123,16 @@ export function validateMemoryEvolutionPair(
     }
   }
   const candidateKeys = new Set<string>();
+  const identityIds = new Set<string>();
   for (const item of revisions) {
     const revision = object(item);
     const key = asString(revision?.candidate_key);
     if (key !== null && candidateKeys.has(key)) errors.push('EVOLUTION_CANDIDATE_DUPLICATE');
     if (key !== null) candidateKeys.add(key);
     const identityId = asString(revision?.layer_identity_id);
+    if (identityId !== null && identityIds.has(identityId))
+      errors.push('EVOLUTION_LAYER_IDENTITY_DUPLICATE');
+    if (identityId !== null) identityIds.add(identityId);
     const identity = identityId === null ? undefined : identityMap.get(identityId);
     if (!identity) errors.push('EVOLUTION_IDENTITY_UNKNOWN');
     const resolutionId = asString(revision?.source_resolution_id);
@@ -162,6 +171,13 @@ export function validateMemoryEvolutionPair(
         errors.push('EVOLUTION_CHECKPOINT_MEMBER_MISMATCH');
     }
     const revisionMembers = array(revision?.members) ?? [];
+    const claimIds = new Set<string>();
+    for (const member of revisionMembers) {
+      const claimId = asString(object(member)?.memory_claim_id);
+      if (claimId === null) errors.push('EVOLUTION_CLAIM_ID_REQUIRED');
+      else if (claimIds.has(claimId)) errors.push('EVOLUTION_CLAIM_ID_DUPLICATE');
+      else claimIds.add(claimId);
+    }
     const memberOrders = revisionMembers
       .map((m) => number(object(m)?.input_order))
       .filter((v): v is number => v !== null);
@@ -248,6 +264,17 @@ export function validateLongConsolidationPair(
     errors.push('LONG_DELETION_SCOPE_NOT_ACTIVE');
   if (asString(policy?.retention_status) !== 'active') errors.push('LONG_RETENTION_NOT_ACTIVE');
   if (
+    asString(job.terminal_status) !== 'succeeded' &&
+    (array(out.revision_candidates) ?? []).length > 0
+  )
+    errors.push('LONG_OUTPUT_TERMINAL_NOT_SUCCEEDED');
+  const sourceSessionIds = new Set(
+    (array(ctx.source_session_ids) ?? [])
+      .map((value) => asString(value))
+      .filter((value): value is string => value !== null),
+  );
+  if (sourceSessionIds.size === 0) errors.push('LONG_SOURCE_SESSION_SET_REQUIRED');
+  if (
     asString(ctx.project_id) !== asString(object(job.source_scope)?.project_id) &&
     object(job.source_scope) !== null
   )
@@ -282,26 +309,36 @@ export function validateLongConsolidationPair(
             mid.membership_digest,
             mid.input_order,
             mid.source_job_id,
+            mid.source_session_id,
           ];
         }),
       )
   )
     errors.push('LONG_MID_MANIFEST_HASH_INVALID');
   const midByRevisionId = new Map<string, JsonObject>();
+  const actualSessionIds = new Set<string>();
   for (const row of midRows) {
     const mid = object(row);
     const midId = asString(mid?.layer_revision_id);
     if (midId !== null && mid !== null) midByRevisionId.set(midId, mid);
     if (asString(mid?.project_id) !== asString(ctx.project_id))
       errors.push('LONG_MID_SCOPE_MISMATCH');
-    if (asString(mid?.source_session_id) !== asString(ctx.source_session_id))
-      errors.push('LONG_MID_CROSS_SESSION');
+    const sessionId = asString(mid?.source_session_id);
+    if (sessionId === null || !sourceSessionIds.has(sessionId))
+      errors.push('LONG_MID_SESSION_NOT_IN_SCOPE');
+    else actualSessionIds.add(sessionId);
     if (asString(mid?.boundary_status) === 'active') errors.push('LONG_BOUNDARY_MUST_NOT_PROMOTE');
     if (asString(mid?.semantic_status) === 'disputed' && (number(mid?.claim_count) ?? 0) < 2)
       errors.push('LONG_DISPUTED_CLAIMS_REQUIRED');
   }
+  if (
+    actualSessionIds.size !== sourceSessionIds.size ||
+    [...sourceSessionIds].some((sessionId) => !actualSessionIds.has(sessionId))
+  )
+    errors.push('LONG_SOURCE_SESSION_SET_MISMATCH');
   const outputRows = array(out.revision_candidates) ?? [];
   const referencedMidIds: string[] = [];
+  const longIdentityIds = new Set<string>();
   for (const row of outputRows) {
     const rev = object(row);
     if (!rev) {
@@ -309,6 +346,10 @@ export function validateLongConsolidationPair(
       continue;
     }
     if (asString(rev.target_layer) !== 'long') errors.push('LONG_TARGET_LAYER_INVALID');
+    const identityId = asString(rev.layer_identity_id);
+    if (identityId !== null && longIdentityIds.has(identityId))
+      errors.push('LONG_LAYER_IDENTITY_DUPLICATE');
+    if (identityId !== null) longIdentityIds.add(identityId);
     for (const id of array(rev.source_mid_revision_ids) ?? []) {
       const value = String(id);
       referencedMidIds.push(value);
@@ -328,6 +369,13 @@ export function validateLongConsolidationPair(
     const orders = (array(rev.members) ?? [])
       .map((m) => number(object(m)?.input_order))
       .filter((v): v is number => v !== null);
+    const claimIds = new Set<string>();
+    for (const member of array(rev.members) ?? []) {
+      const claimId = asString(object(member)?.memory_claim_id);
+      if (claimId === null) errors.push('LONG_CLAIM_ID_REQUIRED');
+      else if (claimIds.has(claimId)) errors.push('LONG_CLAIM_ID_DUPLICATE');
+      else claimIds.add(claimId);
+    }
     if (number(rev.expected_member_count) !== orders.length || !isContiguous(orders))
       errors.push('LONG_OUTPUT_MEMBER_PARITY');
     if (
@@ -420,6 +468,16 @@ export function validateDecisionTraceV11(
   const checkpointMembershipRefs = array(checkpoint?.membership_refs) ?? [];
   if (checkpointMembershipRefs.length !== rows.length)
     errors.push('TRACE_ROOT_MEMBERSHIP_COUNT_MISMATCH');
+  const rootRefOrders = checkpointMembershipRefs
+    .map((ref) => number(object(ref)?.input_order))
+    .filter((order): order is number => order !== null);
+  if (!isContiguous(rootRefOrders)) errors.push('TRACE_ROOT_ORDER_INVALID');
+  if (
+    checkpointMembershipRefs.some(
+      (ref, index) => number(object(ref)?.input_order) !== number(object(rows[index])?.input_order),
+    )
+  )
+    errors.push('TRACE_ROOT_ORDER_MISMATCH');
   const checkpointRefsByRevision = new Map<string, JsonObject>();
   for (const ref of checkpointMembershipRefs) {
     const item = object(ref);
@@ -428,6 +486,34 @@ export function validateDecisionTraceV11(
     else if (checkpointRefsByRevision.has(id)) errors.push('TRACE_ROOT_MEMBERSHIP_DUPLICATE');
     else checkpointRefsByRevision.set(id, item);
   }
+  if (
+    asString(checkpoint?.member_manifest_hash) !==
+    sha256CanonicalJson(
+      checkpointMembershipRefs
+        .slice()
+        .sort(
+          (left, right) =>
+            (number(object(left)?.input_order) ?? -1) - (number(object(right)?.input_order) ?? -1),
+        )
+        .map((ref) => {
+          const item = object(ref) ?? {};
+          return [
+            item.layer_identity_id,
+            item.layer_revision_id,
+            item.layer,
+            item.project_id,
+            item.session_id,
+            item.resolution_id,
+            item.resolution_revision,
+            item.membership_digest,
+            item.role,
+            item.input_order,
+            item.source_job_id,
+          ];
+        }),
+    )
+  )
+    errors.push('TRACE_MEMBER_MANIFEST_MISMATCH');
   const jobId = asString(object(roots?.ai_job)?.job_id);
   for (const row of rows) {
     const membership = object(row);
@@ -489,6 +575,9 @@ function array(value: unknown): unknown[] | null {
 }
 function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+function isUuid(value: unknown): boolean {
+  return typeof value === 'string' && UUID.test(value);
 }
 function number(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) ? value : null;

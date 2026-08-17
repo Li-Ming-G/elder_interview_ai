@@ -41,7 +41,11 @@
         "source_p1_final_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
         "source_p1_final_status": { "enum": ["succeeded", "failed", "cancelled", "unavailable", null] },
         "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/checkpointMember" } }
-      }
+      },
+      "allOf": [{
+        "if": { "type": "object", "properties": { "source_p1_final_status": { "const": "succeeded" } } },
+        "then": { "required": ["source_p1_final_job_id"], "properties": { "source_p1_final_job_id": { "$ref": "#/$defs/uuid" } } }
+      }]
     },
     "layer_identities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layerIdentity" } },
     "policy": {

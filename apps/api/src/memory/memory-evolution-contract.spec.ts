@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   runtimeAssertionsPending,
   sha256Canonical,
+  sha256CanonicalJson,
   validateDecisionTraceV11,
   validateLongConsolidationPair,
   validateMemoryEvolutionPair,
@@ -74,6 +75,55 @@ describe('Memory Evolution P2-A machine contracts', () => {
       compile('docs/contracts/long-memory-consolidation-output-v1.schema.json')(long.output),
     ).toBe(true);
     expect(validateLongConsolidationPair(long.context, long.output).valid).toBe(true);
+  });
+
+  it('allows explicit cross-session Long input while retaining one completion session', () => {
+    const context = structuredClone(long.context) as {
+      source_session_ids: string[];
+      mid_manifest: { revision_manifest_hash: string; revisions: Array<Record<string, unknown>> };
+    };
+    const output = structuredClone(long.output) as {
+      long_job: { source_mid_manifest_hash: string };
+    };
+    const sourceSessionId = '99999999-9999-4999-8999-999999999999';
+    context.source_session_ids = [sourceSessionId];
+    context.mid_manifest.revisions[0].source_session_id = sourceSessionId;
+    const row = context.mid_manifest.revisions[0];
+    const manifest = sha256CanonicalJson([
+      [
+        row.layer_revision_id,
+        row.layer_identity_id,
+        row.resolution_id,
+        row.resolution_revision,
+        row.semantic_status,
+        row.boundary_status,
+        row.membership_digest,
+        row.input_order,
+        row.source_job_id,
+        row.source_session_id,
+      ],
+    ]);
+    context.mid_manifest.revision_manifest_hash = manifest;
+    output.long_job.source_mid_manifest_hash = manifest;
+    expect(validateLongConsolidationPair(context, output).valid).toBe(true);
+  });
+
+  it('schema-gates terminal references', () => {
+    const evolutionContext = structuredClone(baseEvolution.context) as {
+      checkpoint: { source_p1_final_status: string; source_p1_final_job_id: string | null };
+    };
+    evolutionContext.checkpoint.source_p1_final_status = 'succeeded';
+    evolutionContext.checkpoint.source_p1_final_job_id = null;
+    expect(
+      compile('docs/contracts/memory-evolution-context-v1.schema.json')(evolutionContext),
+    ).toBe(false);
+    const longOutput = structuredClone(long.output) as {
+      long_job: { terminal_status: string };
+    };
+    longOutput.long_job.terminal_status = 'failed';
+    expect(
+      compile('docs/contracts/long-memory-consolidation-output-v1.schema.json')(longOutput),
+    ).toBe(false);
   });
 
   it.each(long.semantic_cases)('rejects Long semantic case $name', (fixture) => {

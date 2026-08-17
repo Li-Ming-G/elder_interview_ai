@@ -9,3 +9,7 @@
 PR #69 initial exact head `466124058a2358b4afeef6e8433aedf43650ff58` / CI `32028285170` remains recorded as lint-only failure (three non-null assertions). Narrow explicit-guard fix is ready locally; next push/CI is pending. Status remains `REVIEW`.
 
 独立复审已对 `8d48cd5ec25dc6951f4f8a6af07ee93aad027b1a` / CI `32028717254` 给出 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）。本次修正仅补 P2-A machine contract：checkpoint/revision parity、Long Mid manifest parity、Trace membership root provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间。未进入 Prisma/runtime/provider/P2-B/C/D/P3/P4；修正完成前保持 REVIEW。
+
+随后 `bd299fb5c315d2907a837362d433aa174ba82075` / CI `32037158715` 的独立复审新增 P1=4：Long 跨 session source set、revision/member ID uniqueness、terminal reference fail-closed、Trace member manifest canonical parity。当前 worktree 正在同一 PR 做第二次窄修，仍不宣称 PASS/DONE/merge。
+
+第二次窄修已在本地完成并验证：contract tests 45/45、full unit 547/547、typecheck/build/lint/format 全绿。待一次 commit/push 后触发新 exact-head CI，再交独立窗口复审；未改变 P2-B/C/D/P3/P4/Prisma/runtime/provider 范围。

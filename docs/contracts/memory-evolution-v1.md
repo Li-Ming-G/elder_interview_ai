@@ -32,7 +32,7 @@ Layer revision 不拥有 Claim/Resolution value。自动 P2 不得覆盖 human a
 
 - online：`project_id + source_session_id + source_thread_id + source_thread_revision_id + source_working_snapshot_id + source_resolution_manifest_hash`
 - final：`project_id + source_session_id + source_p1_final_job_id + source_working_snapshot_id + source_resolution_manifest_hash`
-- long：`project_id + source_session_id + session_completed_at + p2_final_checkpoint_id + mid_revision_manifest_hash`
+- long：`project_id + source_session_id + sorted(source_session_ids) + session_completed_at + p2_final_checkpoint_id + mid_revision_manifest_hash`
 
 `capacity_checkpoint` 可对 P1 `MemoryThreadRevision.status=active` 建立 Mid checkpoint，但绝不把 thread 改为 parked。`semantic_park` 必须消费 `status=parked`；resume 只消费后续 P1 active revision并复用稳定 layer identity。`session_final_flush` 必须引用成功的 P1 final terminal，尾段只进入一次 final Mid checkpoint。`memory-evolution-canonical-v1` 使用显式 input-order tuple、UTF-8、无 trim/Unicode normalization、lowercase SHA-256；`[]` golden 为 `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`，不改写 PR68 Working snapshot digest。
 
@@ -46,7 +46,7 @@ Layer revision 不拥有 Claim/Resolution value。自动 P2 不得覆盖 human a
 
 ## 5. Mid 与 Long
 
-Mid 只允许同 `project_id + source_session_id`。跨 session consolidation 只允许 Long，且始终禁止跨 project。Long 只能在 session completed、P1 final succeeded、P2 final Mid succeeded 后运行，并从完整 Mid manifest 读取 reference-only input。
+Mid 只允许同 `project_id + source_session_id`。跨 session consolidation 只允许 Long，且始终禁止跨 project。Long context 的 `source_session_ids` 是 Mid manifest 实际来源 session 的唯一集合；每个 Mid row 必须属于该集合，集合不能遗漏或凭空增加。`source_session_id` 仍表示本次完成/触发 session。Long 只能在 session completed、P1 final succeeded、P2 final Mid succeeded 后运行，并从完整 Mid manifest 读取 reference-only input。非 succeeded Long job 不得携带 revision candidates。
 
 Long context/output/trace 机械禁止任何键名包含 `value`、`text`、`transcript`、`prompt`、`context`、`summary`、`narrative`（版本字段 `context_schema_version` 除外）。Long 可以保留 claim/resolution/layer/job identity、revision、role、order、digest 与 lifecycle reference，不能生成新的事实正文。Decision Trace v1.1 的 checkpoint 必须携带完整 `membership_refs`；每个 trace membership 的 job/project/session/layer/resolution/revision/digest/order 必须与 root ref 逐字段相等，删除 scope 或 retention 非 active 直接不可读。
 
