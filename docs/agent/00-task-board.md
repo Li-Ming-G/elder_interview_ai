@@ -94,11 +94,13 @@
 - 只有完成 `09` 和 `10` 所规定的适用验证后才能标记为 `DONE`；高风险任务和 MVP 发布必须独立验收。
 - 不得在根目录其他文件维护第二份详细任务状态。
 - 表格中的未启动下游任务是路线级工作包；任何任务进入 `READY` 前必须补齐 `10` 要求的正式任务字段。`READY` 只表示其明确子集可执行，不等于父任务或真实试点门禁通过。
-| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | REVIEW | SPEC-MEMORY-SYSTEM-V1 原则接收；PR #63 两轮 REQUEST_CHANGES，当前五项 P1 定向修复候选待审 | `docs/contracts/decision-trace-v1.schema.json`；`docs/agent/tasks/MEMORY-SYSTEM-V1-ARCHITECTURE-MAPPING.md`；REV-057 | old `b34000a6` / CI `31922715469` P1=5 与 `b137b44` / CI `31924593302` P1=5 永久保留；等待新 exact-head CI 与项目负责人定向复审。P1–P6 producer、真实 provider/数据/公网均未启动 |
+| MEMORY-T0-TRACE | T0 / Foundation-Observability / Decision Trace typed references + retention root | 总控 Agent | DONE | REV-058 exact-head PASS/merge/main CI | `docs/contracts/decision-trace-v1.schema.json`；REV-057/058 | old REQUEST_CHANGES 永久保留；DONE 只覆盖 T0 reference-only trace，P1–P6 producer、真实 provider/数据/公网不由此完成 |
+| MEMORY-T2-T4-CORE-001 | T2/Foundation、T3/Foundation+P6、T4/P1、薄 P3/P4 candidate seam | 总控 Agent | DONE | PR #65 exact head `7d0a0460` / CI `31941029795` 独立 PASS；merge/main `081b404e` / CI `31989367027` SUCCESS | [任务卡](tasks/MEMORY-T2-T4-CORE-001.md)、REV-059、candidate contract | 只接收 candidate/local seam；正式 authority/runtime/P2/正式 P3/P4/真实 provider 未完成 |
+| MEMORY-T2-T4-CONTRACT-001 | T2/Foundation + T4/P1 + T18-T19/P6 正式 Maintainer contract | 总控 Agent | REVIEW | PR #65 candidate DONE；exact main `081b404e` | [任务卡](tasks/MEMORY-T2-T4-CONTRACT-001.md)、正式 Context/Output Schema、ADR-046 | 契约 PASS/merge 前不得修改 Prisma 或接 runtime producer；真实 provider/data 与 Context V2 保持后置 |
 
 ## 2026-08-16 memory-core implementation slice
 
-`MEMORY-T2-T4-CORE-001` is `REVIEW` on branch `codex/memory-t2-t4-core-001`. It maps `T2/Foundation + Memory Contract`, `T3/Foundation + P6 provider-neutral seam`, `T4/P1 Working Memory`, plus the thinnest `P3/P4` consumer path. The candidate contract is `docs/contracts/memory-core-v1-candidate.md`; it is explicitly not a formal machine authority. The slice provides candidate-only Working operations, evidence references, deterministic retrieval, candidate Context assembly and a local/test next-question pipeline. Formal Context V2, Prisma projections, P2/P5 expansion, real provider/data and production gates remain separate and blocked.
+`MEMORY-T2-T4-CORE-001` was accepted only as a candidate/local seam in REV-059. `MEMORY-T2-T4-CONTRACT-001` now freezes the formal T2/T4/P6 machine contract before any Prisma/runtime producer. Formal Context V2, durable runtime, P2/P5 expansion, real provider/data and production gates remain separate and blocked.
 
 ## 2026-08-16 governance closeout update
 

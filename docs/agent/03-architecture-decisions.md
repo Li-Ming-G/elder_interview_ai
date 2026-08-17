@@ -478,3 +478,13 @@
 ## ADR-043/044 review history update
 
 REV-058 independently PASSed the T0 / Foundation-Observability implementation at `40cc61e` / CI `31936839303` and merged/main `a9363dcd` / CI `31937348480`. This is implementation evidence only; ADR-043/044 remain Proposed/REVIEW pending project-owner governance acceptance. No later P1-P6 layer or real provider/data/deployment decision is implied.
+
+## ADR-046｜正式 P1 Maintainer 复用 MemoryResolution 唯一权威并采用 durable batch
+
+- 状态：`Proposed / REVIEW`。
+- 映射：`T2/Foundation + T4/P1 + T18-T19/P6`；T0 reference-only provenance 继续适用。
+- 决定：`MemoryClaim/Resolution/Evidence` 继续唯一持有记忆值；新增 thread/boundary revision、Working snapshot、new/overlap membership 和 consumption，只补身份、版本、冻结集合与恢复事实，不建立第二套 Working value 表。
+- Trigger：自动调用固定为 `(batch OR time) AND minimumUseful`；进程内 final notification 只唤醒，startup/periodic scanner 以持久未消费 final 为 authority。
+- Provider：正式 T4 使用独立 Context/Output Schema，直接提出 semantic operation、完整 proposed next state、evidence IDs 和 expected revisions；post-session claim Schema/canonical prefix 不得冒充 thread 决策。
+- 写回：freeze/call/writeback 三段式；成功事务原子提交全部业务 row、snapshot/consumption 与 job CAS，stale/late callback 无写回资格。P1 失败不影响录音/转录，consumer 继续读上一完整 snapshot。
+- 后置：P2、正式 P3/P4/Context V2、真实 provider/secret/data、UI 与生产试点。

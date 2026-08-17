@@ -4,6 +4,8 @@
 
 ## 当前接收对象
 
+| MEMORY-T2-T4-CONTRACT-001 | [任务卡](tasks/MEMORY-T2-T4-CONTRACT-001.md)、[正式契约](../contracts/memory-maintainer-v1.md)、Context/Output Schema + fixtures、ADR-046、REV-059 | T2/Foundation + T4/P1 + T18-T19/P6 正式契约独立审查 | PR #65 candidate seam 已以 `7d0a0460` / CI `31941029795` 独立 PASS 并 merge/main `081b404e` / CI `31989367027` SUCCESS；当前冻结唯一 MemoryResolution authority、Hybrid Trigger、new/overlap membership、candidate operation 与 crash/replay。contract fixtures 7/7、format/typecheck/target lint/diff PASS；全仓 lint 曾因新测试返回类型（已修）和 ignored `tmp/dev008a4-sandbox` project-path residue 失败，未删除历史目录 | 本任务保持 REVIEW；exact-head PASS/merge 前不改 Prisma/runtime。之后才启动 MEMORY-T2-T4-RUNTIME-001；P2/P3/P4/真实 provider/data 后置 |
+
 | SPEC-MEMORY-SYSTEM-V1 | [路线文档](tasks/SPEC-MEMORY-SYSTEM-V1.md)；ADR-043/044 Proposed/REVIEW；REV-057 | T0 / Foundation-Observability Decision Trace 定向复审 | PR #63 old `b34000a6` / CI `31922715469` REQUEST_CHANGES P1=5 与 next `b137b44` / CI `31924593302` REQUEST_CHANGES P1=5 永久保留；当前只修真实 Director/publication、attempt↔trace recovery、P4 invariant/provenance、全 frozen scope Reader、forward-only migration history | T0 仍 REVIEW，等待项目负责人绑定新 exact head/CI 定向复审；P1–P6 producer、真实 provider/数据/公网继续 BLOCKED |
 
 | 任务 | 最新交接 | 当前接收对象 | 关键未完成事项 |

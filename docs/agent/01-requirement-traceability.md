@@ -48,9 +48,18 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| Memory candidate operations retain typed evidence and do not write directly | T2/Foundation + T4/P1 | `apps/api/src/memory/memory-core.contract.ts`, `working-memory-maintainer.service.ts`, `memory-core.spec.ts` | REVIEW |
-| Thin retrieval and context assembly can feed a next-question seam | T9-T10/P3 + T11-T12/P4 + T0/Observability | `memory-context-assembly.service.ts`, `memory-next-question.pipeline.ts`, candidate contract | REVIEW |
+| Memory candidate operations retain typed evidence and do not write directly | T2/Foundation + T4/P1 | `apps/api/src/memory/memory-core.contract.ts`, `working-memory-maintainer.service.ts`, `memory-core.spec.ts`; REV-059 | DONE（candidate seam） |
+| Thin retrieval and context assembly can feed a next-question seam | T9-T10/P3 + T11-T12/P4 + T0/Observability | `memory-context-assembly.service.ts`, `memory-next-question.pipeline.ts`, candidate contract；REV-059 | DONE（candidate seam） |
 | Real provider, formal V2, persistence projections and production data remain gated | T3/P6 boundary; P2/P5/P6 later | task card and candidate contract | BLOCKED/POSTPONED |
+
+## MEMORY-T2-T4-CONTRACT-001 traceability
+
+| Requirement | Architecture mapping | Evidence | Status |
+|---|---|---|---|
+| Formal Maintainer input freezes new/overlap transcript and real revisions | T2/Foundation + T4/P1 | `memory-maintainer-context-v1.schema.json`、fixtures、formal contract | REVIEW |
+| Provider returns candidate operation, complete next state and expected target revisions | T4/P1 | `memory-maintainer-output-v1.schema.json`、fixtures | REVIEW |
+| Trigger/recovery is durable and does not block transcript | T18-T19/P6 | formal contract §§3/6/7、`09` §21 | REVIEW；runtime after contract PASS |
+| Existing claim/resolution remains the only memory value authority | T2/Foundation | `04` §13、formal contract §2 | REVIEW；no Prisma/runtime changes in contract task |
 
 ## T0 traceability closeout
 

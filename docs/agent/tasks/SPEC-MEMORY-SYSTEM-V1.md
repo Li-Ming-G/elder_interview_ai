@@ -2,9 +2,9 @@
 
 ## 1. 状态与依据
 
-- 状态：REVIEW（项目负责人已原则接收 T0 契约与 reference-only 补充；PR #63 两轮 REQUEST_CHANGES 后的五项 P1 修复候选仍待 exact-head 定向复审，尚未宣称 T0 或任何后续 T1–T27 完成）。
+- 状态：REVIEW（T0 / Foundation-Observability 已由 REV-058 接收；PR #65 candidate/local Memory Core 已由 REV-059 接收。当前进入 `MEMORY-T2-T4-CONTRACT-001`，冻结 T2/Foundation、T4/P1、T18-T19/P6 正式契约；后续 T5-T27 仍未完成）。
 - 依据：`C:\Users\TR\Downloads\LLM记忆改造.md` 最底部 T0–T27 安排，以及项目正式 `00`–`10` 规范、现有 AI/Memory/QuestionEvidence 契约和最新 handoff。
-- 当前基线：main `8eb34f9f4933ec69b097d91c1b46b9e5143a76ac`；provider-neutral LLM readiness PR #62 的 accepted head `7f8e97dea240c30678bfe1ba58f2d025b26d98dd` 仍为 OPEN/REVIEW，不能当作已合并或真实 provider 已接入。
+- 当前 Memory 基线：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`，merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS。该证据只接收 candidate/local seam，不代表正式 runtime 或真实 provider 已接入。
 
 本文件是实施路线，不把规划内容伪装成正式机器契约。凡涉及表结构、状态枚举、REST/WebSocket、AI Schema 或数据所有权的改动，必须先建立对应正式契约并由项目负责人审查。
 
