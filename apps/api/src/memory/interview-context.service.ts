@@ -348,11 +348,18 @@ export class InterviewContextService {
 
 function isP1TriggerIdentity(identity: string | null, sessionId: string): boolean {
   if (identity === null) return false;
-  const prefix = `memory-p1-v1.1:${sessionId}:`;
-  if (!identity.startsWith(prefix)) return false;
-  return /^(?:[0-9a-f]{40}(?::rebase:[0-9a-f]{24})?|final-unjudged:[0-9a-f]{32})$/.test(
-    identity.slice(prefix.length),
-  );
+  for (const version of ['v1.2', 'v1.1'] as const) {
+    const prefix = `memory-p1-${version}:${sessionId}:`;
+    if (
+      identity.startsWith(prefix) &&
+      /^(?:[0-9a-f]{40}(?::rebase:[0-9a-f]{24})?|final-unjudged:[0-9a-f]{32})$/.test(
+        identity.slice(prefix.length),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function outcomeMatchesJob(outcome: string, status: string): boolean {

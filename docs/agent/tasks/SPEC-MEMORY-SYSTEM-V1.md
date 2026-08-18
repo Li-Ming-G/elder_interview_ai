@@ -2,9 +2,9 @@
 
 ## 1. 状态与依据
 
-- 状态：REVIEW（T0 / Foundation-Observability 已由 REV-058 接收；PR #65 candidate/local Memory Core 已由 REV-059 接收；PR #66 v1 contract 已接收但在 runtime 前由独立 Correction 标记 `accepted-history/pre-runtime-superseded`。当前进入 `MEMORY-T2-T4-CONTRACT-002`，以前向 v1.1 修订 T2/Foundation、T4/P1、T18-T19/P6 契约；后续 T5-T27 仍未完成）。
+- 状态：REVIEW（T0 / Foundation-Observability、PR #65 candidate/local Memory Core、PR #68 T2-T4/P1 runtime 与 PR #69 P2-A contract 已分别按各自范围接收；当前 v1.2 P1 semantic/trigger correction 仍在 REVIEW，P2-B/C/D、P3/P4 runtime 尚未开始）。
 - 依据：`C:\Users\TR\Downloads\LLM记忆改造.md` 最底部 T0–T27 安排，以及项目正式 `00`–`10` 规范、现有 AI/Memory/QuestionEvidence 契约和最新 handoff。
-- 当前 Memory 基线：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`，merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS。该证据只接收 candidate/local seam，不代表正式 runtime 或真实 provider 已接入。
+- 当前 Memory 基线分层记录：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`、merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS（candidate/local seam）；PR #68 T2-T4/P1 runtime 与 PR #69 P2-A contract 的 accepted/merge/main 事实分别见 REV-060/061、ADR-048/049。上述均不代表 P2 runtime、正式 P3/P4、真实 provider/model 或真实数据已接入。
 
 本文件是实施路线，不把规划内容伪装成正式机器契约。凡涉及表结构、状态枚举、REST/WebSocket、AI Schema 或数据所有权的改动，必须先建立对应正式契约并由项目负责人审查。
 
@@ -21,17 +21,17 @@ Transcript
   -> Question / Continue Listening / System Error
 ```
 
-不新增第二个 Director、planner/critic 或多 Agent 调度层。程序负责确定性触发、权限、事务、预算、状态机和写回；LLM 只负责被正式 Schema 约束的语义判断，不能直接访问或修改数据库。
+不新增第二个 Director、planner/critic 或多 Agent 调度层。P1 只理解当前 session；P2 LLM 负责 Working→Mid 与 session-end Mid/current→Long 的 semantic consolidation；P3/P4 程序化检索与 Context assembly；Director LLM 负责 QUESTION/CONTINUE_LISTENING。程序负责确定性触发、权限、事务、预算、状态机和写回；LLM 只提出被正式 Schema 约束的语义结果，不能直接访问或修改数据库。
 
 ### P1–P6 映射（所有任务/PR 必须标注）
 
 | 层 | 架构职责 | 对应任务 |
 |---|---|---|
 | Foundation / Observability | 跨层诊断、错误可见性、Trace、评价基座 | T0–T1、T26–T27 的观测部分 |
-| P1 | Working Memory Maintainer 与 active thread | T4、T18–T20 的 P1 trigger |
-| P2 | Working→Mid、Park/Resume、Checkpoint、Long | T5–T8、T22 的 P2 后台 |
-| P3 | Embedding + Graph Neighbor Candidate Retrieval | T9–T10 |
-| P4 | Context V2、优先级、budget、membership freeze | T11–T12 |
+| P1 | 当前 session 的 Working Memory Maintainer 与 active thread；不检索 Long | T4、T18–T20 的 P1 trigger |
+| P2 | LLM semantic consolidation：Working→Mid、Park/Resume、Checkpoint、session-end Mid/current→Long | T5–T8、T22 的 P2 后台 |
+| P3 | PostgreSQL + pgvector + provider-neutral embedding adapter；最小 Graph Neighbor candidate retrieval | T9–T10 |
+| P4 | 程序化 Context V2、优先级、可配置 budget、membership freeze | T11–T12 |
 | P5 | Evidence Drill-down、Evidence Gate、Correction | T13–T17、T25 的 evidence/boundary 规则 |
 | P6 | Director/runtime orchestration、generation fence、deadline、evaluation feedback loop | T3、T15、T18–T25、T26–T27 的运行时部分 |
 
@@ -45,10 +45,10 @@ Transcript
 | 1 | T2 数据合同 | 现有 MemoryClaim/Resolution/Evidence | Episode/Fact/Boundary、Working/Mid/Long、Thread Active/Parked、revision/status、evidence membership 契约 | synthetic fixture 可表达来源、状态、revision、关系并可回溯 transcript segment | 先契约后 migration；不引入 Neo4j |
 | 2 | T3 Provider | provider-neutral coordinator、manifest/registry 基座 | 至少一个正式 provider adapter、统一 timeout/structured output/retry/error/provenance | 完全虚构数据完成一次 Director 调用；真实 provider 仅在厂商、model、region、data policy、secret 注入和人工接收齐备后 | 当前父任务仍 BLOCKED；中转站需单独登记 endpoint/region/retention/training/billing |
 | 3 | T4 P1 Working Memory | finalized transcript batch、当前 Working、active thread、session Mid index | Maintainer 候选操作：Episode/Fact/Boundary 与 CONTINUE/BRANCH/RESUME/NEW/DUPLICATE/SUPPLEMENT/RELATED/UNCERTAIN | 阈值/时间触发；同一事件补充更新而非重复创建；只产候选，不直接写库/删记忆/决定问题 | 不逐 segment 调模型；由程序验证并执行操作 |
-| 4 | T5–T8 P2 演化 | Working thread、Mid index、session end | Park/Resume、checkpoint、final flush、post-session Long | A→B→A 可恢复同一 thread；Working 有上限；会后 Long 保留 evidence、不静默覆盖 | Long 仅会后产生；失败不影响 completed/录音 |
-| 5 | T9–T10 P3 Retrieval | Working + recent transcript、active thread、Mid/Long | embedding + graph-neighbor 双路 candidate set（可为空）及来源/分数 | 召回跨 session 相关记忆；不相关候选可全部丢弃；不做 BM25/Intent LLM/Reranker | embedding provider 需独立治理；关系使用普通 SQL |
-| 6 | T11–T12 P4 Context | state/goal、Working、active memory、recent transcript、candidates、boundaries、asked/displayed、bank | `InterviewDirectorContextV2`、优先级与可配置 budget、membership/digest | 高优先级边界/状态不被低优先级内容挤掉；同一冻结 context 可复现 | 旧 V1 保持兼容；不直接切换 runtime 直到正式接收 |
-| 7 | T13–T15 Evidence | memory evidence membership、transcript | `get_memory_evidence`、受限 `search_transcript`、最多一次只读 drill-down | 返回原文片段及邻近上下文；tool 调用最多一轮；无写库/无限循环 | 权限、删除、retention 复用既有契约 |
+| 4 | T5–T8 P2 演化 | Working thread、Mid index、session end | P2 LLM semantic consolidation、Park/Resume、checkpoint、final flush、post-session Long | A→B→A 可恢复同一 thread；Working 有上限；会后 Long 保留 evidence、不静默覆盖 | LLM 只提案；persistence/CAS/revision/evidence/transaction 由程序控制；失败不影响 completed/录音 |
+| 5 | T9–T10 P3 Retrieval | Working + recent transcript、active thread、Mid/Long | PostgreSQL+pgvector embedding 与最小 graph-neighbor candidate set（可为空） | 召回跨 session 相关记忆；不相关候选可全部丢弃；Graph V1 仅 CONTINUATION/RESUME、BRANCH、RELATED | provider-neutral adapter；真实 embedding model DEFERRED；不引入 Neo4j/BM25/Intent LLM/Reranker |
+| 6 | T11–T12 P4 Context | state/goal、Working、active memory、recent transcript、candidates、boundaries、asked/displayed、bank | `InterviewDirectorContextV2`、优先级与可配置 budget、membership/digest | 高优先级边界/状态不被低优先级内容挤掉；同一冻结 context 可复现 | 具体 budget 数值 DEFERRED；`last-40` 不是核心架构；旧 V1 保持兼容 |
+| 7 | T13–T15 Evidence | memory evidence membership、transcript | `get_memory_evidence`、受限 `search_transcript`、最多一次只读 drill-down | 返回原文片段及邻近上下文；最多一次 tool call；工具失败为 SYSTEM_ERROR，不伪装 continue_listening | 权限、删除、retention 复用既有契约；诊断保留 stage/error_code/duration/message |
 | 8 | T16–T17 Gate/Correction | candidate operations、evidence | Episode/Fact/Boundary gate；SUPERSEDED/UNCERTAIN/DISPUTED/REVOKED 非破坏修订 | Fact 默认仅接受长者明确表达；更正保留旧版本和 evidence；Boundary 明确撤回才 REVOKED | 不自动推断 Fact；不覆盖原始录音/转录 |
 | 9 | T18–T24 Runtime | ASR finalized、P1/P2 jobs、Director attempts | buffer→hybrid P1 trigger→automatic gate/manual next→generation fence→deadline/error | 不逐 segment 调 Director；manual next 可绕过自动 20s；旧 generation 不得写回；超时为 SYSTEM_ERROR | 不阻塞录音/ASR；P2 后台不阻塞 Director |
 | 10 | T25 Prompt | V2 context/schema 已稳定 | v2-draft 更新；candidate/version/digest 记录 | 明确 candidates/boundary/evidence/uncertain/continue 语义；仍不可 runtime load，直到正式接收 | 不重命名 v2-draft；不覆盖 v1 |
@@ -79,12 +79,13 @@ T0 记录的是每次 question-orchestration decision/generation attempt，而�
 3. P1 操作候选的正式 JSON Schema、事务验证顺序和幂等键；
 4. Episode/Fact/Boundary 的 authority、同义合并、冲突与撤回权限；
 5. Working/Mid/Long 的容量、checkpoint、park/resume 和最终 flush 触发阈值；
-6. embedding 模型、向量存储、region/retention/training policy、成本上限和可替换接口；
-7. Context budget 的计量单位、优先级、裁剪顺序和 digest 算法；
+6. 真实 embedding model、region/retention/training policy、成本上限；V1 向量存储冻结为 PostgreSQL+pgvector，接口保持 provider-neutral；
+7. Context budget 的具体数值（计量单位、优先级、裁剪顺序和 digest 算法机制可先做可配置接口）；
 8. `SYSTEM_ERROR` 的公开错误码、前端诊断字段和安全日志边界；
-9. 人工评价与固定测试集的版本、隔离存储、审计和禁止写入业务事实的机械约束。
+9. 人工评价与固定测试集的版本、隔离存储、审计和禁止写入业务事实的机械约束；
+10. 真实 LLM provider/model 及 `P1_MODEL`、`P2_MODEL`、`DIRECTOR_MODEL` 的最终绑定。
 
-这些条目在相应阶段前保持 `REVIEW/BLOCKED`，不由实现 Agent 默默猜定。
+这些条目在相应阶段前保持 `REVIEW/BLOCKED` 或 `DEFERRED`，不由实现 Agent 默默猜定；新的产品含义歧义必须上报。
 
 ## 5.1 T0 接收后的实现顺序
 
@@ -101,13 +102,13 @@ T0 记录的是每次 question-orchestration decision/generation attempt，而�
 
 ## 6. NOT V1（明确不做）
 
-Neo4j/Graph Database、Retrieval Reranker LLM、Search Intent LLM、Entity Agent、Temporal Reasoning Agent、无限 Evidence Tool Calling、自动推断 Fact、每个 Transcript Segment 调一次模型、实时语音情绪识别、多 Agent 调度框架、复杂消息队列基础设施。
+Neo4j/完整 Graph Database、除 `CONTINUATION/RESUME`、`BRANCH`、`RELATED` 外的 V1 relation ontology、Retrieval Reranker LLM、Search Intent LLM、Entity Agent、Temporal Reasoning Agent、无限 Evidence Tool Calling、自动推断 Fact、每个 Transcript Segment 调一次模型、实时语音情绪识别、多 Agent 调度框架、复杂消息队列基础设施。
 
 ## 7. 交付与门禁
 
 - 每一阶段至少一个窄 PR；先契约/迁移，再实现和测试；exact-head CI、任务卡、需求追踪、ADR、handoff 同步。
 - 核心架构、数据模型、权限、安全、状态机和跨模块契约必须由项目负责人或独立验收角色明确审查；执行 Agent 不得自行 PASS/DONE/merge。
-- 真实 LLM 只有在 provider/model/region/endpoint、数据政策、DPA/retention/training、secret 注入和完整验证齐备后才可启用；真实长者、PII、生产公网、真实试点继续受现有 BLOCKED 门禁约束。
+- Provider/Model 当前为 `DEFERRED`，不得自行选厂商或模型；保留 `P1_MODEL`、`P2_MODEL`、`DIRECTOR_MODEL`、可选 Base URL/API key/Model ID 的 provider-neutral 配置槽。API key 只能 server-side，不能进前端或 GitHub。真实 LLM 只有在负责人确认 provider/model/region/endpoint、数据政策、DPA/retention/training、secret 注入和完整验证齐备后才可启用；真实长者、PII、生产公网、真实试点继续受现有 BLOCKED 门禁约束。高级 security hardening 与正式 benchmark 后置或 DEFERRED。
 - 任一阶段失败时保留失败历史，不删除测试目标、不用 `continue_listening` 掩盖错误、不覆盖原始录音/转录/授权记录。
 
 ## T0 implementation closeout (REV-058)

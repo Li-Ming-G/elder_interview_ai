@@ -10,9 +10,9 @@
 | T2 | Foundation/Memory Contract | Episode/Fact/Boundary、Working/Mid/Long、Thread、Evidence membership |
 | T3 | Foundation/Provider Runtime | provider-neutral timeout/structured output/retry/provenance seam；不代表真实 provider 放行 |
 | T4 | P1 | Working Memory Maintainer、active thread、候选操作 |
-| T5–T8 | P2 | Mid/Long 演化、Park/Resume、Checkpoint、Final Flush |
-| T9–T10 | P3 | 程序化 Embedding + Graph Neighbor Retrieval |
-| T11–T12 | P4 | Context V2、priority/budget、membership freeze |
+| T5–T8 | P2 | LLM semantic consolidation（Working→Mid、session-end Mid/current→Long）、Park/Resume、Checkpoint、Final Flush；程序控制 persistence/CAS/revision/evidence/transaction |
+| T9–T10 | P3 | PostgreSQL + pgvector + provider-neutral embedding adapter；最小 Graph Neighbor Retrieval |
+| T11–T12 | P4 | 程序化 Context V2、priority、可配置 budget、membership freeze；具体数值 DEFERRED |
 | T13–T17 | P5 | Evidence Drill-down、Evidence Gate、Non-destructive Correction |
 | T18–T25 | P6 | Runtime orchestration、Director、generation fence、deadline、Prompt decision semantics |
 | T26–T27 | Foundation/Observability | 人工评价、固定测试集、跨 P1–P6 的归因 |
@@ -38,8 +38,14 @@ Decision Trace 不保存完整 prompt、Context、transcript 或 provider 原文
 - 查询必须校验 actor、project、session、assignment/consent 和 retention；Trace 只读，不具备修改 Memory、QuestionEvidence 或 Transcript 的权限。
 - Trace 终态使用独立 CAS/immutable fence；重复 request/generation 唯一键幂等；late provider/writeback 不能改写终态 Trace 或业务状态。
 
+## V1 产品负责人补充冻结
+
+- P1 只理解当前 session，不做 Long Memory write-side retrieval；历史 Long 由 P3 检索后供 P4/Director 使用。
+- Graph V1 关系仅为 `CONTINUATION/RESUME`、`BRANCH`、`RELATED`，底层关系行保持 `source_memory_id`、`target_memory_id`、`relation_type` 可扩展；不做完整知识图谱。
+- Evidence V1 仅 `get_memory_evidence` 与 `search_transcript`，每次 Director generation 最多一次 tool call；failure 必须为 `SYSTEM_ERROR`，不降级成 `continue_listening`。
+
 ## 当前实现状态
 
 - 本文件与 `decision-trace-v1.schema.json` 在 T0 提案中；typed references 已进入 schema/fixtures。
-- P1–P5 的真实 membership 表/运行时尚未实现，当前允许 `unavailable/not_started`，不把空集合当作已完成。
-- 真实 LLM、真实长者数据、真实授权、公网和生产试点门禁保持不变。
+- T2-T4/P1 v1.1 runtime 已按 REV-060 的 accepted scope 接收，当前 v1.2 semantic/trigger correction 仍为 REVIEW；P2 runtime、正式 P3/P4/P5 尚未实现，未接层继续使用 `unavailable/not_started`，不把空集合当作已完成。
+- 真实 LLM provider/model、真实 embedding model 与 P4 budget 数值为 `DEFERRED`；真实长者数据、真实授权、公网和生产试点门禁保持不变。

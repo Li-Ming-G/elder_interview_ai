@@ -695,7 +695,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
               {
                 authority: memory.authority,
                 memory_resolution_id: memory.id,
-                memory_type: memory.memoryType,
+                memory_type: directorMemoryType(memory),
                 value: renderMemoryValue(memory.resolvedValue),
                 value_kind: memoryValueKind(memory),
               },
@@ -840,6 +840,14 @@ export function inferDirectorJourneySignals(
     if (memory.memoryType === 'reason_clue') signals.add('context.turning_point');
   }
   return [...signals].sort();
+}
+
+export function directorMemoryType(
+  memory: Pick<CurrentMemoryItem, 'memoryType' | 'semanticKind'>,
+): string {
+  const identity = memory.memoryType ?? memory.semanticKind;
+  if (identity === null) throw new Error('AI_MEMORY_SEMANTIC_IDENTITY_UNAVAILABLE');
+  return identity;
 }
 
 function journeyFacts(signals: readonly JourneyInputSignal[]): readonly QuestionConditionCode[] {

@@ -26,7 +26,7 @@ import {
   SystemMemoryMaintainerClock,
   type MemoryMaintainerRuntimeConfig,
 } from './memory-maintainer.runtime.js';
-import { MemoryMaintainerV11Validator } from './memory-maintainer.validator.js';
+import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
 import { MemoryWorkingSnapshotReader } from './memory-working-snapshot.reader.js';
 
 @Module({})
@@ -47,7 +47,7 @@ export function createMemoryModule(
     contractReviewStatus: 'pass',
     enabled: p1Enabled,
     legacyMemoryExtractEnabled: !p1Enabled,
-    loadedContractVersion: 'memory-maintainer-v1.1',
+    loadedContractVersion: 'memory-maintainer-v1.2',
     minimumUsefulCharacters: 2,
     overlapSegments: 2,
     providerDeadlineMs: 8_000,
@@ -94,7 +94,7 @@ export function createMemoryModule(
       { provide: MemoryMaintainerClock, useExisting: SystemMemoryMaintainerClock },
       NoopMemoryMaintainerFailpoint,
       { provide: MemoryMaintainerFailpoint, useExisting: NoopMemoryMaintainerFailpoint },
-      MemoryMaintainerV11Validator,
+      MemoryMaintainerV12Validator,
       MemoryMaintainerRuntime,
       MemoryWorkingSnapshotReader,
     ],

@@ -32,7 +32,11 @@ export class MemoryWorkingSnapshotReader {
     await this.policy.assertAllowed(actorId, projectId, [sessionId]);
     const snapshots = await this.prisma.memoryWorkingSnapshot.findMany({
       orderBy: [{ committedAt: 'desc' }, { id: 'desc' }],
-      where: { contractVersion: 'memory-maintainer-v1.1', projectId, sourceSessionId: sessionId },
+      where: {
+        contractVersion: { in: ['memory-maintainer-v1.2', 'memory-maintainer-v1.1'] },
+        projectId,
+        sourceSessionId: sessionId,
+      },
     });
     for (const snapshot of snapshots) {
       const [resolutionMembers, threadMembers, boundaryMembers] = await Promise.all([

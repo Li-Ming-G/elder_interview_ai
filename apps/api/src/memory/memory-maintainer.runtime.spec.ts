@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { decideMemoryMaintainerTrigger } from './memory-maintainer.runtime.js';
+import {
+  countUsefulCharacters,
+  decideMemoryMaintainerTrigger,
+} from './memory-maintainer.runtime.js';
 
-describe('Memory Maintainer v1.1 trigger truth', () => {
+describe('Memory Maintainer v1.2 trigger truth', () => {
   for (const [batchReached, timeReached, minimumUseful, expected] of [
     [false, false, false, null],
     [false, false, true, null],
@@ -42,5 +45,15 @@ describe('Memory Maintainer v1.1 trigger truth', () => {
         timeReached: false,
       }),
     ).toBe('session_final_flush');
+  });
+
+  it('counts the selected batch cumulatively after NFKC and Unicode whitespace removal', () => {
+    expect(countUsefulCharacters(['Ａ \n', '\u3000B', '😀'])).toBe(3);
+    expect(countUsefulCharacters(['e\u0301', ' é '])).toBe(2);
+  });
+
+  it('counts Unicode code points rather than UTF-16 code units', () => {
+    expect(countUsefulCharacters(['😀'])).toBe(1);
+    expect(countUsefulCharacters(['👩‍💻'])).toBe(3);
   });
 });

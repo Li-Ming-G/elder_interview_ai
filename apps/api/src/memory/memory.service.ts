@@ -27,10 +27,11 @@ export interface CurrentMemoryItem {
   canonicalKey: string;
   id: string;
   layer: 'working' | 'mid' | 'long' | 'unknown';
-  memoryType: string;
+  memoryType: string | null;
   resolutionKind: string;
   resolutionRevision: number;
   resolvedValue: unknown;
+  semanticKind: 'episode' | 'fact' | null;
 }
 
 @Injectable()
@@ -47,7 +48,7 @@ export class CurrentMemoryReader {
     const policy = await this.policy.assertAllowed(actorId, projectId, []);
     const blockedCanonicalKeys = new Set(policy.blockedCanonicalKeys);
     const rows = await this.prisma.memoryResolution.findMany({
-      orderBy: [{ memoryType: 'asc' }, { canonicalKey: 'asc' }, { id: 'asc' }],
+      orderBy: [{ semanticKind: 'asc' }, { canonicalKey: 'asc' }, { id: 'asc' }],
       where: {
         projectId,
         provenanceState: this.memoryMaintainerConfig.enabled ? 'active' : null,
@@ -66,11 +67,12 @@ export class CurrentMemoryReader {
         authority: row.authority,
         canonicalKey: row.canonicalKey,
         id: row.id,
-        layer: 'unknown',
+        layer: row.layer ?? 'unknown',
         memoryType: row.memoryType,
         resolutionKind: row.resolutionKind,
         resolutionRevision: row.resolutionRevision,
         resolvedValue: row.resolvedValueJson,
+        semanticKind: row.semanticKind,
       });
     }
     return visible;

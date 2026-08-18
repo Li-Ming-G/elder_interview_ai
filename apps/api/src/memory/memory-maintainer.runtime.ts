@@ -13,27 +13,39 @@ import {
   manifestHash,
   sha256,
 } from '../ai-runtime/ai-provenance.js';
-import { DecisionTraceService } from '../ai-runtime/decision-trace.service.js';
+import {
+  DecisionTraceService,
+  countDecisionTraceUsefulCharacters,
+  decisionTraceMemoryTriggerInputHash,
+  decisionTraceMemoryTriggerManifest,
+  type DecisionTraceInput,
+  type DecisionTraceMemoryTriggerObservationInput,
+} from '../ai-runtime/decision-trace.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { AiJob, Prisma, TranscriptSegment } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import {
-  validateMemoryProducerCutover,
   validateMemoryMaintainerRevisionParity,
   type RevisionObservation,
 } from './memory-maintainer-contract-v1-1.js';
 import {
+  countMemoryMaintainerUsefulCharactersV12,
+  validateMemoryProducerCutoverV12,
+} from './memory-maintainer-contract-v1-2.js';
+import {
   MemoryMaintainerProvider,
-  type MemoryMaintainerContextV11,
-  type MemoryMaintainerOperationV11,
-  type MemoryMaintainerOutputV11,
+  type MemoryMaintainerContextV12,
+  type MemoryMaintainerOperationV12,
+  type MemoryMaintainerOutputV12,
   type MemoryMaintainerTriggerKind,
 } from './memory-maintainer.provider.js';
-import { MemoryMaintainerV11Validator } from './memory-maintainer.validator.js';
+import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
 
 export const MEMORY_MAINTAINER_RUNTIME_CONFIG = Symbol('MEMORY_MAINTAINER_RUNTIME_CONFIG');
-const CONTRACT_VERSION = 'memory-maintainer-v1.1';
+const CONTRACT_VERSION = 'memory-maintainer-v1.2';
+const TRIGGER_NAMESPACE = 'memory-p1-v1.2';
+const MAX_CONTEXT_SEGMENTS = 80;
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export interface MemoryMaintainerRuntimeConfig {
@@ -41,7 +53,7 @@ export interface MemoryMaintainerRuntimeConfig {
   contractReviewStatus: 'review' | 'pass';
   enabled: boolean;
   legacyMemoryExtractEnabled: boolean;
-  loadedContractVersion: 'memory-maintainer-v1.1';
+  loadedContractVersion: 'memory-maintainer-v1.2';
   batchThreshold: number;
   timeThresholdMs: number;
   minimumUsefulCharacters: number;
@@ -88,12 +100,26 @@ export class NoopMemoryMaintainerFailpoint extends MemoryMaintainerFailpoint {
 
 interface SelectedBatch {
   actorId: string;
+  cumulativeUsefulCharacters: number;
   newSegments: TranscriptSegment[];
   overlapSegments: TranscriptSegment[];
   projectId: string;
   sessionId: string;
   triggerIdentity: string;
   triggerKind: MemoryMaintainerTriggerKind;
+}
+
+interface SelectedNewSource {
+  actorId: string;
+  cumulativeUsefulCharacters: number;
+  newSegments: TranscriptSegment[];
+  projectId: string;
+  sessionId: string;
+}
+
+interface BatchSelection {
+  batch: SelectedBatch | null;
+  source: SelectedNewSource;
 }
 
 interface PreparedAttempt {
@@ -113,7 +139,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly jobs: AiJobCoordinatorService,
     private readonly provider: MemoryMaintainerProvider,
-    private readonly validator: MemoryMaintainerV11Validator,
+    private readonly validator: MemoryMaintainerV12Validator,
     private readonly traces: DecisionTraceService,
     private readonly realtime: RealtimeRuntimeService,
     private readonly clock: MemoryMaintainerClock,
@@ -128,7 +154,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   public onModuleInit(): void {
     if (!this.config.enabled) return;
-    const cutover = validateMemoryProducerCutover({
+    const cutover = validateMemoryProducerCutoverV12({
       contract_merged: this.config.contractMerged,
       contract_review_status: this.config.contractReviewStatus,
       legacy_memory_extract_enabled: this.config.legacyMemoryExtractEnabled,
@@ -167,7 +193,10 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
       where: {
         jobType: 'working_memory_maintain',
-        triggerDedupeKey: { startsWith: `memory-p1-v1.1:${sessionId}:` },
+        OR: [
+          { triggerDedupeKey: { startsWith: `${TRIGGER_NAMESPACE}:${sessionId}:` } },
+          { triggerDedupeKey: { startsWith: `memory-p1-v1.1:${sessionId}:` } },
+        ],
       },
     });
     if (byIdentity !== null) return byIdentity;
@@ -215,6 +244,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   private async reconcileAll(): Promise<void> {
     await this.terminalizeStaleJobs();
+    await this.reconcileMemoryDecisionTraces();
     const sessions = await this.prisma.transcriptSegment.findMany({
       distinct: ['sessionId'],
       select: { sessionId: true },
@@ -238,45 +268,327 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     for (const job of stale) await this.jobs.failOrphanedSystemJob(job.id);
   }
 
-  private async reconcileSession(sessionId: string, finalFlush: boolean): Promise<void> {
-    const batch = await this.selectBatch(sessionId, finalFlush);
-    if (batch === null) {
-      if (finalFlush) await this.ensureUnjudgedFinal(sessionId);
-      return;
+  private async reconcileMemoryDecisionTraces(): Promise<void> {
+    const candidates = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT j.id
+      FROM ai_job j
+      LEFT JOIN decision_trace t ON t.ai_job_id = j.id
+      WHERE j.job_type = 'working_memory_maintain'
+        AND j.trigger_dedupe_key LIKE ${`${TRIGGER_NAMESPACE}:%`}
+        AND (
+          t.id IS NULL
+          OR (t.status = 'running' AND j.status NOT IN ('pending', 'running'))
+        )
+      ORDER BY j.created_at ASC
+      LIMIT 200
+    `;
+    const jobs = await this.prisma.aiJob.findMany({
+      orderBy: { createdAt: 'asc' },
+      where: { id: { in: candidates.map(({ id }) => id) } },
+    });
+    for (const job of jobs) {
+      const trace = await this.prisma.decisionTrace.findFirst({ where: { aiJobId: job.id } });
+      if (trace === null) {
+        if (['pending', 'running'].includes(job.status)) {
+          await this.recoverFreshMissingMemoryTrace(job.id);
+        } else {
+          await this.repairMissingMemoryTrace(job);
+        }
+        continue;
+      }
+      if (trace.status !== 'running' || ['pending', 'running'].includes(job.status)) continue;
+      const terminal = memoryTraceTerminalProjection(job);
+      await this.traces
+        .finalize(trace.id, {
+          completedAt: job.completedAt ?? new Date(),
+          decisionOutcome: terminal.decisionOutcome,
+          errorCode: terminal.errorCode,
+          stage: 'recovered',
+          status: terminal.status,
+        })
+        .catch((error: unknown) => {
+          if (!(error instanceof Error) || error.message !== 'DECISION_TRACE_TERMINAL_OR_MISSING')
+            throw error;
+        });
     }
-    await this.runBatch(batch);
   }
 
-  private async ensureUnjudgedFinal(sessionId: string): Promise<void> {
-    if ((await this.terminalJobForSession(sessionId)) !== null) return;
-    const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
-    if (session === null || session.status === 'failed') return;
-    const segments = await this.prisma.transcriptSegment.findMany({
-      orderBy: [{ startMs: 'asc' }, { id: 'asc' }],
-      where: { contentKind: 'conversation', sessionId },
+  private async repairMissingMemoryTrace(job: AiJob): Promise<void> {
+    await this.prisma.$transaction((tx) => this.recordMissingMemoryTraceInTransaction(tx, job));
+  }
+
+  private async recoverFreshMissingMemoryTrace(jobId: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM ai_job WHERE id = ${jobId}::uuid FOR UPDATE`;
+      const job = await tx.aiJob.findUnique({ where: { id: jobId } });
+      if (job === null || !['pending', 'running'].includes(job.status)) return;
+      const trace = await tx.decisionTrace.findFirst({ where: { aiJobId: job.id } });
+      if (trace !== null) return;
+      const now = new Date(this.clock.now());
+      const updated = await tx.aiJob.updateMany({
+        data: {
+          completedAt: now,
+          failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+          status: 'failed',
+        },
+        where: { id: job.id, status: { in: ['pending', 'running'] } },
+      });
+      if (updated.count !== 1) return;
+      await this.recordMissingMemoryTraceInTransaction(
+        tx,
+        {
+          ...job,
+          completedAt: now,
+          failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+          status: 'failed',
+        },
+        {
+          decisionOutcome: 'unavailable',
+          errorCode: 'MEMORY_TRACE_PROVENANCE_UNAVAILABLE',
+          status: 'unavailable',
+        },
+      );
     });
-    const manifest = segments.map(
-      (segment) =>
-        `${segment.id}:${String(segment.textRevision)}:${effectiveTextDigest(segment.correctedText ?? segment.originalText)}`,
+  }
+
+  private async recordMissingMemoryTraceInTransaction(
+    tx: Prisma.TransactionClient,
+    job: AiJob,
+    terminalOverride?: {
+      decisionOutcome: 'continue_listening' | 'system_error' | 'unavailable';
+      errorCode: string | null;
+      status: 'cancelled' | 'failed' | 'succeeded' | 'unavailable';
+    },
+  ): Promise<void> {
+    const scope = await tx.aiJobSessionScope.findFirst({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: job.id },
+    });
+    if (scope === null) return;
+    const inputs = await tx.aiJobInputSegment.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: job.id },
+    });
+    const terminal =
+      terminalOverride ??
+      (job.status === 'succeeded'
+        ? {
+            decisionOutcome: 'unavailable' as const,
+            errorCode: 'MEMORY_TRACE_PROVENANCE_UNAVAILABLE',
+            status: 'unavailable' as const,
+          }
+        : memoryTraceTerminalProjection(
+            job,
+            job.failureCode === 'MEMORY_UNJUDGED' ? 'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE' : null,
+          ));
+    await this.traces.recordTerminalInTransaction(
+      tx,
+      {
+        aiJobId: job.id,
+        contextDigest: null,
+        contextRevision: 0,
+        decisionOutcome: terminal.decisionOutcome,
+        directorInvoked: false,
+        generationId: stableUuid(`memory-generation:${job.id}`),
+        inputHash: job.inputHash,
+        ownerActorId: job.requestedBy,
+        projectId: job.projectId,
+        requestId: stableUuid(`memory-trace:${job.id}`),
+        sessionId: scope.sessionId,
+        stage: 'recovered',
+        startedAt: job.startedAt ?? job.createdAt,
+        transcriptMemberships: inputs.map((input) => ({
+          effectiveTextDigest: input.effectiveTextDigest,
+          inputOrder: input.inputOrder,
+          segmentId: input.transcriptSegmentId,
+          speakerRoleRevision: input.speakerRoleRevision,
+          textRevision: input.textRevision,
+        })),
+        triggerType: 'working_memory_maintain',
+        workingRevision: null,
+      },
+      {
+        completedAt: job.completedAt ?? new Date(),
+        decisionOutcome: terminal.decisionOutcome,
+        errorCode: terminal.errorCode,
+        stage: 'recovered',
+        status: terminal.status,
+      },
     );
-    const triggerDedupeKey = `memory-p1-v1.1:${sessionId}:final-unjudged:${sha256(canonicalJson(manifest)).slice(0, 32)}`;
+  }
+
+  private async reconcileSession(sessionId: string, finalFlush: boolean): Promise<void> {
+    const selection = await this.selectBatch(sessionId, finalFlush);
+    if (selection === null) return;
+    if (selection.batch === null) {
+      if (finalFlush) await this.ensureUnjudgedFinal(selection.source);
+      return;
+    }
+    await this.runBatch(selection.batch);
+  }
+
+  private async ensureUnjudgedFinal(source: SelectedNewSource): Promise<void> {
+    const existingTerminal = await this.terminalJobForSession(source.sessionId);
+    if (source.newSegments.length === 0 && existingTerminal !== null) return;
+    const observationMemberships = source.newSegments.map((segment, inputOrder) =>
+      memoryTriggerSegmentObservation(segment, inputOrder),
+    );
+    const triggerDedupeKey = `${TRIGGER_NAMESPACE}:${source.sessionId}:final-unjudged:${decisionTraceMemoryTriggerManifest(observationMemberships).slice(0, 32)}`;
     await this.jobs.recordRejectedSystemJob(
       {
-        actorId: session.createdBy,
+        actorId: source.actorId,
         contextBuilderVersion: CONTRACT_VERSION,
+        exactSegmentIds: source.newSegments.map(({ id }) => id),
         expiresAt: new Date(this.clock.now().getTime() + RETENTION_MS),
         jobType: 'working_memory_maintain',
-        projectId: session.projectId,
+        projectId: source.projectId,
         requestId: stableUuid(`${triggerDedupeKey}:attempt:1`),
-        sessionIds: [sessionId],
+        sessionIds: [source.sessionId],
         triggerDedupeKey,
         trustedRole: 'elder',
+        afterFreeze: async (tx, frozen) => {
+          const frozenMemberships = await this.freezeUnjudgedSource(tx, frozen, source);
+          const observation: DecisionTraceMemoryTriggerObservationInput = {
+            aiJobId: frozen.id,
+            cumulativeUsefulCharacters: frozenMemberships.reduce(
+              (total, membership) => total + membership.usefulCharacterCount,
+              0,
+            ),
+            minimumUsefulCharacters: this.config.minimumUsefulCharacters,
+            selectedNewMemberships: frozenMemberships,
+            selectedNewSegmentCount: frozenMemberships.length,
+            triggerIdentity: triggerDedupeKey,
+            triggerKind: 'session_final_flush',
+          };
+          await this.traces.recordTerminalInTransaction(
+            tx,
+            memoryDecisionTraceInput(frozen, source.sessionId, observation, {
+              decisionOutcome: 'unavailable',
+              gateReason: 'minimum_useful_characters',
+              stage: 'final_flush_gate',
+            }),
+            {
+              decisionOutcome: 'unavailable',
+              errorCode: 'MEMORY_UNJUDGED',
+              stage: 'final_flush_gate',
+              status: 'unavailable',
+            },
+          );
+        },
       },
       'MEMORY_UNJUDGED',
     );
   }
 
-  private async selectBatch(sessionId: string, finalFlush: boolean): Promise<SelectedBatch | null> {
+  private async freezeUnjudgedSource(
+    tx: Prisma.TransactionClient,
+    job: FrozenAiJob,
+    source: SelectedNewSource,
+  ): Promise<DecisionTraceMemoryTriggerObservationInput['selectedNewMemberships']> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`memory-maintainer:${source.sessionId}`}, 0))`;
+    await tx.$queryRaw`SELECT id FROM interview_session WHERE id = ${source.sessionId}::uuid FOR UPDATE`;
+    const segments = await tx.transcriptSegment.findMany({
+      orderBy: [{ startMs: 'asc' }, { id: 'asc' }],
+      where: { contentKind: 'conversation', sessionId: source.sessionId },
+    });
+    const consumed = new Set(
+      (
+        await tx.memoryWorkingConsumption.findMany({
+          select: { transcriptSegmentId: true },
+          where: { sessionId: source.sessionId },
+        })
+      ).map(({ transcriptSegmentId }) => transcriptSegmentId),
+    );
+    const selected = segments
+      .filter(
+        (segment) =>
+          !consumed.has(segment.id) &&
+          projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole === 'elder',
+      )
+      .slice(0, Math.max(0, MAX_CONTEXT_SEGMENTS - Math.max(0, this.config.overlapSegments)));
+    const expected = source.newSegments.map((segment, inputOrder) =>
+      memoryTriggerSegmentObservation(segment, inputOrder),
+    );
+    const frozen = selected.map((segment, inputOrder) =>
+      memoryTriggerSegmentObservation(segment, inputOrder),
+    );
+    if (
+      decisionTraceMemoryTriggerManifest(frozen) !== decisionTraceMemoryTriggerManifest(expected) ||
+      frozen.reduce((sum, item) => sum + item.usefulCharacterCount, 0) !==
+        source.cumulativeUsefulCharacters
+    ) {
+      throw new Error('MEMORY_UNJUDGED_SOURCE_DRIFT');
+    }
+    for (const [inputOrder, segment] of selected.entries()) {
+      const membership = frozen[inputOrder];
+      if (membership === undefined) throw new Error('MEMORY_UNJUDGED_SOURCE_MISSING');
+      const aiJobInputSegmentId = randomUUID();
+      const trustedRole = projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole;
+      if (trustedRole !== 'elder') throw new Error('MEMORY_UNJUDGED_SOURCE_UNTRUSTED');
+      const roleAuthority =
+        segment.correctedSpeakerRole === null ? segment.originalRoleAuthority : 'user_confirmed';
+      await tx.aiJobInputSegment.create({
+        data: {
+          aiJobId: job.id,
+          contentKind: segment.contentKind,
+          effectiveTextDigest: membership.effectiveTextDigest,
+          id: aiJobInputSegmentId,
+          inputOrder,
+          roleAuthority,
+          sessionId: source.sessionId,
+          speakerRoleRevision: membership.speakerRoleRevision,
+          textRevision: membership.textRevision,
+          transcriptSegmentId: membership.transcriptSegmentId,
+          trustedEffectiveRole: trustedRole,
+        },
+      });
+      await tx.memoryMaintenanceInputSegment.create({
+        data: {
+          aiJobId: job.id,
+          aiJobInputSegmentId,
+          id: randomUUID(),
+          inputOrder,
+          membershipKind: 'new',
+          transcriptSegmentId: membership.transcriptSegmentId,
+        },
+      });
+    }
+    const selectedNewManifestHash = decisionTraceMemoryTriggerManifest(frozen);
+    const scopeUpdated = await tx.aiJobSessionScope.updateMany({
+      data: {
+        eligibleSegmentCount: selected.length,
+        scopeReason: 'working_memory_maintain:system_rejection:elder',
+        segmentManifestHash: selectedNewManifestHash,
+      },
+      where: { aiJobId: job.id, sessionId: source.sessionId },
+    });
+    if (scopeUpdated.count !== 1) throw new Error('MEMORY_UNJUDGED_SCOPE_MISSING');
+    const triggerIdentity = `${TRIGGER_NAMESPACE}:${source.sessionId}:final-unjudged:${selectedNewManifestHash.slice(0, 32)}`;
+    const inputHash = decisionTraceMemoryTriggerInputHash({
+      contextBuilderVersion: CONTRACT_VERSION,
+      jobType: 'working_memory_maintain',
+      projectId: source.projectId,
+      selectedNewManifestHash,
+      sessionId: source.sessionId,
+      triggerIdentity,
+    });
+    const inputUpdated = await tx.aiJob.updateMany({
+      data: { inputHash },
+      where: {
+        failureCode: 'MEMORY_UNJUDGED',
+        id: job.id,
+        status: 'cancelled',
+      },
+    });
+    if (inputUpdated.count !== 1) throw new Error('MEMORY_UNJUDGED_JOB_DRIFT');
+    job.inputHash = inputHash;
+    return frozen;
+  }
+
+  private async selectBatch(
+    sessionId: string,
+    finalFlush: boolean,
+  ): Promise<BatchSelection | null> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`memory-maintainer:${sessionId}`}, 0))`;
       const session = await tx.interviewSession.findUnique({ where: { id: sessionId } });
@@ -298,24 +610,33 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           !consumed.has(segment.id) &&
           projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole === 'elder',
       );
-      if (pendingElder.length === 0) return null;
-      const useful = pendingElder.some(
-        (segment) =>
-          normalizeUseful(segment.correctedText ?? segment.originalText).length >=
-          this.config.minimumUsefulCharacters,
+      const maximumNewSegments = Math.max(
+        0,
+        MAX_CONTEXT_SEGMENTS - Math.max(0, this.config.overlapSegments),
       );
-      if (!useful) return null;
-      const oldest = pendingElder[0];
-      if (oldest === undefined) return null;
+      const newSegments = pendingElder.slice(0, maximumNewSegments);
+      const cumulativeUsefulCharacters = countUsefulCharacters(
+        newSegments.map((segment) => segment.correctedText ?? segment.originalText),
+      );
+      const source: SelectedNewSource = {
+        actorId: session.createdBy,
+        cumulativeUsefulCharacters,
+        newSegments,
+        projectId: session.projectId,
+        sessionId,
+      };
+      const oldest = newSegments[0];
+      if (oldest === undefined) return { batch: null, source };
+      const useful = cumulativeUsefulCharacters >= this.config.minimumUsefulCharacters;
+      if (!useful) return { batch: null, source };
       const triggerKind = decideMemoryMaintainerTrigger({
-        batchReached: pendingElder.length >= this.config.batchThreshold,
+        batchReached: newSegments.length >= this.config.batchThreshold,
         finalFlush,
         minimumUseful: useful,
         timeReached:
           this.clock.now().getTime() - oldest.createdAt.getTime() >= this.config.timeThresholdMs,
       });
-      if (triggerKind === null) return null;
-      const newSegments = pendingElder.slice(0, 80 - this.config.overlapSegments);
+      if (triggerKind === null) return { batch: null, source };
       const first = newSegments[0];
       if (first === undefined) return null;
       const overlapSegments = segments
@@ -331,15 +652,19 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         (segment) =>
           `${segment.id}:${String(segment.textRevision)}:${effectiveTextDigest(segment.correctedText ?? segment.originalText)}`,
       );
-      const triggerIdentity = `memory-p1-v1.1:${sessionId}:${sha256(canonicalJson(identityManifest)).slice(0, 40)}`;
+      const triggerIdentity = `${TRIGGER_NAMESPACE}:${sessionId}:${sha256(canonicalJson(identityManifest)).slice(0, 40)}`;
       return {
-        actorId: session.createdBy,
-        newSegments,
-        overlapSegments,
-        projectId: session.projectId,
-        sessionId,
-        triggerIdentity,
-        triggerKind,
+        batch: {
+          actorId: session.createdBy,
+          cumulativeUsefulCharacters,
+          newSegments,
+          overlapSegments,
+          projectId: session.projectId,
+          sessionId,
+          triggerIdentity,
+          triggerKind,
+        },
+        source,
       };
     });
   }
@@ -384,33 +709,42 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
             },
           });
         }
+        const triggerObservation = memoryTriggerObservation(
+          frozen,
+          batch,
+          triggerIdentity,
+          this.config.minimumUsefulCharacters,
+        );
+        const activeThread = await tx.memoryThreadRevision.findFirst({
+          select: { threadId: true },
+          where: { sourceSessionId: batch.sessionId, status: 'active', supersededAt: null },
+        });
+        await this.traces.beginInTransaction(
+          tx,
+          memoryDecisionTraceInput(frozen, batch.sessionId, triggerObservation, {
+            activeThreadId: activeThread?.threadId ?? null,
+            decisionOutcome: 'continue_listening',
+            stage: 'prepare',
+          }),
+        );
       },
     });
     if (job.replayed) return;
+    const triggerObservation = memoryTriggerObservation(
+      job,
+      batch,
+      triggerIdentity,
+      this.config.minimumUsefulCharacters,
+    );
+    const trace = await this.prisma.decisionTrace.findFirstOrThrow({
+      select: { id: true },
+      where: { aiJobId: job.id },
+    });
     await this.failpoint.hit('after_freeze');
-    const context = await this.buildContext(job, batch.triggerKind, triggerIdentity);
+    const context = await this.buildContext(job, batch, triggerObservation);
     const validatedContext = this.validator.validateContext(context);
-    const trace = await this.traces.begin({
-      activeThreadId: validatedContext.active_thread?.thread_id ?? null,
-      aiJobId: job.id,
+    await this.traces.attachReferences(trace.id, {
       contextDigest: sha256(canonicalJson(validatedContext)),
-      contextRevision: 1,
-      decisionOutcome: 'continue_listening',
-      directorInvoked: false,
-      inputHash: job.inputHash,
-      ownerActorId: job.requestedBy,
-      projectId: job.projectId,
-      requestId: stableUuid(`memory-trace:${job.id}`),
-      sessionId: batch.sessionId,
-      transcriptMemberships: validatedContext.transcript_membership.map((segment, inputOrder) => ({
-        effectiveTextDigest: segment.effective_text_digest,
-        inputOrder,
-        segmentId: segment.segment_id,
-        speakerRoleRevision: segment.speaker_role_revision,
-        textRevision: segment.text_revision,
-      })),
-      triggerType: 'working_memory_maintain',
-      workingRevision: null,
     });
     this.assertRevisionParity(
       job,
@@ -487,7 +821,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     {
       canonicalKey: string;
       id: string;
-      memoryType: string;
       resolutionRevision: number;
       semanticKind: string | null;
       semanticStatus: string | null;
@@ -499,7 +832,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       select: {
         canonicalKey: true,
         id: true,
-        memoryType: true,
         resolutionRevision: true,
         semanticKind: true,
         semanticStatus: true,
@@ -519,9 +851,9 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   private async buildContext(
     job: FrozenAiJob,
-    triggerKind: MemoryMaintainerTriggerKind,
-    triggerIdentity: string,
-  ): Promise<MemoryMaintainerContextV11> {
+    batch: SelectedBatch,
+    triggerObservation: DecisionTraceMemoryTriggerObservationInput,
+  ): Promise<MemoryMaintainerContextV12> {
     const inputKinds = await this.prisma.memoryMaintenanceInputSegment.findMany({
       where: { aiJobId: job.id },
     });
@@ -559,8 +891,14 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       },
     });
     return {
-      context_schema_version: 'memory-maintainer-context-v1.1',
-      trigger: { identity: triggerIdentity, kind: triggerKind },
+      context_schema_version: 'memory-maintainer-context-v1.2',
+      trigger: {
+        cumulative_useful_characters: triggerObservation.cumulativeUsefulCharacters,
+        identity: triggerObservation.triggerIdentity,
+        kind: triggerObservation.triggerKind,
+        minimum_useful_characters: triggerObservation.minimumUsefulCharacters,
+        selected_new_segment_count: triggerObservation.selectedNewSegmentCount,
+      },
       transcript_membership: job.segments.map((segment) => {
         if (
           segment.textRevision === undefined ||
@@ -614,7 +952,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
               value_kind: claim.valueKind,
             };
           }),
-          memory_type: resolution.memoryType,
+          memory_tag: resolution.memoryType,
           resolution_id: resolution.id,
           resolution_kind: resolution.resolutionKind,
           resolution_status: 'current' as const,
@@ -643,7 +981,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   private assertRevisionParity(
     job: FrozenAiJob,
-    context: MemoryMaintainerContextV11,
+    context: MemoryMaintainerContextV12,
     trace: readonly RevisionObservation[],
   ): void {
     const database = job.segments.map((segment) => ({
@@ -665,8 +1003,8 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   private async writeBack(
     job: FrozenAiJob,
     batch: SelectedBatch,
-    context: MemoryMaintainerContextV11,
-    output: MemoryMaintainerOutputV11,
+    context: MemoryMaintainerContextV12,
+    output: MemoryMaintainerOutputV12,
   ): Promise<void> {
     await this.jobs.writeBack(job, async (tx) => {
       await this.failpoint.hit('during_writeback');
@@ -708,7 +1046,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   private async assertContextAuthorityCurrent(
     tx: Prisma.TransactionClient,
     job: FrozenAiJob,
-    context: MemoryMaintainerContextV11,
+    context: MemoryMaintainerContextV12,
   ): Promise<void> {
     for (const memory of context.current_working_memory) {
       const current = await tx.memoryResolution.findUnique({ where: { id: memory.resolution_id } });
@@ -719,7 +1057,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         current.provenanceState !== 'active' ||
         current.layer !== 'working' ||
         current.canonicalKey !== memory.canonical_key ||
-        current.memoryType !== memory.memory_type ||
         current.semanticKind !== memory.semantic_kind ||
         current.semanticStatus !== memory.semantic_status ||
         current.resolutionRevision !== memory.revision ||
@@ -755,8 +1092,8 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     tx: Prisma.TransactionClient,
     job: FrozenAiJob,
     batch: SelectedBatch,
-    context: MemoryMaintainerContextV11,
-    operations: readonly MemoryMaintainerOperationV11[],
+    context: MemoryMaintainerContextV12,
+    operations: readonly MemoryMaintainerOperationV12[],
   ): Promise<void> {
     const inputBySegment = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
     const touchedTargets = new Set<string>();
@@ -765,7 +1102,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       if (operation.kind === 'DUPLICATE') continue;
       const state = operation.proposed_state;
       if (state === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
-      const slot = `${state.semantic_kind}:${state.memory_type}:${state.canonical_key}`;
+      const slot = `${state.semantic_kind}:${state.canonical_key}`;
       if (semanticSlots.has(slot)) throw new Error('MEMORY_BATCH_SEMANTIC_SLOT_DUPLICATE');
       semanticSlots.add(slot);
       const target =
@@ -784,7 +1121,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           target.provenanceState !== 'active' ||
           target.authority === 'human_confirmed' ||
           target.canonicalKey !== state.canonical_key ||
-          target.memoryType !== state.memory_type ||
           target.semanticKind !== state.semantic_kind ||
           target.threadId !== operation.anchor_thread_id ||
           target.resolutionRevision !== operation.expected_resolution_revision ||
@@ -864,7 +1200,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           canonicalKey: state.canonical_key,
           id: resolutionId,
           layer: 'working',
-          memoryType: state.memory_type,
+          memoryType: state.memory_tag ?? null,
           projectId: job.projectId,
           provenanceState: 'active',
           resolutionKind: state.resolution_kind,
@@ -912,7 +1248,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     tx: Prisma.TransactionClient,
     job: FrozenAiJob,
     sessionId: string,
-    operation: MemoryMaintainerOperationV11,
+    operation: MemoryMaintainerOperationV12,
     topicKey: string,
     targetThreadId: string | null,
   ): Promise<string> {
@@ -1007,8 +1343,8 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     job: FrozenAiJob,
     batch: SelectedBatch,
     threadId: string,
-    state: NonNullable<MemoryMaintainerOperationV11['proposed_state']>,
-    claim: NonNullable<MemoryMaintainerOperationV11['proposed_state']>['claims'][number],
+    state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
+    claim: NonNullable<MemoryMaintainerOperationV12['proposed_state']>['claims'][number],
     inputBySegment: ReadonlyMap<string, FrozenAiJob['segments'][number]>,
   ): Promise<string> {
     const evidence = claim.evidence_segment_ids.map((segmentId) => {
@@ -1046,7 +1382,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         explicitCorrection: false,
         id: claimId,
         layer: 'working',
-        memoryType: state.memory_type,
+        memoryType: state.memory_tag ?? null,
         normalizedValueDigest: sha256(canonicalJson(valueJson)),
         projectId: job.projectId,
         provenanceState: 'active',
@@ -1083,7 +1419,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     tx: Prisma.TransactionClient,
     job: FrozenAiJob,
     batch: SelectedBatch,
-    output: MemoryMaintainerOutputV11,
+    output: MemoryMaintainerOutputV12,
   ): Promise<void> {
     const inputs = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
     for (const candidate of output.boundary_candidates) {
@@ -1248,8 +1584,164 @@ function stableUuid(value: string): string {
   return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex.slice(12, 16).join('')}-${hex.slice(16, 20).join('')}-${hex.slice(20).join('')}`;
 }
 
-function normalizeUseful(value: string): string {
-  return value.replaceAll(/\s+/gu, '').trim();
+function memoryTriggerSegmentObservation(
+  segment: Pick<
+    TranscriptSegment,
+    'id' | 'textRevision' | 'speakerRoleRevision' | 'correctedText' | 'originalText'
+  >,
+  inputOrder: number,
+): DecisionTraceMemoryTriggerObservationInput['selectedNewMemberships'][number] {
+  const text = segment.correctedText ?? segment.originalText;
+  return {
+    effectiveTextDigest: effectiveTextDigest(text),
+    inputOrder,
+    speakerRoleRevision: segment.speakerRoleRevision,
+    textRevision: segment.textRevision,
+    transcriptSegmentId: segment.id,
+    usefulCharacterCount: countDecisionTraceUsefulCharacters(text),
+  };
+}
+
+function memoryTriggerObservation(
+  job: FrozenAiJob,
+  batch: SelectedBatch,
+  triggerIdentity: string,
+  minimumUsefulCharacters: number,
+): DecisionTraceMemoryTriggerObservationInput {
+  const frozenById = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
+  const selectedNewMemberships = batch.newSegments.map((selected, inputOrder) => {
+    const segment = frozenById.get(selected.id);
+    if (
+      segment === undefined ||
+      segment.textRevision === undefined ||
+      segment.speakerRoleRevision === undefined ||
+      segment.effectiveTextDigest === undefined ||
+      segment.trustedRole !== 'elder'
+    ) {
+      throw new Error('MEMORY_TRIGGER_OBSERVATION_SOURCE_MISSING');
+    }
+    return {
+      effectiveTextDigest: segment.effectiveTextDigest,
+      inputOrder,
+      speakerRoleRevision: segment.speakerRoleRevision,
+      textRevision: segment.textRevision,
+      transcriptSegmentId: segment.segmentId,
+      usefulCharacterCount: countDecisionTraceUsefulCharacters(segment.text),
+    };
+  });
+  return {
+    aiJobId: job.id,
+    cumulativeUsefulCharacters: selectedNewMemberships.reduce(
+      (total, membership) => total + membership.usefulCharacterCount,
+      0,
+    ),
+    minimumUsefulCharacters,
+    selectedNewMemberships,
+    selectedNewSegmentCount: selectedNewMemberships.length,
+    triggerIdentity,
+    triggerKind: batch.triggerKind,
+  };
+}
+
+function memoryDecisionTraceInput(
+  job: FrozenAiJob,
+  sessionId: string,
+  observation: DecisionTraceMemoryTriggerObservationInput,
+  options: {
+    activeThreadId?: string | null;
+    decisionOutcome: 'continue_listening' | 'unavailable';
+    gateReason?: string | null;
+    stage: string;
+  },
+): DecisionTraceInput {
+  const frozenById = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
+  const transcriptMemberships =
+    job.segments.length > 0
+      ? job.segments.map((segment, inputOrder) => {
+          if (
+            segment.effectiveTextDigest === undefined ||
+            segment.speakerRoleRevision === undefined ||
+            segment.textRevision === undefined
+          ) {
+            throw new Error('MEMORY_FROZEN_REVISION_REQUIRED');
+          }
+          return {
+            effectiveTextDigest: segment.effectiveTextDigest,
+            inputOrder,
+            segmentId: segment.segmentId,
+            speakerRoleRevision: segment.speakerRoleRevision,
+            textRevision: segment.textRevision,
+          };
+        })
+      : observation.selectedNewMemberships.map((membership) => {
+          const frozen = frozenById.get(membership.transcriptSegmentId);
+          return {
+            effectiveTextDigest: membership.effectiveTextDigest,
+            inputOrder: membership.inputOrder,
+            segmentId: membership.transcriptSegmentId,
+            speakerRoleRevision: frozen?.speakerRoleRevision ?? membership.speakerRoleRevision,
+            textRevision: frozen?.textRevision ?? membership.textRevision,
+          };
+        });
+  return {
+    activeThreadId: options.activeThreadId ?? null,
+    aiJobId: job.id,
+    contextDigest: null,
+    contextRevision: options.stage === 'final_flush_gate' ? 0 : 1,
+    decisionOutcome: options.decisionOutcome,
+    directorInvoked: false,
+    gateReason: options.gateReason ?? null,
+    generationId: stableUuid(`memory-generation:${job.id}`),
+    inputHash: job.inputHash,
+    memoryTriggerObservation: observation,
+    ownerActorId: job.requestedBy,
+    projectId: job.projectId,
+    requestId: stableUuid(`memory-trace:${job.id}`),
+    sessionId,
+    stage: options.stage,
+    transcriptMemberships,
+    triggerType: 'working_memory_maintain',
+    workingRevision: null,
+  };
+}
+
+function memoryTraceTerminalProjection(
+  job: Pick<AiJob, 'failureCode' | 'status'>,
+  provenanceError: string | null = null,
+): {
+  decisionOutcome: 'continue_listening' | 'system_error' | 'unavailable';
+  errorCode: string | null;
+  status: 'cancelled' | 'failed' | 'succeeded' | 'unavailable';
+} {
+  if (job.status === 'succeeded') {
+    return { decisionOutcome: 'continue_listening', errorCode: null, status: 'succeeded' };
+  }
+  if (job.status === 'cancelled' && job.failureCode === 'MEMORY_UNJUDGED') {
+    return {
+      decisionOutcome: 'unavailable',
+      errorCode: provenanceError ?? 'MEMORY_UNJUDGED',
+      status: 'unavailable',
+    };
+  }
+  if (job.status === 'cancelled') {
+    return {
+      decisionOutcome: 'unavailable',
+      errorCode: provenanceError ?? job.failureCode,
+      status: 'cancelled',
+    };
+  }
+  return {
+    decisionOutcome: 'system_error',
+    errorCode: provenanceError ?? job.failureCode ?? 'SYSTEM_COORDINATOR_RESTARTED',
+    status: 'failed',
+  };
+}
+
+export function countUsefulCharacters(values: readonly string[]): number {
+  return values.reduce(
+    (total, value) => total + countMemoryMaintainerUsefulCharactersV12(value),
+    0,
+  );
 }
 
 export function decideMemoryMaintainerTrigger(input: {

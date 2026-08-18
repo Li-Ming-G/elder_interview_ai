@@ -660,13 +660,36 @@ export class AiJobCoordinatorService {
     const actualQuestionIds = [...new Set(request.actualQuestionIds ?? [])];
     const triggerDedupeKey = request.triggerDedupeKey;
     if (triggerDedupeKey === undefined) throw new Error('AI_SYSTEM_TRIGGER_REQUIRED');
+    const requestIdentityHash = this.requestIdentityHash(
+      request,
+      sessionIds,
+      memoryIds,
+      actualQuestionIds,
+    );
     return this.prisma.$transaction(async (tx) => {
       await this.lock(tx, `request:${request.requestId}`);
       await this.lock(tx, `trigger:${triggerDedupeKey}`);
       const existing = await tx.aiJob.findFirst({
         where: { OR: [{ requestId: request.requestId }, { triggerDedupeKey }] },
       });
-      if (existing !== null) return this.hydrateReplay(tx, existing.id);
+      if (existing !== null) {
+        const isSystemRejection =
+          existing.contextBuilderVersion === 'system-rejection-v1' &&
+          existing.promptVersion === 'system-rejection-v1' &&
+          existing.schemaVersion === 'system-rejection-v1';
+        if (
+          isSystemRejection &&
+          (existing.requestIdentityHash !== requestIdentityHash ||
+            existing.projectId !== request.projectId ||
+            existing.requestedBy !== request.actorId ||
+            existing.jobType !== request.jobType ||
+            existing.triggerDedupeKey !== triggerDedupeKey ||
+            existing.failureCode !== failureCode.slice(0, 80))
+        ) {
+          throw new Error('AI_REQUEST_IDENTITY_CONFLICT');
+        }
+        return this.hydrateReplay(tx, existing.id);
+      }
       const project = await tx.elderProject.findUnique({ where: { id: request.projectId } });
       const sessions = await tx.interviewSession.findMany({
         include: {
@@ -690,12 +713,7 @@ export class AiJobCoordinatorService {
           policyRevision: project.aiPolicyRevision,
           promptVersion: 'system-rejection-v1',
           projectId: request.projectId,
-          requestIdentityHash: this.requestIdentityHash(
-            request,
-            sessionIds,
-            memoryIds,
-            actualQuestionIds,
-          ),
+          requestIdentityHash,
           requestId: request.requestId,
           requestedBy: request.actorId,
           retentionPolicyVersion: project.aiRetentionPolicyVersion,
@@ -726,7 +744,9 @@ export class AiJobCoordinatorService {
           },
         });
       }
-      return this.hydrateReplay(tx, created.id);
+      const frozen = await this.hydrateReplay(tx, created.id);
+      await request.afterFreeze?.(tx, frozen);
+      return frozen;
     });
   }
 
