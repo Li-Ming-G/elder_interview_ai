@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { PrismaService } from '../database/prisma.service.js';
-import { AiJobCoordinatorService, type FrozenAiJob } from './ai-job-coordinator.service.js';
+import {
+  AiJobCoordinatorService,
+  type FreezeAiJobRequest,
+  type FrozenAiJob,
+} from './ai-job-coordinator.service.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
 import { AiPolicyService } from './ai-policy.service.js';
 
@@ -59,6 +63,131 @@ describe('question generation same-input retry budget', () => {
 
     expect(assertAllowed).toHaveBeenCalledTimes(2);
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('system rejection replay identity', () => {
+  it('allows a new request id for the same trigger but rejects changed source membership', async () => {
+    const request = {
+      actorId: '33333333-3333-4333-8333-333333333333',
+      exactSegmentIds: ['55555555-5555-4555-8555-555555555555'],
+      expiresAt: new Date('2030-01-02T00:00:00.000Z'),
+      jobType: 'working_memory_maintain',
+      projectId: '22222222-2222-4222-8222-222222222222',
+      requestId: 'new-request-id',
+      sessionIds: ['44444444-4444-4444-8444-444444444444'],
+      triggerDedupeKey: 'memory-p1-v1.2:session:final-unjudged:0123456789abcdef0123456789abcdef',
+      trustedRole: 'elder',
+    } satisfies FreezeAiJobRequest;
+    const transaction = vi.fn((callback: (tx: unknown) => unknown) => callback(tx));
+    const prisma = { $transaction: transaction } as unknown as PrismaService;
+    const coordinator = new AiJobCoordinatorService(
+      prisma,
+      {} as AiPolicyService,
+      {} as AiOutputEligibilityService,
+    );
+    const requestIdentityHash = (
+      coordinator as unknown as {
+        requestIdentityHash: (
+          value: FreezeAiJobRequest,
+          sessionIds: readonly string[],
+          memoryIds: readonly string[],
+          actualQuestionIds: readonly string[],
+        ) => string;
+      }
+    ).requestIdentityHash(request, request.sessionIds, [], []);
+    const existing = {
+      contextBuilderVersion: 'system-rejection-v1',
+      failureCode: 'MEMORY_UNJUDGED',
+      id: '11111111-1111-4111-8111-111111111111',
+      inputHash: 'a'.repeat(64),
+      jobType: request.jobType,
+      policyRevision: 0,
+      promptVersion: 'system-rejection-v1',
+      projectId: request.projectId,
+      requestId: 'old-request-id',
+      requestIdentityHash,
+      requestedBy: request.actorId,
+      retentionPolicyVersion: 1,
+      schemaVersion: 'system-rejection-v1',
+      status: 'cancelled',
+      triggerDedupeKey: request.triggerDedupeKey,
+    };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      aiJob: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        findUniqueOrThrow: vi.fn().mockResolvedValue(existing),
+      },
+      aiJobInputActualQuestion: { findMany: vi.fn().mockResolvedValue([]) },
+      aiJobSessionScope: {
+        findMany: vi.fn().mockResolvedValue([{ sessionId: request.sessionIds[0] }]),
+      },
+    };
+
+    await expect(
+      coordinator.recordRejectedSystemJob(request, 'MEMORY_UNJUDGED'),
+    ).resolves.toMatchObject({ id: existing.id, replayed: true });
+    await expect(
+      coordinator.recordRejectedSystemJob(
+        { ...request, exactSegmentIds: ['66666666-6666-4666-8666-666666666666'] },
+        'MEMORY_UNJUDGED',
+      ),
+    ).rejects.toThrow('AI_REQUEST_IDENTITY_CONFLICT');
+  });
+
+  it('keeps legacy hydration for a stale job created by the normal freeze path', async () => {
+    const request = {
+      actorId: '33333333-3333-4333-8333-333333333333',
+      exactSegmentIds: ['55555555-5555-4555-8555-555555555555'],
+      expiresAt: new Date('2030-01-02T00:00:00.000Z'),
+      jobType: 'question_generate',
+      projectId: '22222222-2222-4222-8222-222222222222',
+      requestId: 'question-request-id',
+      sessionIds: ['44444444-4444-4444-8444-444444444444'],
+      triggerDedupeKey: 'question-opening:consumer-session',
+      trustedRole: 'elder',
+    } satisfies FreezeAiJobRequest;
+    const existing = {
+      contextBuilderVersion: 'interview-context-v1.1',
+      failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+      id: '11111111-1111-4111-8111-111111111112',
+      inputHash: 'a'.repeat(64),
+      jobType: request.jobType,
+      policyRevision: 0,
+      promptVersion: 'interview-director-prompt-v1',
+      projectId: request.projectId,
+      requestId: request.requestId,
+      requestIdentityHash: 'b'.repeat(64),
+      requestedBy: request.actorId,
+      retentionPolicyVersion: 1,
+      schemaVersion: 'question-director-output-v1',
+      status: 'failed',
+      triggerDedupeKey: request.triggerDedupeKey,
+    };
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      aiJob: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        findUniqueOrThrow: vi.fn().mockResolvedValue(existing),
+      },
+      aiJobInputActualQuestion: { findMany: vi.fn().mockResolvedValue([]) },
+      aiJobSessionScope: {
+        findMany: vi.fn().mockResolvedValue([{ sessionId: request.sessionIds[0] }]),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (value: unknown) => unknown) => callback(tx)),
+    } as unknown as PrismaService;
+    const coordinator = new AiJobCoordinatorService(
+      prisma,
+      {} as AiPolicyService,
+      {} as AiOutputEligibilityService,
+    );
+
+    await expect(
+      coordinator.recordRejectedSystemJob(request, 'QUESTION_OPENING_UNAVAILABLE'),
+    ).resolves.toMatchObject({ id: existing.id, replayed: true, status: 'failed' });
   });
 });
 

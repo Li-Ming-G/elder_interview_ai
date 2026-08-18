@@ -1,6 +1,6 @@
 # MEMORY-T5-T8-P2-A-CONTRACT-001
 
-状态：`REVIEW`
+状态：`DONE / PASS / CONTRACT ONLY`
 
 ## 基线与范围
 
@@ -19,4 +19,11 @@ The first complete candidate (`8d48cd5` / CI `32028717254`) received independent
 
 The next candidate `bd299fb` / CI `32037158715` received a further independent `REQUEST_CHANGES` (P0=0/P1=4): cross-session Long source-set semantics, duplicate claim/layer identifiers, terminal reference conditions, and Trace member-manifest canonical parity. A second narrow correction is required before the same gates can close.
 
-The second correction is accepted for code review at exact head `fd31cd5587a6feeee888678a26b2c799a373b73f` / CI `32040317089` SUCCESS, with independent code result P0=0/P1=0. A docs-only governance sync remains before task acceptance because earlier text still said the fix was unpushed; no P2-B implementation starts before that record gate.
+The second correction was reviewed at exact head `fd31cd5587a6feeee888678a26b2c799a373b73f` / CI `32040317089` SUCCESS with code P0=0/P1=0. The first docs-only sync `34257b0` / CI `32041643087` still left two dynamic indexes stale; the final batched sync produced accepted exact head `042ec56f2b0362679bf240fcced95c61be77141f` / CI `32042589647` SUCCESS. Independent final review returned PASS P0=0/P1=0/P2=0; formal comment `5317377208` bound the same object. PR #69 merged as `d50e56886723de41f3fccf38a9d76b5b70541b32`, and main CI `32042952178` completed SUCCESS. This acceptance remains contract-only and does not start P2-B/C/D.
+
+## 后续 P2-B/C/D 产品负责人边界
+
+- P2 runtime 必须调用 LLM 做 semantic consolidation：Working→Mid，以及 session end 的 Mid/current→Long；不得实现为纯机械 persistence。
+- LLM 只提出结构化语义整理结果；persistence、CAS、revision、evidence、状态变更和 transaction 由程序控制，LLM 不直接访问或修改数据库。
+- 真实 provider/model 当前 `DEFERRED`；可继续 provider-neutral contract/runtime framework 与 fake/local provider，但不得自行选择厂商或模型。P2 使用独立 `P2_MODEL` 配置槽。
+- 本节只冻结后续职责，不扩大 PR #69 的 `CONTRACT ONLY` 接收范围，父任务继续 `REVIEW`。

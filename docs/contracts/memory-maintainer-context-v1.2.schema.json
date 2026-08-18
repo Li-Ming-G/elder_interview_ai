@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/memory-maintainer-context-v1.2.schema.json",
+  "title": "MemoryMaintainerContextV1_2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_schema_version",
+    "trigger",
+    "transcript_membership",
+    "active_thread",
+    "current_working_memory",
+    "session_mid_index",
+    "active_boundaries"
+  ],
+  "properties": {
+    "context_schema_version": { "const": "memory-maintainer-context-v1.2" },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identity",
+        "selected_new_segment_count",
+        "cumulative_useful_characters",
+        "minimum_useful_characters"
+      ],
+      "properties": {
+        "kind": { "enum": ["batch_threshold", "time_threshold", "session_final_flush"] },
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^memory-p1-v1\\.2:"
+        },
+        "selected_new_segment_count": { "type": "integer", "minimum": 1, "maximum": 80 },
+        "cumulative_useful_characters": { "type": "integer", "minimum": 1 },
+        "minimum_useful_characters": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "transcript_membership": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 80,
+      "contains": {
+        "type": "object",
+        "required": ["membership_kind", "trusted_role", "content_kind"],
+        "properties": {
+          "membership_kind": { "const": "new" },
+          "trusted_role": { "const": "elder" },
+          "content_kind": { "const": "conversation" }
+        }
+      },
+      "minContains": 1,
+      "items": { "$ref": "#/$defs/transcriptMembership" }
+    },
+    "active_thread": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/threadReference" }]
+    },
+    "current_working_memory": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/workingMemory" }
+    },
+    "session_mid_index": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/memoryReference" }
+    },
+    "active_boundaries": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/boundaryReference" }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memoryTag": {
+      "enum": [
+        "person",
+        "relationship",
+        "place",
+        "event",
+        "time",
+        "time_range",
+        "important_choice",
+        "reason_clue",
+        "unfinished_story"
+      ]
+    },
+    "optionalMemoryTag": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/memoryTag" }]
+    },
+    "valueKind": { "enum": ["exact", "range", "unknown"] },
+    "memorySemanticStatus": { "enum": ["current", "uncertain", "disputed"] },
+    "memoryResolutionStatus": { "enum": ["current", "pending_review", "superseded"] },
+    "memoryResolutionKind": { "enum": ["single", "range", "unknown", "conflict_set"] },
+    "transcriptMembership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment_id",
+        "session_id",
+        "membership_kind",
+        "start_ms",
+        "text",
+        "trusted_role",
+        "text_revision",
+        "speaker_role_revision",
+        "effective_text_digest",
+        "content_kind"
+      ],
+      "properties": {
+        "segment_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "membership_kind": { "enum": ["new", "overlap"] },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "trusted_role": { "enum": ["elder", "interviewer"] },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "$ref": "#/$defs/digest" },
+        "content_kind": { "const": "conversation" }
+      }
+    },
+    "threadReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_id", "revision", "status", "topic_key"],
+      "properties": {
+        "thread_id": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["active", "parked"] },
+        "topic_key": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "claimReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "value_kind", "value"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/uuid" },
+        "value_kind": { "$ref": "#/$defs/valueKind" },
+        "value": true
+      }
+    },
+    "workingMemory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolution_id",
+        "revision",
+        "thread_id",
+        "semantic_kind",
+        "canonical_key",
+        "value_kind",
+        "value",
+        "resolution_kind",
+        "semantic_status",
+        "resolution_status",
+        "claims"
+      ],
+      "properties": {
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "thread_id": { "$ref": "#/$defs/uuid" },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "memory_tag": { "$ref": "#/$defs/optionalMemoryTag" },
+        "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "value_kind": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/valueKind" }]
+        },
+        "value": true,
+        "resolution_kind": { "$ref": "#/$defs/memoryResolutionKind" },
+        "semantic_status": { "$ref": "#/$defs/memorySemanticStatus" },
+        "resolution_status": { "const": "current" },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/claimReference" }
+        }
+      },
+      "allOf": [{ "$ref": "#/$defs/resolutionSemantics" }]
+    },
+    "memoryReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolution_id",
+        "revision",
+        "thread_id",
+        "thread_revision",
+        "canonical_key",
+        "semantic_kind",
+        "value_kind",
+        "resolution_kind",
+        "semantic_status",
+        "resolution_status",
+        "membership_digest"
+      ],
+      "properties": {
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "thread_id": { "$ref": "#/$defs/uuid" },
+        "thread_revision": { "type": "integer", "minimum": 1 },
+        "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "memory_tag": { "$ref": "#/$defs/optionalMemoryTag" },
+        "value_kind": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/valueKind" }]
+        },
+        "resolution_kind": { "$ref": "#/$defs/memoryResolutionKind" },
+        "semantic_status": { "$ref": "#/$defs/memorySemanticStatus" },
+        "resolution_status": { "$ref": "#/$defs/memoryResolutionStatus" },
+        "membership_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "resolutionSemantics": {
+      "if": {
+        "properties": { "semantic_status": { "const": "disputed" } },
+        "required": ["semantic_status"]
+      },
+      "then": {
+        "properties": {
+          "resolution_kind": { "const": "conflict_set" },
+          "value_kind": { "type": "null" },
+          "value": { "type": "null" },
+          "claims": { "type": "array", "minItems": 2 }
+        }
+      },
+      "else": {
+        "properties": {
+          "resolution_kind": { "enum": ["single", "range", "unknown"] },
+          "value_kind": { "$ref": "#/$defs/valueKind" }
+        }
+      }
+    },
+    "boundaryReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary_id", "revision", "status", "code", "abstract_scope"],
+      "properties": {
+        "boundary_id": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["active", "revoked", "superseded"] },
+        "code": { "const": "elder_explicit_boundary" },
+        "abstract_scope": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    }
+  }
+}

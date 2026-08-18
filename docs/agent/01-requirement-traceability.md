@@ -93,9 +93,40 @@
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| Working -> Mid checkpoint/layer identity/revision membership | T5-T8/P2; P1 source snapshot/thread boundary | `memory-evolution-v1` schemas, claim/boundary facts, canonical count/order/hash, uniqueness and terminal-reference validator | REVIEW |
-| Long terminal reference-only consolidation | T8/P2; T0 references; P3/P4 post-action | Long schemas/fixtures; explicit source session set, Mid manifest/hash/revision parity, terminal gating and recursive raw-content denial | REVIEW |
-| Trace v1.1 typed roots, outcomes, membership references | T0 Observability; P1/P2/P6 references | v1.1 schema, strict calendar loader, raw schema SHA-256, complete root membership refs and semantic validator | REVIEW |
-| P2-B/C/D gates and runtime assertions | P2 governance | REV-061, ADR-049, `pending_runtime` result | REVIEW |
+| Working -> Mid checkpoint/layer identity/revision membership | T5-T8/P2; P1 source snapshot/thread boundary | `memory-evolution-v1` schemas, claim/boundary facts, canonical count/order/hash, uniqueness and terminal-reference validator | DONE / PASS contract only |
+| Long terminal reference-only consolidation | T8/P2; T0 references; P3/P4 post-action | Long schemas/fixtures; explicit source session set, Mid manifest/hash/revision parity, terminal gating and recursive raw-content denial | DONE / PASS contract only |
+| Trace v1.1 typed roots, outcomes, membership references | T0 Observability; P1/P2/P6 references | v1.1 schema, strict calendar loader, raw schema SHA-256, complete root membership refs and semantic validator | DONE / PASS contract only |
+| P2-B/C/D gates and runtime assertions | P2 governance | REV-061, ADR-049, `pending_runtime` result | PENDING；P2-A accepted does not implement runtime |
+
+Accepted evidence: PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` / CI `32042589647` / independent PASS P0=P1=P2=0 / comment `5317377208`; merge/main `d50e56886723de41f3fccf38a9d76b5b70541b32` / CI `32042952178` SUCCESS. Old lint failure and both REQUEST_CHANGES histories remain permanent.
+
+## MEMORY-T4-P1-SEMANTIC-TRIGGER-001 traceability
+
+| Requirement | Architecture mapping | Evidence | Status |
+|---|---|---|---|
+| Episode/Fact/Boundary are the only P0 semantic forms | T2/Foundation + T4/P1 | memory-maintainer-v1.2 docs/Schema/fixtures; ADR-050 | IMPLEMENTED / RE-REVIEW PENDING |
+| person/place/event/... are optional metadata tags only | T2/Foundation | nullable `memory_tag`, tag-free fixture, semantic identity/CAS negative tests | IMPLEMENTED / RE-REVIEW PENDING |
+| selected new batch uses cumulative useful characters | T4/P1 | cumulative trigger truth, ASR-fragment, cap/overlap/role/content-kind fixtures | IMPLEMENTED / RE-REVIEW PENDING |
+| legacy and P1 identities remain separately unique | T2/Foundation | forward migration, legacy/P1 partial indexes, exact v1.1 upgrade/repeat PostgreSQL tests | IMPLEMENTED / RE-REVIEW PENDING |
+| v1.2 durable namespace and recovery preserve old history | T18-T19/P6 | v1.1/v1.2 namespace constraints, final-unjudged concurrency/restart, retry/replay/late-fence regression | IMPLEMENTED / RE-REVIEW PENDING |
+| trigger/provenance remain reference-only | T0/Foundation-Observability | typed trace root + ordered IDs/revisions/digests/count/threshold/manifest; final-low scope count/hash, AiJob/Trace inputHash and selected-new manifest share one canonical authority; Reader/service drift rejection; raw-content denial | IMPLEMENTED / RE-REVIEW PENDING |
+| P2-B remains separate | T5-T8/P2 governance | task scope, REV-062, ADR-051 | REVIEW pending v1.2 acceptance and a formal P2-B task; product architecture no longer awaits an external scheme |
 
 REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.
+
+本轮 REV-062 P1 修复证据：final-low 的 scope count/hash、AiJob.inputHash 与 Decision Trace selected-new manifest 统一由 `decisionTraceMemoryTriggerManifest`/明确 input-hash envelope 计算，并由 service/Reader 对 source rows 漂移失败关闭；startup/reconcile 对 fresh pending/running v1.2 missing-trace 只基于持久 job/scope/input rows 原子终结并写 recovered unavailable trace，不调用 provider 或重跑 flush。定向 PostgreSQL runtime 43/43、相关 unit 74/74、workspace typecheck/lint/format/diff-check 已通过；任务仍等待独立 re-review 与项目负责人正式结论。
+
+## Memory System V1 产品决策追踪
+
+| Requirement | Architecture mapping | Evidence | Status |
+|---|---|---|---|
+| P1 only understands current session; no Long write-side retrieval | T4/P1；T9-T12/P3-P4 downstream | ADR-051、SPEC-MEMORY-SYSTEM-V1、产品决策交接 | PRODUCT DECISION FROZEN / implementation REVIEW |
+| P2 uses LLM semantic consolidation while program owns persistence/CAS/revision/evidence/transaction | T5-T8/P2 | ADR-051、P2-A task/handoff follow-on boundary | PRODUCT DECISION FROZEN / P2 runtime REVIEW |
+| Graph V1 only CONTINUATION/RESUME, BRANCH, RELATED | T2/Foundation + T9-T10/P3 | ADR-051、architecture mapping | PRODUCT DECISION FROZEN / implementation REVIEW |
+| P3 uses PostgreSQL+pgvector+provider-neutral embedding adapter | T9-T10/P3 | ADR-051、SPEC-MEMORY-SYSTEM-V1 | PRODUCT DECISION FROZEN / real embedding model DEFERRED |
+| P4 uses configurable budgets; last-40 is not core architecture | T11-T12/P4 | ADR-051、SPEC-MEMORY-SYSTEM-V1 | MECHANISM FROZEN / numeric budget DEFERRED |
+| Evidence V1 has two tools, at most one call, failure=SYSTEM_ERROR | T13-T15/P5 + T18-T25/P6 | ADR-051、architecture mapping | PRODUCT DECISION FROZEN / implementation REVIEW |
+| Three LLM model slots and server-side-only secrets | T3/Foundation + P1/P2/Director | ADR-051、product decision handoff | CONFIG SHAPE FROZEN / provider-model DEFERRED |
+| Real LLM provider/model, real embedding model, P4 budget must return to owner | Cross-layer governance | ADR-051、product decision handoff | DEFERRED / owner confirmation required |
+
+高级 security hardening 与正式 benchmark 后置或 `DEFERRED`；API key server-side/not frontend/not GitHub 是最低底线。以上均不构成真实数据、真实长者、正式授权、公网或生产许可。

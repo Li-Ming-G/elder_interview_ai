@@ -1135,12 +1135,17 @@ describe('MEMORY-T2-T4-RUNTIME-001 P1 opening provenance', () => {
         projectId: seeded.projectId,
       });
       expect(memoryJob.triggerDedupeKey).toMatch(
-        new RegExp(`^memory-p1-v1\\.1:${seeded.basisSessionId}:`),
+        new RegExp(`^memory-p1-v1\\.2:${seeded.basisSessionId}:`),
       );
       expect(context.memoryLaneOutcome).toBe(mode);
-      expect(await prisma.memoryWorkingSnapshot.count({ where: { aiJobId: memoryJob.id } })).toBe(
-        mode === 'succeeded' ? 1 : 0,
-      );
+      const workingSnapshot = await prisma.memoryWorkingSnapshot.findUnique({
+        where: { aiJobId: memoryJob.id },
+      });
+      if (mode === 'succeeded') {
+        expect(workingSnapshot).toMatchObject({ contractVersion: 'memory-maintainer-v1.2' });
+      } else {
+        expect(workingSnapshot).toBeNull();
+      }
       expect(
         await prisma.questionGenerationAttempt.count({
           where: {

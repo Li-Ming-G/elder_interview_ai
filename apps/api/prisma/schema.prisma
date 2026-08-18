@@ -948,7 +948,7 @@ model MemoryClaim {
   aiJobId               String?                @map("ai_job_id") @db.Uuid
   memoryRetentionRootId String?                @map("memory_retention_root_id") @db.Uuid
   aiDerivedOutputId     String?                @unique @map("ai_derived_output_id") @db.Uuid
-  memoryType            MemoryType             @map("memory_type")
+  memoryType            MemoryType?            @map("memory_type")
   canonicalKey          String                 @map("canonical_key") @db.VarChar(240)
   valueKind             MemoryValueKind        @map("value_kind")
   valueJson             Json                   @map("value_json") @db.JsonB
@@ -985,7 +985,7 @@ model MemoryResolution {
   aiJobId                String?                @map("ai_job_id") @db.Uuid
   memoryRetentionRootId  String?                @map("memory_retention_root_id") @db.Uuid
   aiDerivedOutputId      String?                @unique @map("ai_derived_output_id") @db.Uuid
-  memoryType             MemoryType             @map("memory_type")
+  memoryType             MemoryType?            @map("memory_type")
   canonicalKey           String                 @map("canonical_key") @db.VarChar(240)
   resolutionRevision     Int                    @map("resolution_revision")
   resolutionKind         MemoryResolutionKind   @map("resolution_kind")
@@ -1001,7 +1001,6 @@ model MemoryResolution {
   threadId               String?                @map("thread_id") @db.Uuid
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  @@unique([projectId, memoryType, canonicalKey, resolutionRevision])
   @@index([projectId, status])
   @@map("memory_resolution")
 }
@@ -1713,10 +1712,49 @@ model DecisionTrace {
   p3Candidates                 DecisionTraceP3Candidate[]
   p4Memberships                DecisionTraceP4Membership[]
   evidenceCalls                DecisionTraceEvidenceCall[]
+  memoryTriggerObservation     DecisionTraceMemoryTriggerObservation?
 
   @@index([projectId, sessionId, createdAt(sort: Desc)])
   @@index([retentionState, expiresAt])
   @@map("decision_trace")
+}
+
+model DecisionTraceMemoryTriggerObservation {
+  id                           String                                         @id @default(uuid()) @db.Uuid
+  traceId                      String                                         @unique(map: "decision_trace_memory_trigger_observation_trace_key") @map("trace_id") @db.Uuid
+  aiJobId                      String                                         @unique(map: "decision_trace_memory_trigger_observation_job_key") @map("ai_job_id") @db.Uuid
+  observationVersion           String                                         @map("observation_version") @db.VarChar(48)
+  usefulCharacterPolicyVersion String                                         @map("useful_character_policy_version") @db.VarChar(64)
+  triggerIdentity              String                                         @map("trigger_identity") @db.VarChar(160)
+  triggerKind                  String                                         @map("trigger_kind") @db.VarChar(32)
+  selectedNewSegmentCount      Int                                            @map("selected_new_segment_count")
+  cumulativeUsefulCharacters   Int                                            @map("cumulative_useful_characters")
+  minimumUsefulCharacters      Int                                            @map("minimum_useful_characters")
+  selectedNewManifestHash      String                                         @map("selected_new_manifest_hash") @db.Char(64)
+  createdAt                    DateTime                                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  trace                        DecisionTrace                                  @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  selectedNewMemberships       DecisionTraceMemoryTriggerSegmentMembership[]
+
+  @@index([triggerIdentity], map: "decision_trace_memory_trigger_observation_identity_idx")
+  @@map("decision_trace_memory_trigger_observation")
+}
+
+model DecisionTraceMemoryTriggerSegmentMembership {
+  id                   String                                @id @default(uuid()) @db.Uuid
+  observationId        String                                @map("observation_id") @db.Uuid
+  transcriptSegmentId  String                                @map("transcript_segment_id") @db.Uuid
+  textRevision         Int                                   @map("text_revision")
+  speakerRoleRevision  Int                                   @map("speaker_role_revision")
+  effectiveTextDigest  String                                @map("effective_text_digest") @db.Char(64)
+  usefulCharacterCount Int                                   @map("useful_character_count")
+  inputOrder           Int                                   @map("input_order")
+  createdAt            DateTime                              @default(now()) @map("created_at") @db.Timestamptz(3)
+  observation          DecisionTraceMemoryTriggerObservation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+
+  @@unique([observationId, transcriptSegmentId], map: "decision_trace_memory_trigger_segment_observation_segment_key")
+  @@unique([observationId, inputOrder], map: "decision_trace_memory_trigger_segment_observation_order_key")
+  @@index([transcriptSegmentId], map: "decision_trace_memory_trigger_segment_source_idx")
+  @@map("decision_trace_memory_trigger_segment_membership")
 }
 
 model DecisionTraceTranscriptMembership {

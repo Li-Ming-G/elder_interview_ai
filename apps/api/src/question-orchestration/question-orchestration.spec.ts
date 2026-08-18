@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import type { FrozenAiJob } from '../ai-runtime/ai-job-coordinator.service.js';
-import { inferDirectorJourneySignals } from './question-orchestration.service.js';
+import {
+  directorMemoryType,
+  inferDirectorJourneySignals,
+} from './question-orchestration.service.js';
 
 describe('inferDirectorJourneySignals', () => {
   it('makes reluctance, continuous narration and willingness reachable from runtime input', () => {
@@ -41,6 +44,19 @@ describe('inferDirectorJourneySignals', () => {
     expect(signals).toContain('response.concrete');
     expect(signals).not.toContain('response.reluctant');
     expect(signals).not.toContain('engagement.continuous_narration');
+  });
+});
+
+describe('directorMemoryType', () => {
+  it('uses the optional tag when present and the core semantic kind when absent', () => {
+    expect(directorMemoryType({ memoryType: 'event', semanticKind: 'fact' })).toBe('event');
+    expect(directorMemoryType({ memoryType: null, semanticKind: 'episode' })).toBe('episode');
+  });
+
+  it('fails closed when neither legacy type nor P1 semantic identity exists', () => {
+    expect(() => directorMemoryType({ memoryType: null, semanticKind: null })).toThrow(
+      'AI_MEMORY_SEMANTIC_IDENTITY_UNAVAILABLE',
+    );
   });
 });
 

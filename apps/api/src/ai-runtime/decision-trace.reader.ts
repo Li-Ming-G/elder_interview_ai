@@ -1,10 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import type { AiJob, Prisma } from '../generated/prisma/client.js';
+import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 import { effectiveTextDigest } from './ai-provenance.js';
 import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
 import { AiPolicyService } from './ai-policy.service.js';
+import {
+  countDecisionTraceUsefulCharacters,
+  DECISION_TRACE_MEMORY_TRIGGER_VERSION,
+  DECISION_TRACE_USEFUL_CHARACTER_POLICY_VERSION,
+  decisionTraceMemoryTriggerInputHash,
+  decisionTraceMemoryTriggerManifest,
+  type DecisionTraceMemoryTriggerSegmentInput,
+} from './decision-trace.service.js';
 
 const traceInclude = {
   transcriptMemberships: { orderBy: { inputOrder: 'asc' } },
@@ -12,6 +21,9 @@ const traceInclude = {
   p3Candidates: { orderBy: { rank: 'asc' } },
   p4Memberships: { orderBy: { inputOrder: 'asc' } },
   evidenceCalls: { orderBy: { invocationNo: 'asc' } },
+  memoryTriggerObservation: {
+    include: { selectedNewMemberships: { orderBy: { inputOrder: 'asc' } } },
+  },
 } satisfies Prisma.DecisionTraceInclude;
 
 type DecisionTraceRead = Prisma.DecisionTraceGetPayload<{ include: typeof traceInclude }>;
@@ -60,23 +72,26 @@ export class DecisionTraceReader {
     if (actor?.status !== 'active') throw new Error('DECISION_TRACE_UNAVAILABLE');
     let scopeSessionIds: string[] = [trace.sessionId];
     let frozenScopes: Array<{
+      eligibleSegmentCount: number;
       segmentManifestHash: string;
       sessionId: string;
       speakerRoleRevision: number;
     }> = [];
+    let sourceJob: AiJob | null = null;
     if (trace.aiJobId !== null) {
-      const [sourceJob, scopes] = await Promise.all([
+      const [job, scopes] = await Promise.all([
         this.prisma.aiJob.findUnique({ where: { id: trace.aiJobId } }),
         this.prisma.aiJobSessionScope.findMany({
           orderBy: { inputOrder: 'asc' },
           where: { aiJobId: trace.aiJobId },
         }),
       ]);
+      sourceJob = job;
       if (
-        sourceJob === null ||
-        sourceJob.projectId !== trace.projectId ||
-        sourceJob.retentionState !== 'active' ||
-        sourceJob.expiresAt <= new Date() ||
+        job === null ||
+        job.projectId !== trace.projectId ||
+        job.retentionState !== 'active' ||
+        job.expiresAt <= new Date() ||
         scopes.length === 0
       ) {
         throw new Error('DECISION_TRACE_UNAVAILABLE');
@@ -124,6 +139,7 @@ export class DecisionTraceReader {
         throw new Error('DECISION_TRACE_UNAVAILABLE');
       }
     }
+    await this.assertMemoryTriggerObservation(trace, sourceJob, scopeSessionIds);
     for (const membership of trace.memoryMemberships) {
       const memory = await this.prisma.memoryResolution.findUnique({
         where: { id: membership.memoryId },
@@ -219,5 +235,155 @@ export class DecisionTraceReader {
             },
           });
     return { trace, providerProvenance };
+  }
+
+  private async assertMemoryTriggerObservation(
+    trace: DecisionTraceRead,
+    sourceJob: AiJob | null,
+    scopeSessionIds: readonly string[],
+  ): Promise<void> {
+    const observation = trace.memoryTriggerObservation ?? null;
+    const isV12MemoryJob =
+      sourceJob?.jobType === 'working_memory_maintain' &&
+      sourceJob.triggerDedupeKey?.startsWith('memory-p1-v1.2:') === true;
+    if (!isV12MemoryJob) {
+      if (observation !== null) throw new Error('DECISION_TRACE_UNAVAILABLE');
+      return;
+    }
+    if (
+      observation === null ||
+      trace.aiJobId === null ||
+      observation.aiJobId !== trace.aiJobId ||
+      observation.observationVersion !== DECISION_TRACE_MEMORY_TRIGGER_VERSION ||
+      observation.usefulCharacterPolicyVersion !== DECISION_TRACE_USEFUL_CHARACTER_POLICY_VERSION ||
+      observation.triggerIdentity !== sourceJob.triggerDedupeKey ||
+      observation.minimumUsefulCharacters <= 0 ||
+      observation.selectedNewSegmentCount !== observation.selectedNewMemberships.length ||
+      observation.selectedNewManifestHash !==
+        decisionTraceMemoryTriggerManifest(observation.selectedNewMemberships)
+    ) {
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const ids = observation.selectedNewMemberships.map(
+      ({ transcriptSegmentId }) => transcriptSegmentId,
+    );
+    if (new Set(ids).size !== ids.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+    const segments = await this.prisma.transcriptSegment.findMany({
+      where: { id: { in: ids } },
+    });
+    if (segments.length !== ids.length) throw new Error('DECISION_TRACE_UNAVAILABLE');
+    const byId = new Map(segments.map((segment) => [segment.id, segment]));
+    let cumulative = 0;
+    for (const [inputOrder, membership] of observation.selectedNewMemberships.entries()) {
+      const segment = byId.get(membership.transcriptSegmentId);
+      const text = segment?.correctedText ?? segment?.originalText;
+      if (
+        membership.inputOrder !== inputOrder ||
+        segment === undefined ||
+        text === undefined ||
+        !scopeSessionIds.includes(segment.sessionId) ||
+        segment.contentKind !== 'conversation' ||
+        projectTrustedSpeakerRole(segment).trustedEffectiveSpeakerRole !== 'elder' ||
+        segment.textRevision !== membership.textRevision ||
+        segment.speakerRoleRevision !== membership.speakerRoleRevision ||
+        effectiveTextDigest(text) !== membership.effectiveTextDigest ||
+        countDecisionTraceUsefulCharacters(text) !== membership.usefulCharacterCount
+      ) {
+        throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+      cumulative += membership.usefulCharacterCount;
+    }
+    if (cumulative !== observation.cumulativeUsefulCharacters)
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+
+    const unjudged = sourceJob.failureCode === 'MEMORY_UNJUDGED';
+    if (unjudged) {
+      if (
+        sourceJob.status !== 'cancelled' ||
+        observation.triggerKind !== 'session_final_flush' ||
+        !observation.triggerIdentity.endsWith(
+          `:final-unjudged:${observation.selectedNewManifestHash.slice(0, 32)}`,
+        ) ||
+        (observation.selectedNewSegmentCount > 0 &&
+          observation.cumulativeUsefulCharacters >= observation.minimumUsefulCharacters) ||
+        trace.status !== 'unavailable' ||
+        trace.decisionOutcome !== 'unavailable' ||
+        trace.directorInvoked ||
+        trace.errorCode !== 'MEMORY_UNJUDGED' ||
+        trace.completedAt === null ||
+        (await this.prisma.aiProviderCall.count({ where: { aiJobId: sourceJob.id } })) !== 0
+      ) {
+        throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+    } else if (observation.cumulativeUsefulCharacters < observation.minimumUsefulCharacters) {
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const sourceMemberships = await this.prisma.memoryMaintenanceInputSegment.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: sourceJob.id },
+    });
+    if (unjudged) {
+      const scopeRows = await this.prisma.aiJobSessionScope.findMany({
+        where: { aiJobId: sourceJob.id },
+      });
+      const scope = scopeRows[0];
+      if (
+        scopeRows.length !== 1 ||
+        scope === undefined ||
+        scope.sessionId !== trace.sessionId ||
+        scope.eligibleSegmentCount !== observation.selectedNewSegmentCount ||
+        scope.segmentManifestHash !== observation.selectedNewManifestHash ||
+        trace.inputHash !==
+          decisionTraceMemoryTriggerInputHash({
+            contextBuilderVersion: 'memory-maintainer-v1.2',
+            jobType: sourceJob.jobType,
+            projectId: sourceJob.projectId,
+            selectedNewManifestHash: observation.selectedNewManifestHash,
+            sessionId: trace.sessionId,
+            triggerIdentity: observation.triggerIdentity,
+          }) ||
+        sourceJob.inputHash !== trace.inputHash
+      ) {
+        throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+    }
+    const memberships = unjudged
+      ? sourceMemberships
+      : sourceMemberships.filter((membership) => membership.membershipKind === 'new');
+    if (
+      memberships.length !== observation.selectedNewMemberships.length ||
+      (unjudged && sourceMemberships.some((membership) => membership.membershipKind !== 'new'))
+    ) {
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const inputRows = await this.prisma.aiJobInputSegment.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { aiJobId: sourceJob.id },
+    });
+    if (unjudged && inputRows.length !== observation.selectedNewMemberships.length) {
+      throw new Error('DECISION_TRACE_UNAVAILABLE');
+    }
+    const inputsById = new Map(inputRows.map((row) => [row.id, row]));
+    for (const [index, source] of memberships.entries()) {
+      const observed = observation.selectedNewMemberships[index] as
+        DecisionTraceMemoryTriggerSegmentInput | undefined;
+      const input = inputsById.get(source.aiJobInputSegmentId);
+      if (
+        observed === undefined ||
+        input === undefined ||
+        (unjudged &&
+          (source.inputOrder !== index ||
+            input.inputOrder !== index ||
+            input.sessionId !== trace.sessionId ||
+            source.aiJobInputSegmentId !== input.id ||
+            source.transcriptSegmentId !== observed.transcriptSegmentId)) ||
+        input.transcriptSegmentId !== observed.transcriptSegmentId ||
+        input.textRevision !== observed.textRevision ||
+        input.speakerRoleRevision !== observed.speakerRoleRevision ||
+        input.effectiveTextDigest !== observed.effectiveTextDigest
+      ) {
+        throw new Error('DECISION_TRACE_UNAVAILABLE');
+      }
+    }
   }
 }

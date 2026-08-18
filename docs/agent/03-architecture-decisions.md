@@ -516,10 +516,38 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 
 ## ADR-049｜P2-A Memory Evolution 与 Trace v1.1 reference-only contract
 
-- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T5-T8-P2-A-CONTRACT-001`，不得由执行 Agent 自宣 PASS。
+- 状态：`Accepted / CONTRACT ONLY`；PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` / CI `32042589647` 获独立 PASS（P0/P1/P2=0，comment `5317377208`），merge/main `d50e56886723de41f3fccf38a9d76b5b70541b32` / main CI `32042952178` SUCCESS。
 - 决定：P2 只拥有 Working->Mid、checkpoint、append-only layer identity/revision/member membership 与 Park/Resume 层级后果；P1、MemoryModule、P6、T0 的 ownership 不变。Long 只能在 P1 final 与 P2 final Mid terminal 后 reference-only consolidation。
 - CAS/replay、identity、source/target/policy/deletion/retention drift、count/hash/order/scope 和 one-winner 规则先由 pure contract validator 冻结；duplicate/concurrent/crash/late/transaction 需 P2-C runtime 验证。
 - Decision Trace v1 不改字节；v1.1 新增 `trace_kind`、`memory_outcome`、typed source roots、layer/resolution membership refs 和 strict loader/version/raw schema digest。question-only `decision_outcome/director_invoked` 不得出现在 memory trace。
 - PR #68 accepted `f55da95` / PASS `5315324044` / merge-main `58794c4` / main CI `32024183820` 仅作为前置 accepted scope 事实，不扩大为 P2 runtime。
-- P2-A correction gate：`8d48cd5` / CI `32028717254` 的独立 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）要求 checkpoint/revision parity、Long Mid manifest parity、Trace root membership provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间；修正仍保持 `Proposed / REVIEW`，不得先行开启 P2-B。
-- 第二 correction gate：`bd299fb` / CI `32037158715` 的独立 `REQUEST_CHANGES`（P0=0/P1=4/P2=0）要求 Long source session set、claim/layer ID uniqueness、terminal reference conditions 与 Trace member manifest recomputation；当前仍不得合并或开启 P2-B。
+- 历史 correction gate：`8d48cd5` / CI `32028717254` 的独立 `REQUEST_CHANGES`（P0=0/P1=5/P2=0）要求 checkpoint/revision parity、Long Mid manifest parity、Trace root membership provenance、disputed/Boundary/deletion-retention fail-closed 与严格日历时间；该结论不得被最终 PASS 覆盖。
+- 历史第二 correction gate：`bd299fb` / CI `32037158715` 的独立 `REQUEST_CHANGES`（P0=0/P1=4/P2=0）要求 Long source session set、claim/layer ID uniqueness、terminal reference conditions 与 Trace member manifest recomputation；该结论不得被最终 PASS 覆盖。
+- 最终接收只覆盖 P2-A docs/Schema/fixtures/pure validators/Trace loader；所有旧 lint failure、REQUEST_CHANGES 与中间 SUCCESS CI 永久保留。P2-B/C/D、Prisma/runtime/provider/P3/P4/UI 不由该 PASS 完成。
+
+## ADR-050｜Memory Maintainer V1.2 以 Episode/Fact/Boundary 为核心并按选定批次累计触发
+
+- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T4-P1-SEMANTIC-TRIGGER-001` 与 REV-062。
+- 映射：T2/Foundation、T4/P1、T18-T19/P6、T0/Foundation-Observability；不进入 T5-T8/P2-B/C/D。
+- 背景：已接收 v1.1 把 `person|relationship|place|event|time|time_range|important_choice|reason_clue|unfinished_story` 设为必填 `memory_type`，并用于 semantic slot、target CAS 与数据库唯一性；这会把检索标签误当 Episode/Fact 的语义本体。runtime 又以“任一 pending elder segment 单独达到最小长度”判定 useful，ASR 碎片化时即使本批累计内容充分也不会触发。
+- 决定：新增 immutable `memory-maintainer-v1.2`。P1 value 核心只允许 `semantic_kind=episode|fact`，Boundary 继续使用独立 candidate/revision authority。原枚举改作可空 `memory_tag` metadata；缺失合法，有值也不得进入 identity、dedupe、revision 或 target CAS。semantic slot 固定为 `semantic_kind + canonical_key`。
+- 数据兼容：只新增 forward migration，将 claim/resolution 的旧 `memory_type` 列改为 nullable，不删枚举、不回填、不重命名旧列。legacy `semantic_kind IS NULL` 继续按 `memory_type + canonical_key` 唯一；P1 `semantic_kind IS NOT NULL` 按 `semantic_kind + canonical_key` 使用互斥 partial indexes。旧 v1/v1.1 contract、fixtures、migration 和数据字节保持不变。
+- Trigger：先稳定选择 cap 内本次 `new` eligible finalized trusted-elder conversation batch，再对 effective text 统一 NFKC、移除空白、按 Unicode code point 求累计；overlap/interviewer/consumed/non-conversation/cap 外内容不计。只有 `(batch OR time OR session_final_flush) AND cumulative >= minimumUsefulCharacters` 才可 freeze Maintainer。普通 batch/time 未过门禁时 job/provider/consumption/business write 全为 0；final flush low-content 只允许一个 deterministic `MEMORY_UNJUDGED` terminal system job 供 opening 收束，provider 与记忆业务写仍为 0。
+- Durable identity：新 job 使用 `memory-p1-v1.2:*`；数据库 namespace 同时保留历史 v1.1 key，non-maintainer 双向禁止两种 namespace。现有 freeze/call/writeback、recovery、retry、late-result fence 与 transcript-owned consumption 不降低。
+- 可观察性：Decision Trace 使用独立 1:1 typed trigger observation root 与 ordered selected-new membership，只保存 source AiJob/trigger identity、selected IDs/order/revision/digest/useful-count、trigger kind、累计数、阈值和 canonical manifest。root+members 同事务写入；Reader 从 source authority 重算并失败关闭。不得复制完整正文、Prompt、Context 或 provider payload。
+- Final-low parity：`AiJobSessionScope.eligibleSegmentCount/segmentManifestHash`、`AiJob.inputHash` 与 Decision Trace selected-new manifest 必须机械绑定同一 canonical manifest authority；service/Reader 对 scope、job、trace、source rows 任一漂移失败关闭。`final-unjudged` suffix 继续取完整 manifest 前 32 hex。
+- Startup recovery：fresh `pending|running` v1.2 job 缺 trace 时，startup/reconcile 在同一事务内只凭持久 job/scope/input rows CAS 为 failed，并写 stage=`recovered`、status=`unavailable` 的 provenance-unavailable trace；不得调用 provider、重跑 final flush 或从当前 config/transcript/空集合补观察事实。历史 succeeded/provider-called 与 v1/v1.1 兼容路径保持不改写。
+- 代价：需要一次 forward migration及 provider/runtime/reader 兼容；换取不为合法 Episode/Fact 强造分类，并避免碎片化 ASR 使 P1 饥饿。P2-B 继续等待外部方案确认及本修正接收。
+- 审查历史：首轮独立实现审查为 `REQUEST_CHANGES / P0=0/P1=3/P2=3`，指出 post-session v1.1 test drift、null namespace、缺 typed trigger observation，以及三项兼容/恢复/治理测试缺口。六项已本地集中修复，REV-062 保留原失败事实；ADR 仍为 `Proposed / REVIEW`，等待独立 re-review 与 exact-head CI。
+
+## ADR-051｜Memory System V1 冻结分层语义职责、最小检索图与 Deferred 模型决策
+
+- 状态：`Accepted product decision / implementation REVIEW`。本 ADR 同步 2026-08-18 项目负责人正式决定；不构成实现 PASS/DONE，不改变 REV-058 至 REV-062、PR #63/#65-#69 或 CI 历史。
+- P1：只理解当前 session 并维护 Working Memory；禁止新增 Long Memory write-side retrieval 或 Long Retrieval Agent。历史 Long 由 P3 检索，供 P4/Director 消费。
+- P2：必须使用 LLM 做 semantic consolidation，包括 Working→Mid 与 session end 的 Mid/current→Long、必要的归纳/去重/跨 session 整合；不得简化为纯机械 persistence。LLM 只提出结构化语义结果，程序唯一控制 persistence、CAS、revision、evidence、状态变更与 transaction，LLM 不直接访问或修改数据库。
+- P3/Graph：V1 使用 PostgreSQL + pgvector + provider-neutral Embedding Adapter；deterministic/fake embedding 可用于开发。Graph V1 仅 `CONTINUATION/RESUME`、`BRANCH`、`RELATED`，底层关系形状保持可扩展，不引入完整知识图谱、Neo4j 或复杂 ontology。
+- P4：实现可配置 Context Budget 和 membership/digest 机制；具体数值 `DEFERRED`，`last-40 segments` 不得作为核心架构，仅可保留 max-segment safety guard。Director 主模型确定后必须回拉项目负责人确认 budget。
+- Evidence：V1 仅 `get_memory_evidence(memory_id)` 与受限 `search_transcript(query)`。一次 Director generation 最多一次 tool call；工具失败必须进入 `SYSTEM_ERROR`，不得伪装成 `continue_listening`，诊断保留 stage/error_code/duration/message。
+- Provider/Model：真实 LLM provider/model 与真实 embedding model 均 `DEFERRED`。保留 `P1_MODEL`、`P2_MODEL`、`DIRECTOR_MODEL` 三个独立槽位，以及 provider config、可选 Base URL、API key、Model ID；不同槽可临时共用同一模型，但不得写死为只能共用。ADR-040 的 SDK/direct-provider 与单次调用唯一 active binding 历史继续有效，不等于选定实际厂商/model，也不阻止三个 lane 独立绑定。
+- 安全/评测：API key 只允许 server-side，通过环境变量或既有 secret injection 使用，不进入前端、GitHub 或日志。高级 security hardening、DPA/跨境/企业级审计与正式 benchmark/A-B 横评后置或 `DEFERRED`；该优先级不构成真实数据、真实长者、生产公网或生产许可。
+- 回拉门禁：到达对应节点必须再次请负责人确认真实 LLM provider/model、真实 embedding model、P4 budget。新的产品含义歧义必须暂停该具体决定并上报；不改变产品行为、架构职责或未来扩展能力的技术细节可由实现者自行处理。

@@ -1,0 +1,938 @@
+{
+  "historical_v11_sha256": {
+    "docs/contracts/memory-maintainer-context-v1.1.schema.json": "c83d0593239b050bc333007e7556a38b3b89c644b95b346fe4a3135c63176477",
+    "docs/contracts/memory-maintainer-output-v1.1.schema.json": "82ba206774c9afc2636aedb15c8618135a1137505641a4e87405843f231c2742",
+    "docs/contracts/fixtures/memory-maintainer-v1.1.fixtures.json": "1fe0cdc16810f1a87aee3e1f49f27d173fdc58730a4ea3e14a544b93cd65735f"
+  },
+  "context_cases": [
+    {
+      "name": "valid_fragmented_batch_without_tag",
+      "valid": true,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.2",
+        "trigger": {
+          "kind": "batch_threshold",
+          "identity": "memory-p1-v1.2:session-a:manifest-a",
+          "selected_new_segment_count": 2,
+          "cumulative_useful_characters": 4,
+          "minimum_useful_characters": 4
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "Ａ　B",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          },
+          {
+            "segment_id": "22222222-2222-4222-8222-222222222222",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 2000,
+            "text": "𠮷 野",
+            "trusted_role": "elder",
+            "text_revision": 1,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "content_kind": "conversation"
+          },
+          {
+            "segment_id": "77777777-7777-4777-8777-777777777777",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "overlap",
+            "start_ms": 500,
+            "text": "这段重叠文字不能帮助通过阈值。",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "content_kind": "conversation"
+          },
+          {
+            "segment_id": "88888888-8888-4888-8888-888888888888",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 3000,
+            "text": "倾听员文字也不能帮助通过阈值。",
+            "trusted_role": "interviewer",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": {
+          "thread_id": "44444444-4444-4444-8444-444444444444",
+          "revision": 2,
+          "status": "active",
+          "topic_key": "career"
+        },
+        "current_working_memory": [
+          {
+            "resolution_id": "33333333-3333-4333-8333-333333333333",
+            "revision": 3,
+            "thread_id": "44444444-4444-4444-8444-444444444444",
+            "semantic_kind": "fact",
+            "canonical_key": "career.primary",
+            "value_kind": "exact",
+            "value": { "summary": "worked as a teacher" },
+            "resolution_kind": "single",
+            "semantic_status": "current",
+            "resolution_status": "current",
+            "claims": [
+              {
+                "claim_id": "55555555-5555-4555-8555-555555555555",
+                "value_kind": "exact",
+                "value": { "summary": "worked as a teacher" }
+              }
+            ]
+          }
+        ],
+        "session_mid_index": [],
+        "active_boundaries": [
+          {
+            "boundary_id": "99999999-9999-4999-8999-999999999999",
+            "revision": 1,
+            "status": "active",
+            "code": "elder_explicit_boundary",
+            "abstract_scope": "不要继续追问一段虚构家庭争执"
+          }
+        ]
+      }
+    },
+    {
+      "name": "valid_nullable_tag",
+      "valid": true,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.2",
+        "trigger": {
+          "kind": "time_threshold",
+          "identity": "memory-p1-v1.2:session-a:manifest-b",
+          "selected_new_segment_count": 1,
+          "cumulative_useful_characters": 4,
+          "minimum_useful_characters": 4
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "虚构事实",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [
+          {
+            "resolution_id": "33333333-3333-4333-8333-333333333333",
+            "revision": 3,
+            "thread_id": "44444444-4444-4444-8444-444444444444",
+            "semantic_kind": "episode",
+            "memory_tag": null,
+            "canonical_key": "school.first_day",
+            "value_kind": "exact",
+            "value": { "summary": "a fictional first school day" },
+            "resolution_kind": "single",
+            "semantic_status": "current",
+            "resolution_status": "current",
+            "claims": [
+              {
+                "claim_id": "55555555-5555-4555-8555-555555555555",
+                "value_kind": "exact",
+                "value": { "summary": "a fictional first school day" }
+              }
+            ]
+          }
+        ],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "invalid_missing_semantic_kind",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.2",
+        "trigger": {
+          "kind": "batch_threshold",
+          "identity": "memory-p1-v1.2:session-a:missing-kind",
+          "selected_new_segment_count": 1,
+          "cumulative_useful_characters": 4,
+          "minimum_useful_characters": 4
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "虚构事实",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [
+          {
+            "resolution_id": "33333333-3333-4333-8333-333333333333",
+            "revision": 3,
+            "thread_id": "44444444-4444-4444-8444-444444444444",
+            "canonical_key": "career.primary",
+            "value_kind": "exact",
+            "value": "teacher",
+            "resolution_kind": "single",
+            "semantic_status": "current",
+            "resolution_status": "current",
+            "claims": [
+              {
+                "claim_id": "55555555-5555-4555-8555-555555555555",
+                "value_kind": "exact",
+                "value": "teacher"
+              }
+            ]
+          }
+        ],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "invalid_legacy_memory_type_wire",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.2",
+        "trigger": {
+          "kind": "batch_threshold",
+          "identity": "memory-p1-v1.2:session-a:legacy-field",
+          "selected_new_segment_count": 1,
+          "cumulative_useful_characters": 4,
+          "minimum_useful_characters": 4
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "虚构事实",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [
+          {
+            "resolution_id": "33333333-3333-4333-8333-333333333333",
+            "revision": 3,
+            "thread_id": "44444444-4444-4444-8444-444444444444",
+            "semantic_kind": "fact",
+            "memory_type": "event",
+            "canonical_key": "career.primary",
+            "value_kind": "exact",
+            "value": "teacher",
+            "resolution_kind": "single",
+            "semantic_status": "current",
+            "resolution_status": "current",
+            "claims": [
+              {
+                "claim_id": "55555555-5555-4555-8555-555555555555",
+                "value_kind": "exact",
+                "value": "teacher"
+              }
+            ]
+          }
+        ],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    },
+    {
+      "name": "invalid_v11_trigger_namespace",
+      "valid": false,
+      "value": {
+        "context_schema_version": "memory-maintainer-context-v1.2",
+        "trigger": {
+          "kind": "batch_threshold",
+          "identity": "memory-p1-v1.1:session-a:old",
+          "selected_new_segment_count": 1,
+          "cumulative_useful_characters": 4,
+          "minimum_useful_characters": 4
+        },
+        "transcript_membership": [
+          {
+            "segment_id": "11111111-1111-4111-8111-111111111111",
+            "session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "membership_kind": "new",
+            "start_ms": 1000,
+            "text": "虚构事实",
+            "trusted_role": "elder",
+            "text_revision": 0,
+            "speaker_role_revision": 2,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "content_kind": "conversation"
+          }
+        ],
+        "active_thread": null,
+        "current_working_memory": [],
+        "session_mid_index": [],
+        "active_boundaries": []
+      }
+    }
+  ],
+  "output_cases": [
+    {
+      "name": "valid_new_episode_without_tag",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-episode",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "episode",
+              "canonical_key": "school.first_day",
+              "value_kind": "exact",
+              "value": { "summary": "a fictional first school day" },
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-school-day",
+                  "value_kind": "exact",
+                  "value": { "summary": "a fictional first school day" },
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "valid_new_fact_with_tag",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-fact-tagged",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": "event",
+              "canonical_key": "career.change",
+              "value_kind": "exact",
+              "value": { "summary": "a fictional career change" },
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-career-change",
+                  "value_kind": "exact",
+                  "value": { "summary": "a fictional career change" },
+                  "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "valid_new_fact_with_null_tag",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-fact-null-tag",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": null,
+              "canonical_key": "career.duration",
+              "value_kind": "range",
+              "value": { "minimum_years": 3, "maximum_years": 5 },
+              "resolution_kind": "range",
+              "semantic_status": "uncertain",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-duration",
+                  "value_kind": "range",
+                  "value": { "minimum_years": 3, "maximum_years": 5 },
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "uncertain_value"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "valid_boundary_is_independent",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [],
+        "boundary_candidates": [
+          {
+            "candidate_id": "boundary-op-1",
+            "code": "elder_explicit_boundary",
+            "abstract_scope": "不要继续追问一段虚构家庭争执",
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "valid_target_tag_drift_does_not_change_identity",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-target-tag-drift",
+            "kind": "SUPPLEMENT",
+            "target_resolution_id": "33333333-3333-4333-8333-333333333333",
+            "expected_resolution_revision": 3,
+            "anchor_thread_id": "44444444-4444-4444-8444-444444444444",
+            "expected_anchor_thread_revision": 2,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": "place",
+              "canonical_key": "career.primary",
+              "value_kind": "exact",
+              "value": { "summary": "worked as a teacher" },
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-teacher-supplement",
+                  "value_kind": "exact",
+                  "value": { "summary": "worked as a teacher" },
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "same_canonical_key"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "schema_valid_duplicate_slot_with_different_tags",
+      "valid": true,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-slot-person",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": "person",
+              "canonical_key": "same.slot",
+              "value_kind": "exact",
+              "value": "value one",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-one",
+                  "value_kind": "exact",
+                  "value": "value one",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          },
+          {
+            "operation_id": "op-slot-event",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": "event",
+              "canonical_key": "same.slot",
+              "value_kind": "exact",
+              "value": "value two",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-two",
+                  "value_kind": "exact",
+                  "value": "value two",
+                  "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["22222222-2222-4222-8222-222222222222"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_missing_semantic_kind",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-missing-kind",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "canonical_key": "missing.kind",
+              "value_kind": "exact",
+              "value": "value",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-missing-kind",
+                  "value_kind": "exact",
+                  "value": "value",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_boundary_as_semantic_kind",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-boundary-memory",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "boundary",
+              "canonical_key": "forbidden.boundary.memory",
+              "value_kind": "exact",
+              "value": "value",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-boundary-memory",
+                  "value_kind": "exact",
+                  "value": "value",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_unknown_memory_tag",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-unknown-tag",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_tag": "organization",
+              "canonical_key": "unknown.tag",
+              "value_kind": "exact",
+              "value": "value",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-unknown-tag",
+                  "value_kind": "exact",
+                  "value": "value",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    },
+    {
+      "name": "invalid_legacy_memory_type_wire",
+      "valid": false,
+      "value": {
+        "output_schema_version": "memory-maintainer-output-v1.2",
+        "operations": [
+          {
+            "operation_id": "op-legacy-field",
+            "kind": "NEW",
+            "target_resolution_id": null,
+            "expected_resolution_revision": null,
+            "anchor_thread_id": null,
+            "expected_anchor_thread_revision": null,
+            "proposed_state": {
+              "semantic_kind": "fact",
+              "memory_type": "event",
+              "canonical_key": "legacy.field",
+              "value_kind": "exact",
+              "value": "value",
+              "resolution_kind": "single",
+              "semantic_status": "current",
+              "claims": [
+                {
+                  "claim_id": null,
+                  "claim_key": "claim-legacy-field",
+                  "value_kind": "exact",
+                  "value": "value",
+                  "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"]
+                }
+              ]
+            },
+            "evidence_segment_ids": ["11111111-1111-4111-8111-111111111111"],
+            "reason_code": "new_topic"
+          }
+        ],
+        "boundary_candidates": []
+      }
+    }
+  ],
+  "semantic_cases": [
+    {
+      "name": "fragmented_batch_without_tag_is_valid",
+      "context_case": "valid_fragmented_batch_without_tag",
+      "output_case": "valid_new_episode_without_tag",
+      "valid": true,
+      "expected_error": null
+    },
+    {
+      "name": "tagged_fact_is_valid",
+      "context_case": "valid_fragmented_batch_without_tag",
+      "output_case": "valid_new_fact_with_tag",
+      "valid": true,
+      "expected_error": null
+    },
+    {
+      "name": "boundary_stays_independent",
+      "context_case": "valid_fragmented_batch_without_tag",
+      "output_case": "valid_boundary_is_independent",
+      "valid": true,
+      "expected_error": null
+    },
+    {
+      "name": "target_tag_drift_does_not_change_identity",
+      "context_case": "valid_fragmented_batch_without_tag",
+      "output_case": "valid_target_tag_drift_does_not_change_identity",
+      "valid": true,
+      "expected_error": null
+    },
+    {
+      "name": "different_tags_do_not_split_same_batch_slot",
+      "context_case": "valid_fragmented_batch_without_tag",
+      "output_case": "schema_valid_duplicate_slot_with_different_tags",
+      "valid": false,
+      "expected_error": "MEMORY_OUTPUT_SEMANTIC_SLOT_DUPLICATE"
+    }
+  ],
+  "trigger_fact_cases": [
+    {
+      "name": "selected_count_mismatch_is_rejected",
+      "selected_new_segment_count": 3,
+      "cumulative_useful_characters": 4,
+      "minimum_useful_characters": 4,
+      "duplicate_first_segment": false,
+      "valid": false,
+      "expected_error": "MEMORY_TRIGGER_SELECTED_NEW_COUNT_MISMATCH"
+    },
+    {
+      "name": "cumulative_mismatch_is_rejected",
+      "selected_new_segment_count": 2,
+      "cumulative_useful_characters": 5,
+      "minimum_useful_characters": 4,
+      "duplicate_first_segment": false,
+      "valid": false,
+      "expected_error": "MEMORY_TRIGGER_CUMULATIVE_CHARACTERS_MISMATCH"
+    },
+    {
+      "name": "minimum_not_met_is_rejected",
+      "selected_new_segment_count": 2,
+      "cumulative_useful_characters": 4,
+      "minimum_useful_characters": 5,
+      "duplicate_first_segment": false,
+      "valid": false,
+      "expected_error": "MEMORY_TRIGGER_MINIMUM_USEFUL_CHARACTERS_NOT_MET"
+    },
+    {
+      "name": "duplicate_segment_is_rejected_not_double_counted",
+      "selected_new_segment_count": 2,
+      "cumulative_useful_characters": 4,
+      "minimum_useful_characters": 4,
+      "duplicate_first_segment": true,
+      "valid": false,
+      "expected_error": "MEMORY_CONTEXT_SEGMENT_ID_DUPLICATE"
+    }
+  ],
+  "normalization_cases": [
+    {
+      "name": "nfkc_whitespace_and_astral_code_point",
+      "input": "Ａ　𠮷\n野",
+      "normalized": "A𠮷野",
+      "code_points": 3
+    },
+    {
+      "name": "unicode_whitespace_is_removed",
+      "input": "我\t在\u00a0这\u2003里",
+      "normalized": "我在这里",
+      "code_points": 4
+    }
+  ],
+  "trigger_gate_cases": [
+    {
+      "name": "batch_ready_with_cumulative_content",
+      "value": {
+        "batch_threshold_reached": true,
+        "time_threshold_reached": false,
+        "session_final_flush": false,
+        "cumulative_useful_characters": 4,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "freeze_maintainer_context"
+    },
+    {
+      "name": "time_ready_with_cumulative_content",
+      "value": {
+        "batch_threshold_reached": false,
+        "time_threshold_reached": true,
+        "session_final_flush": false,
+        "cumulative_useful_characters": 4,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "freeze_maintainer_context"
+    },
+    {
+      "name": "final_flush_ready_with_cumulative_content",
+      "value": {
+        "batch_threshold_reached": false,
+        "time_threshold_reached": false,
+        "session_final_flush": true,
+        "cumulative_useful_characters": 4,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "freeze_maintainer_context"
+    },
+    {
+      "name": "content_ready_without_timing_defers_without_job",
+      "value": {
+        "batch_threshold_reached": false,
+        "time_threshold_reached": false,
+        "session_final_flush": false,
+        "cumulative_useful_characters": 4,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "defer_without_job"
+    },
+    {
+      "name": "ordinary_low_content_defers_without_job",
+      "value": {
+        "batch_threshold_reached": true,
+        "time_threshold_reached": false,
+        "session_final_flush": false,
+        "cumulative_useful_characters": 3,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "defer_without_job"
+    },
+    {
+      "name": "final_flush_low_content_terminalizes_unjudged",
+      "value": {
+        "batch_threshold_reached": false,
+        "time_threshold_reached": false,
+        "session_final_flush": true,
+        "cumulative_useful_characters": 3,
+        "minimum_useful_characters": 4
+      },
+      "disposition": "terminalize_unjudged_system_job"
+    }
+  ],
+  "namespace_cases": [
+    {
+      "name": "historical_and_current_maintainer_namespaces_are_valid",
+      "valid": true,
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "trigger_identity": "memory-p1-v1.1:historical"
+        },
+        {
+          "job_type": "working_memory_maintain",
+          "trigger_identity": "memory-p1-v1.2:current"
+        }
+      ]
+    },
+    {
+      "name": "maintainer_without_versioned_namespace_is_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "trigger_identity": "legacy-memory-job"
+        }
+      ]
+    },
+    {
+      "name": "maintainer_null_trigger_identity_is_rejected",
+      "valid": false,
+      "expected_error": "AI_JOB_MAINTAINER_TRIGGER_NAMESPACE_REQUIRED",
+      "jobs": [
+        {
+          "job_type": "working_memory_maintain",
+          "trigger_identity": null
+        }
+      ]
+    },
+    {
+      "name": "non_maintainer_v11_namespace_is_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "memory_extract",
+          "trigger_identity": "memory-p1-v1.1:forbidden"
+        }
+      ]
+    },
+    {
+      "name": "non_maintainer_v12_namespace_is_rejected",
+      "valid": false,
+      "jobs": [
+        {
+          "job_type": "memory_extract",
+          "trigger_identity": "memory-p1-v1.2:forbidden"
+        }
+      ]
+    }
+  ],
+  "cutover_cases": [
+    {
+      "name": "v12_cutover_is_valid_after_pass_merge",
+      "valid": true,
+      "value": {
+        "contract_review_status": "pass",
+        "contract_merged": true,
+        "loaded_contract_version": "memory-maintainer-v1.2",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": false,
+        "post_session_memory_lane": "delegate_p1_final_flush",
+        "unconsumed_final_authority": "p1"
+      }
+    },
+    {
+      "name": "v11_loader_cannot_enable_v12_runtime",
+      "valid": false,
+      "value": {
+        "contract_review_status": "pass",
+        "contract_merged": true,
+        "loaded_contract_version": "memory-maintainer-v1.1",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": false,
+        "post_session_memory_lane": "delegate_p1_final_flush",
+        "unconsumed_final_authority": "p1"
+      }
+    },
+    {
+      "name": "v12_dual_producer_is_rejected",
+      "valid": false,
+      "value": {
+        "contract_review_status": "pass",
+        "contract_merged": true,
+        "loaded_contract_version": "memory-maintainer-v1.2",
+        "p1_runtime_enabled": true,
+        "legacy_memory_extract_enabled": true,
+        "post_session_memory_lane": "legacy_memory_extract",
+        "unconsumed_final_authority": "legacy_memory_extract"
+      }
+    }
+  ]
+}

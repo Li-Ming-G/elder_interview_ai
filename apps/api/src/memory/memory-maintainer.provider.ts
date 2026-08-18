@@ -4,7 +4,7 @@ export type MemoryMaintainerTriggerKind =
   'batch_threshold' | 'time_threshold' | 'session_final_flush';
 export type MemorySemanticKind = 'episode' | 'fact';
 export type MemorySemanticStatus = 'current' | 'uncertain' | 'disputed';
-export type MaintainerMemoryType =
+export type MaintainerMemoryTag =
   | 'person'
   | 'relationship'
   | 'place'
@@ -15,9 +15,15 @@ export type MaintainerMemoryType =
   | 'reason_clue'
   | 'unfinished_story';
 
-export interface MemoryMaintainerContextV11 {
-  context_schema_version: 'memory-maintainer-context-v1.1';
-  trigger: { kind: MemoryMaintainerTriggerKind; identity: string };
+export interface MemoryMaintainerContextV12 {
+  context_schema_version: 'memory-maintainer-context-v1.2';
+  trigger: {
+    kind: MemoryMaintainerTriggerKind;
+    identity: string;
+    selected_new_segment_count: number;
+    cumulative_useful_characters: number;
+    minimum_useful_characters: number;
+  };
   transcript_membership: readonly {
     segment_id: string;
     session_id: string;
@@ -52,7 +58,7 @@ export interface MemoryMaintainerWorkingMemory {
   revision: number;
   thread_id: string;
   semantic_kind: MemorySemanticKind;
-  memory_type: MaintainerMemoryType;
+  memory_tag?: MaintainerMemoryTag | null;
   canonical_key: string;
   value_kind: 'exact' | 'range' | 'unknown' | null;
   value: unknown;
@@ -66,9 +72,9 @@ export interface MemoryMaintainerWorkingMemory {
   }[];
 }
 
-export interface MemoryMaintainerOutputV11 {
-  output_schema_version: 'memory-maintainer-output-v1.1';
-  operations: readonly MemoryMaintainerOperationV11[];
+export interface MemoryMaintainerOutputV12 {
+  output_schema_version: 'memory-maintainer-output-v1.2';
+  operations: readonly MemoryMaintainerOperationV12[];
   boundary_candidates: readonly {
     candidate_id: string;
     code: 'elder_explicit_boundary';
@@ -77,7 +83,7 @@ export interface MemoryMaintainerOutputV11 {
   }[];
 }
 
-export interface MemoryMaintainerOperationV11 {
+export interface MemoryMaintainerOperationV12 {
   operation_id: string;
   kind:
     'CONTINUE' | 'BRANCH' | 'RESUME' | 'NEW' | 'DUPLICATE' | 'SUPPLEMENT' | 'RELATED' | 'UNCERTAIN';
@@ -87,7 +93,7 @@ export interface MemoryMaintainerOperationV11 {
   expected_anchor_thread_revision: number | null;
   proposed_state: null | {
     semantic_kind: MemorySemanticKind;
-    memory_type: MaintainerMemoryType;
+    memory_tag?: MaintainerMemoryTag | null;
     canonical_key: string;
     value_kind: 'exact' | 'range' | 'unknown' | null;
     value: unknown;
@@ -113,7 +119,7 @@ export interface MemoryMaintainerOperationV11 {
 }
 
 export abstract class MemoryMaintainerProvider {
-  public abstract maintain(context: MemoryMaintainerContextV11): Promise<unknown>;
+  public abstract maintain(context: MemoryMaintainerContextV12): Promise<unknown>;
 }
 
 export class MemoryMaintainerProviderUnavailableError extends Error {
@@ -129,23 +135,23 @@ export class UnavailableMemoryMaintainerProvider extends MemoryMaintainerProvide
   }
 }
 
-/** Deterministic local/test fixture. It emits NEW facts only and never guesses thread relations. */
+/** Deterministic local/test fixture. It emits NEW Episode/Fact candidates without guessing links. */
 @Injectable()
 export class LocalTestMemoryMaintainerProvider extends MemoryMaintainerProvider {
   public override maintain(
-    context: MemoryMaintainerContextV11,
-  ): Promise<MemoryMaintainerOutputV11> {
-    const operations: MemoryMaintainerOperationV11[] = [];
-    const boundaryCandidates: MemoryMaintainerOutputV11['boundary_candidates'][number][] = [];
+    context: MemoryMaintainerContextV12,
+  ): Promise<MemoryMaintainerOutputV12> {
+    const operations: MemoryMaintainerOperationV12[] = [];
+    const boundaryCandidates: MemoryMaintainerOutputV12['boundary_candidates'][number][] = [];
     for (const segment of context.transcript_membership) {
       if (segment.membership_kind !== 'new' || segment.trusted_role !== 'elder') continue;
       const match =
-        /^工作记忆\[(episode|fact):(person|relationship|place|event|time|time_range|important_choice|reason_clue|unfinished_story):(.+?)\]\s*=\s*(.+)$/u.exec(
+        /^工作记忆\[(episode|fact):(?:(person|relationship|place|event|time|time_range|important_choice|reason_clue|unfinished_story):)?(.+?)\]\s*=\s*(.+)$/u.exec(
           segment.text.trim(),
         );
       if (match !== null) {
         const semanticKind = match[1] as MemorySemanticKind;
-        const memoryType = match[2] as MaintainerMemoryType;
+        const memoryTag = (match[2] as MaintainerMemoryTag | undefined) ?? null;
         const canonicalKey = match[3] ?? 'local';
         const value = match[4] ?? '';
         operations.push({
@@ -157,7 +163,7 @@ export class LocalTestMemoryMaintainerProvider extends MemoryMaintainerProvider 
           expected_anchor_thread_revision: null,
           proposed_state: {
             semantic_kind: semanticKind,
-            memory_type: memoryType,
+            memory_tag: memoryTag,
             canonical_key: canonicalKey,
             value_kind: 'exact',
             value,
@@ -188,7 +194,7 @@ export class LocalTestMemoryMaintainerProvider extends MemoryMaintainerProvider 
       }
     }
     return Promise.resolve({
-      output_schema_version: 'memory-maintainer-output-v1.1',
+      output_schema_version: 'memory-maintainer-output-v1.2',
       operations,
       boundary_candidates: boundaryCandidates,
     });
