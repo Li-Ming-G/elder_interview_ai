@@ -34,6 +34,8 @@ DEV-ASR-PROVIDER-001 的最终工程交接见 [`DEV-ASR-PROVIDER-001.md`](DEV-AS
 
 MEMORY-T5-T8-P2-A-CONTRACT-001 的完整 lint/REQUEST_CHANGES/correction/final PASS/merge 历史见 [`MEMORY-T5-T8-P2-A-CONTRACT-001.md`](MEMORY-T5-T8-P2-A-CONTRACT-001.md) 与 [`REV-061`](../reviews/REV-061.md)。accepted `042ec56f` / CI `32042589647`、merge/main `d50e5688` / CI `32042952178` 只关闭 P2-A contract。
 
-MEMORY-T4-P1-SEMANTIC-TRIGGER-001 当前 REVIEW 交接见 [`MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md`](MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md)、[`REV-062`](../reviews/REV-062.md) 与 ADR-050。首轮 `P1=3/P2=3` 后，第二、三轮各有 `P1=2`，第四轮有 `P1=1`（final-low complete source set）；当前修复中，P2-B/C/D 与真实 provider/data 不在范围。
+MEMORY-T4-P1-SEMANTIC-TRIGGER-001 最终交接见 [`MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md`](MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md)、[`REV-062`](../reviews/REV-062.md) 与 ADR-050。四轮 REQUEST_CHANGES 永久保留；PR #70 accepted `cc2b82d` / CI `32161806857` / formal PASS P0=P1=P2=0，merge/main `00953ac`，accepted/main tree `033d3a9b`。main CI `32165583907` attempt 1 在 E2E install 20m 后 cancelled，未 rerun，不能写 SUCCESS。DONE 仅限 accepted v1.2 scope。
 
-Memory System V1 的 2026-08-18 产品负责人决策补充见 [`MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md`](MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md) 与 ADR-051。该交接只同步 P1/P2/P3/P4、最小 Graph、Evidence、Provider/Model `DEFERRED` 和三项未来回拉门禁；父任务与当前 v1.2 任务仍为 REVIEW，既有 PR/REV/CI 历史不改。
+MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001 当前 REVIEW 交接见 [`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md`](MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md)、[`REV-063`](../reviews/REV-063.md) 与 ADR-052。三轮 FAIL `P1=3/P2=2`、`P1=2/P2=1`、`P1=2/P2=0` 永久保留。第四次审查（第三次定向 re-review）对 dirty candidate 本地 `PASS P0=P1=P2=0`，定向 `138/138` 与 static checks 通过；不等于 GitHub/CI/merge/DONE。状态 REVIEW，A1 accepted→B→C→D 顺序不变。
+
+Memory System V1 的 2026-08-18 产品负责人决策补充见 [`MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md`](MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md) 与 ADR-051。该交接只同步 P1/P2/P3/P4、最小 Graph、Evidence、Provider/Model `DEFERRED` 和三项未来回拉门禁；父任务仍为 REVIEW，v1.2 已按 REV-062 收口，当前 A1 仍为 REVIEW。既有 PR/REV/CI 历史不改。

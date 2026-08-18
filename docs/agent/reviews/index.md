@@ -26,6 +26,8 @@ MEMORY-T2-T4-RUNTIME-001: [`REV-060`](REV-060.md) permanently records PR #68 old
 
 MEMORY-T5-T8-P2-A-CONTRACT-001: [`REV-061`](REV-061.md) permanently records PR #69 lint failure, `8d48cd5` / CI `32028717254` REQUEST_CHANGES P1=5, `bd299fb` / CI `32037158715` REQUEST_CHANGES P1=4, intermediate code/governance reviews, and final accepted `042ec56f` / CI `32042589647` / PASS `5317377208`; merge/main `d50e5688` / CI `32042952178` SUCCESS. PASS is contract-only.
 
-MEMORY-T4-P1-SEMANTIC-TRIGGER-001: [`REV-062`](REV-062.md) starts at `main@d50e5688`. Reviews returned `REQUEST_CHANGES P1=3/P2=3`, two further `P1=2`, then `P1=1` for final-low complete source-set enforcement after parity/orphan fixes. The fourth-round fix is in progress; no implementation PASS is recorded yet.
+MEMORY-T4-P1-SEMANTIC-TRIGGER-001: [`REV-062`](REV-062.md) permanently records four `REQUEST_CHANGES` rounds: P1=3/P2=3, P1=2, P1=2, then P1=1. PR #70 accepted `cc2b82d` / CI `32161806857` with formal PASS P0=P1=P2=0, then merged as main `00953ac`; accepted/main tree is `033d3a9b`. Main CI `32165583907` attempt 1 was cancelled after 20m in E2E install and was not rerun; it is not SUCCESS. DONE is limited to accepted v1.2 scope.
 
-2026-08-18 Memory System V1 product-decision sync is recorded in ADR-051 and the product-decision handoff. It does not create a new REV result, does not replace REV-058-062 history, and does not change `MEMORY-T4-P1-SEMANTIC-TRIGGER-001` or the parent SPEC from `REVIEW`.
+MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001: [`REV-063`](REV-063.md) permanently records the sole iteration-coach `Correction` and three failed reviews: `P0=0/P1=3/P2=2`, `P0=0/P1=2/P2=1`, and `P0=0/P1=2/P2=0`. The third targeted re-review locally PASSed the dirty contract candidate with `P0=P1=P2=0`, targeted `138/138`, and applicable static checks PASS. This is not a GitHub/exact-head/CI/merge/DONE result; all FAIL history remains immutable and task status stays REVIEW.
+
+2026-08-18 Memory System V1 product-decision sync is recorded in ADR-051 and the product-decision handoff. It does not replace REV-058-063 history. The parent SPEC remains REVIEW while A1 is reviewed.

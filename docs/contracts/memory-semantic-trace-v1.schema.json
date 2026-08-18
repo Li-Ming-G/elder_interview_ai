@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/memory-semantic-trace-v1.schema.json",
+  "title": "Memory Semantic Decision Trace Child V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_schema_version", "decision_trace_id", "source_manifest_hash", "proposal_digest", "plan_digest", "commit_digest", "source_memberships", "committed_refs"],
+  "properties": {
+    "trace_schema_version": { "const": "memory-semantic-trace-v1" },
+    "decision_trace_id": { "$ref": "#/$defs/uuid" },
+    "source_manifest_hash": { "$ref": "#/$defs/digest" },
+    "proposal_digest": { "$ref": "#/$defs/digest" },
+    "plan_digest": { "$ref": "#/$defs/digest" },
+    "commit_digest": { "$ref": "#/$defs/digest" },
+    "source_memberships": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/sourceMembership" } },
+    "committed_refs": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/committedRef" } }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceMembership": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_ref_id", "resolution_id", "resolution_revision", "input_order", "content_digest"],
+      "properties": {
+        "source_ref_id": { "type": "string", "pattern": "^src:[A-Za-z0-9._:-]{1,120}$" },
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "input_order": { "type": "integer", "minimum": 0 },
+        "content_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "committedRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proposal_id", "resolution_id", "resolution_revision", "evidence_manifest_hash", "layer_identity_id", "layer_revision_id"],
+      "properties": {
+        "proposal_id": { "type": "string", "pattern": "^proposal:[A-Za-z0-9._:-]{1,120}$" },
+        "resolution_id": { "$ref": "#/$defs/uuid" },
+        "resolution_revision": { "type": "integer", "minimum": 1 },
+        "evidence_manifest_hash": { "$ref": "#/$defs/digest" },
+        "layer_identity_id": { "$ref": "#/$defs/uuid" },
+        "layer_revision_id": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}

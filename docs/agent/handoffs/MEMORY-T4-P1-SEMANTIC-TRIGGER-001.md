@@ -1,6 +1,6 @@
 # Handoff｜MEMORY-T4-P1-SEMANTIC-TRIGGER-001
 
-状态：`REVIEW / REQUEST_CHANGES FIXED LOCALLY / RE-REVIEW PENDING`
+状态：`DONE / PASS / ACCEPTED V1.2 SCOPE ONLY`
 
 ## 基本信息
 
@@ -33,7 +33,7 @@
 - startup/reconcile 对 fresh pending/running v1.2 missing-trace orphan 在事务内 CAS 为 failed，并只从持久 job/scope/input rows 建立 stage=`recovered`、status=`unavailable` trace；不调用 provider、不重跑 final flush、不伪造当前 config/transcript/空 observation。历史 succeeded/provider-called、normal/final-low replay 与 v1/v1.1 reader 兼容保持。
 - 新增 persisted PG 覆盖 scope/inputHash drift、fresh pending/running startup-only、provider/succeeded history preservation 与并发幂等；`memory-maintainer-runtime.test.ts` 43/43，相关 unit 74/74，workspace typecheck/lint/format/diff-check PASS。
 
-本交接仍为 `REVIEW / REQUEST_CHANGES FIXED LOCALLY / RE-REVIEW PENDING`；未 commit、push、PR、merge 或触发远端 CI。
+该候选最终形成 PR #70 accepted head `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66`，exact-head CI `32161806857` SUCCESS，正式 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/70#issuecomment-5331708714)（P0=P1=P2=0），并 merge 为 main `00953acadb8edabefe0e59a9c570af745d22100b`。accepted/main tree 均为 `033d3a9b2d905c8c758e6784063eae0da405b3bb`。
 
 ## 独立审查历史
 
@@ -46,7 +46,9 @@
 - typecheck、lint、build、smoke PASS；治理同步后再跑一次 final format/diff-check。
 - 历史失败保留：修复前 integration `134/136`，以及根级测试新增后各一次 Prettier/ESLint 失败；均未删改测试目标。
 
-尚未 commit、push、建 PR 或触发 CI；独立 re-review PASS 后才形成唯一远端 exact-head 候选。
+main CI `32165583907` attempt 1 不是 SUCCESS：format/lint/typecheck/unit/migration/integration/auth/build/smoke 已 SUCCESS，E2E skipped；`pnpm test:e2e:install` 20 分钟耗尽后 workflow cancelled，未 rerun。PR exact-head ordinary/auth E2E 均 SUCCESS。该 infra exception 与 tree-equivalence 只用于已接收 v1.2 范围的治理收口，不得写成 main CI 全绿。
+
+DONE 仅覆盖 T2/Foundation + T4/P1 + T18-T19/P6 + T0 reference-only v1.2 accepted scope；P2-A1/B/C/D、P3/P4、真实 provider/model/data、UI、授权、公网和生产仍在范围外。
 
 ## 永久前置事实
 

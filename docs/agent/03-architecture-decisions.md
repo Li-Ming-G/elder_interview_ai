@@ -527,7 +527,7 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 
 ## ADR-050｜Memory Maintainer V1.2 以 Episode/Fact/Boundary 为核心并按选定批次累计触发
 
-- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T4-P1-SEMANTIC-TRIGGER-001` 与 REV-062。
+- 状态：`Accepted / IMPLEMENTATION PASS`；绑定 `MEMORY-T4-P1-SEMANTIC-TRIGGER-001` 与 REV-062。DONE 只覆盖已接收 v1.2 范围。
 - 映射：T2/Foundation、T4/P1、T18-T19/P6、T0/Foundation-Observability；不进入 T5-T8/P2-B/C/D。
 - 背景：已接收 v1.1 把 `person|relationship|place|event|time|time_range|important_choice|reason_clue|unfinished_story` 设为必填 `memory_type`，并用于 semantic slot、target CAS 与数据库唯一性；这会把检索标签误当 Episode/Fact 的语义本体。runtime 又以“任一 pending elder segment 单独达到最小长度”判定 useful，ASR 碎片化时即使本批累计内容充分也不会触发。
 - 决定：新增 immutable `memory-maintainer-v1.2`。P1 value 核心只允许 `semantic_kind=episode|fact`，Boundary 继续使用独立 candidate/revision authority。原枚举改作可空 `memory_tag` metadata；缺失合法，有值也不得进入 identity、dedupe、revision 或 target CAS。semantic slot 固定为 `semantic_kind + canonical_key`。
@@ -537,8 +537,9 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - 可观察性：Decision Trace 使用独立 1:1 typed trigger observation root 与 ordered selected-new membership，只保存 source AiJob/trigger identity、selected IDs/order/revision/digest/useful-count、trigger kind、累计数、阈值和 canonical manifest。root+members 同事务写入；Reader 从 source authority 重算并失败关闭。不得复制完整正文、Prompt、Context 或 provider payload。
 - Final-low parity：`AiJobSessionScope.eligibleSegmentCount/segmentManifestHash`、`AiJob.inputHash` 与 Decision Trace selected-new manifest 必须机械绑定同一 canonical manifest authority；service/Reader 对 scope、job、trace、source rows 任一漂移失败关闭。`final-unjudged` suffix 继续取完整 manifest 前 32 hex。
 - Startup recovery：fresh `pending|running` v1.2 job 缺 trace 时，startup/reconcile 在同一事务内只凭持久 job/scope/input rows CAS 为 failed，并写 stage=`recovered`、status=`unavailable` 的 provenance-unavailable trace；不得调用 provider、重跑 final flush 或从当前 config/transcript/空集合补观察事实。历史 succeeded/provider-called 与 v1/v1.1 兼容路径保持不改写。
-- 代价：需要一次 forward migration及 provider/runtime/reader 兼容；换取不为合法 Episode/Fact 强造分类，并避免碎片化 ASR 使 P1 饥饿。P2-B 继续等待外部方案确认及本修正接收。
-- 审查历史：首轮独立实现审查为 `REQUEST_CHANGES / P0=0/P1=3/P2=3`，指出 post-session v1.1 test drift、null namespace、缺 typed trigger observation，以及三项兼容/恢复/治理测试缺口。六项已本地集中修复，REV-062 保留原失败事实；ADR 仍为 `Proposed / REVIEW`，等待独立 re-review 与 exact-head CI。
+- 代价：需要一次 forward migration及 provider/runtime/reader 兼容；换取不为合法 Episode/Fact 强造分类，并避免碎片化 ASR 使 P1 饥饿。该修正已接收；后续按 ADR-052 先接收 A1 semantic envelope，再启动 P2-B persistence。
+- 审查历史：四轮 `REQUEST_CHANGES` 永久保留：首轮 P1=3/P2=3，第二轮 P1=2，第三轮 P1=2，第四轮 P1=1。PR #70 accepted `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66` / exact-head CI `32161806857` SUCCESS / formal PASS P0=P1=P2=0，merge/main `00953acadb8edabefe0e59a9c570af745d22100b`；accepted/main tree 均为 `033d3a9b2d905c8c758e6784063eae0da405b3bb`。
+- main CI 例外：`32165583907` attempt 1 在 format/lint/typecheck/unit/migration/integration/auth/build/smoke 均 SUCCESS、E2E skipped 后，于 `pnpm test:e2e:install` 耗尽 20 分钟而 cancelled，未 rerun；不得登记为 main CI SUCCESS。PR exact-head ordinary/auth E2E 均 SUCCESS。tree-equivalence 只用于本 accepted scope 的低风险治理收口。
 
 ## ADR-051｜Memory System V1 冻结分层语义职责、最小检索图与 Deferred 模型决策
 
@@ -551,3 +552,14 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - Provider/Model：真实 LLM provider/model 与真实 embedding model 均 `DEFERRED`。保留 `P1_MODEL`、`P2_MODEL`、`DIRECTOR_MODEL` 三个独立槽位，以及 provider config、可选 Base URL、API key、Model ID；不同槽可临时共用同一模型，但不得写死为只能共用。ADR-040 的 SDK/direct-provider 与单次调用唯一 active binding 历史继续有效，不等于选定实际厂商/model，也不阻止三个 lane 独立绑定。
 - 安全/评测：API key 只允许 server-side，通过环境变量或既有 secret injection 使用，不进入前端、GitHub 或日志。高级 security hardening、DPA/跨境/企业级审计与正式 benchmark/A-B 横评后置或 `DEFERRED`；该优先级不构成真实数据、真实长者、生产公网或生产许可。
 - 回拉门禁：到达对应节点必须再次请负责人确认真实 LLM provider/model、真实 embedding model、P4 budget。新的产品含义歧义必须暂停该具体决定并上报；不改变产品行为、架构职责或未来扩展能力的技术细节可由实现者自行处理。
+
+## ADR-052｜P2 先冻结 transient semantic envelope，再进入 persistence
+
+- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001` 与 REV-063。唯一 iteration-coach 结论为 `Correction`，不是 implementation PASS。
+- 映射：T5-T8/P2；T0 reference-only observability。T4/P1 是已接收 upstream；P3/P4/P5 不在本任务启用范围；P6 job/retry/CAS/transaction runtime 后置到 P2-B/C。
+- 决定：P2 semantic consolidation 采用 `transient MemorySemanticContext -> SemanticProposal -> deterministic validation -> non-persistent ValidatedMemoryMutationPlan -> committed-authority bridge contract`。LLM 只提出结构化语义建议，程序验证 proposal；A1 不持久化 plan、不执行 commit。
+- 唯一权威：`MemoryClaim/MemoryResolution` 继续唯一持有 semantic value。proposal、plan、Long、layer、Decision Trace 与普通 log 均不得成为第二 truth source；Long/layer/Trace/log 只能保存 ID/revision/digest/manifest/status 等 reference-only provenance。
+- Bridge 边界：committed bridge 只描述未来成功事务后如何引用实际 Resolution/Evidence/layer authority；A1 只冻结 shape，不能让未提交 proposal 或 transient plan 被 reader 当作 committed memory。
+- 顺序：`A1 exact-head accepted -> P2-B persistence -> P2-C adversarial runtime -> P2-D real provider/data gate`。A1 未接收前 B 不开工；A1 也不提前启用 C/D。
+- 后置：真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产继续 `DEFERRED/BLOCKED`。P3/P4、Graph、embedding、Director Context 与 evidence tools 不由 A1 实现。
+- 历史：PR #69/REV-061 与 PR #70/REV-062 的全部失败、REQUEST_CHANGES、PASS/merge/CI 事实永久保留；ADR-052 不扩大任一既有接收范围。
