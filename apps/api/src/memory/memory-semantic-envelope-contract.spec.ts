@@ -146,6 +146,71 @@ describe('memory semantic envelope contract', () => {
     );
   });
 
+  it('uses the accepted 240-character canonical_key boundary across the full envelope', () => {
+    for (const length of [201, 220, 239, 240]) {
+      const value = cloneBaseWithCanonicalKey('k'.repeat(length));
+      expect(validateBase(value), `length=${String(length)}`).toEqual({
+        valid: true,
+        errors: [],
+        verification: 'contract',
+      });
+      expect(
+        compile('docs/contracts/memory-semantic-context-v1.schema.json')(value.context),
+        `context length=${String(length)}`,
+      ).toBe(true);
+      expect(
+        compile('docs/contracts/memory-semantic-proposal-v1.schema.json')(value.proposal),
+        `proposal length=${String(length)}`,
+      ).toBe(true);
+      expect(
+        compile('docs/contracts/committed-semantic-projection-v1.schema.json')(value.committed),
+        `committed length=${String(length)}`,
+      ).toBe(true);
+    }
+  });
+
+  it('rejects canonical_key length 241 in schema and pure validation', () => {
+    const value = cloneBaseWithCanonicalKey('k'.repeat(241));
+    expect(validateBase(value).errors).toContain('SEMANTIC_CANONICAL_KEY_INVALID');
+    expect(compile('docs/contracts/memory-semantic-context-v1.schema.json')(value.context)).toBe(
+      false,
+    );
+    expect(compile('docs/contracts/memory-semantic-proposal-v1.schema.json')(value.proposal)).toBe(
+      false,
+    );
+    expect(
+      compile('docs/contracts/committed-semantic-projection-v1.schema.json')(value.committed),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['emoji code points', '😀'.repeat(120), true],
+    ['emoji code points with 242 UTF-16 units', '😀'.repeat(121), true],
+    ['emoji code points over limit', '😀'.repeat(241), false],
+    [
+      'mixed BMP surrogate combining at limit',
+      `${'a'.repeat(80)}${'😀'.repeat(80)}${'e\u0301'.repeat(40)}`,
+      true,
+    ],
+    [
+      'mixed BMP surrogate combining over limit',
+      `${'a'.repeat(80)}${'😀'.repeat(80)}${'e\u0301'.repeat(40)}x`,
+      false,
+    ],
+  ] as const)('counts canonical_key Unicode code points for $0', (_name, canonicalKey, valid) => {
+    const value = cloneBaseWithCanonicalKey(canonicalKey);
+    expect(validateBase(value).valid).toBe(valid);
+    expect(compile('docs/contracts/memory-semantic-context-v1.schema.json')(value.context)).toBe(
+      valid,
+    );
+    expect(compile('docs/contracts/memory-semantic-proposal-v1.schema.json')(value.proposal)).toBe(
+      valid,
+    );
+    expect(
+      compile('docs/contracts/committed-semantic-projection-v1.schema.json')(value.committed),
+    ).toBe(valid);
+  });
+
   it('binds every mutation-plan field except the self digest', () => {
     for (const [path, value] of [
       ['plan_schema_version', 'validated-memory-mutation-plan-v0'],
@@ -435,6 +500,19 @@ type Envelope = FixtureSet['base'];
 
 function cloneBase(): Envelope {
   return structuredClone(fixtures.base);
+}
+
+function cloneBaseWithCanonicalKey(canonicalKey: string): Envelope {
+  const value = cloneBase();
+  for (const member of value.context.source_members as Record<string, unknown>[]) {
+    const state = member.semantic_state as Record<string, unknown>;
+    state.canonical_key = canonicalKey;
+    member.content_digest = semanticContentDigest(state);
+  }
+  firstProposedState(value).canonical_key = canonicalKey;
+  firstCommittedAuthority(value).canonical_key = canonicalKey;
+  refreshEnvelopeDigests(value);
+  return value;
 }
 
 function validateBase(value: Envelope): ReturnType<typeof validateSemanticEnvelope> {

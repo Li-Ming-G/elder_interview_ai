@@ -557,6 +557,9 @@ function validateCommittedProjection(
       errors.push('SEMANTIC_COMMIT_LAYER_INVALID');
     const committedAuthority = object(entry.committed_authority_ref);
     const committedResolutionId = asString(committedAuthority?.resolution_id);
+    const committedCanonicalKey = asString(committedAuthority?.canonical_key);
+    if (committedCanonicalKey === null || Array.from(committedCanonicalKey).length > 240)
+      errors.push('SEMANTIC_CANONICAL_KEY_INVALID');
     const committedSlot = semanticSlotKey(committedAuthority);
     if (committedSlot !== null && committedTargetSlots.has(committedSlot))
       errors.push('SEMANTIC_COMMIT_TARGET_SLOT_DUPLICATE');
@@ -747,6 +750,9 @@ function validateStateDialect(state: JsonObject | null, errors: string[], errorC
   const valueKind = asString(state.value_kind);
   const resolutionKind = asString(state.resolution_kind);
   const value = state.value;
+  const canonicalKey = asString(state.canonical_key);
+  if (canonicalKey === null || Array.from(canonicalKey).length > 240)
+    errors.push('SEMANTIC_CANONICAL_KEY_INVALID');
   if (status === 'disputed') {
     if (
       valueKind !== null ||

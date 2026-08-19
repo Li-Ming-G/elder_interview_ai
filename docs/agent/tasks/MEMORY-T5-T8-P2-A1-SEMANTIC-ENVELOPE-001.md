@@ -1,6 +1,6 @@
 # MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001
 
-状态：`REVIEW / CONTRACT ONLY / LOCAL PASS / NOT ACCEPTED`
+状态：`REVIEW / CONTRACT ONLY / FINAL DIRTY-CANDIDATE LOCAL PASS / NOT ACCEPTED`
 
 ## 目标
 
@@ -83,6 +83,11 @@ A1 未被正式接收前，P2-B 不得开工；A1 的 Schema/本地测试/CI 均
 - 第二轮定向 re-review：`FAIL / P0=0/P1=2/P2=1`。P1 为 duplicate durable resolution source 与 proposal/commit evidence uniqueness 语义矛盾；P2 为剩余 tamper test gap。状态继续 `REVIEW`。
 - 第三次审查（第二次定向 re-review）：`FAIL / P0=0/P1=2/P2=0`。P1 为 projection-wide target/CAS/Resolution ID 未唯一，以及 MemoryEvidence ID 仅 entry-local 唯一。前两轮历史与 `REVIEW` 状态不变。
 - 第四次审查（第三次定向 re-review）：本地 `PASS / P0=0/P1=0/P2=0`；定向矩阵 `138/138` 与适用 static checks 通过。前三轮 FAIL 永久保留。本结论仅绑定 dirty contract candidate，不等于 GitHub/CI/merge/DONE，A1 继续 `REVIEW`。
+- PR #71 formal review：head `258eb46d9dc2c3c6864f603eea4a93ea90307a90` / CI `32177083890` SUCCESS / [REQUEST_CHANGES comment `5333195637`](https://github.com/Li-Ming-G/elder_interview_ai/pull/71#issuecomment-5333195637)，`P0=0/P1=1/P2=0`；finding 为 upstream `canonical_key` 240 与 committed 200 不一致。
+- PR #71 窄修后：`canonical_key` mismatch 已修，core targeted `140/140` 与 static checks PASS；等待 adversarial 与独立 re-review。A1 仍 `REVIEW`，不构成 PASS/DONE。
+- PR #71 final formal re-review 新增 P1：Schema `canonical_key` 按 Unicode code point，pure validator 按 UTF-16 code unit；121 emoji 反例证明 gate 不一致。该 finding 绑定 head `258eb46d9dc2c3c6864f603eea4a93ea90307a90` / CI `32177083890` / comment `5333195637`，历史保留，A1 仍 `REVIEW`。
+- PR #71 窄修后统一 Unicode code-point 语义，validator 使用 `Array.from`；覆盖 120/121/240/241 emoji 与混合边界，core + adversarial `159/159`、static checks PASS。
+- 最终 dirty candidate 独立 local review：`PASS / P0=0/P1=0/P2=0`。前三轮 FAIL、canonical formal REQUEST_CHANGES 与此前 local PASS 永久保留；本结论不等于 GitHub acceptance、新 CI、merge 或 DONE，A1 仍 `REVIEW`。
 
 ## 文件授权更正
 

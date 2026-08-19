@@ -36,7 +36,7 @@
             "resolution_id": { "$ref": "#/$defs/uuid" },
             "resolution_revision": { "type": "integer", "minimum": 1 },
             "semantic_kind": { "enum": ["episode", "fact"] },
-            "canonical_key": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
             "value_kind": { "type": ["string", "null"], "enum": ["exact", "range", "unknown", null] },
             "resolution_kind": { "enum": ["single", "range", "unknown", "conflict_set"] },
             "semantic_status": { "enum": ["current", "uncertain", "disputed"] }

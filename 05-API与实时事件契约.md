@@ -1597,4 +1597,4 @@ P2-A1 的 Context、Proposal、ValidatedMemoryMutationPlan、CommittedSemanticPr
 
 内部 bridge 的 Context durable `resolution_id` 全局唯一；proposal source/claim/evidence 必须是按 source owner 闭合的子图。proposal 与 commit 以 `(proposal_claim_ref_id, evidence_ref_id)` 为唯一键且 pair 集合完全相等，同一 evidence ref 可支持不同 claims。`new_slot` commit revision 为 1；`existing_slot` 只允许 proposal source set 内同 semantic slot 的 authority，以 source revision 作为 expected CAS 并提交下一 revision。Long 内部请求必须绑定 trigger session membership 及 final Mid/current 各自完整 count/manifest；这些约束不产生新 public DTO。
 
-多 entry 内部 projection 必须全局拒绝重复 proposal/claim/target slot、重复 existing CAS authority write、重复 committed Resolution/slot、同 authority metadata 冲突、重复 claim/evidence pair 与跨 entry 重复 MemoryEvidence ID；source/evidence 的合法复用仍允许。所有错误均为内部 contract failure，不新增公共错误 DTO。
+多 entry 内部 projection 必须全局拒绝重复 proposal/claim/target slot、重复 existing CAS authority write、重复 committed Resolution/slot、同 authority metadata 冲突、重复 claim/evidence pair 与跨 entry 重复 MemoryEvidence ID；source/evidence 的合法复用仍允许。内部 Context/Proposal/committed authority 的 `canonical_key` 均为 1-240 字符，超限失败关闭。所有错误均为内部 contract failure，不新增公共错误 DTO。

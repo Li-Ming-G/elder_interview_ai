@@ -1,6 +1,6 @@
 # Handoff｜MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001
 
-状态：`REVIEW / CONTRACT ONLY / LOCAL PASS / NOT ACCEPTED`
+状态：`REVIEW / CONTRACT ONLY / FINAL DIRTY-CANDIDATE LOCAL PASS / NOT ACCEPTED`
 
 ## 当前接收对象
 
@@ -35,6 +35,14 @@ transient Context -> SemanticProposal -> validated transient plan -> committed b
 第三次审查（第二次定向 re-review）仍为 `FAIL / P0=0/P1=2/P2=0`。两项 P1：projection 范围内 target/CAS/committed Resolution ID 未唯一；MemoryEvidence ID 只在单 entry 内唯一、未在整个 projection 失败关闭。前两轮历史、evidence pair 裁决与 `REVIEW` 状态不变。
 
 第四次审查（第三次定向 re-review）对当前 dirty contract candidate 给出本地 `PASS / P0=0/P1=0/P2=0`；定向矩阵 `138/138`、适用 static checks 通过。前三轮 FAIL 永久保留。本地 PASS 不等于 GitHub exact-head review、CI、merge、项目负责人 acceptance 或 DONE；A1 继续 `REVIEW`，B/C/D 不解锁。
+
+PR #71 formal REQUEST_CHANGES 永久记录：head `258eb46d9dc2c3c6864f603eea4a93ea90307a90`、CI `32177083890` SUCCESS、[comment `5333195637`](https://github.com/Li-Ming-G/elder_interview_ai/pull/71#issuecomment-5333195637)、`P0=0/P1=1/P2=0`；finding 为 upstream `canonical_key` 240 vs committed 200。
+
+窄修已将该 mismatch 修正；当前 core targeted `140/140` 与 static checks 通过，等待 adversarial 与独立 re-review。A1 仍 `REVIEW`，不把该状态写成 GitHub PASS、merge 或 DONE。
+
+PR #71 final formal re-review 在同一 head/CI/comment 上追加 P1：Schema `canonical_key` 使用 Unicode code point，pure validator 使用 UTF-16 code unit；121 emoji 反例可造成两层 gate 分歧。此前 240→200 mismatch 与本次新 P1 均永久保留，A1 继续 `REVIEW`。
+
+窄修后 validator 统一使用 `Array.from` 按 Unicode code point 计数；120/121/240/241 emoji 与混合字符边界覆盖通过，core + adversarial `159/159`、static checks PASS。最终 dirty candidate 独立 local review 为 `PASS / P0=0/P1=0/P2=0`；前三轮 FAIL、canonical formal REQUEST_CHANGES 与此前 local PASS 永久保留。本地结论不等于 GitHub acceptance、新 CI、merge 或 DONE，A1 仍 `REVIEW`。
 
 ## 后续门禁
 

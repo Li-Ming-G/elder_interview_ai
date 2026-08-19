@@ -629,10 +629,90 @@ describe('P2-A1 semantic consolidation adversarial contract', () => {
     refreshDigests(segment);
     expect(validate(segment).errors).toContain('SEMANTIC_EVIDENCE_SEGMENT_DUPLICATE');
   });
+
+  it.each([201, 220, 239, 240])(
+    'accepts canonical_key length %s across the complete semantic envelope',
+    (length) => {
+      const envelope = base();
+      setCanonicalKeyEverywhere(envelope, 'k'.repeat(length));
+      refreshDigests(envelope);
+      expect(schema('memory-semantic-context-v1')(envelope.context)).toBe(true);
+      expect(schema('memory-semantic-proposal-v1')(envelope.proposal)).toBe(true);
+      expect(schema('validated-memory-mutation-plan-v1')(envelope.plan)).toBe(true);
+      expect(schema('committed-semantic-projection-v1')(envelope.committed)).toBe(true);
+      expect(validate(envelope)).toEqual({ valid: true, errors: [], verification: 'contract' });
+    },
+  );
+
+  it.each([
+    ['context', 'memory-semantic-context-v1'],
+    ['proposal', 'memory-semantic-proposal-v1'],
+    ['committed', 'committed-semantic-projection-v1'],
+  ] as const)(
+    'rejects canonical_key length 241 at %s machine gate and pure validator',
+    (target, schemaName) => {
+      const envelope = base();
+      setCanonicalKeyEverywhere(envelope, 'k'.repeat(241));
+      refreshDigests(envelope);
+      expect(schema(schemaName)(envelope[target])).toBe(false);
+      expect(validate(envelope).errors).toContain('SEMANTIC_CANONICAL_KEY_INVALID');
+    },
+  );
+
+  it('accepts a 220-character committed canonical_key, closing the former 200 limit', () => {
+    const envelope = base();
+    setCanonicalKeyEverywhere(envelope, 'k'.repeat(220));
+    refreshDigests(envelope);
+    expect(schema('committed-semantic-projection-v1')(envelope.committed)).toBe(true);
+    expect(validate(envelope).valid).toBe(true);
+  });
+
+  it.each([
+    ['120 emoji code points', '😀'.repeat(120), 120, true],
+    ['240 emoji code points', '😀'.repeat(240), 240, true],
+    ['121 emoji code points', '😀'.repeat(121), 121, true],
+    [
+      'mixed BMP, surrogate pair, and combining code points',
+      `${'😀'.repeat(120)}${'a'.repeat(60)}${'e\u0301'.repeat(30)}`,
+      240,
+      true,
+    ],
+    [
+      'mixed BMP, surrogate pair, and combining code points over limit',
+      `${'😀'.repeat(120)}${'a'.repeat(61)}${'e\u0301'.repeat(30)}`,
+      241,
+      false,
+    ],
+    ['241 emoji code points', '😀'.repeat(241), 241, false],
+  ] as const)(
+    'uses Unicode code-point length for %s',
+    (_name, canonicalKey, expectedLength, valid) => {
+      expect(Array.from(canonicalKey).length).toBe(expectedLength);
+      const envelope = base();
+      setCanonicalKeyEverywhere(envelope, canonicalKey);
+      refreshDigests(envelope);
+      const schemaResults = [
+        schema('memory-semantic-context-v1')(envelope.context),
+        schema('memory-semantic-proposal-v1')(envelope.proposal),
+        schema('committed-semantic-projection-v1')(envelope.committed),
+      ];
+      expect(schemaResults.every((result) => result === valid)).toBe(true);
+      expect(validate(envelope).valid).toBe(valid);
+      if (!valid) expect(validate(envelope).errors).toContain('SEMANTIC_CANONICAL_KEY_INVALID');
+    },
+  );
 });
 
 function base(): Envelope {
   return structuredClone(fixture.base);
+}
+
+function setCanonicalKeyEverywhere(value: Envelope, canonicalKey: string): void {
+  for (const member of value.context.source_members as Record<string, unknown>[]) {
+    set(member, 'semantic_state.canonical_key', canonicalKey);
+  }
+  set(value.proposal, 'proposals.0.proposed_state.canonical_key', canonicalKey);
+  set(value.committed, 'entries.0.committed_authority_ref.canonical_key', canonicalKey);
 }
 
 function validate(value: Envelope): ReturnType<typeof validateSemanticEnvelope> {
@@ -840,6 +920,9 @@ function makeLongEnvelope(): Envelope {
 function refreshDigests(value: Envelope): void {
   const members = value.context.source_members as unknown[];
   const evidence = value.context.evidence_membership as unknown[];
+  for (const member of members as Record<string, unknown>[]) {
+    member.content_digest = semanticContentDigest(member.semantic_state);
+  }
   const evidenceHash = semanticEvidenceManifestHash(evidence);
   const sourceHash = semanticSourceManifestHash(members, evidence);
   value.context.evidence_manifest_hash = evidenceHash;
