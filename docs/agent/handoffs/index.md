@@ -38,4 +38,6 @@ MEMORY-T4-P1-SEMANTIC-TRIGGER-001 最终交接见 [`MEMORY-T4-P1-SEMANTIC-TRIGGE
 
 MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001 当前 REVIEW 交接见 [`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md`](MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md)、[`REV-063`](../reviews/REV-063.md) 与 ADR-052。PR #71 formal REQUEST_CHANGES `258eb46d` / CI `32177083890` / comment `5333195637` 与 canonical_key 历史保留。窄修 `Array.from` 统一 code point，120/121/240/241 emoji+混合边界、core+adversarial `159/159`、static PASS；final dirty candidate local `P0=P1=P2=0`，不等于 GitHub acceptance/新 CI/merge/DONE。A1 REVIEW。
 
+MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001 当前交接见 [`MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md`](MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md) 与 [`REV-064`](REV-064.md)。候选仍为 contract-only、未提交/未建 PR；旧 adversarial `P0=0/P1=6/P2=1`、全量 unit 的既有 focus timing 失败和本轮本地 `34/34` 证据均保留，等待负责人 exact-head 审查，不解锁 P2-C。
+
 Memory System V1 的 2026-08-18 产品负责人决策补充见 [`MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md`](MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md) 与 ADR-051。该交接只同步 P1/P2/P3/P4、最小 Graph、Evidence、Provider/Model `DEFERRED` 和三项未来回拉门禁；父任务仍为 REVIEW，v1.2 已按 REV-062 收口，当前 A1 仍为 REVIEW。既有 PR/REV/CI 历史不改。

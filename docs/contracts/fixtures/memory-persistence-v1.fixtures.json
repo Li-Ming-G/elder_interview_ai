@@ -1,0 +1,20 @@
+{
+  "contract_version": "memory-persistence-v1",
+  "cases": [
+    { "name": "fresh manifest", "valid": true, "mode": "fresh", "status": "ready" },
+    { "name": "repeat completed upgrade is idempotent", "valid": true, "mode": "upgrade", "status": "completed" },
+    { "name": "interrupted upgrade unavailable", "valid": false, "mode": "upgrade", "status": "interrupted", "expected_error": "PERSISTENCE_UPGRADE_DATA_UNAVAILABLE" },
+    { "name": "policy drift fail closed", "valid": false, "expected_error": "PERSISTENCE_JOB_POLICY_DRIFT" },
+    { "name": "cleanup failed hidden", "valid": false, "expected_error": "PERSISTENCE_RETENTION_ROOT_NOT_READABLE" },
+    { "name": "Long body key denied", "valid": false, "expected_error": "PERSISTENCE_BODY_KEY_FORBIDDEN" },
+    { "name": "checkpoint job must be terminal succeeded", "valid": false, "expected_error": "PERSISTENCE_CHECKPOINT_JOB_NOT_SUCCEEDED" },
+    { "name": "Long projection job must be long-session terminal", "valid": false, "expected_error": "PERSISTENCE_LONG_JOB_TYPE_MISMATCH" },
+    { "name": "claim evidence authority is reference-bound", "valid": false, "expected_error": "PERSISTENCE_CLAIM_EVIDENCE_MANIFEST_MISMATCH" },
+    { "name": "identity revision number is unique", "valid": false, "expected_error": "PERSISTENCE_IDENTITY_REVISION_DUPLICATE" },
+    { "name": "checkpoint member digest cannot be self-rehashed", "valid": false, "expected_error": "PERSISTENCE_CHECKPOINT_AUTHORITY_MISMATCH" },
+    { "name": "job source and target digests are provenance-bound", "valid": false, "expected_error": "PERSISTENCE_JOB_SOURCE_DIGEST_MISMATCH" },
+    { "name": "trace retention target must exist", "valid": false, "expected_error": "PERSISTENCE_RETENTION_ROOT_TARGET_UNKNOWN" },
+    { "name": "scope session set is exact", "valid": false, "expected_error": "PERSISTENCE_SCOPE_SESSION_SET_MISMATCH" }
+    ,{ "name": "retry predecessor must be terminal retryable", "valid": false, "expected_error": "PERSISTENCE_JOB_RETRY_PREDECESSOR_NOT_TERMINAL_RETRYABLE" }
+  ]
+}

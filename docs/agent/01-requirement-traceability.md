@@ -111,6 +111,7 @@ Accepted evidence: PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` 
 | v1.2 durable namespace and recovery preserve old history | T18-T19/P6 | v1.1/v1.2 namespace constraints, final-unjudged concurrency/restart, retry/replay/late-fence regression | DONE / PASS accepted v1.2 scope |
 | trigger/provenance remain reference-only | T0/Foundation-Observability | typed trace root + ordered IDs/revisions/digests/count/threshold/manifest; final-low scope count/hash, AiJob/Trace inputHash and selected-new manifest share one canonical authority; Reader/service drift rejection; raw-content denial | DONE / PASS accepted v1.2 scope |
 | P2 remains separate | T5-T8/P2 governance | task scope, REV-062, ADR-051/052 | A1 REVIEW；P2-B/C/D not started |
+| P2-B persistence reference contract | T5-T8/P2 + T18-T19/P6 + T0/Foundation-Observability | `memory-persistence-v1` Schema/fixtures、`memory-persistence-contract.ts`、REV-064 | REVIEW / NOT ACCEPTED；仅 contract candidate，未实现 Prisma/migration/runtime/provider |
 
 REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.
 
