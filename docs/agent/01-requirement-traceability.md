@@ -110,8 +110,8 @@ Accepted evidence: PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` 
 | legacy and P1 identities remain separately unique | T2/Foundation | forward migration, legacy/P1 partial indexes, exact v1.1 upgrade/repeat PostgreSQL tests | DONE / PASS accepted v1.2 scope |
 | v1.2 durable namespace and recovery preserve old history | T18-T19/P6 | v1.1/v1.2 namespace constraints, final-unjudged concurrency/restart, retry/replay/late-fence regression | DONE / PASS accepted v1.2 scope |
 | trigger/provenance remain reference-only | T0/Foundation-Observability | typed trace root + ordered IDs/revisions/digests/count/threshold/manifest; final-low scope count/hash, AiJob/Trace inputHash and selected-new manifest share one canonical authority; Reader/service drift rejection; raw-content denial | DONE / PASS accepted v1.2 scope |
-| P2 remains separate | T5-T8/P2 governance | task scope, REV-062, ADR-051/052 | A1 REVIEW；P2-B/C/D not started |
-| P2-B persistence reference contract | T5-T8/P2 + T18-T19/P6 + T0/Foundation-Observability | `memory-persistence-v1` Schema/fixtures、`memory-persistence-contract.ts`、REV-064 | REVIEW / NOT ACCEPTED；仅 contract candidate，未实现 Prisma/migration/runtime/provider |
+| P2 remains separate | T5-T8/P2 governance | task scope, REV-062, ADR-051/052 | A1 REVIEW；P2-B contract-only已接收；P2-C/D runtime仍未开始 |
+| P2-B persistence reference contract | T5-T8/P2 + T18-T19/P6 + T0/Foundation-Observability | `memory-persistence-v1` Schema/fixtures、`memory-persistence-contract.ts`、REV-064、PR #72 | DONE / PASS / CONTRACT ONLY；仅接收数据库无关 contract，Prisma/migration/runtime/provider 另立任务 |
 
 REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.
 
@@ -129,7 +129,7 @@ REV-062 accepted evidence：PR #70 exact head `cc2b82d83859a5bff0c4e796f8c4fa0a5
 | P1-P6 separation remains explicit | P1 accepted upstream；P2 A1；P3/P4/P5 not started；P6 runtime deferred | A1 T/P mapping、ADR-052、handoff | REVIEW |
 | route is A1 accepted -> B persistence -> C -> D | P2 governance | ADR-052、REV-063、task/handoff | GATED；B/C/D not started |
 
-当前五个 Schema 只是未提交 contract candidate，不是 exact-head PASS。真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产保持 `DEFERRED/BLOCKED`；A1 不启用 P3/P4/P5，也不提前实现 P2-B/C/D。
+P2-B 五个 Schema 与 pure validator 已由 PR #72 exact head 接收为 contract-only；Prisma/migration/runtime 尚未实现。真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产保持 `DEFERRED/BLOCKED`；A1 不启用 P3/P4/P5，也不提前实现 P2-C/D。
 
 ## Memory System V1 产品决策追踪
 

@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-- 状态：`REVIEW / NOT ACCEPTED / CONTRACT ONLY`。
+- 状态：`DONE / PASS / CONTRACT ONLY`。
 - 映射：`T5-T8/P2`、`T18-T19/P6`、`T0/Foundation-Observability`。
-- 基线：`main@7d02fa65e283472f87c52fcae12b332d18e85ec4`。
+- 基线：`main@7d02fa65e283472f87c52fcae12b332d18e85ec4`；accepted head `717c5ca39e678c6f953d0430768ae715ef0feef2` / merge-main `8bbb2cc24dcea9cfdb556a44e86ce037cfa90b89`。
 - 范围：数据库无关的 persistence machine contract、JSON Schema、fixtures 与 pure validator；不实现 Prisma、migration、repository、runtime、provider、P3/P4 或 UI。
 
 ## 当前候选
@@ -23,7 +23,7 @@
 
 初始独立 adversarial 结果永久保留为 `P0=0/P1=6/P2=1`：正式 Schema 闭合校验、manifest/parity、predecessor/identity/layer/环、duplicate claim membership、FK 删除语义、A1 evidence provenance 与 Claim/Resolution 引用完整性均有缺口。
 
-本轮仍未形成正式 PASS。已在候选中补齐：
+本轮已形成正式 PASS。已补齐：
 
 - pure validator 先执行正式 AJV Schema；
 - checkpoint/source job、layer revision/source checkpoint/job、Long projection/job 的跨对象 parity；
@@ -31,7 +31,7 @@
 - Claim 的 evidence ID 集合、authority scope、canonical evidence manifest digest 与 evidence bridge 完整性；
 - 34 个定向 contract tests，以及 JSON/Prettier/ESLint/API typecheck/diff-check 本地验证。
 
-独立只读复核最终为 `Clear`；下一步由项目负责人绑定 exact-head 建 PR/CI 并进行正式审查。在此之前不得标记 PASS/DONE 或进入 P2-C runtime。
+独立 exact-head 复核为 `PASS P0=0/P1=0/P2=0`，PR #72 exact-head CI `32245656541` 与 merge/main CI `32254759316` 均 SUCCESS。该接收仅覆盖数据库无关 contract-only；现在允许另立 P2-C runtime 任务，但必须重新建立 Prisma/migration/runtime 的独立范围、验证与审查，不把本 PASS 扩大到下游。
 
 ## 明确排除
 
