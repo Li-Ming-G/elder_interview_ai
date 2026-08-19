@@ -1,6 +1,6 @@
 # Handoff｜MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001
 
-状态：`REVIEW / CONTRACT ONLY / FINAL DIRTY-CANDIDATE LOCAL PASS / NOT ACCEPTED`
+状态：`DONE / PASS / CONTRACT ONLY`
 
 ## 当前接收对象
 
@@ -59,3 +59,10 @@ PR #71 final formal re-review 在同一 head/CI/comment 上追加 P1：Schema `c
 - PR #69 / REV-061 的全部失败、REQUEST_CHANGES、中间治理意见与 contract-only PASS 不变。
 - PR #70 / REV-062 的四轮 REQUEST_CHANGES、accepted exact head 与 main CI infra exception 不变。
 - `.codex/iteration-learning.md` 不在本治理任务获准目录且属于用户文件，未修改。
+
+## 最终 closeout
+
+- PR #71 accepted exact head：`dbb0cc76`；CI：`32210618025` SUCCESS；owner verdict：`PASS / P0=0/P1=0/P2=0`。
+- merge/main：`7d02fa65`；main CI：`32211560361` SUCCESS。
+- 接收范围严格限于 A1 contract-only。Prisma、migration、repository、runtime、真实 provider/model/secret/data、P3/P4 与 UI 均未由此解锁。
+- 下一已接收门为 P2-B contract-only；当前执行门为 P2-C contract-first runtime。

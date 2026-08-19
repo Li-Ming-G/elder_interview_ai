@@ -36,8 +36,12 @@ MEMORY-T5-T8-P2-A-CONTRACT-001 的完整 lint/REQUEST_CHANGES/correction/final P
 
 MEMORY-T4-P1-SEMANTIC-TRIGGER-001 最终交接见 [`MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md`](MEMORY-T4-P1-SEMANTIC-TRIGGER-001.md)、[`REV-062`](../reviews/REV-062.md) 与 ADR-050。四轮 REQUEST_CHANGES 永久保留；PR #70 accepted `cc2b82d` / CI `32161806857` / formal PASS P0=P1=P2=0，merge/main `00953ac`，accepted/main tree `033d3a9b`。main CI `32165583907` attempt 1 在 E2E install 20m 后 cancelled，未 rerun，不能写 SUCCESS。DONE 仅限 accepted v1.2 scope。
 
-MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001 当前 REVIEW 交接见 [`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md`](MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md)、[`REV-063`](../reviews/REV-063.md) 与 ADR-052。PR #71 formal REQUEST_CHANGES `258eb46d` / CI `32177083890` / comment `5333195637` 与 canonical_key 历史保留。窄修 `Array.from` 统一 code point，120/121/240/241 emoji+混合边界、core+adversarial `159/159`、static PASS；final dirty candidate local `P0=P1=P2=0`，不等于 GitHub acceptance/新 CI/merge/DONE。A1 REVIEW。
+MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001 已接收交接见 [`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md`](MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001.md)、[`REV-063`](../reviews/REV-063.md) 与 ADR-052。PR #71 exact `dbb0cc76` / CI `32210618025` / owner PASS P0=P1=P2=0，merge/main `7d02fa65` / main CI `32211560361`。旧FAIL/REQUEST_CHANGES/local PASS永久保留；只接收contract-only。
 
-MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001 当前交接见 [`MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md`](MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md) 与 [`REV-064`](REV-064.md)。PR #72 exact head `717c5ca` / CI `32245656541` 已独立 PASS 并合入 `8bbb2cc`；main CI `32254759316` SUCCESS。旧 adversarial `P0=0/P1=6/P2=1` 与全量 unit 的既有 focus timing 失败历史保留；该接收仅限 contract-only，Prisma/migration/runtime/P2-C 另立任务。
+MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001 当前交接见 [`MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md`](MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001.md) 与 [`REV-064`](../reviews/REV-064.md)。PR #72 exact head `717c5ca` / CI `32245656541` 已独立 PASS 并合入 `8bbb2cc`；main CI `32254759316` SUCCESS。旧 adversarial `P0=0/P1=6/P2=1` 与全量 unit 的既有 focus timing 失败历史保留；该接收仅限 contract-only，Prisma/migration/runtime/P2-C 另立任务。
 
-Memory System V1 的 2026-08-18 产品负责人决策补充见 [`MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md`](MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md) 与 ADR-051。该交接只同步 P1/P2/P3/P4、最小 Graph、Evidence、Provider/Model `DEFERRED` 和三项未来回拉门禁；父任务仍为 REVIEW，v1.2 已按 REV-062 收口，当前 A1 仍为 REVIEW。既有 PR/REV/CI 历史不改。
+PR #73 governance closeout 为 merge/main `7e183217` / main CI `32256919620`，不扩大 P2-B scope。
+
+MEMORY-T5-T8-P2-C-RUNTIME-001 当前交接见 [`MEMORY-T5-T8-P2-C-RUNTIME-001.md`](MEMORY-T5-T8-P2-C-RUNTIME-001.md)、[`REV-065`](../reviews/REV-065.md)、[任务卡](../tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) 与 ADR-053。状态 `REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`；无远端 CI、PASS/DONE或merge。
+
+Memory System V1 的 2026-08-18 产品负责人决策补充见 [`MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md`](MEMORY-SYSTEM-V1-PRODUCT-DECISIONS-20260818.md) 与 ADR-051。该交接只同步 P1/P2/P3/P4、最小 Graph、Evidence、Provider/Model `DEFERRED` 和三项未来回拉门禁；父任务仍为 REVIEW，v1.2、A1与P2-B已分别按其accepted scope收口，当前P2-C为contract-first REVIEW。既有PR/REV/CI历史不改。

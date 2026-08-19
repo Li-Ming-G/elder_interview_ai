@@ -555,7 +555,7 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 
 ## ADR-052｜P2 先冻结 transient semantic envelope，再进入 persistence
 
-- 状态：`Proposed / REVIEW`；绑定 `MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001` 与 REV-063。唯一 iteration-coach 结论为 `Correction`，不是 implementation PASS。
+- 状态：`Accepted / CONTRACT ONLY`；绑定 `MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001` 与 REV-063。PR #71 exact head `dbb0cc76` / CI `32210618025` 获 owner `PASS / P0=0/P1=0/P2=0`，merge/main `7d02fa65` / main CI `32211560361`。唯一 iteration-coach 结论为 `Correction`，不是 runtime implementation PASS。
 - 映射：T5-T8/P2；T0 reference-only observability。T4/P1 是已接收 upstream；P3/P4/P5 不在本任务启用范围；P6 job/retry/CAS/transaction runtime 后置到 P2-B/C。
 - 决定：P2 semantic consolidation 采用 `transient MemorySemanticContext -> SemanticProposal -> deterministic validation -> non-persistent ValidatedMemoryMutationPlan -> committed-authority bridge contract`。LLM 只提出结构化语义建议，程序验证 proposal；A1 不持久化 plan、不执行 commit。
 - 唯一权威：`MemoryClaim/MemoryResolution` 继续唯一持有 semantic value。proposal、plan、Long、layer、Decision Trace 与普通 log 均不得成为第二 truth source；Long/layer/Trace/log 只能保存 ID/revision/digest/manifest/status 等 reference-only provenance。
@@ -563,3 +563,17 @@ REV-058 independently PASSed the T0 / Foundation-Observability implementation at
 - 顺序：`A1 exact-head accepted -> P2-B persistence -> P2-C adversarial runtime -> P2-D real provider/data gate`。A1 未接收前 B 不开工；A1 也不提前启用 C/D。
 - 后置：真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产继续 `DEFERRED/BLOCKED`。P3/P4、Graph、embedding、Director Context 与 evidence tools 不由 A1 实现。
 - 历史：PR #69/REV-061 与 PR #70/REV-062 的全部失败、REQUEST_CHANGES、PASS/merge/CI 事实永久保留；ADR-052 不扩大任一既有接收范围。
+
+## ADR-053｜P2-C 以稳定语义 authority identity、不可变 checkpoint 与原子 revision commit 实现 runtime
+
+- 状态：`Proposed / CONTRACT-FIRST`；绑定 `MEMORY-T5-T8-P2-C-RUNTIME-001` 与 REV-065 placeholder，尚无 implementation PASS/DONE。
+- 映射：`T5-T8/P2`、`T18-T19/P6`、`T0/Foundation-Observability`；P1 是只读 upstream，P2-D/P3/P4/UI 不在范围。
+- 前置：A1 已由 PR #71 接收；P2-B 已由 PR #72 exact head `717c5ca` / CI `32245656541` 独立 PASS 并合入 `8bbb2cc` / main CI `32254759316`；PR #73 governance closeout 为 `7e183217` / main CI `32256919620`。
+- 稳定 identity：现有 `MemoryResolution.id` 继续是 append-only revision-row ID；forward migration 新增 legacy-nullable `authority_id`，P2 新写入必须非空，同一 semantic slot 的 revision chain 共享 `authority_id`，并以 `(authority_id, resolution_revision)` 唯一。A1/P2-B 的 `resolution_id` 在 P2-C durable mapping 中指该稳定 authority identity，而非某一 revision row。
+- 不猜历史：只对可机械证明为单链、同 project 且 revision 连续的旧 resolution chain 回填同一 `authority_id`；歧义、断链或冲突行保持 `NULL/unavailable`，不得被 P2 reader/checkpoint 选中。旧 migration 字节不改，所有变更 forward-only。
+- 执行：P2 runtime 固定为 `freeze checkpoint -> provider-neutral proposal -> deterministic validate -> transient plan -> authority reread/CAS -> atomic commit`。Proposal/Plan 不持久化、不拥有 authority；只有成功事务中的 MemoryClaim/Resolution/Evidence 才是 semantic truth，layer/checkpoint/Long/Trace/retention 均 reference-only。
+- Exactly-once：trigger identity 与 source/target/policy manifest 共同决定 one-winner；duplicate、concurrent、retry/rebase、crash/restart、late result、final tail 均不得产生第二个 current revision。stale 或不可验证结果零业务写入；restart 只从 durable checkpoint/job/trace authority 恢复。
+- Provider seam：P2-C 只允许 provider-neutral deterministic local/test port 与 fail-closed unavailable port，不选择真实 provider/model，不读取 secret，不发送真实数据。
+- Coordinator与terminal ownership：扩展现有`AiJobCoordinator`，不建第二套coordinator。post-session继续由P1 final lane拥有；P2 notification只唤醒后台scanner，P2 pending/failed/unavailable不阻塞session completed/opening。final Mid prerequisite不可用时，Long以唯一`unavailable` job零target/projection终结。
+- Contract compatibility：durable checkpoint分开真实P1 terminal ref与P2 producer job；online/final严格使用不同必填矩阵。现有AiJob Int policy/retention字段不改型，P2 string contract version进入一对一job projection/checkpoint专用列。pending/running及所有非success job不预留最终target revision/new identity ID。
+- Retention与版本：自动P2对象继承现有AiJob root，新增typed target child但不扩展`MemoryRetentionRoot` ownership或`RetentionState`枚举；P2-B expanded states映射到到期条件/cleanup阶段/audit。历史P1 v1.1 snapshot只读，当前新producer只允许v1.2，checkpoint按版本分派验证。

@@ -2,11 +2,11 @@
 
 ## 1. 状态与依据
 
-- 状态：REVIEW（T0 / Foundation-Observability、PR #65 candidate/local Memory Core、PR #68 T2-T4/P1 v1.1 runtime、PR #69 P2-A contract、PR #70 P1 v1.2 与 PR #72 P2-B database-agnostic persistence contract 已分别按各自范围接收；A1 semantic envelope 仍 REVIEW；P2-C/D、P3/P4 runtime 尚未开始）。
+- 状态：REVIEW（T0 / Foundation-Observability、PR #65 candidate/local Memory Core、PR #68 T2-T4/P1 v1.1 runtime、PR #69 P2-A contract、PR #70 P1 v1.2、PR #71 A1 semantic envelope 与 PR #72 P2-B database-agnostic persistence contract 已分别按各自范围接收；PR #73治理closeout完成；P2-C contract-first且implementation未开始；P2-D、P3/P4 runtime尚未开始）。
 - 依据：`C:\Users\TR\Downloads\LLM记忆改造.md` 最底部 T0–T27 安排，以及项目正式 `00`–`10` 规范、现有 AI/Memory/QuestionEvidence 契约和最新 handoff。
 - 当前 Memory 基线分层记录：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`、merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS（candidate/local seam）；PR #68 T2-T4/P1 runtime、PR #69 P2-A contract 与 PR #70 P1 v1.2 的 accepted/merge/main 事实分别见 REV-060/061/062、ADR-048/049/050。PR #70 merge/main `00953ac` tree 与 accepted head tree `033d3a9b` 一致；main CI `32165583907` cancelled，不得写 SUCCESS。上述均不代表 P2 runtime、正式 P3/P4、真实 provider/model 或真实数据已接入。
 
-当前顺序门禁由 ADR-052 冻结为 `A1 semantic envelope exact-head accepted -> P2-B persistence -> P2-C -> P2-D`。A1 当前仍为 REVIEW / CONTRACT ONLY；MemoryClaim/Resolution 是唯一 semantic authority，Long/layer/Trace/log reference-only。
+当前顺序门禁由 ADR-052/053 冻结为 `A1 semantic envelope accepted -> P2-B persistence contract accepted -> P2-C runtime -> P2-D`。A1/P2-B均已contract-only接收，P2-C当前仅contract-first；MemoryClaim/Resolution是唯一semantic authority，Long/layer/Trace/log reference-only。
 
 本文件是实施路线，不把规划内容伪装成正式机器契约。凡涉及表结构、状态枚举、REST/WebSocket、AI Schema 或数据所有权的改动，必须先建立对应正式契约并由项目负责人审查。
 

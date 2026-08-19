@@ -1,6 +1,6 @@
 # Memory Semantic Envelope V1 正式候选契约
 
-状态：`FORMAL CONTRACT / REVIEW CANDIDATE`。任务：`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001`。本契约只补 P2-A1 machine envelope，不实现 Prisma、migration、repository、runtime writer、provider activation、P2-B/C/D、P3/P4 或 UI。
+状态：`FORMAL CONTRACT / ACCEPTED CONTRACT ONLY`。任务：`MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001`。PR #71 exact head `dbb0cc76` / CI `32210618025` 获 owner `PASS / P0=0/P1=0/P2=0`，merge/main `7d02fa65` / main CI `32211560361`。本契约只补 P2-A1 machine envelope，不实现 Prisma、migration、repository、runtime writer、provider activation、P2-B/C/D、P3/P4 或 UI。
 
 ## 1. 为什么需要前向 A1
 
@@ -85,3 +85,9 @@ deterministic fake 仅用于生成经过同一 Proposal Schema/validator 的固�
 - `apps/api/src/memory/memory-semantic-envelope-contract.ts` 与 contract/adversarial specs
 
 P1 v1/v1.1/v1.2、P2-A v1、Decision Trace v1/v1.1 artifacts 与既有 migrations 字节不变。A1 contract 通过不表示 persistence、runtime、provider、真实数据或生产许可完成。
+
+## 8. P2-C stable authority mapping
+
+A1 `existing_slot`所称“同`resolution_id`到下一revision”在durable runtime中指同一stable `memory_resolution.authority_id`，不是复用现有row `id`。成功事务必须插入新的resolution row ID，复用authority ID，revision=`expected+1`，`supersedes_resolution_id`指向旧current row并原子supersede旧row。new slot同时分配不同的authority ID与首row ID。Proposal/Plan仍不持久化，也不预留任何最终row/layer revision ID。
+
+A1 `memory_evidence_id`映射`MemoryClaimEvidence.id` evidence-link authority；它不持有semantic value。link authority revision固定为1，transcript text/speaker revision来自冻结`AiJobInputSegment`，两者不得混用。

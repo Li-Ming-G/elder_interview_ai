@@ -1,6 +1,6 @@
 # MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001
 
-状态：`REVIEW / CONTRACT ONLY / FINAL DIRTY-CANDIDATE LOCAL PASS / NOT ACCEPTED`
+状态：`DONE / PASS / CONTRACT ONLY`
 
 ## 目标
 
@@ -94,3 +94,10 @@ A1 未被正式接收前，P2-B 不得开工；A1 的 Schema/本地测试/CI 均
 原始总控委派与后续文件所有权均明确要求必要同步 `04/05/07/08/09/10`。本任务卡此前写成“不得修改正式 `04`-`10`”，与该授权矛盾。现按最新且更具体的授权修正为“仅允许 A1 契约语义同步 `04/05/07/08/09/10`”。
 
 该更正不新增产品含义，不改变 A1 contract-only 边界，也不授权 runtime、Prisma、migration、provider activation、P2-B/C/D、P3/P4 或 UI，因此不登记 conflict log。首次 review 的该项 P2 仍在 REV-063 永久保留。
+
+## 最终接收与合入事实
+
+- PR #71 最终接收对象为 exact head `dbb0cc76`，CI `32210618025` SUCCESS，项目负责人正式结论 `PASS / P0=0/P1=0/P2=0`。
+- merge/main 为 `7d02fa65`，main CI `32211560361` SUCCESS。
+- 本接收只覆盖 A1 contract-only semantic envelope；前三轮 FAIL、formal REQUEST_CHANGES、canonical length 与 Unicode code-point 历史继续永久保留。
+- A1 接收不代表 Prisma、migration、repository、runtime 或 provider 已实现；后续按 ADR-052 进入已单独接收的 P2-B，再进入 P2-C。

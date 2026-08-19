@@ -28,8 +28,12 @@ MEMORY-T5-T8-P2-A-CONTRACT-001: [`REV-061`](REV-061.md) permanently records PR #
 
 MEMORY-T4-P1-SEMANTIC-TRIGGER-001: [`REV-062`](REV-062.md) permanently records four `REQUEST_CHANGES` rounds: P1=3/P2=3, P1=2, P1=2, then P1=1. PR #70 accepted `cc2b82d` / CI `32161806857` with formal PASS P0=P1=P2=0, then merged as main `00953ac`; accepted/main tree is `033d3a9b`. Main CI `32165583907` attempt 1 was cancelled after 20m in E2E install and was not rerun; it is not SUCCESS. DONE is limited to accepted v1.2 scope.
 
-MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001: [`REV-063`](REV-063.md) records PR #71 formal `REQUEST_CHANGES` on head `258eb46d` / CI `32177083890` / [comment `5333195637`](https://github.com/Li-Ming-G/elder_interview_ai/pull/71#issuecomment-5333195637), including canonical_key 240-vs-200 and code-point/UTF-16 drift. The narrow fix uses `Array.from`; 120/121/240/241 emoji and mixed boundaries, core+adversarial `159/159`, and static checks pass. Final dirty-candidate local review is `P0=P1=P2=0`, not GitHub acceptance/new CI/merge/DONE. Earlier FAIL/local PASS history remains permanent; status REVIEW.
+MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001: [`REV-063`](REV-063.md) records PR #71 accepted exact head `dbb0cc76` / CI `32210618025` / owner `PASS P0=P1=P2=0`, merge/main `7d02fa65` / main CI `32211560361`. Earlier FAIL, REQUEST_CHANGES, canonical boundary and local PASS history remains permanent. Acceptance is contract-only.
 
 MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001: [`REV-064`](REV-064.md) records the accepted contract-only scope: PR #72 exact head `717c5ca39e678c6f953d0430768ae715ef0feef2` / CI `32245656541`, merge/main `8bbb2cc24dcea9cfdb556a44e86ce037cfa90b89` / CI `32254759316`, independent exact-head `PASS P0=0/P1=0/P2=0`. The old adversarial `P0=0/P1=6/P2=1` history remains permanent. Prisma/migration/runtime/provider/P2-C are separate follow-up scope.
+
+MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001 governance closeout: PR #73 merge/main `7e183217` / main CI `32256919620`; no scope expansion.
+
+MEMORY-T5-T8-P2-C-RUNTIME-001: [`REV-065`](REV-065.md) is a `PENDING / NOT REVIEWED` placeholder for the contract-first runtime task. No implementation head, remote CI, verdict, merge, PASS or DONE exists.
 
 2026-08-18 Memory System V1 product-decision sync is recorded in ADR-051 and the product-decision handoff. It does not replace REV-058-063 history. The parent SPEC remains REVIEW while A1 is reviewed.

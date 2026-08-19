@@ -68,3 +68,12 @@ Long context/output/trace 机械禁止任何键名包含 `value`、`text`、`tra
 - P2-D（provider/consolidation）：P2-C accepted；真实 provider/data/secret 与 production retention 单独审批。
 
 P2-A contract tests 通过只说明机器契约候选自洽，不表示 P2-B/C/D、P3/P4、真实数据或生产 runtime 已完成。
+
+## 8. P2-C durable compatibility mapping
+
+P2-A accepted Schema/fixtures字节保持不变；runtime落库必须遵循`04` §17和`07` §23：
+
+- wire `source_p1_final_job_id`只表示真实P1 final lane terminal，durable列为`source_p1_terminal_job_id`；wire/checkpoint `ai_job_id`映射独立`p2_producer_job_id`。不得因P2-B validator当前要求`mid_final`而把P2 job写成P1 source。
+- `source_working_snapshot_contract_version=memory-maintainer-v1.1`仅保留历史只读；当前新producer使用v1.2，durable checkpoint保存实际版本并按版本validator分派。
+- online successful checkpoint必须有snapshot+thread且P1 terminal为空；final successful checkpoint必须有v1.2 snapshot+thread+真实P1 terminal。prerequisite不可用时只写P2 terminal unavailable，不伪造checkpoint。
+- P2继续扩展现有AiJobCoordinator；post-session仍归P1 final lane，P2 notification不阻塞completed/opening。
