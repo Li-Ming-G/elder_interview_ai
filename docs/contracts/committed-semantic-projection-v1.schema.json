@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/committed-semantic-projection-v1.schema.json",
+  "title": "Committed Semantic Projection P2-A Forward Bridge V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["projection_schema_version", "source_manifest_hash", "proposal_digest", "plan_digest", "commit_digest", "entries"],
+  "properties": {
+    "projection_schema_version": { "const": "committed-semantic-projection-v1" },
+    "source_manifest_hash": { "$ref": "#/$defs/digest" },
+    "proposal_digest": { "$ref": "#/$defs/digest" },
+    "plan_digest": { "$ref": "#/$defs/digest" },
+    "commit_digest": { "$ref": "#/$defs/digest" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "description": "Pure semantic validation requires proposal_id, committed resolution_id, target semantic slot, claim/evidence pair, and memory_evidence_id to each be projection-wide unique. Repeated authority IDs with differing metadata are conflicts. Source refs and evidence_ref_id may be reused under their pair and ownership rules.",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceRef": { "type": "string", "pattern": "^src:[A-Za-z0-9._:-]{1,120}$" },
+    "entry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proposal_id", "source_checkpoint_member_refs", "committed_authority_ref", "committed_evidence_manifest", "target_layer"],
+      "properties": {
+        "proposal_id": { "type": "string", "pattern": "^proposal:[A-Za-z0-9._:-]{1,120}$" },
+        "source_checkpoint_member_refs": { "type": "array", "minItems": 1, "maxItems": 40, "uniqueItems": true, "items": { "$ref": "#/$defs/sourceRef" } },
+        "committed_authority_ref": {
+          "type": "object", "additionalProperties": false,
+          "required": ["resolution_id", "resolution_revision", "semantic_kind", "canonical_key", "value_kind", "resolution_kind", "semantic_status"],
+          "properties": {
+            "resolution_id": { "$ref": "#/$defs/uuid" },
+            "resolution_revision": { "type": "integer", "minimum": 1 },
+            "semantic_kind": { "enum": ["episode", "fact"] },
+            "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "value_kind": { "type": ["string", "null"], "enum": ["exact", "range", "unknown", null] },
+            "resolution_kind": { "enum": ["single", "range", "unknown", "conflict_set"] },
+            "semantic_status": { "enum": ["current", "uncertain", "disputed"] }
+          }
+        },
+        "committed_evidence_manifest": {
+          "type": "object", "additionalProperties": false,
+          "required": ["expected_evidence_count", "evidence_manifest_hash", "evidence_refs"],
+          "properties": {
+            "expected_evidence_count": { "type": "integer", "minimum": 1, "maximum": 320 },
+            "evidence_manifest_hash": { "$ref": "#/$defs/digest" },
+            "evidence_refs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 320,
+              "uniqueItems": true,
+              "description": "Pure semantic validation uses (proposal_claim_ref_id, evidence_ref_id) as the uniqueness key. The same evidence_ref_id may appear for different proposal claims; memory_evidence_id remains a unique durable identity.",
+              "items": { "$ref": "#/$defs/evidenceRef" }
+            }
+          }
+        },
+        "target_layer": {
+          "type": "object", "additionalProperties": false,
+          "required": ["layer", "layer_identity_id", "layer_revision_id", "layer_revision"],
+          "properties": {
+            "layer": { "enum": ["mid", "long"] },
+            "layer_identity_id": { "$ref": "#/$defs/uuid" },
+            "layer_revision_id": { "$ref": "#/$defs/uuid" },
+            "layer_revision": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "evidenceRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proposal_claim_ref_id", "evidence_ref_id", "memory_evidence_id"],
+      "properties": {
+        "proposal_claim_ref_id": { "type": "string", "pattern": "^proposal-claim:[A-Za-z0-9._:-]{1,120}$" },
+        "evidence_ref_id": { "type": "string", "pattern": "^evidence:[A-Za-z0-9._:-]{1,120}$" },
+        "memory_evidence_id": { "$ref": "#/$defs/uuid" }
+      }
+    }
+  }
+}

@@ -1588,3 +1588,13 @@ comparison evaluator 可循环显式选择的 bindings，但每个 invocation �
 ## P2-A Internal Contract Boundary
 
 The evolution and Long schemas are internal machine contracts, not public REST/WebSocket events. Their CAS identity binds PR68 fields `projectId`, `sourceSessionId`, `sourceWorkingSnapshotId`, `sourceResolutionManifestHash`, `sourceThreadRevisionId`, `policyRevision` and `retentionPolicyVersion`. Fixed lock order, one winner, late-terminal zero-write and same-transaction job/root/revision/member rules are formal validation requirements; runtime verification remains pending.
+
+## P2-A1 Internal Semantic Envelope Boundary
+
+P2-A1 的 Context、Proposal、ValidatedMemoryMutationPlan、CommittedSemanticProjection 和 semantic Trace child 全部是 MemoryModule 内部 machine contract，不新增或暴露 REST/WebSocket endpoint。provider 只接收冻结、有界且经过许可的 semantic value与 typed evidence refs；输出只允许 source/evidence refs、`new_slot|existing_slot`、semantic intent 和 Episode/Fact proposed state。客户端、Prompt 或模型不能提交 DB ID、revision、lifecycle、Boundary mutation、SQL、CAS 或 transaction 指令。
+
+未来 runtime 只有在 MemoryModule 重新读取 authority、policy/deletion/retention 并 CAS 成功后，才能生成 committed authority/evidence/layer refs；provider response、plan 或 timeout/late result不得作为成功响应。P1 Context 仍禁止 Long input。真实 `P2_MODEL` 未配置时只返回内部 unavailable outcome，不新增 public fallback API，也不自动回落 deterministic fake。
+
+内部 bridge 的 Context durable `resolution_id` 全局唯一；proposal source/claim/evidence 必须是按 source owner 闭合的子图。proposal 与 commit 以 `(proposal_claim_ref_id, evidence_ref_id)` 为唯一键且 pair 集合完全相等，同一 evidence ref 可支持不同 claims。`new_slot` commit revision 为 1；`existing_slot` 只允许 proposal source set 内同 semantic slot 的 authority，以 source revision 作为 expected CAS 并提交下一 revision。Long 内部请求必须绑定 trigger session membership 及 final Mid/current 各自完整 count/manifest；这些约束不产生新 public DTO。
+
+多 entry 内部 projection 必须全局拒绝重复 proposal/claim/target slot、重复 existing CAS authority write、重复 committed Resolution/slot、同 authority metadata 冲突、重复 claim/evidence pair 与跨 entry 重复 MemoryEvidence ID；source/evidence 的合法复用仍允许。内部 Context/Proposal/committed authority 的 `canonical_key` 均为 1-240 字符，超限失败关闭。所有错误均为内部 contract failure，不新增公共错误 DTO。

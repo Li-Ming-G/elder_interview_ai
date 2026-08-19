@@ -1,6 +1,6 @@
 # MEMORY-T4-P1-SEMANTIC-TRIGGER-001
 
-状态：`REVIEW`
+状态：`DONE / PASS / ACCEPTED V1.2 SCOPE ONLY`
 
 ## 目标
 
@@ -61,10 +61,14 @@
 - 前置独立路线审查：`P0=0/P1=2/P2=0`，两项均由本任务的 v1.2 forward contract/runtime 处理。
 - 首轮独立实现审查：`REQUEST_CHANGES / P0=0/P1=3/P2=3`。意见为 post-session v1.1 断言漂移、null namespace 未失败关闭、trigger observation 未进入 Decision Trace，以及 v1.1 historical reader、final-low-content 并发恢复、contracts README 三项测试/治理缺口。
 - 第二次定向复审：`REQUEST_CHANGES / P0=0/P1=2/P2=0`。旧意见中的五项和 duplicate/concurrent 子项已关闭；仍需让 normal/final-low job 与 Trace 具备 crash durability，并让 final-low trigger suffix 绑定 durable source membership。
-- 第三次独立聊天窗口复审仍为 `REQUEST_CHANGES / P0=0/P1=2/P2=0`：final-low scope/inputHash 未与同一 canonical manifest 机械绑定，且 fresh pending/running missing-trace orphan 会被等到 stale grace 后才处理。当前集中修复这两项；不在本文件自宣 PASS。
-- 第四次独立聊天窗口复审确认上述两项已关闭，但发现 `P0=0/P1=1/P2=0`：final-low 只校验 `new` 子集，未拒绝 overlap/额外 input/额外 session scope。当前修复完整 source-set invariant；不在本文件自宣 PASS。
+- 第三次独立聊天窗口复审仍为 `REQUEST_CHANGES / P0=0/P1=2/P2=0`：final-low scope/inputHash 未与同一 canonical manifest 机械绑定，且 fresh pending/running missing-trace orphan 会被等到 stale grace 后才处理。当时要求集中修复这两项；该轮不构成 PASS。
+- 第四次独立聊天窗口复审确认上述两项已关闭，但发现 `P0=0/P1=1/P2=0`：final-low 只校验 `new` 子集，未拒绝 overlap/额外 input/额外 session scope。当时要求修复完整 source-set invariant；该轮不构成 PASS。
 
-本轮本地修复已完成：final-low scope/job/trace 使用同一 selected-new manifest authority，service/Reader 对 scope count/hash、job/trace inputHash 与 source rows 漂移失败关闭；startup fresh pending/running missing-trace 在事务内确定性终结并写 recovered unavailable trace。定向 PG 43/43、相关 unit 74/74、typecheck/lint/format/diff 已通过；仍为 `REVIEW / RE-REVIEW PENDING`，不构成 PASS/DONE。
+本轮本地修复完成后形成 PR #70 accepted exact head `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66`。exact-head CI `32161806857` SUCCESS，独立正式复审 [PASS](https://github.com/Li-Ming-G/elder_interview_ai/pull/70#issuecomment-5331708714)（P0=P1=P2=0）。merge/main 为 `00953acadb8edabefe0e59a9c570af745d22100b`；accepted head 与 merge/main tree 均为 `033d3a9b2d905c8c758e6784063eae0da405b3bb`。
+
+main CI `32165583907` attempt 1 **不是 SUCCESS**：此前 format、lint、typecheck、unit、migration、integration、auth、build、smoke 均 SUCCESS，E2E job skipped；workflow 在 `pnpm test:e2e:install` 达到 20 分钟上限后 cancelled，且未 rerun。PR exact-head 的 ordinary/auth E2E 均 SUCCESS。该 infra exception 与 tree-equivalence 只支持已接收 v1.2 范围的低风险 governance closeout，不得改写为 main CI 全绿。
+
+DONE 仅覆盖本任务已接收的 v1.2 optional tag、累计 trigger、durable namespace/recovery 与 reference-only typed trigger trace。P2-A1/B/C/D、P3/P4、真实 provider/model/data、UI、授权、公网和生产均不由本结论完成。
 
 ## 基线与边界
 
@@ -72,3 +76,11 @@
 - P2-A accepted：PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` / CI `32042589647` / independent PASS P0=P1=P2=0 / comment `5317377208`；merge/main 如上；
 - branch：`codex/memory-t4-p1-semantic-trigger-001`；
 - `.codex/iteration-learning.md` 属于用户，禁止修改、暂存或回退。
+
+## 最终接收对象
+
+- PR #70 accepted head：`cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66`；exact-head CI `32161806857` SUCCESS；
+- formal PASS：https://github.com/Li-Ming-G/elder_interview_ai/pull/70#issuecomment-5331708714；P0=P1=P2=0；
+- merge/main：`00953acadb8edabefe0e59a9c570af745d22100b`；
+- accepted/main tree：`033d3a9b2d905c8c758e6784063eae0da405b3bb`；
+- main CI `32165583907` attempt 1 cancelled at 20-minute `pnpm test:e2e:install`; no rerun and no main-CI-SUCCESS claim。
