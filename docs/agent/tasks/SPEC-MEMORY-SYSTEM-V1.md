@@ -2,7 +2,7 @@
 
 ## 1. 状态与依据
 
-- 状态：REVIEW（T0 / Foundation-Observability、PR #65 candidate/local Memory Core、PR #68 T2-T4/P1 v1.1 runtime、PR #69 P2-A contract 与 PR #70 P1 v1.2 已分别按各自范围接收；当前 A1 semantic envelope contract-only 为 REVIEW，P2-B/C/D、P3/P4 runtime 尚未开始）。
+- 状态：REVIEW（T0 / Foundation-Observability、PR #65 candidate/local Memory Core、PR #68 T2-T4/P1 v1.1 runtime、PR #69 P2-A contract 与 PR #70 P1 v1.2 已分别按各自范围接收；A1 semantic envelope 仍 REVIEW；P2-B 当前仅有 contract-only 候选 REV-064，未接收、未实现 Prisma/migration/runtime；P2-C/D、P3/P4 runtime 尚未开始）。
 - 依据：`C:\Users\TR\Downloads\LLM记忆改造.md` 最底部 T0–T27 安排，以及项目正式 `00`–`10` 规范、现有 AI/Memory/QuestionEvidence 契约和最新 handoff。
 - 当前 Memory 基线分层记录：PR #65 accepted `7d0a0460beccfdb4b502acb8d9a69f98de8c5730` / CI `31941029795`、merge/main `081b404e613d373ab97365e691f8845e853d304f` / CI `31989367027` SUCCESS（candidate/local seam）；PR #68 T2-T4/P1 runtime、PR #69 P2-A contract 与 PR #70 P1 v1.2 的 accepted/merge/main 事实分别见 REV-060/061/062、ADR-048/049/050。PR #70 merge/main `00953ac` tree 与 accepted head tree `033d3a9b` 一致；main CI `32165583907` cancelled，不得写 SUCCESS。上述均不代表 P2 runtime、正式 P3/P4、真实 provider/model 或真实数据已接入。
 

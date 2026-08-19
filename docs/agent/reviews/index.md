@@ -30,4 +30,6 @@ MEMORY-T4-P1-SEMANTIC-TRIGGER-001: [`REV-062`](REV-062.md) permanently records f
 
 MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001: [`REV-063`](REV-063.md) records PR #71 formal `REQUEST_CHANGES` on head `258eb46d` / CI `32177083890` / [comment `5333195637`](https://github.com/Li-Ming-G/elder_interview_ai/pull/71#issuecomment-5333195637), including canonical_key 240-vs-200 and code-point/UTF-16 drift. The narrow fix uses `Array.from`; 120/121/240/241 emoji and mixed boundaries, core+adversarial `159/159`, and static checks pass. Final dirty-candidate local review is `P0=P1=P2=0`, not GitHub acceptance/new CI/merge/DONE. Earlier FAIL/local PASS history remains permanent; status REVIEW.
 
+MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001: [`REV-064`](REV-064.md) records the current unaccepted contract candidate. The old adversarial `P0=0/P1=6/P2=1` history remains permanent; current local repair evidence is `34/34` targeted tests plus typecheck/ESLint/Prettier/JSON/diff-check. Independent final re-review is `Clear`; no project-owner PASS/CI/merge/DONE is claimed.
+
 2026-08-18 Memory System V1 product-decision sync is recorded in ADR-051 and the product-decision handoff. It does not replace REV-058-063 history. The parent SPEC remains REVIEW while A1 is reviewed.
