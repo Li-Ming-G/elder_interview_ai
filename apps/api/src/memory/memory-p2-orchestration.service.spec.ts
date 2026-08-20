@@ -21,13 +21,13 @@ import type {
   MemoryP2FrozenAttempt,
   MemoryP2GateResult,
   MemoryP2LongFollowUp,
+  MemoryP2ProgressEvent,
+  MemoryP2ProgressPort,
   MemoryP2RuntimeStorePort,
   MemoryP2SemanticContext,
   MemoryP2SemanticProposal,
   MemoryP2StoredOutcome,
   MemoryP2TerminalRequest,
-  MemoryP2TracePort,
-  MemoryP2TraceStage,
   MemoryP2Trigger,
   MemoryP2TriggerRequest,
 } from './memory-p2-runtime.types.js';
@@ -72,7 +72,7 @@ describe('MemoryP2OrchestrationService', () => {
     expect(store.commitCalls).toBe(0);
   });
 
-  it('returns an unavailable outcome instead of blocking session completion when freeze fails', async () => {
+  it('returns not_frozen without inventing a durable job identity when freeze fails', async () => {
     const store = new FakeStore();
     store.freezeError = new Error('database temporarily unavailable');
     const provider = new CountingProvider(() =>
@@ -82,12 +82,49 @@ describe('MemoryP2OrchestrationService', () => {
 
     await expect(createService(store, provider).run(trigger)).resolves.toEqual({
       errorCode: 'P2_TERMINAL_UNAVAILABLE',
-      jobId: trigger.requestIdentity,
-      outcome: 'terminal',
-      replayed: false,
-      status: 'unavailable',
+      outcome: 'not_frozen',
+      requestIdentity: trigger.requestIdentity,
     });
     expect(provider.calls).toBe(0);
+  });
+
+  it('reports repair_required rather than a fabricated terminal when terminalize fails', async () => {
+    const store = new FakeStore();
+    store.terminalError = new Error('terminal write failed');
+    const provider = new CountingProvider((context, signal) =>
+      new UnavailableMemoryP2Provider().propose(context, signal),
+    );
+
+    const result = await createService(store, provider).run(onlineTrigger());
+
+    expect(result).toEqual({
+      errorCode: 'P2_TERMINAL_UNAVAILABLE',
+      jobId: 'job:1',
+      outcome: 'repair_required',
+      persistedStatus: 'running',
+      repair: 'terminalize',
+    });
+    expect(provider.calls).toBe(1);
+    expect(store.terminalCalls).toBe(1);
+  });
+
+  it('pure-validates Context closure before provider invocation and persists the real failure', async () => {
+    const store = new FakeStore();
+    store.context.source_manifest_hash = 'f'.repeat(64);
+    const provider = new CountingProvider(() =>
+      Promise.resolve(structuredClone(fixture.base.proposal)),
+    );
+
+    const result = await createService(store, provider).run(onlineTrigger());
+
+    expect(result).toMatchObject({
+      errorCode: 'P2_SOURCE_DRIFT',
+      jobId: 'job:1',
+      outcome: 'terminal',
+      status: 'cancelled',
+    });
+    expect(provider.calls).toBe(0);
+    expect(store.terminalCalls).toBe(1);
   });
 
   it('coalesces concurrent one-winner execution and calls the provider exactly once', async () => {
@@ -235,8 +272,9 @@ describe('MemoryP2OrchestrationService', () => {
       expect(provider.calls).toBe(1);
     });
     deferred.resolve(structuredClone(fixture.base.proposal));
-    await Promise.all([first, concurrent]);
+    const results = await Promise.all([first, concurrent]);
 
+    expect(results[0]).toMatchObject({ followUp: 'registered', outcome: 'succeeded' });
     expect(provider.calls).toBe(1);
     expect(store.scheduleCalls).toBe(1);
     expect(store.longRows.size).toBe(1);
@@ -252,29 +290,55 @@ describe('MemoryP2OrchestrationService', () => {
     expect(store.longRows.size).toBe(1);
   });
 
+  it.each(['false', 'throw'] as const)(
+    'keeps final Mid succeeded but exposes follow_up_pending when Long registration returns %s',
+    async (failureMode) => {
+      const store = new FakeStore();
+      if (failureMode === 'false') store.longWakeRegistered = false;
+      else store.longWakeError = new Error('wake registration failed');
+      const provider = new CountingProvider(() =>
+        Promise.resolve(structuredClone(fixture.base.proposal)),
+      );
+
+      const result = await createService(store, provider).run(finalTrigger());
+
+      expect(result).toMatchObject({
+        errorCode: 'P2_TERMINAL_UNAVAILABLE',
+        jobId: 'job:1',
+        outcome: 'follow_up_pending',
+        persistedStatus: 'succeeded',
+        repair: 'long_wake_registration',
+      });
+      expect(provider.calls).toBe(1);
+      expect(store.commitCalls).toBe(1);
+      expect(store.terminalCalls).toBe(0);
+      expect(store.longRows.size).toBe(0);
+    },
+  );
+
   it('runs deterministic and unavailable adapters through the same pre-provider gates', async () => {
     const deterministicStore = new FakeStore();
     const deterministicProvider = new CountingProvider((context, signal) =>
       new DeterministicMemoryP2Provider('test').propose(context, signal),
     );
-    const deterministicTrace = new FakeTrace();
+    const deterministicProgress = new FakeProgress();
     const succeeded = await createService(
       deterministicStore,
       deterministicProvider,
       undefined,
-      deterministicTrace,
+      deterministicProgress,
     ).run(onlineTrigger());
 
     const unavailableStore = new FakeStore();
     const unavailableProvider = new CountingProvider((context, signal) =>
       new UnavailableMemoryP2Provider().propose(context, signal),
     );
-    const unavailableTrace = new FakeTrace();
+    const unavailableProgress = new FakeProgress();
     const unavailable = await createService(
       unavailableStore,
       unavailableProvider,
       undefined,
-      unavailableTrace,
+      unavailableProgress,
     ).run(finalTrigger());
 
     expect(succeeded.outcome).toBe('succeeded');
@@ -283,24 +347,29 @@ describe('MemoryP2OrchestrationService', () => {
     expect(unavailableProvider.calls).toBe(1);
     expect(deterministicStore.preProviderCalls).toBe(1);
     expect(unavailableStore.preProviderCalls).toBe(1);
-    expect(deterministicTrace.stages.map(({ stage }) => stage)).toEqual([
-      'provider_started',
-      'plan_validated',
+    expect(deterministicProgress.events.map(({ stage }) => stage)).toEqual([
+      'context_validated',
+      'proposal_received',
+      'proposal_validated',
+      'plan_built',
       'authority_checked',
     ]);
-    expect(unavailableTrace.stages.map(({ stage }) => stage)).toEqual(['provider_started']);
+    expect(
+      deterministicProgress.events.find(({ stage }) => stage === 'authority_checked'),
+    ).not.toHaveProperty('authorityToken');
+    expect(unavailableProgress.events.map(({ stage }) => stage)).toEqual(['context_validated']);
     expect(unavailableStore.commitCalls).toBe(0);
     expect(unavailableStore.scheduleCalls).toBe(0);
   });
 
-  it('fails closed before CAS when the reference-only Trace port is unavailable', async () => {
+  it('fails closed before CAS when the non-authoritative progress port is unavailable', async () => {
     const store = new FakeStore();
     const provider = new CountingProvider(() =>
       Promise.resolve(structuredClone(fixture.base.proposal)),
     );
-    const traces = new FakeTrace();
-    traces.failAt = 'plan_validated';
-    const result = await createService(store, provider, undefined, traces).run(onlineTrigger());
+    const progress = new FakeProgress();
+    progress.failAt = 'plan_built';
+    const result = await createService(store, provider, undefined, progress).run(onlineTrigger());
 
     expect(result).toMatchObject({
       errorCode: 'P2_TRACE_UNAVAILABLE',
@@ -329,13 +398,13 @@ class CountingProvider implements MemoryP2ProviderPort {
   }
 }
 
-class FakeTrace implements MemoryP2TracePort {
-  public failAt: MemoryP2TraceStage['stage'] | null = null;
-  public readonly stages: MemoryP2TraceStage[] = [];
+class FakeProgress implements MemoryP2ProgressPort {
+  public readonly events: MemoryP2ProgressEvent[] = [];
+  public failAt: MemoryP2ProgressEvent['stage'] | null = null;
 
-  public recordStage(stage: MemoryP2TraceStage): Promise<void> {
-    this.stages.push(stage);
-    return stage.stage === this.failAt
+  public recordProgress(event: MemoryP2ProgressEvent): Promise<void> {
+    this.events.push(event);
+    return event.stage === this.failAt
       ? Promise.reject(new Error('trace unavailable'))
       : Promise.resolve();
   }
@@ -348,17 +417,21 @@ class FakeStore implements MemoryP2RuntimeStorePort {
   };
   public commitCalls = 0;
   public commitProjection: unknown = { commit_digest: 'c'.repeat(64) };
+  public context = structuredClone(fixture.base.context);
   public deadlineAt = new Date(Date.now() + 60_000);
   public freezeCalls = 0;
   public freezeError: Error | null = null;
   public readonly frozenAttempts: number[] = [];
   public gateResult: MemoryP2GateResult = { kind: 'allowed' };
   public readonly longRows = new Set<string>();
+  public longWakeError: Error | null = null;
+  public longWakeRegistered = true;
   public preProviderCalls = 0;
   public readAuthorityCalls = 0;
   public replayOutcome: MemoryP2StoredOutcome | null = null;
   public scheduleCalls = 0;
   public terminalCalls = 0;
+  public terminalError: Error | null = null;
 
   public commitAuthorityAndTerminalTrace(
     request: MemoryP2CommitRequest,
@@ -379,7 +452,7 @@ class FakeStore implements MemoryP2RuntimeStorePort {
     return Promise.resolve({
       attempt: {
         attemptNo: trigger.attemptNo,
-        context: structuredClone(fixture.base.context),
+        context: structuredClone(this.context),
         deadlineAt: this.deadlineAt,
         jobId: `job:${String(trigger.attemptNo)}`,
         trigger,
@@ -400,14 +473,17 @@ class FakeStore implements MemoryP2RuntimeStorePort {
     return Promise.resolve(this.authorityResult);
   }
 
-  public scheduleLongAfterFinalMid(followUp: MemoryP2LongFollowUp): Promise<void> {
+  public registerLongWakeAfterFinalMid(followUp: MemoryP2LongFollowUp): Promise<boolean> {
     this.scheduleCalls += 1;
-    this.longRows.add(`${followUp.finalMidJobId}:${followUp.finalTailManifestHash}`);
-    return Promise.resolve();
+    if (this.longWakeError !== null) return Promise.reject(this.longWakeError);
+    if (this.longWakeRegistered)
+      this.longRows.add(`${followUp.finalMidJobId}:${followUp.finalTailManifestHash}`);
+    return Promise.resolve(this.longWakeRegistered);
   }
 
   public terminalizeJobAndTrace(request: MemoryP2TerminalRequest): Promise<MemoryP2StoredOutcome> {
     this.terminalCalls += 1;
+    if (this.terminalError !== null) return Promise.reject(this.terminalError);
     return Promise.resolve({
       errorCode: request.errorCode,
       jobId: request.attempt.jobId,
@@ -420,9 +496,9 @@ function createService(
   store: MemoryP2RuntimeStorePort,
   provider: MemoryP2ProviderPort,
   clock: MemoryP2Clock = { now: () => new Date() },
-  traces: MemoryP2TracePort = new FakeTrace(),
+  progress: MemoryP2ProgressPort = new FakeProgress(),
 ): MemoryP2OrchestrationService {
-  return new MemoryP2OrchestrationService(store, provider, adapter, traces, clock);
+  return new MemoryP2OrchestrationService(store, provider, adapter, progress, clock);
 }
 
 function onlineTrigger(): MemoryP2Trigger {

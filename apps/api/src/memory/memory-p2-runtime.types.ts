@@ -1,23 +1,20 @@
+import type {
+  DecisionTraceStatus,
+  DecisionTraceTerminalResult,
+} from '../ai-runtime/decision-trace.service.js';
+
 export const MEMORY_P2_SOURCE_CONTRACT_VERSION = 'memory-maintainer-v1.2' as const;
 
 export type MemoryP2TriggerKind = 'semantic_park' | 'capacity_checkpoint' | 'session_final_flush';
 
 export type MemoryP2JobKind = 'mid_online' | 'mid_final';
-export type MemoryP2TerminalStatus = 'failed' | 'cancelled' | 'unavailable';
+export type MemoryP2TerminalStatus = Extract<
+  DecisionTraceStatus,
+  'failed' | 'cancelled' | 'unavailable'
+>;
 export type MemoryP2RetryableStatus = MemoryP2TerminalStatus;
-
-export type MemoryP2ErrorCode =
-  | 'P2_PROVIDER_UNAVAILABLE'
-  | 'P2_SOURCE_DRIFT'
-  | 'P2_TARGET_DRIFT'
-  | 'P2_POLICY_DRIFT'
-  | 'P2_DELETION_SCOPE_DRIFT'
-  | 'P2_RETENTION_UNAVAILABLE'
-  | 'P2_CAS_LOST'
-  | 'P2_RESTART_RECOVERY'
-  | 'P2_TRACE_UNAVAILABLE'
-  | 'P2_MIGRATION_UNAVAILABLE'
-  | 'P2_TERMINAL_UNAVAILABLE';
+/** The durable adapter validates values against the formal shared P2 registry before persistence. */
+export type MemoryP2ErrorCode = NonNullable<DecisionTraceTerminalResult['errorCode']>;
 
 export interface MemoryP2PolicyBinding {
   aiPolicyRevision: number;
@@ -212,14 +209,7 @@ export type MemoryP2GateResult =
 export type MemoryP2AuthorityResult =
   | { authorityToken: string; kind: 'current' }
   | {
-      errorCode: Extract<
-        MemoryP2ErrorCode,
-        | 'P2_SOURCE_DRIFT'
-        | 'P2_TARGET_DRIFT'
-        | 'P2_POLICY_DRIFT'
-        | 'P2_DELETION_SCOPE_DRIFT'
-        | 'P2_RETENTION_UNAVAILABLE'
-      >;
+      errorCode: MemoryP2ErrorCode;
       kind: 'drifted';
       status: 'cancelled' | 'unavailable';
     };
@@ -259,45 +249,55 @@ export interface MemoryP2RuntimeStorePort {
   preProviderGate(attempt: MemoryP2FrozenAttempt): Promise<MemoryP2GateResult>;
   /** Re-reads source/target/policy/evidence authority and returns a single-use commit CAS token. */
   readAuthority(attempt: MemoryP2FrozenAttempt): Promise<MemoryP2AuthorityResult>;
-  /** Idempotently creates/wakes Long by final Mid job + final-tail identity. */
-  scheduleLongAfterFinalMid(followUp: MemoryP2LongFollowUp): Promise<void>;
+  /** Returns true only after the idempotent Long wake is durably registered. */
+  registerLongWakeAfterFinalMid(followUp: MemoryP2LongFollowUp): Promise<boolean>;
   /** Atomically CAS-terminalizes the job and reference-only Trace with zero target writes. */
   terminalizeJobAndTrace(request: MemoryP2TerminalRequest): Promise<MemoryP2StoredOutcome>;
 }
 
-export type MemoryP2TraceStage =
+export type MemoryP2ProgressEvent =
   | {
-      attemptNo: number;
       jobId: string;
       sourceManifestHash: string;
-      stage: 'provider_started';
+      stage: 'context_validated';
+    }
+  | {
+      jobId: string;
+      sourceManifestHash: string;
+      stage: 'proposal_received';
+    }
+  | {
+      jobId: string;
+      proposalDigest: string;
+      sourceManifestHash: string;
+      stage: 'proposal_validated';
     }
   | {
       jobId: string;
       planDigest: string;
       proposalDigest: string;
       sourceManifestHash: string;
-      stage: 'plan_validated';
+      stage: 'plan_built';
     }
   | {
-      authorityToken: string;
       jobId: string;
+      sourceManifestHash: string;
       stage: 'authority_checked';
     };
 
 /**
- * Records reference-only intermediate stages. The DB port owns the atomic running and terminal
- * DecisionTrace writes through freeze/commit/terminalize; this port must never receive payloads.
+ * Emits non-authoritative, reference-only progress. The DB port owns formal lifecycle and Trace
+ * writes through freeze/commit/terminalize; this port never receives payloads or CAS tokens.
  */
-export interface MemoryP2TracePort {
-  recordStage(stage: MemoryP2TraceStage): Promise<void>;
+export interface MemoryP2ProgressPort {
+  recordProgress(event: MemoryP2ProgressEvent): Promise<void>;
 }
 
 export type MemoryP2RunResult =
   | {
       commitProjection: unknown;
+      followUp: 'not_applicable' | 'registered';
       jobId: string;
-      longFollowUpScheduled: boolean;
       outcome: 'succeeded';
       replayed: boolean;
     }
@@ -317,4 +317,25 @@ export type MemoryP2RunResult =
       errorCode: MemoryP2ErrorCode;
       jobId: string;
       outcome: 'rebase_required';
+    }
+  | {
+      errorCode: MemoryP2ErrorCode;
+      outcome: 'not_frozen';
+      requestIdentity: string;
+    }
+  | {
+      errorCode: MemoryP2ErrorCode;
+      jobId: string;
+      outcome: 'repair_required';
+      persistedStatus: 'running';
+      repair: 'startup_reconciliation' | 'terminalize';
+    }
+  | {
+      commitProjection: unknown;
+      errorCode: MemoryP2ErrorCode;
+      jobId: string;
+      outcome: 'follow_up_pending';
+      persistedStatus: 'succeeded';
+      repair: 'long_wake_registration';
+      replayed: boolean;
     };

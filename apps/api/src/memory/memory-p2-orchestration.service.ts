@@ -4,13 +4,14 @@ import type {
   MemoryP2AuthorityResult,
   MemoryP2CommitResult,
   MemoryP2ErrorCode,
+  MemoryP2FreezeResult,
   MemoryP2FrozenAttempt,
   MemoryP2GateResult,
+  MemoryP2ProgressPort,
   MemoryP2RunResult,
   MemoryP2RuntimeStorePort,
   MemoryP2StoredOutcome,
   MemoryP2TerminalStatus,
-  MemoryP2TracePort,
   MemoryP2Trigger,
 } from './memory-p2-runtime.types.js';
 
@@ -41,6 +42,9 @@ interface ProviderAborted {
 
 type ProviderResult = ProviderValue | ProviderFailure | ProviderAborted;
 
+type TerminalizeResult =
+  { kind: 'stored'; outcome: MemoryP2StoredOutcome } | { kind: 'repair_required' };
+
 export class MemoryP2OrchestrationService {
   private readonly active = new Map<string, Promise<MemoryP2RunResult>>();
 
@@ -48,20 +52,14 @@ export class MemoryP2OrchestrationService {
     private readonly store: MemoryP2RuntimeStorePort,
     private readonly provider: MemoryP2ProviderPort,
     private readonly planAdapter: MemoryP2PlanAdapter,
-    private readonly traces: MemoryP2TracePort,
+    private readonly progress: MemoryP2ProgressPort,
     private readonly clock: MemoryP2Clock = new SystemMemoryP2Clock(),
   ) {}
 
   public run(trigger: MemoryP2Trigger, signal?: AbortSignal): Promise<MemoryP2RunResult> {
     const existing = this.active.get(trigger.requestIdentity);
     if (existing !== undefined) return existing;
-    const running = this.execute(trigger, signal).catch((): MemoryP2RunResult => ({
-      errorCode: 'P2_TERMINAL_UNAVAILABLE',
-      jobId: trigger.requestIdentity,
-      outcome: 'terminal',
-      replayed: false,
-      status: 'unavailable',
-    }));
+    const running = this.execute(trigger, signal);
     this.active.set(trigger.requestIdentity, running);
     void running.finally(() => {
       if (this.active.get(trigger.requestIdentity) === running)
@@ -74,12 +72,38 @@ export class MemoryP2OrchestrationService {
     trigger: MemoryP2Trigger,
     signal?: AbortSignal,
   ): Promise<MemoryP2RunResult> {
-    const frozen = await this.store.freezeJobCheckpointAndRunningTrace(trigger);
+    let frozen: MemoryP2FreezeResult;
+    try {
+      frozen = await this.store.freezeJobCheckpointAndRunningTrace(trigger);
+    } catch {
+      return {
+        errorCode: 'P2_TERMINAL_UNAVAILABLE',
+        outcome: 'not_frozen',
+        requestIdentity: trigger.requestIdentity,
+      };
+    }
     if (frozen.kind === 'in_progress')
       return { jobId: frozen.jobId, outcome: 'in_progress', status: frozen.status };
     if (frozen.kind === 'replay') return this.replay(trigger, frozen.outcome);
     const { attempt } = frozen;
+    try {
+      return await this.executeAttempt(trigger, attempt, signal);
+    } catch {
+      return {
+        errorCode: 'P2_TERMINAL_UNAVAILABLE',
+        jobId: attempt.jobId,
+        outcome: 'repair_required',
+        persistedStatus: 'running',
+        repair: 'startup_reconciliation',
+      };
+    }
+  }
 
+  private async executeAttempt(
+    trigger: MemoryP2Trigger,
+    attempt: MemoryP2FrozenAttempt,
+    signal?: AbortSignal,
+  ): Promise<MemoryP2RunResult> {
     let gate: MemoryP2GateResult;
     try {
       gate = await this.store.preProviderGate(attempt);
@@ -96,11 +120,10 @@ export class MemoryP2OrchestrationService {
     }
 
     if (
-      !(await this.recordStage({
-        attemptNo: attempt.attemptNo,
+      !(await this.recordProgress({
         jobId: attempt.jobId,
         sourceManifestHash: attempt.context.source_manifest_hash,
-        stage: 'provider_started',
+        stage: 'context_validated',
       }))
     )
       return this.terminal(attempt, 'P2_TRACE_UNAVAILABLE', 'unavailable', false);
@@ -133,6 +156,15 @@ export class MemoryP2OrchestrationService {
         false,
       );
 
+    if (
+      !(await this.recordProgress({
+        jobId: attempt.jobId,
+        sourceManifestHash: attempt.context.source_manifest_hash,
+        stage: 'proposal_received',
+      }))
+    )
+      return this.terminal(attempt, 'P2_TRACE_UNAVAILABLE', 'unavailable', false);
+
     let validated;
     try {
       validated = this.planAdapter.build(attempt.context, providerResult.value);
@@ -142,12 +174,22 @@ export class MemoryP2OrchestrationService {
     }
 
     if (
-      !(await this.recordStage({
+      !(await this.recordProgress({
+        jobId: attempt.jobId,
+        proposalDigest: validated.plan.proposal_digest,
+        sourceManifestHash: validated.plan.source_manifest_hash,
+        stage: 'proposal_validated',
+      }))
+    )
+      return this.terminal(attempt, 'P2_TRACE_UNAVAILABLE', 'unavailable', false);
+
+    if (
+      !(await this.recordProgress({
         jobId: attempt.jobId,
         planDigest: validated.plan.plan_digest,
         proposalDigest: validated.plan.proposal_digest,
         sourceManifestHash: validated.plan.source_manifest_hash,
-        stage: 'plan_validated',
+        stage: 'plan_built',
       }))
     )
       return this.terminal(attempt, 'P2_TRACE_UNAVAILABLE', 'unavailable', false);
@@ -159,13 +201,20 @@ export class MemoryP2OrchestrationService {
       return this.terminal(attempt, 'P2_TERMINAL_UNAVAILABLE', 'unavailable', false);
     }
     if (authority.kind === 'drifted') {
-      await this.safeTerminalize(attempt, authority.errorCode, authority.status);
-      return { errorCode: authority.errorCode, jobId: attempt.jobId, outcome: 'rebase_required' };
+      const terminalized = await this.terminal(
+        attempt,
+        authority.errorCode,
+        authority.status,
+        false,
+      );
+      return terminalized.outcome === 'terminal'
+        ? { errorCode: authority.errorCode, jobId: attempt.jobId, outcome: 'rebase_required' }
+        : terminalized;
     }
     if (
-      !(await this.recordStage({
-        authorityToken: authority.authorityToken,
+      !(await this.recordProgress({
         jobId: attempt.jobId,
+        sourceManifestHash: attempt.context.source_manifest_hash,
         stage: 'authority_checked',
       }))
     )
@@ -192,41 +241,20 @@ export class MemoryP2OrchestrationService {
       return this.terminal(attempt, 'P2_TERMINAL_UNAVAILABLE', 'unavailable', false);
     }
     if (committed.kind === 'cas_lost') {
-      await this.safeTerminalize(attempt, committed.errorCode, 'cancelled');
-      return { errorCode: committed.errorCode, jobId: attempt.jobId, outcome: 'rebase_required' };
+      const terminalized = await this.terminal(attempt, committed.errorCode, 'cancelled', false);
+      return terminalized.outcome === 'terminal'
+        ? { errorCode: committed.errorCode, jobId: attempt.jobId, outcome: 'rebase_required' }
+        : terminalized;
     }
-    const longFollowUpScheduled = await this.scheduleLong(
-      trigger,
-      attempt.jobId,
-      committed.commitProjection,
-    );
-    return {
-      commitProjection: committed.commitProjection,
-      jobId: attempt.jobId,
-      longFollowUpScheduled,
-      outcome: 'succeeded',
-      replayed: false,
-    };
+    return this.completeSucceeded(trigger, attempt.jobId, committed.commitProjection, false);
   }
 
   private async replay(
     trigger: MemoryP2Trigger,
     stored: MemoryP2StoredOutcome,
   ): Promise<MemoryP2RunResult> {
-    if (stored.status === 'succeeded') {
-      const longFollowUpScheduled = await this.scheduleLong(
-        trigger,
-        stored.jobId,
-        stored.commitProjection,
-      );
-      return {
-        commitProjection: stored.commitProjection,
-        jobId: stored.jobId,
-        longFollowUpScheduled,
-        outcome: 'succeeded',
-        replayed: true,
-      };
-    }
+    if (stored.status === 'succeeded')
+      return this.completeSucceeded(trigger, stored.jobId, stored.commitProjection, true);
     return {
       errorCode: stored.errorCode,
       jobId: stored.jobId,
@@ -242,16 +270,23 @@ export class MemoryP2OrchestrationService {
     status: MemoryP2TerminalStatus,
     replayed: boolean,
   ): Promise<MemoryP2RunResult> {
-    const stored = await this.safeTerminalize(attempt, errorCode, status);
-    if (stored.status === 'succeeded') {
+    const terminalized = await this.safeTerminalize(attempt, errorCode, status);
+    if (terminalized.kind === 'repair_required')
       return {
-        commitProjection: stored.commitProjection,
-        jobId: stored.jobId,
-        longFollowUpScheduled: false,
-        outcome: 'succeeded',
-        replayed,
+        errorCode: 'P2_TERMINAL_UNAVAILABLE',
+        jobId: attempt.jobId,
+        outcome: 'repair_required',
+        persistedStatus: 'running',
+        repair: 'terminalize',
       };
-    }
+    const stored = terminalized.outcome;
+    if (stored.status === 'succeeded')
+      return this.completeSucceeded(
+        attempt.trigger,
+        stored.jobId,
+        stored.commitProjection,
+        replayed,
+      );
     return {
       errorCode: stored.errorCode,
       jobId: stored.jobId,
@@ -265,48 +300,71 @@ export class MemoryP2OrchestrationService {
     attempt: MemoryP2FrozenAttempt,
     errorCode: MemoryP2ErrorCode,
     status: MemoryP2TerminalStatus,
-  ): Promise<MemoryP2StoredOutcome> {
+  ): Promise<TerminalizeResult> {
     try {
-      return await this.store.terminalizeJobAndTrace({ attempt, errorCode, status });
-    } catch {
       return {
-        errorCode: 'P2_TERMINAL_UNAVAILABLE',
-        jobId: attempt.jobId,
-        status: 'unavailable',
+        kind: 'stored',
+        outcome: await this.store.terminalizeJobAndTrace({ attempt, errorCode, status }),
       };
+    } catch {
+      return { kind: 'repair_required' };
     }
   }
 
-  private async scheduleLong(
+  private async completeSucceeded(
     trigger: MemoryP2Trigger,
     finalMidJobId: string,
     finalMidCommitProjection: unknown,
-  ): Promise<boolean> {
+    replayed: boolean,
+  ): Promise<MemoryP2RunResult> {
     if (trigger.jobKind !== 'mid_final' || trigger.finalTailManifestHash === undefined)
-      return false;
+      return {
+        commitProjection: finalMidCommitProjection,
+        followUp: 'not_applicable',
+        jobId: finalMidJobId,
+        outcome: 'succeeded',
+        replayed,
+      };
+    let registered: boolean;
     try {
-      await this.store.scheduleLongAfterFinalMid({
+      registered = await this.store.registerLongWakeAfterFinalMid({
         finalMidCommitProjection,
         finalMidJobId,
         finalTailManifestHash: trigger.finalTailManifestHash,
         projectId: trigger.projectId,
         sessionId: trigger.sessionId,
       });
-      return true;
     } catch {
-      return false;
+      registered = false;
     }
+    if (!registered)
+      return {
+        commitProjection: finalMidCommitProjection,
+        errorCode: 'P2_TERMINAL_UNAVAILABLE',
+        jobId: finalMidJobId,
+        outcome: 'follow_up_pending',
+        persistedStatus: 'succeeded',
+        repair: 'long_wake_registration',
+        replayed,
+      };
+    return {
+      commitProjection: finalMidCommitProjection,
+      followUp: 'registered',
+      jobId: finalMidJobId,
+      outcome: 'succeeded',
+      replayed,
+    };
   }
 
   private isLate(attempt: MemoryP2FrozenAttempt): boolean {
     return this.clock.now().getTime() >= attempt.deadlineAt.getTime();
   }
 
-  private async recordStage(
-    stage: Parameters<MemoryP2TracePort['recordStage']>[0],
+  private async recordProgress(
+    event: Parameters<MemoryP2ProgressPort['recordProgress']>[0],
   ): Promise<boolean> {
     try {
-      await this.traces.recordStage(stage);
+      await this.progress.recordProgress(event);
       return true;
     } catch {
       return false;
