@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { traceReferenceTargetId } from './memory-p2-decision-trace.service.js';
 import { MemoryP2RecoveryService } from './memory-p2-recovery.service.js';
 import {
+  type MemoryP2Clock,
   type MemoryP2ObservabilitySink,
   type MemoryP2RecoveryAuthority,
   type MemoryP2RecoveryCasResult,
@@ -30,6 +31,7 @@ const IDS = {
   resolution: '20000000-0000-4000-8000-000000000011',
   session: '20000000-0000-4000-8000-000000000012',
   trace: '20000000-0000-4000-8000-000000000013',
+  worker: '20000000-0000-4000-8000-000000000014',
 } as const;
 
 describe('MemoryP2RecoveryService', () => {
@@ -142,15 +144,84 @@ describe('MemoryP2RecoveryService', () => {
   });
 
   it('repairs a missing trace for an already terminal non-success job without changing the job', async () => {
-    const repository = new FakeRecoveryRepository(authority({ jobStatus: 'failed', trace: null }));
+    const repository = new FakeRecoveryRepository(
+      authority({
+        jobFailureCode: 'P2_PROVIDER_UNAVAILABLE',
+        jobMemoryOutcome: 'failed',
+        jobStatus: 'failed',
+        trace: null,
+      }),
+    );
     const { service } = harness(repository);
     await expect(service.reconcileJob(IDS.job)).resolves.toBe('repaired_terminal_trace');
     expect(repository.commands[0]).toMatchObject({
       expectedJobStatuses: ['failed'],
       kind: 'repair_terminal_trace',
       terminalStatus: 'failed',
+      errorCode: 'P2_PROVIDER_UNAVAILABLE',
+      trace: { parent: { memoryOutcome: 'failed' } },
     });
     expect(repository.current?.jobStatus).toBe('failed');
+  });
+
+  it.each([
+    ['status', { status: 'cancelled' as const }],
+    ['stage', { stage: 'planned' as const }],
+    ['outcome', { memoryOutcome: 'cancelled' as const }],
+    ['error', { errorCode: 'P2_RESTART_RECOVERY' as const }],
+    ['source manifest', { sourceManifestHash: E }],
+    ['policy', { p2PolicyRevision: 'p2-other' }],
+    ['deletion', { deletionScopeDigest: E }],
+    ['retention', { retentionState: 'hidden' as const }],
+    ['reference order/revision/digest', { references: [] }],
+  ])('fails closed instead of overwriting terminal Trace %s drift', async (_name, mutation) => {
+    const base = authority({
+      jobFailureCode: 'P2_PROVIDER_UNAVAILABLE',
+      jobMemoryOutcome: 'failed',
+      jobStatus: 'failed',
+    });
+    base.trace = { ...terminalTrace(base), ...mutation };
+    const repository = new FakeRecoveryRepository(base);
+    await expect(harness(repository).service.reconcileJob(IDS.job)).resolves.toBe(
+      'terminal_authority_unreadable',
+    );
+    expect(repository.commands).toHaveLength(0);
+  });
+
+  it('does not write recovery state at or after the durable retention deadline', async () => {
+    const repository = new FakeRecoveryRepository(
+      authority({
+        identity: {
+          ...authority().identity,
+          expiresAt: new Date('2026-08-20T00:00:01.000Z'),
+        },
+        trace: null,
+      }),
+    );
+    await expect(harness(repository).service.reconcileJob(IDS.job)).resolves.toBe(
+      'terminal_authority_unreadable',
+    );
+    expect(repository.commands).toHaveLength(0);
+  });
+
+  it.each([
+    { jobFailureCode: null },
+    { jobMemoryOutcome: null },
+    { jobMemoryOutcome: 'cancelled' as const },
+  ])('requires durable terminal job outcome/error authority: %o', async (mutation) => {
+    const repository = new FakeRecoveryRepository(
+      authority({
+        jobFailureCode: 'P2_PROVIDER_UNAVAILABLE',
+        jobMemoryOutcome: 'failed',
+        jobStatus: 'failed',
+        trace: null,
+        ...mutation,
+      }),
+    );
+    await expect(harness(repository).service.reconcileJob(IDS.job)).resolves.toBe(
+      'terminal_authority_unreadable',
+    );
+    expect(repository.commands).toHaveLength(0);
   });
 
   it('lets exactly one concurrent scanner win the recovery CAS', async () => {
@@ -167,20 +238,47 @@ describe('MemoryP2RecoveryService', () => {
   });
 
   it('issues a commit fence only for the same durable running attempt and rejects a late callback', async () => {
-    const repository = new FakeRecoveryRepository(authority());
-    const { service } = harness(repository);
-    await expect(service.createCommitFence(IDS.job, 1)).resolves.toMatchObject({
+    const clock = mutableClock(new Date('2026-08-20T00:00:01.000Z'));
+    const repository = new FakeRecoveryRepository(
+      authority({ leaseExpiresAt: new Date('2026-08-20T00:00:02.000Z') }),
+    );
+    const { service } = harness(repository, clock);
+    await expect(service.createCommitFence(IDS.job, 1, IDS.worker, 3)).resolves.toMatchObject({
       attemptNo: 1,
       checkpointId: IDS.checkpoint,
       jobRevision: 7,
+      leaseEpoch: 3,
+      leaseOwnerId: IDS.worker,
       sourceManifestHash: C,
     });
-    await service.reconcileJob(IDS.job);
-    await expect(service.createCommitFence(IDS.job, 1)).rejects.toMatchObject({
+    await expect(service.createCommitFence(IDS.job, 1, IDS.worker, 2)).rejects.toMatchObject({
       code: 'P2_CAS_LOST',
     });
-    await expect(service.createCommitFence(IDS.job, 2)).rejects.toMatchObject({
+    clock.set(new Date('2026-08-20T00:00:03.000Z'));
+    await service.reconcileJob(IDS.job);
+    await expect(service.createCommitFence(IDS.job, 1, IDS.worker, 3)).rejects.toMatchObject({
       code: 'P2_CAS_LOST',
+    });
+    await expect(service.createCommitFence(IDS.job, 2, IDS.worker, 3)).rejects.toMatchObject({
+      code: 'P2_CAS_LOST',
+    });
+  });
+
+  it('leaves an unexpired durable lease active and terminalizes only the same expired epoch', async () => {
+    const active = new FakeRecoveryRepository(
+      authority({ leaseExpiresAt: new Date('2026-08-20T00:00:02.000Z') }),
+    );
+    await expect(harness(active).service.reconcileJob(IDS.job)).resolves.toBe('active_attempt');
+    expect(active.commands).toHaveLength(0);
+
+    active.current = authority({ leaseExpiresAt: new Date('2026-08-20T00:00:01.000Z') });
+    await expect(harness(active).service.reconcileJob(IDS.job)).resolves.toBe(
+      'terminalized_uncommitted',
+    );
+    expect(active.commands[0]).toMatchObject({
+      expectedLeaseEpoch: 3,
+      expectedLeaseExpiresAt: new Date('2026-08-20T00:00:01.000Z'),
+      expectedLeaseOwnerId: IDS.worker,
     });
   });
 
@@ -232,6 +330,19 @@ function authority(
       sourceRevision: referenceAuthorities[2].sourceRevision + 1,
     };
   const policy = mutation.policyDrift ? 'p2-other' : 'p2-v1';
+  const jobStatus = overrides.jobStatus ?? 'running';
+  const jobMemoryOutcome =
+    jobStatus === 'succeeded'
+      ? overrides.committed?.targetLayer === 'long'
+        ? 'long_committed'
+        : 'checkpoint_committed'
+      : jobStatus === 'failed' || jobStatus === 'cancelled' || jobStatus === 'unavailable'
+        ? jobStatus
+        : 'unjudged';
+  const jobFailureCode =
+    jobStatus === 'failed' || jobStatus === 'cancelled' || jobStatus === 'unavailable'
+      ? 'P2_TERMINAL_UNAVAILABLE'
+      : null;
   return {
     attemptNo: 1,
     checkpoint: {
@@ -261,7 +372,12 @@ function authority(
       traceId: IDS.trace,
     },
     jobRevision: 7,
-    jobStatus: 'running',
+    jobStatus,
+    jobFailureCode,
+    jobMemoryOutcome,
+    leaseEpoch: 3,
+    leaseExpiresAt: new Date('2026-08-20T00:00:01.000Z'),
+    leaseOwnerId: IDS.worker,
     legacyNullResolutionCount: mutation.legacyNullResolutionCount ?? 0,
     migrationStatus: mutation.migrationStatus ?? 'completed',
     p2PolicyRevision: policy,
@@ -269,6 +385,9 @@ function authority(
     referenceAuthorities,
     references,
     retentionState: 'active',
+    sourceSessionIds: [IDS.session],
+    sourceSessionManifestHash: D,
+    targetLayer: 'mid',
     trace: runningTrace(),
     ...overrides,
   };
@@ -331,8 +450,14 @@ function runningTrace(): NonNullable<MemoryP2RecoveryAuthority['trace']> {
     commitDigest: null,
     deletionScopeDigest: A,
     errorCode: null,
+    expiresAt: new Date('2026-09-20T00:00:00.000Z'),
+    memoryOutcome: 'unjudged',
+    p2PolicyRevision: 'p2-v1',
+    p2RetentionPolicyVersion: 'ret-v1',
     planDigest: null,
     proposalDigest: null,
+    references: traceReferences(),
+    retentionState: 'active',
     sourceManifestHash: C,
     stage: 'frozen',
     status: 'running',
@@ -347,12 +472,40 @@ function committedTrace(
     commitDigest: committed.commitDigest,
     deletionScopeDigest: A,
     errorCode: null,
+    expiresAt: new Date('2026-09-20T00:00:00.000Z'),
+    memoryOutcome: 'checkpoint_committed',
+    p2PolicyRevision: 'p2-v1',
+    p2RetentionPolicyVersion: 'ret-v1',
     planDigest: committed.planDigest,
     proposalDigest: committed.proposalDigest,
+    references: traceReferences(),
+    retentionState: 'active',
     sourceManifestHash: C,
     stage: 'committed',
     status: 'succeeded',
     traceId: IDS.trace,
+  };
+}
+
+function terminalTrace(
+  source: MemoryP2RecoveryAuthority,
+): NonNullable<MemoryP2RecoveryAuthority['trace']> {
+  return {
+    commitDigest: null,
+    deletionScopeDigest: source.identity.deletionScopeDigest,
+    errorCode: source.jobFailureCode,
+    expiresAt: source.identity.expiresAt,
+    memoryOutcome: source.jobMemoryOutcome ?? 'unavailable',
+    p2PolicyRevision: source.p2PolicyRevision,
+    p2RetentionPolicyVersion: source.p2RetentionPolicyVersion,
+    planDigest: null,
+    proposalDigest: null,
+    references: source.references,
+    retentionState: source.retentionState,
+    sourceManifestHash: source.identity.sourceManifestHash,
+    stage: 'terminal',
+    status: source.jobStatus === 'failed' ? 'failed' : 'unavailable',
+    traceId: source.identity.traceId,
   };
 }
 
@@ -361,10 +514,15 @@ class FakeRecoveryRepository implements MemoryP2RecoveryPort {
   public commands: MemoryP2RecoveryCommand[] = [];
   public appliedCount = 0;
   public scanIds: string[] = [IDS.job];
+  public scanInputs: Array<{ limit: number; staleAtOrBefore: Date }> = [];
 
   public constructor(public current: MemoryP2RecoveryAuthority | null) {}
 
-  public scanCandidateJobIds(): Promise<readonly string[]> {
+  public scanCandidateJobIds(input: {
+    limit: number;
+    staleAtOrBefore: Date;
+  }): Promise<readonly string[]> {
+    this.scanInputs.push(input);
     return Promise.resolve(this.scanIds);
   }
 
@@ -379,11 +537,21 @@ class FakeRecoveryRepository implements MemoryP2RecoveryPort {
       current === null ||
       current.jobRevision !== command.expectedJobRevision ||
       current.attemptNo !== command.expectedAttemptNo ||
+      current.leaseOwnerId !== command.expectedLeaseOwnerId ||
+      current.leaseEpoch !== command.expectedLeaseEpoch ||
+      current.leaseExpiresAt?.getTime() !== command.expectedLeaseExpiresAt?.getTime() ||
       (current.checkpoint?.checkpointId ?? null) !== command.expectedCheckpointId ||
       current.identity.sourceManifestHash !== command.expectedSourceManifestHash ||
+      current.targetLayer !== command.expectedTargetLayer ||
+      current.sourceSessionManifestHash !== command.expectedSourceSessionManifestHash ||
+      current.sourceSessionIds.length !== command.expectedSourceSessionIds.length ||
+      current.sourceSessionIds.some(
+        (sessionId, index) => sessionId !== command.expectedSourceSessionIds[index],
+      ) ||
       current.identity.deletionScopeDigest !== command.expectedDeletionScopeDigest ||
       current.p2PolicyRevision !== command.expectedP2PolicyRevision ||
       current.p2RetentionPolicyVersion !== command.expectedP2RetentionPolicyVersion ||
+      current.identity.expiresAt.getTime() !== command.expectedRetentionExpiresAt.getTime() ||
       (current.committed?.targetLayerRevisionId ?? null) !==
         command.expectedTargetLayerRevisionId ||
       (current.committed?.targetRevision ?? null) !== command.expectedTargetRevision ||
@@ -399,12 +567,24 @@ class FakeRecoveryRepository implements MemoryP2RecoveryPort {
       jobRevision: current.jobRevision + 1,
       jobStatus:
         command.kind === 'repair_terminal_trace' ? current.jobStatus : command.terminalStatus,
+      jobFailureCode:
+        command.kind === 'repair_terminal_trace' ? current.jobFailureCode : command.errorCode,
+      jobMemoryOutcome:
+        command.kind === 'repair_terminal_trace'
+          ? current.jobMemoryOutcome
+          : command.trace.parent.memoryOutcome,
       trace: {
         commitDigest: command.trace.semantic.commitDigest,
         deletionScopeDigest: command.trace.semantic.deletionScopeDigest,
         errorCode: command.trace.parent.errorCode,
+        expiresAt: command.trace.parent.expiresAt,
+        memoryOutcome: command.trace.parent.memoryOutcome,
+        p2PolicyRevision: command.expectedP2PolicyRevision,
+        p2RetentionPolicyVersion: command.expectedP2RetentionPolicyVersion,
         planDigest: command.trace.semantic.planDigest,
         proposalDigest: command.trace.semantic.proposalDigest,
+        references: command.trace.references,
+        retentionState: command.trace.parent.retentionState,
         sourceManifestHash: command.trace.semantic.sourceManifestHash,
         stage: command.trace.parent.stage,
         status: command.trace.parent.status,
@@ -415,7 +595,10 @@ class FakeRecoveryRepository implements MemoryP2RecoveryPort {
   }
 }
 
-function harness(repository: MemoryP2RecoveryPort): {
+function harness(
+  repository: MemoryP2RecoveryPort,
+  clock: MemoryP2Clock = fixedClock(new Date('2026-08-20T00:00:01.000Z')),
+): {
   service: MemoryP2RecoveryService;
   observations: unknown[];
 } {
@@ -425,5 +608,19 @@ function harness(repository: MemoryP2RecoveryPort): {
       observations.push(observation);
     },
   };
-  return { observations, service: new MemoryP2RecoveryService(repository, sink) };
+  return { observations, service: new MemoryP2RecoveryService(repository, sink, clock) };
+}
+
+function fixedClock(now: Date): MemoryP2Clock {
+  return { now: () => new Date(now.getTime()) };
+}
+
+function mutableClock(initial: Date): MemoryP2Clock & { set(value: Date): void } {
+  let current = new Date(initial.getTime());
+  return {
+    now: () => new Date(current.getTime()),
+    set(value): void {
+      current = new Date(value.getTime());
+    },
+  };
 }

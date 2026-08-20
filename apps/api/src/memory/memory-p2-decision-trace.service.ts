@@ -1,7 +1,9 @@
 import {
-  MEMORY_P2_ERROR_CODES,
   MEMORY_P2_TRACE_SOURCE_KINDS,
   MemoryP2RuntimeError,
+  isMemoryP2ErrorCode,
+  type MemoryP2AdvanceTraceStage,
+  type MemoryP2Clock,
   type MemoryP2DecisionTraceParentRecord,
   type MemoryP2DecisionTraceSemanticRecord,
   type MemoryP2DecisionTraceWrite,
@@ -10,12 +12,15 @@ import {
   type MemoryP2MemoryOutcome,
   type MemoryP2ObservabilitySink,
   type MemoryP2RetentionState,
+  type MemoryP2RunningTraceStage,
   type MemoryP2TerminalStatus,
   type MemoryP2TraceAuthorityPort,
   type MemoryP2TraceIdentity,
   type MemoryP2TracePolicyAuthority,
   type MemoryP2TraceReference,
   type MemoryP2TraceReferenceAuthority,
+  type MemoryP2TraceSourceSessionAuthority,
+  type MemoryP2TraceSourceSessionScope,
   type MemoryP2TraceStage,
   type MemoryP2TraceStatus,
   type MemoryP2TraceWriteResult,
@@ -43,16 +48,30 @@ const FORBIDDEN_DURABLE_KEYS = new Set([
   'requestpayload',
   'responsepayload',
 ]);
-const ERROR_CODES = new Set<string>(MEMORY_P2_ERROR_CODES);
 const SOURCE_KINDS = new Set<string>(MEMORY_P2_TRACE_SOURCE_KINDS);
+const SYSTEM_CLOCK: MemoryP2Clock = { now: () => new Date() };
 
 export interface MemoryP2RunningTraceInput {
   identity: MemoryP2TraceIdentity;
-  memoryOutcome: Extract<MemoryP2MemoryOutcome, 'unjudged' | 'no_change'>;
+  memoryOutcome: 'unjudged';
   p2PolicyRevision: string;
   p2RetentionPolicyVersion: string;
   retentionState: 'active';
   references: readonly MemoryP2TraceReference[];
+  sourceSessionScope: MemoryP2TraceSourceSessionScope;
+}
+
+export interface MemoryP2RunningStageInput {
+  identity: MemoryP2TraceIdentity;
+  memoryOutcome: 'unjudged';
+  p2PolicyRevision: string;
+  p2RetentionPolicyVersion: string;
+  retentionState: 'active';
+  stage: MemoryP2AdvanceTraceStage;
+  proposalDigest: string;
+  planDigest: string | null;
+  references: readonly MemoryP2TraceReference[];
+  sourceSessionScope: MemoryP2TraceSourceSessionScope;
 }
 
 export interface MemoryP2TerminalTraceInput {
@@ -69,6 +88,7 @@ export interface MemoryP2TerminalTraceInput {
   planDigest: string | null;
   commitDigest: string | null;
   references: readonly MemoryP2TraceReference[];
+  sourceSessionScope: MemoryP2TraceSourceSessionScope;
   expectedJobStatuses: readonly MemoryP2TraceStatus[];
   expectedTraceStatuses: readonly (MemoryP2TraceStatus | 'missing')[];
 }
@@ -78,14 +98,46 @@ export class MemoryP2DecisionTraceService {
     private readonly writes: MemoryP2DecisionTraceWritePort,
     private readonly authorities: MemoryP2TraceAuthorityPort,
     private readonly observations: MemoryP2ObservabilitySink,
+    private readonly clock: MemoryP2Clock = SYSTEM_CLOCK,
   ) {}
 
   public async createRunning(input: MemoryP2RunningTraceInput): Promise<MemoryP2TraceWriteResult> {
     assertNoDurableContent(input);
     const write = buildMemoryP2RunningTrace(input);
-    const expectedPolicyAuthority = await this.assertPolicy(input);
-    await this.assertAuthorities(write);
-    const result = await this.writes.createRunning({ expectedPolicyAuthority, write });
+    const writeAt = this.currentWriteTime();
+    const [expectedPolicyAuthority, expectedSourceSessionAuthority] = await Promise.all([
+      this.assertPolicy(input, writeAt),
+      this.assertSourceSession(input),
+    ]);
+    await this.assertAuthorities(write, expectedSourceSessionAuthority);
+    const result = await this.writes.createRunning({
+      expectedPolicyAuthority,
+      expectedSourceSessionAuthority,
+      write,
+      writeAt,
+    });
+    this.observe(result.trace ?? write);
+    return result;
+  }
+
+  public async advanceRunningStage(
+    input: MemoryP2RunningStageInput,
+  ): Promise<MemoryP2TraceWriteResult> {
+    assertNoDurableContent(input);
+    const write = buildMemoryP2RunningStageTrace(input);
+    const writeAt = this.currentWriteTime();
+    const [expectedPolicyAuthority, expectedSourceSessionAuthority] = await Promise.all([
+      this.assertPolicy(input, writeAt),
+      this.assertSourceSession(input),
+    ]);
+    await this.assertAuthorities(write, expectedSourceSessionAuthority);
+    const result = await this.writes.advanceRunningStage({
+      expectedPolicyAuthority,
+      expectedSourceSessionAuthority,
+      expectedStage: previousRunningStage(input.stage),
+      write,
+      writeAt,
+    });
     this.observe(result.trace ?? write);
     return result;
   }
@@ -93,13 +145,19 @@ export class MemoryP2DecisionTraceService {
   public async terminalize(input: MemoryP2TerminalTraceInput): Promise<MemoryP2TraceWriteResult> {
     assertNoDurableContent(input);
     const write = buildMemoryP2TerminalTrace(input);
-    const expectedPolicyAuthority = await this.assertPolicy(input);
-    await this.assertAuthorities(write);
+    const writeAt = this.currentWriteTime();
+    const [expectedPolicyAuthority, expectedSourceSessionAuthority] = await Promise.all([
+      this.assertPolicy(input, writeAt),
+      this.assertSourceSession(input),
+    ]);
+    await this.assertAuthorities(write, expectedSourceSessionAuthority);
     const result = await this.writes.writeTerminal({
       expectedJobStatuses: input.expectedJobStatuses,
       expectedPolicyAuthority,
+      expectedSourceSessionAuthority,
       expectedTraceStatuses: input.expectedTraceStatuses,
       write,
+      writeAt,
     });
     this.observe(result.trace ?? write);
     return result;
@@ -108,23 +166,45 @@ export class MemoryP2DecisionTraceService {
   public validateAuthorities(
     write: MemoryP2DecisionTraceWrite,
     authorities: readonly MemoryP2TraceReferenceAuthority[],
+    sourceSessionScope: MemoryP2TraceSourceSessionScope,
   ): void {
-    assertReferenceAuthorityParity(write, authorities);
+    assertReferenceAuthorityParity(write, authorities, sourceSessionScope);
   }
 
-  private async assertAuthorities(write: MemoryP2DecisionTraceWrite): Promise<void> {
+  private async assertAuthorities(
+    write: MemoryP2DecisionTraceWrite,
+    sourceSessionScope: MemoryP2TraceSourceSessionScope,
+  ): Promise<void> {
     const authorities = await this.authorities.readReferenceAuthorities(write.references);
-    assertReferenceAuthorityParity(write, authorities);
+    assertReferenceAuthorityParity(write, authorities, sourceSessionScope);
   }
 
-  private async assertPolicy(input: {
+  private async assertSourceSession(input: {
     identity: MemoryP2TraceIdentity;
-    p2PolicyRevision: string;
-    p2RetentionPolicyVersion: string;
-  }): Promise<MemoryP2TracePolicyAuthority> {
-    const authority = await this.authorities.readPolicyAuthority(input.identity.aiJobId);
-    assertPolicyAuthority(input, authority);
+    sourceSessionScope: MemoryP2TraceSourceSessionScope;
+  }): Promise<MemoryP2TraceSourceSessionAuthority> {
+    const authority = await this.authorities.readSourceSessionAuthority(input.identity.aiJobId);
+    assertSourceSessionAuthority(input.identity, input.sourceSessionScope, authority);
     return authority;
+  }
+
+  private async assertPolicy(
+    input: {
+      identity: MemoryP2TraceIdentity;
+      p2PolicyRevision: string;
+      p2RetentionPolicyVersion: string;
+    },
+    writeAt: Date,
+  ): Promise<MemoryP2TracePolicyAuthority> {
+    const authority = await this.authorities.readPolicyAuthority(input.identity.aiJobId, writeAt);
+    assertPolicyAuthority(input, authority, writeAt);
+    return authority;
+  }
+
+  private currentWriteTime(): Date {
+    const writeAt = this.clock.now();
+    if (!Number.isFinite(writeAt.getTime())) fail('P2_RETENTION_UNAVAILABLE');
+    return new Date(writeAt.getTime());
   }
 
   private observe(write: MemoryP2DecisionTraceWrite): void {
@@ -151,6 +231,7 @@ export function buildMemoryP2RunningTrace(
 ): MemoryP2DecisionTraceWrite {
   assertTraceIdentity(input.identity);
   assertPolicyVersions(input.p2PolicyRevision, input.p2RetentionPolicyVersion);
+  assertMemoryP2SourceSessionScope(input.identity, input.sourceSessionScope);
   assertReferences(input.identity, input.references);
   return buildWrite({
     commitDigest: null,
@@ -167,11 +248,34 @@ export function buildMemoryP2RunningTrace(
   });
 }
 
+export function buildMemoryP2RunningStageTrace(
+  input: MemoryP2RunningStageInput,
+): MemoryP2DecisionTraceWrite {
+  assertTraceIdentity(input.identity);
+  assertPolicyVersions(input.p2PolicyRevision, input.p2RetentionPolicyVersion);
+  assertMemoryP2SourceSessionScope(input.identity, input.sourceSessionScope);
+  assertReferences(input.identity, input.references);
+  return buildWrite({
+    commitDigest: null,
+    completedAt: null,
+    errorCode: null,
+    identity: input.identity,
+    memoryOutcome: input.memoryOutcome,
+    planDigest: input.planDigest,
+    proposalDigest: input.proposalDigest,
+    references: input.references,
+    retentionState: input.retentionState,
+    stage: input.stage,
+    status: 'running',
+  });
+}
+
 export function buildMemoryP2TerminalTrace(
   input: Omit<MemoryP2TerminalTraceInput, 'expectedJobStatuses' | 'expectedTraceStatuses'>,
 ): MemoryP2DecisionTraceWrite {
   assertTraceIdentity(input.identity);
   assertPolicyVersions(input.p2PolicyRevision, input.p2RetentionPolicyVersion);
+  assertMemoryP2SourceSessionScope(input.identity, input.sourceSessionScope);
   assertReferences(input.identity, input.references);
   assertTerminal(input);
   return buildWrite(input);
@@ -184,6 +288,7 @@ export function assertPolicyAuthority(
     p2RetentionPolicyVersion: string;
   },
   authority: MemoryP2TracePolicyAuthority | null,
+  writeAt: Date,
 ): asserts authority is MemoryP2TracePolicyAuthority {
   if (authority === null || authority.aiJobId !== expected.identity.aiJobId)
     fail('P2_POLICY_DRIFT');
@@ -197,7 +302,9 @@ export function assertPolicyAuthority(
   if (
     authority.retentionState !== 'active' ||
     !Number.isFinite(authority.expiresAt.getTime()) ||
-    authority.expiresAt <= expected.identity.createdAt
+    !Number.isFinite(writeAt.getTime()) ||
+    authority.expiresAt <= writeAt ||
+    authority.expiresAt.getTime() !== expected.identity.expiresAt.getTime()
   )
     fail('P2_RETENTION_UNAVAILABLE');
 }
@@ -205,8 +312,11 @@ export function assertPolicyAuthority(
 export function assertReferenceAuthorityParity(
   write: MemoryP2DecisionTraceWrite,
   authorities: readonly MemoryP2TraceReferenceAuthority[],
+  sourceSessionScope: MemoryP2TraceSourceSessionScope,
 ): void {
+  assertMemoryP2SourceSessionScope(write.parent, sourceSessionScope);
   if (authorities.length !== write.references.length) fail('P2_TRACE_UNAVAILABLE');
+  const referencedSessions = new Set<string>();
   for (let index = 0; index < write.references.length; index += 1) {
     const reference = write.references[index];
     const authority = authorities[index];
@@ -216,7 +326,7 @@ export function assertReferenceAuthorityParity(
       authority.sourceKind !== reference.sourceKind ||
       authority.targetId !== traceReferenceTargetId(reference) ||
       authority.projectId !== write.parent.projectId ||
-      authority.sessionId !== write.parent.sessionId ||
+      !sourceSessionScope.sourceSessionIds.includes(authority.sessionId) ||
       authority.sourceRevision !== reference.sourceRevision ||
       authority.membershipDigest !== reference.membershipDigest
     )
@@ -226,7 +336,26 @@ export function assertReferenceAuthorityParity(
       authority.deletionScopeDigest !== write.semantic.deletionScopeDigest
     )
       fail('P2_DELETION_SCOPE_DRIFT');
+    referencedSessions.add(authority.sessionId);
   }
+  if (!sameStringSet([...referencedSessions], sourceSessionScope.sourceSessionIds))
+    fail('P2_SOURCE_DRIFT');
+}
+
+export function assertSourceSessionAuthority(
+  identity: MemoryP2TraceIdentity,
+  expected: MemoryP2TraceSourceSessionScope,
+  authority: MemoryP2TraceSourceSessionAuthority | null,
+): asserts authority is MemoryP2TraceSourceSessionAuthority {
+  assertMemoryP2SourceSessionScope(identity, expected);
+  if (
+    authority === null ||
+    authority.aiJobId !== identity.aiJobId ||
+    authority.targetLayer !== expected.targetLayer ||
+    authority.sourceSessionManifestHash !== expected.sourceSessionManifestHash ||
+    !sameOrderedStrings(authority.sourceSessionIds, expected.sourceSessionIds)
+  )
+    fail('P2_SOURCE_DRIFT');
 }
 
 export function traceReferenceTargetId(reference: MemoryP2TraceReference): string {
@@ -257,6 +386,7 @@ function buildWrite(input: {
   commitDigest: string | null;
   references: readonly MemoryP2TraceReference[];
 }): MemoryP2DecisionTraceWrite {
+  assertTraceStateInvariant(input);
   const durationMs =
     input.completedAt === null
       ? null
@@ -304,6 +434,7 @@ function assertTerminal(
   if (input.status === 'succeeded') {
     if (
       input.errorCode !== null ||
+      !['checkpoint_committed', 'long_committed', 'no_change'].includes(input.memoryOutcome) ||
       !isDigest(input.proposalDigest) ||
       !isDigest(input.planDigest) ||
       !isDigest(input.commitDigest)
@@ -312,11 +443,65 @@ function assertTerminal(
     if (input.stage !== 'committed' && input.stage !== 'recovered') fail('P2_TRACE_UNAVAILABLE');
     return;
   }
-  if (input.errorCode === null || !ERROR_CODES.has(input.errorCode)) fail('P2_TRACE_UNAVAILABLE');
+  const expectedOutcome: Record<
+    Exclude<MemoryP2TerminalStatus, 'succeeded'>,
+    MemoryP2MemoryOutcome
+  > = {
+    cancelled: 'cancelled',
+    failed: 'failed',
+    unavailable: 'unavailable',
+  };
+  if (input.memoryOutcome !== expectedOutcome[input.status]) fail('P2_TRACE_UNAVAILABLE');
+  if (input.stage !== 'terminal' && input.stage !== 'recovered') fail('P2_TRACE_UNAVAILABLE');
+  if (!isMemoryP2ErrorCode(input.errorCode)) fail('P2_TRACE_UNAVAILABLE');
   if (input.commitDigest !== null) fail('P2_TRACE_UNAVAILABLE');
   if (input.proposalDigest !== null && !isDigest(input.proposalDigest))
     fail('P2_TRACE_UNAVAILABLE');
   if (input.planDigest !== null && !isDigest(input.planDigest)) fail('P2_TRACE_UNAVAILABLE');
+  if (input.planDigest !== null && input.proposalDigest === null) fail('P2_TRACE_UNAVAILABLE');
+}
+
+function assertTraceStateInvariant(input: {
+  status: MemoryP2TraceStatus;
+  stage: MemoryP2TraceStage;
+  memoryOutcome: MemoryP2MemoryOutcome;
+  errorCode: MemoryP2ErrorCode | null;
+  completedAt: Date | null;
+  proposalDigest: string | null;
+  planDigest: string | null;
+  commitDigest: string | null;
+}): void {
+  if (input.status !== 'running') return;
+  if (!['frozen', 'proposed', 'validated', 'planned'].includes(input.stage))
+    fail('P2_TRACE_UNAVAILABLE');
+  if (
+    input.memoryOutcome !== 'unjudged' ||
+    input.errorCode !== null ||
+    input.completedAt !== null ||
+    input.commitDigest !== null
+  )
+    fail('P2_TRACE_UNAVAILABLE');
+  if (input.stage === 'frozen') {
+    if (input.proposalDigest !== null || input.planDigest !== null) fail('P2_TRACE_UNAVAILABLE');
+    return;
+  }
+  if (!isDigest(input.proposalDigest)) fail('P2_TRACE_UNAVAILABLE');
+  if (input.stage === 'planned') {
+    if (!isDigest(input.planDigest)) fail('P2_TRACE_UNAVAILABLE');
+    return;
+  }
+  if (input.planDigest !== null) fail('P2_TRACE_UNAVAILABLE');
+}
+
+function previousRunningStage(stage: MemoryP2AdvanceTraceStage): MemoryP2RunningTraceStage {
+  switch (stage) {
+    case 'proposed':
+      return 'frozen';
+    case 'validated':
+      return 'proposed';
+    case 'planned':
+      return 'validated';
+  }
 }
 
 function assertTraceIdentity(identity: MemoryP2TraceIdentity): void {
@@ -394,6 +579,38 @@ function assertReferences(
     if (targets.has(key)) fail('P2_TRACE_UNAVAILABLE');
     targets.add(key);
   }
+}
+
+export function assertMemoryP2SourceSessionScope(
+  identity: Pick<MemoryP2TraceIdentity, 'sessionId'>,
+  scope: MemoryP2TraceSourceSessionScope,
+): void {
+  if (!isDigest(scope.sourceSessionManifestHash) || scope.sourceSessionIds.length === 0)
+    fail('P2_SOURCE_DRIFT');
+  if (
+    scope.sourceSessionIds.some((sessionId) => !UUID.test(sessionId)) ||
+    new Set(scope.sourceSessionIds).size !== scope.sourceSessionIds.length
+  )
+    fail('P2_SOURCE_DRIFT');
+  if (
+    scope.targetLayer === 'mid' &&
+    (scope.sourceSessionIds.length !== 1 || scope.sourceSessionIds[0] !== identity.sessionId)
+  )
+    fail('P2_SOURCE_DRIFT');
+}
+
+function sameStringSet(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length &&
+    new Set(actual).size === actual.length &&
+    actual.every((value) => expected.includes(value))
+  );
+}
+
+function sameOrderedStrings(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length && actual.every((value, index) => value === expected[index])
+  );
 }
 
 function copyReference(reference: MemoryP2TraceReference): MemoryP2TraceReference {

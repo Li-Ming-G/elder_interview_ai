@@ -14,6 +14,12 @@ export const MEMORY_P2_ERROR_CODES = [
 
 export type MemoryP2ErrorCode = (typeof MEMORY_P2_ERROR_CODES)[number];
 
+const MEMORY_P2_ERROR_CODE_SET: ReadonlySet<string> = new Set(MEMORY_P2_ERROR_CODES);
+
+export function isMemoryP2ErrorCode(value: unknown): value is MemoryP2ErrorCode {
+  return typeof value === 'string' && MEMORY_P2_ERROR_CODE_SET.has(value);
+}
+
 export const MEMORY_P2_TRACE_SOURCE_KINDS = [
   'checkpoint',
   'job',
@@ -29,6 +35,11 @@ export type MemoryP2TraceStatus = Exclude<MemoryP2JobStatus, 'pending'>;
 export type MemoryP2TerminalStatus = Exclude<MemoryP2TraceStatus, 'running'>;
 export type MemoryP2TraceStage =
   'frozen' | 'proposed' | 'validated' | 'planned' | 'committed' | 'recovered' | 'terminal';
+export type MemoryP2RunningTraceStage = Extract<
+  MemoryP2TraceStage,
+  'frozen' | 'proposed' | 'validated' | 'planned'
+>;
+export type MemoryP2AdvanceTraceStage = Exclude<MemoryP2RunningTraceStage, 'frozen'>;
 export type MemoryP2MemoryOutcome =
   | 'checkpoint_committed'
   | 'long_committed'
@@ -119,6 +130,16 @@ export interface MemoryP2TracePolicyAuthority {
   expiresAt: Date;
 }
 
+export interface MemoryP2TraceSourceSessionScope {
+  targetLayer: 'mid' | 'long';
+  sourceSessionIds: readonly string[];
+  sourceSessionManifestHash: string;
+}
+
+export interface MemoryP2TraceSourceSessionAuthority extends MemoryP2TraceSourceSessionScope {
+  aiJobId: string;
+}
+
 export interface MemoryP2TraceIdentity {
   traceId: string;
   projectId: string;
@@ -184,17 +205,29 @@ export interface MemoryP2DecisionTraceWritePort {
   createRunning(input: {
     write: MemoryP2DecisionTraceWrite;
     expectedPolicyAuthority: MemoryP2TracePolicyAuthority;
+    expectedSourceSessionAuthority: MemoryP2TraceSourceSessionAuthority;
+    writeAt: Date;
+  }): Promise<MemoryP2TraceWriteResult>;
+  advanceRunningStage(input: {
+    write: MemoryP2DecisionTraceWrite;
+    expectedPolicyAuthority: MemoryP2TracePolicyAuthority;
+    expectedSourceSessionAuthority: MemoryP2TraceSourceSessionAuthority;
+    expectedStage: MemoryP2RunningTraceStage;
+    writeAt: Date;
   }): Promise<MemoryP2TraceWriteResult>;
   writeTerminal(input: {
     write: MemoryP2DecisionTraceWrite;
     expectedPolicyAuthority: MemoryP2TracePolicyAuthority;
+    expectedSourceSessionAuthority: MemoryP2TraceSourceSessionAuthority;
     expectedJobStatuses: readonly MemoryP2JobStatus[];
     expectedTraceStatuses: readonly (MemoryP2TraceStatus | 'missing')[];
+    writeAt: Date;
   }): Promise<MemoryP2TraceWriteResult>;
 }
 
 export interface MemoryP2TraceAuthorityPort {
-  readPolicyAuthority(aiJobId: string): Promise<MemoryP2TracePolicyAuthority | null>;
+  readPolicyAuthority(aiJobId: string, writeAt: Date): Promise<MemoryP2TracePolicyAuthority | null>;
+  readSourceSessionAuthority(aiJobId: string): Promise<MemoryP2TraceSourceSessionAuthority | null>;
   readReferenceAuthorities(
     references: readonly MemoryP2TraceReference[],
   ): Promise<readonly MemoryP2TraceReferenceAuthority[]>;
@@ -248,22 +281,36 @@ export interface MemoryP2DurableTraceAuthority {
   traceId: string;
   status: MemoryP2TraceStatus;
   stage: MemoryP2TraceStage;
+  memoryOutcome: MemoryP2MemoryOutcome;
   errorCode: MemoryP2ErrorCode | null;
   sourceManifestHash: string;
   deletionScopeDigest: string;
+  p2PolicyRevision: string;
+  p2RetentionPolicyVersion: string;
+  retentionState: MemoryP2RetentionState;
+  expiresAt: Date;
   proposalDigest: string | null;
   planDigest: string | null;
   commitDigest: string | null;
+  references: readonly MemoryP2TraceReference[];
 }
 
 export interface MemoryP2RecoveryAuthority {
   identity: MemoryP2TraceIdentity;
   attemptNo: number;
   jobStatus: MemoryP2JobStatus;
+  jobMemoryOutcome: MemoryP2MemoryOutcome | null;
+  jobFailureCode: MemoryP2ErrorCode | null;
   jobRevision: number;
+  leaseOwnerId: string | null;
+  leaseEpoch: number;
+  leaseExpiresAt: Date | null;
   p2PolicyRevision: string;
   p2RetentionPolicyVersion: string;
   retentionState: MemoryP2RetentionState;
+  targetLayer: 'mid' | 'long';
+  sourceSessionIds: readonly string[];
+  sourceSessionManifestHash: string;
   checkpoint: MemoryP2CheckpointAuthority | null;
   references: readonly MemoryP2TraceReference[];
   referenceAuthorities: readonly MemoryP2TraceReferenceAuthority[];
@@ -282,6 +329,9 @@ export interface MemoryP2CommitFence {
   deletionScopeDigest: string;
   p2PolicyRevision: string;
   p2RetentionPolicyVersion: string;
+  leaseOwnerId: string;
+  leaseEpoch: number;
+  leaseExpiresAt: Date;
 }
 
 export interface MemoryP2RecoveryCommand {
@@ -290,18 +340,26 @@ export interface MemoryP2RecoveryCommand {
   expectedAttemptNo: number;
   expectedJobRevision: number;
   expectedJobStatuses: readonly MemoryP2JobStatus[];
+  expectedLeaseOwnerId: string | null;
+  expectedLeaseEpoch: number;
+  expectedLeaseExpiresAt: Date | null;
   expectedTraceStatuses: readonly (MemoryP2TraceStatus | 'missing')[];
   expectedCheckpointId: string | null;
   expectedSourceManifestHash: string;
+  expectedTargetLayer: 'mid' | 'long';
+  expectedSourceSessionIds: readonly string[];
+  expectedSourceSessionManifestHash: string;
   expectedDeletionScopeDigest: string;
   expectedP2PolicyRevision: string;
   expectedP2RetentionPolicyVersion: string;
+  expectedRetentionExpiresAt: Date;
   expectedTargetLayerRevisionId: string | null;
   expectedTargetRevision: number | null;
   expectedTargetRevisionDigest: string | null;
   expectedCommitDigest: string | null;
   terminalStatus: MemoryP2TerminalStatus;
   errorCode: MemoryP2ErrorCode | null;
+  writeAt: Date;
   trace: MemoryP2DecisionTraceWrite;
 }
 
@@ -311,19 +369,25 @@ export interface MemoryP2RecoveryCasResult {
 
 export interface MemoryP2RecoveryPort {
   readonly transactionOwnership: 'existing_ai_job_coordinator';
-  scanCandidateJobIds(limit: number): Promise<readonly string[]>;
+  scanCandidateJobIds(input: { limit: number; staleAtOrBefore: Date }): Promise<readonly string[]>;
   readRecoveryAuthority(jobId: string): Promise<MemoryP2RecoveryAuthority | null>;
   applyRecovery(command: MemoryP2RecoveryCommand): Promise<MemoryP2RecoveryCasResult>;
 }
 
 export type MemoryP2RecoveryOutcome =
   | 'not_found'
+  | 'active_attempt'
   | 'already_converged'
   | 'terminalized_uncommitted'
   | 'preserved_committed'
   | 'repaired_terminal_trace'
   | 'preserved_succeeded_unreadable'
+  | 'terminal_authority_unreadable'
   | 'cas_lost';
+
+export interface MemoryP2Clock {
+  now(): Date;
+}
 
 export class MemoryP2RuntimeError extends Error {
   public constructor(public readonly code: MemoryP2ErrorCode) {

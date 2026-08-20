@@ -3,11 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
   MemoryP2DecisionTraceService,
   buildMemoryP2RunningTrace,
+  buildMemoryP2TerminalTrace,
   traceReferenceTargetId,
   type MemoryP2RunningTraceInput,
+  type MemoryP2RunningStageInput,
+  type MemoryP2TerminalTraceInput,
 } from './memory-p2-decision-trace.service.js';
 import {
   MemoryP2RuntimeError,
+  isMemoryP2ErrorCode,
+  type MemoryP2Clock,
   type MemoryP2DecisionTraceWrite,
   type MemoryP2DecisionTraceWritePort,
   type MemoryP2ObservabilitySink,
@@ -15,6 +20,7 @@ import {
   type MemoryP2TracePolicyAuthority,
   type MemoryP2TraceReference,
   type MemoryP2TraceReferenceAuthority,
+  type MemoryP2TraceSourceSessionAuthority,
 } from './memory-p2-observability.types.js';
 
 const DIGEST_A = 'a'.repeat(64);
@@ -32,6 +38,7 @@ const IDS = {
   request: '10000000-0000-4000-8000-000000000008',
   resolution: '10000000-0000-4000-8000-000000000009',
   session: '10000000-0000-4000-8000-000000000010',
+  session2: '10000000-0000-4000-8000-000000000013',
   sourceJob: '10000000-0000-4000-8000-000000000011',
   trace: '10000000-0000-4000-8000-000000000012',
 } as const;
@@ -107,6 +114,7 @@ describe('MemoryP2DecisionTraceService', () => {
       proposalDigest: DIGEST_B,
       references: input.references,
       retentionState: 'active',
+      sourceSessionScope: input.sourceSessionScope,
       stage: 'committed',
       status: 'succeeded',
     });
@@ -123,6 +131,44 @@ describe('MemoryP2DecisionTraceService', () => {
       planDigest: DIGEST_C,
       proposalDigest: DIGEST_B,
     });
+  });
+
+  it('advances the only closed running-stage CAS proposed -> validated -> planned', async () => {
+    const input = runningInput();
+    const { advancedStages, service } = harness(input.references);
+    for (const stageInput of [
+      runningStageInput('proposed', DIGEST_B, null),
+      runningStageInput('validated', DIGEST_B, null),
+      runningStageInput('planned', DIGEST_B, DIGEST_C),
+    ])
+      await service.advanceRunningStage(stageInput);
+
+    expect(advancedStages).toEqual([
+      { expectedStage: 'frozen', stage: 'proposed' },
+      { expectedStage: 'proposed', stage: 'validated' },
+      { expectedStage: 'validated', stage: 'planned' },
+    ]);
+  });
+
+  it.each(['provider_started', 'authority_checked'])(
+    'rejects non-contract runtime marker %s instead of creating a second stage machine',
+    async (stage) => {
+      const input = runningStageInput('proposed', DIGEST_B, null) as unknown as Record<
+        string,
+        unknown
+      >;
+      input.stage = stage;
+      const { service } = harness(runningInput().references);
+      await expect(
+        service.advanceRunningStage(input as unknown as MemoryP2RunningStageInput),
+      ).rejects.toMatchObject({ code: 'P2_TRACE_UNAVAILABLE' });
+    },
+  );
+
+  it('exports a closed runtime P2 error-code registry guard', () => {
+    expect(isMemoryP2ErrorCode('P2_SOURCE_DRIFT')).toBe(true);
+    expect(isMemoryP2ErrorCode('P2_ARBITRARY_STRING')).toBe(false);
+    expect(isMemoryP2ErrorCode(null)).toBe(false);
   });
 
   it.each([
@@ -197,6 +243,103 @@ describe('MemoryP2DecisionTraceService', () => {
     ).rejects.toMatchObject({ code: 'P2_RETENTION_UNAVAILABLE' });
   });
 
+  it.each(['create', 'advance', 'terminal'] as const)(
+    'fails closed when retention expires at the current %s write boundary',
+    async (operation) => {
+      const input = runningInput();
+      const expiresAt = input.identity.expiresAt;
+      const { service } = harness(
+        input.references,
+        undefined,
+        policyAuthority(),
+        fixedClock(expiresAt),
+      );
+      const action =
+        operation === 'create'
+          ? service.createRunning(input)
+          : operation === 'advance'
+            ? service.advanceRunningStage(runningStageInput('proposed', DIGEST_B, null))
+            : service.terminalize(terminalInput());
+      await expect(action).rejects.toMatchObject({ code: 'P2_RETENTION_UNAVAILABLE' });
+    },
+  );
+
+  it('passes one current write timestamp to authority read and the transactional CAS port', async () => {
+    const input = runningInput();
+    const now = new Date('2026-08-20T12:34:56.789Z');
+    const { policyReadTimes, service, writeTimes } = harness(
+      input.references,
+      undefined,
+      policyAuthority(),
+      fixedClock(now),
+    );
+    await service.createRunning(input);
+    expect(policyReadTimes).toEqual([now]);
+    expect(writeTimes).toEqual([now]);
+  });
+
+  it('allows Long typed refs across the exact frozen project session set', async () => {
+    const input = runningInput();
+    input.sourceSessionScope = {
+      sourceSessionIds: [IDS.session, IDS.session2],
+      sourceSessionManifestHash: DIGEST_D,
+      targetLayer: 'long',
+    };
+    const rows = referenceAuthorities(input.references);
+    const last = rows.at(-1);
+    if (last === undefined) throw new Error('fixture');
+    rows[rows.length - 1] = { ...last, sessionId: IDS.session2 };
+    const { service } = harness(
+      input.references,
+      rows,
+      policyAuthority(),
+      fixedClock(new Date('2026-08-20T00:00:01.000Z')),
+      sourceSessionAuthority(input.sourceSessionScope),
+    );
+    await expect(service.createRunning(input)).resolves.toMatchObject({ outcome: 'created' });
+  });
+
+  it.each([
+    ['Mid cross-session scope', { kind: 'mid_scope' }],
+    ['Long missing frozen session', { kind: 'missing' }],
+    ['Long duplicate frozen session', { kind: 'duplicate' }],
+    ['Long out-of-project authority', { kind: 'project' }],
+    ['Long session-manifest drift', { kind: 'manifest' }],
+  ])('fails closed for %s', async (_name, mutation) => {
+    const input = runningInput();
+    const rows = referenceAuthorities(input.references);
+    input.sourceSessionScope = {
+      sourceSessionIds: [IDS.session, IDS.session2],
+      sourceSessionManifestHash: DIGEST_D,
+      targetLayer: mutation.kind === 'mid_scope' ? 'mid' : 'long',
+    };
+    if (mutation.kind === 'duplicate')
+      input.sourceSessionScope = {
+        ...input.sourceSessionScope,
+        sourceSessionIds: [IDS.session, IDS.session],
+      };
+    if (mutation.kind !== 'missing' && mutation.kind !== 'mid_scope') {
+      const last = rows.at(-1);
+      if (last === undefined) throw new Error('fixture');
+      rows[rows.length - 1] = {
+        ...last,
+        projectId: mutation.kind === 'project' ? IDS.request : last.projectId,
+        sessionId: IDS.session2,
+      };
+    }
+    const durableScope = sourceSessionAuthority(input.sourceSessionScope);
+    if (mutation.kind === 'manifest') durableScope.sourceSessionManifestHash = DIGEST_C;
+    await expect(
+      harness(
+        input.references,
+        rows,
+        policyAuthority(),
+        fixedClock(new Date('2026-08-20T00:00:01.000Z')),
+        durableScope,
+      ).service.createRunning(input),
+    ).rejects.toMatchObject({ code: 'P2_SOURCE_DRIFT' });
+  });
+
   it('rejects durable Context, semantic values, Proposal/Plan and provider payloads', async () => {
     const input = {
       ...runningInput(),
@@ -227,10 +370,94 @@ describe('MemoryP2DecisionTraceService', () => {
         proposalDigest: DIGEST_B,
         references: input.references,
         retentionState: 'active',
+        sourceSessionScope: input.sourceSessionScope,
         stage: 'committed',
         status: 'succeeded',
       }),
     ).rejects.toMatchObject({ code: 'P2_TRACE_UNAVAILABLE' });
+  });
+
+  it.each([
+    [
+      'running outcome drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2RunningTrace({
+          ...runningInput(),
+          memoryOutcome: 'no_change',
+        } as unknown as MemoryP2RunningTraceInput),
+    ],
+    [
+      'success outcome drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({ ...terminalInput(), memoryOutcome: 'failed' }),
+    ],
+    [
+      'success error drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({ ...terminalInput(), errorCode: 'P2_SOURCE_DRIFT' }),
+    ],
+    [
+      'failed outcome drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({
+          ...terminalInput(),
+          commitDigest: null,
+          errorCode: 'P2_SOURCE_DRIFT',
+          memoryOutcome: 'cancelled',
+          stage: 'terminal',
+          status: 'failed',
+        }),
+    ],
+    [
+      'cancelled outcome drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({
+          ...terminalInput(),
+          commitDigest: null,
+          errorCode: 'P2_CAS_LOST',
+          memoryOutcome: 'failed',
+          stage: 'terminal',
+          status: 'cancelled',
+        }),
+    ],
+    [
+      'unavailable outcome drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({
+          ...terminalInput(),
+          commitDigest: null,
+          errorCode: 'P2_TERMINAL_UNAVAILABLE',
+          memoryOutcome: 'failed',
+          stage: 'recovered',
+          status: 'unavailable',
+        }),
+    ],
+    [
+      'failure stage drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({
+          ...terminalInput(),
+          commitDigest: null,
+          errorCode: 'P2_SOURCE_DRIFT',
+          memoryOutcome: 'failed',
+          stage: 'committed',
+          status: 'failed',
+        }),
+    ],
+    [
+      'failure error drift',
+      (): MemoryP2DecisionTraceWrite =>
+        buildMemoryP2TerminalTrace({
+          ...terminalInput(),
+          commitDigest: null,
+          errorCode: null,
+          memoryOutcome: 'failed',
+          stage: 'terminal',
+          status: 'failed',
+        }),
+    ],
+  ])('rejects status/stage/outcome/error cross-product drift: %s', (_name, build) => {
+    expect(build).toThrow(expect.objectContaining({ code: 'P2_TRACE_UNAVAILABLE' }));
   });
 });
 
@@ -256,6 +483,43 @@ function runningInput(): MemoryP2RunningTraceInput {
     p2RetentionPolicyVersion: 'ret-v1',
     references: traceReferences(),
     retentionState: 'active',
+    sourceSessionScope: {
+      sourceSessionIds: [IDS.session],
+      sourceSessionManifestHash: DIGEST_D,
+      targetLayer: 'mid',
+    },
+  };
+}
+
+function runningStageInput(
+  stage: MemoryP2RunningStageInput['stage'],
+  proposalDigest: string,
+  planDigest: string | null,
+): MemoryP2RunningStageInput {
+  const input = runningInput();
+  return { ...input, planDigest, proposalDigest, stage };
+}
+
+function terminalInput(): Omit<
+  MemoryP2TerminalTraceInput,
+  'expectedJobStatuses' | 'expectedTraceStatuses'
+> {
+  const input = runningInput();
+  return {
+    commitDigest: DIGEST_D,
+    completedAt: new Date('2026-08-20T00:00:01.000Z'),
+    errorCode: null,
+    identity: input.identity,
+    memoryOutcome: 'checkpoint_committed',
+    p2PolicyRevision: input.p2PolicyRevision,
+    p2RetentionPolicyVersion: input.p2RetentionPolicyVersion,
+    planDigest: DIGEST_C,
+    proposalDigest: DIGEST_B,
+    references: input.references,
+    retentionState: 'active',
+    sourceSessionScope: input.sourceSessionScope,
+    stage: 'committed',
+    status: 'succeeded',
   };
 }
 
@@ -301,32 +565,61 @@ function harness(
   references: readonly MemoryP2TraceReference[],
   authorityRows = referenceAuthorities(references),
   policy = policyAuthority(),
+  clock: MemoryP2Clock = fixedClock(new Date('2026-08-20T00:00:01.000Z')),
+  sourceSessions = sourceSessionAuthority(runningInput().sourceSessionScope),
 ): {
+  advancedStages: Array<{ expectedStage: string; stage: string }>;
   createdWrites: MemoryP2DecisionTraceWrite[];
   service: MemoryP2DecisionTraceService;
   observations: unknown[];
+  policyReadTimes: Date[];
   terminalWrites: MemoryP2DecisionTraceWrite[];
+  writeTimes: Date[];
 } {
+  const advancedStages: Array<{ expectedStage: string; stage: string }> = [];
   const createdWrites: MemoryP2DecisionTraceWrite[] = [];
   const observations: unknown[] = [];
+  const policyReadTimes: Date[] = [];
   const terminalWrites: MemoryP2DecisionTraceWrite[] = [];
+  const writeTimes: Date[] = [];
   const writes: MemoryP2DecisionTraceWritePort = {
     transactionOwnership: 'existing_ai_job_coordinator',
-    createRunning({ write }): Promise<{ outcome: 'created'; trace: MemoryP2DecisionTraceWrite }> {
+    createRunning({
+      write,
+      writeAt,
+    }): Promise<{ outcome: 'created'; trace: MemoryP2DecisionTraceWrite }> {
       createdWrites.push(write);
+      writeTimes.push(writeAt);
       return Promise.resolve({ outcome: 'created', trace: write });
     },
-    writeTerminal({ write }): Promise<{ outcome: 'updated'; trace: MemoryP2DecisionTraceWrite }> {
+    advanceRunningStage({
+      expectedStage,
+      write,
+      writeAt,
+    }): Promise<{ outcome: 'updated'; trace: MemoryP2DecisionTraceWrite }> {
+      advancedStages.push({ expectedStage, stage: write.parent.stage });
+      writeTimes.push(writeAt);
+      return Promise.resolve({ outcome: 'updated', trace: write });
+    },
+    writeTerminal({
+      write,
+      writeAt,
+    }): Promise<{ outcome: 'updated'; trace: MemoryP2DecisionTraceWrite }> {
       terminalWrites.push(write);
+      writeTimes.push(writeAt);
       return Promise.resolve({ outcome: 'updated', trace: write });
     },
   };
   const authorities: MemoryP2TraceAuthorityPort = {
-    readPolicyAuthority(): Promise<MemoryP2TracePolicyAuthority> {
+    readPolicyAuthority(_jobId, writeAt): Promise<MemoryP2TracePolicyAuthority> {
+      policyReadTimes.push(writeAt);
       return Promise.resolve(policy);
     },
     readReferenceAuthorities(): Promise<readonly MemoryP2TraceReferenceAuthority[]> {
       return Promise.resolve(authorityRows);
+    },
+    readSourceSessionAuthority(): Promise<MemoryP2TraceSourceSessionAuthority> {
+      return Promise.resolve(sourceSessions);
     },
   };
   const sink: MemoryP2ObservabilitySink = {
@@ -335,11 +628,24 @@ function harness(
     },
   };
   return {
+    advancedStages,
     createdWrites,
     observations,
-    service: new MemoryP2DecisionTraceService(writes, authorities, sink),
+    policyReadTimes,
+    service: new MemoryP2DecisionTraceService(writes, authorities, sink, clock),
     terminalWrites,
+    writeTimes,
   };
+}
+
+function sourceSessionAuthority(
+  scope: MemoryP2RunningTraceInput['sourceSessionScope'],
+): MemoryP2TraceSourceSessionAuthority {
+  return { aiJobId: IDS.job, ...scope };
+}
+
+function fixedClock(now: Date): MemoryP2Clock {
+  return { now: () => new Date(now.getTime()) };
 }
 
 function policyAuthority(): MemoryP2TracePolicyAuthority {
