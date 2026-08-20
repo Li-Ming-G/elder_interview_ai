@@ -36,3 +36,7 @@
 ## 明确排除
 
 P2 LLM semantic consolidation 的 provider seam 仍保留，但本任务不选择 provider/model，不请求 secret，不发送真实数据；P1 不增加 Long retrieval；P3 的 PostgreSQL/pgvector provider-neutral seam、P4 budget 和真实 embedding/model 均保持 DEFERRED。
+
+## Governance closeout
+
+PR #73 只收口上述已接收事实，merge/main `7e183217` / main CI `32256919620` SUCCESS；它不改变 P2-B contract-only 接收边界，也不接收 P2-C runtime。

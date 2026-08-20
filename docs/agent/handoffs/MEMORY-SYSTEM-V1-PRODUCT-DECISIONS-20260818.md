@@ -29,4 +29,4 @@
 
 ## 当前工作边界
 
-本交接只同步治理文档，不接收真实 provider、真实 embedding、真实数据、正式生产授权、公网部署或生产许可。PR #70 v1.2 已按 REV-062 accepted scope 收口；父任务 `SPEC-MEMORY-SYSTEM-V1` 仍为 `REVIEW`，当前推进对象改为 A1 semantic envelope contract-only `REVIEW`。顺序固定为 A1 accepted→P2-B persistence→P2-C→P2-D；既有 PR/REV/CI 历史不得改写。
+本交接只同步治理文档，不接收真实 provider、真实 embedding、真实数据、正式生产授权、公网部署或生产许可。PR #70 v1.2 已按 REV-062 accepted scope收口；PR #71 A1 contract-only与PR #72 P2-B contract-only已分别接收，PR #73 governance closeout已完成。父任务 `SPEC-MEMORY-SYSTEM-V1` 仍为 `REVIEW`，当前推进对象为P2-C `REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`。顺序固定为A1 accepted→P2-B accepted→P2-C→P2-D；既有PR/REV/CI历史不得改写。

@@ -47,5 +47,5 @@ Decision Trace 不保存完整 prompt、Context、transcript 或 provider 原文
 ## 当前实现状态
 
 - 本文件与 `decision-trace-v1.schema.json` 在 T0 提案中；typed references 已进入 schema/fixtures。
-- T2-T4/P1 v1.2 已按 REV-062 的 accepted scope 接收；当前 A1 semantic envelope contract-only 为 REVIEW。P2 persistence/runtime、正式 P3/P4/P5 尚未实现，未接层继续使用 `unavailable/not_started`，不把空集合当作已完成。推进顺序为 A1 accepted→P2-B persistence→P2-C→P2-D。
+- T2-T4/P1 v1.2 已按 REV-062 的 accepted scope接收；A1 semantic envelope与P2-B persistence contract已分别按REV-063/064 contract-only接收。当前P2-C为`REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`；正式P3/P4/P5尚未实现，未接层继续使用`unavailable/not_started`，不把空集合当作已完成。推进顺序为A1 accepted→P2-B accepted→P2-C→P2-D。
 - 真实 LLM provider/model、真实 embedding model 与 P4 budget 数值为 `DEFERRED`；真实长者数据、真实授权、公网和生产试点门禁保持不变。

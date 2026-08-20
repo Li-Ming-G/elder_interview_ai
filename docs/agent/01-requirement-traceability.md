@@ -110,7 +110,7 @@ Accepted evidence: PR #69 exact head `042ec56f2b0362679bf240fcced95c61be77141f` 
 | legacy and P1 identities remain separately unique | T2/Foundation | forward migration, legacy/P1 partial indexes, exact v1.1 upgrade/repeat PostgreSQL tests | DONE / PASS accepted v1.2 scope |
 | v1.2 durable namespace and recovery preserve old history | T18-T19/P6 | v1.1/v1.2 namespace constraints, final-unjudged concurrency/restart, retry/replay/late-fence regression | DONE / PASS accepted v1.2 scope |
 | trigger/provenance remain reference-only | T0/Foundation-Observability | typed trace root + ordered IDs/revisions/digests/count/threshold/manifest; final-low scope count/hash, AiJob/Trace inputHash and selected-new manifest share one canonical authority; Reader/service drift rejection; raw-content denial | DONE / PASS accepted v1.2 scope |
-| P2 remains separate | T5-T8/P2 governance | task scope, REV-062, ADR-051/052 | A1 REVIEW；P2-B contract-only已接收；P2-C/D runtime仍未开始 |
+| P2 remains separate | T5-T8/P2 governance | task scope, REV-062-065, ADR-051/052/053 | A1与P2-B contract-only已接收；P2-C contract-first REVIEW、implementation未开始；P2-D未开始 |
 | P2-B persistence reference contract | T5-T8/P2 + T18-T19/P6 + T0/Foundation-Observability | `memory-persistence-v1` Schema/fixtures、`memory-persistence-contract.ts`、REV-064、PR #72 | DONE / PASS / CONTRACT ONLY；仅接收数据库无关 contract，Prisma/migration/runtime/provider 另立任务 |
 
 REV-058 closes the reviewed T0 / Foundation-Observability implementation at `40cc61e` (CI `31936839303`) with merge/main `a9363dcd` (CI `31937348480`). The trace references remain ID/revision/version/digest/membership based; no raw prompt, Context, transcript or provider payload is persisted. P1-P6 mappings remain required for every subsequent task and PR.
@@ -121,15 +121,29 @@ REV-062 accepted evidence：PR #70 exact head `cc2b82d83859a5bff0c4e796f8c4fa0a5
 
 | Requirement | Architecture mapping | Evidence | Status |
 |---|---|---|---|
-| transient Context feeds provider-neutral semantic proposal | T5-T8/P2 | A1 task、`memory-semantic-context-v1`、`memory-semantic-proposal-v1` candidate、ADR-052 | REVIEW / CONTRACT ONLY |
-| deterministic validation produces a non-persistent plan | T5-T8/P2 + P6 future seam | `validated-memory-mutation-plan-v1` candidate、REV-063 | REVIEW；no persistence/runtime claim |
-| committed bridge references actual authority only after future transaction | T5-T8/P2 + T18-T25/P6 future seam | `committed-semantic-projection-v1` candidate、ADR-052 | REVIEW；shape only, commit not implemented |
-| MemoryClaim/Resolution remain the only semantic authority | T2/Foundation upstream + T5-T8/P2 | A1 task/REV-063 semantic-authority checklist | REVIEW / mandatory invariant |
-| Long/layer/Trace/log are reference-only | T0 Observability + T5-T8/P2 | `memory-semantic-trace-v1` candidate、raw-content prohibition review gate | REVIEW / mandatory invariant |
-| P1-P6 separation remains explicit | P1 accepted upstream；P2 A1；P3/P4/P5 not started；P6 runtime deferred | A1 T/P mapping、ADR-052、handoff | REVIEW |
-| route is A1 accepted -> B persistence -> C -> D | P2 governance | ADR-052、REV-063、task/handoff | GATED；B/C/D not started |
+| transient Context feeds provider-neutral semantic proposal | T5-T8/P2 | A1 task、`memory-semantic-context-v1`、`memory-semantic-proposal-v1`、ADR-052、PR #71 | DONE / PASS / CONTRACT ONLY |
+| deterministic validation produces a non-persistent plan | T5-T8/P2 + P6 future seam | `validated-memory-mutation-plan-v1`、REV-063、PR #71 | DONE / PASS / CONTRACT ONLY；no runtime claim |
+| committed bridge references actual authority only after future transaction | T5-T8/P2 + T18-T25/P6 future seam | `committed-semantic-projection-v1`、ADR-052、PR #71 | DONE / PASS / CONTRACT ONLY；shape only |
+| MemoryClaim/Resolution remain the only semantic authority | T2/Foundation upstream + T5-T8/P2 | A1 task/REV-063 semantic-authority checklist | DONE / mandatory invariant |
+| Long/layer/Trace/log are reference-only | T0 Observability + T5-T8/P2 | `memory-semantic-trace-v1`、raw-content prohibition review gate | DONE / mandatory invariant |
+| P1-P6 separation remains explicit | P1 accepted upstream；P2 A1 accepted；P3/P4/P5 not started；P6 runtime deferred | A1 T/P mapping、ADR-052、handoff | DONE / CONTRACT ONLY |
+| route is A1 accepted -> B persistence -> C -> D | P2 governance | ADR-052/053、REV-063/064、task/handoff | A1/B accepted；C contract-first REVIEW；D gated |
 
-P2-B 五个 Schema 与 pure validator 已由 PR #72 exact head 接收为 contract-only；Prisma/migration/runtime 尚未实现。真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产保持 `DEFERRED/BLOCKED`；A1 不启用 P3/P4/P5，也不提前实现 P2-C/D。
+PR #71 exact `dbb0cc76` / CI `32210618025` / owner PASS 接收 A1 contract-only，merge/main `7d02fa65` / main CI `32211560361`。P2-B 五个 Schema 与 pure validator 已由 PR #72 exact `717c5ca` / CI `32245656541` 独立 PASS接收，merge/main `8bbb2cc` / main CI `32254759316`；PR #73 governance closeout为 `7e183217` / main CI `32256919620`。上述接收不包含 Prisma/migration/runtime。真实 provider/model、真实 embedding、P4 budget、真实数据/授权、公网/生产保持 `DEFERRED/BLOCKED`。
+
+## MEMORY-T5-T8-P2-C-RUNTIME-001 traceability
+
+| Requirement | Architecture mapping | Evidence | Status |
+|---|---|---|---|
+| forward-only stable authority + persistence schema | T5-T8/P2 + T18-T19/P6 | `04` §17、ADR-053、P2-C task | REVIEW / CONTRACT-FIRST；Prisma/migration not started |
+| checkpoint/layer identity/revision/member/Long projection | T5-T8/P2 | `04` §17.2-17.3、accepted P2-B contract | REVIEW / formal target frozen |
+| Claim/Resolution sole semantic authority; Proposal/Plan transient | T5-T8/P2 | `07` §23.2、ADR-052/053、A1 accepted contract | REVIEW / mandatory runtime invariant |
+| program validate/plan/CAS/atomic commit | T5-T8/P2 + T18-T19/P6 | `07` §23.2、`09` §24 | REVIEW / implementation not started |
+| duplicate/concurrent/retry/rebase/crash/restart/late/final-tail exactly-once | T18-T19/P6 | `07` §23.3-23.4、`09` §24 | REVIEW / runtime verification pending |
+| typed retention/deletion and reference-only evidence/Trace | T0/Foundation-Observability + P6 | `04` §17.4-17.6、`08` §25、`09` §24、`memory-persistence-p2c-physical-fk-v1.json` | REVIEW / corrected candidate；Trace五值闭域+typed nullable exactly-one，parent/child逐列分离；Evidence revision唯一owner已冻结 |
+| deterministic/unavailable provider-neutral seam | T5-T8/P2 | `07` §23.5、`08` §25.1、`09` §24 | REVIEW / real provider explicitly excluded |
+| P2-A/B compatibility mapping closes current-schema conflicts | T5-T8/P2 + T18-T19/P6 | `04` §17、`07` §23.7、`09` §24、ADR-053 | REVIEW / P1-vs-P2 job refs、nullable target、projection-only P2 VARCHAR policy、checkpoint legacy Int+contract identity、v1.1/v1.2、retention root frozen |
+| P2-C contract-first governance and downstream gate | P2 governance | `10` §23、P2-C task/handoff、REV-065、`memory-persistence-p2c-compatibility-v1.md`、`memory-persistence-p2c-physical-fk-v1.json` | REVIEW；`c3eaa4ae…` formal REQUEST_CHANGES P1=3历史永久保留，correction head尚未复审；无远端CI/PASS/DONE/merge |
 
 ## Memory System V1 产品决策追踪
 
