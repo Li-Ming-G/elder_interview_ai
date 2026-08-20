@@ -1,6 +1,6 @@
 # Memory Persistence V1
 
-状态：`FORMAL CONTRACT / ACCEPTED CONTRACT ONLY`。这是 `MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001` 的数据库无关 machine contract；PR #72 accepted exact head `717c5ca` / CI `32245656541`，independent `PASS / P0=0/P1=0/P2=0`，merge/main `8bbb2cc` / main CI `32254759316`。PR #73 governance closeout merge/main `7e183217` / main CI `32256919620` 不扩大接收范围。本契约不实现 Prisma、migration、repository、runtime、provider 或 UI。
+状态：`FORMAL CONTRACT / REVIEW CANDIDATE`。这是 `MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001` 的数据库无关 machine contract；不实现 Prisma、migration、repository、runtime、provider 或 UI。
 
 ## Ownership and scope
 
@@ -27,13 +27,3 @@ Fresh install starts at `memory-persistence-v1`. Upgrade manifests are explicit 
 ## Review boundary
 
 The JSON schema and pure validator establish shape and cross-object semantics only. Prisma FKs, RESTRICT/SET NULL DDL, transaction/CAS behavior, retry/late callback integration and migration execution remain P2-B implementation work and require separate review. P2-B contract tests must cover fresh, upgrade, repeat and interruption fixtures before any runtime work starts.
-
-## P2-C durable compatibility mapping
-
-P2-B accepted Schema/validator字节与历史保持不变；其对象是succeeded persistence contract view，不可逐字段直接生成current Prisma schema：
-
-- `checkpoint.source_p1_final_job_id`在durable层拆为真实P1 `source_p1_terminal_job_id`与独立`p2_producer_job_id`。validator当前把前者要求为`mid_final`是P2-C必须关闭的命名/ownership冲突，不是落库规则。
-- job `target_layer_revision_id/target_revision_digest`只在succeeded committed view必填；durable pending/running/failed/cancelled/unavailable P2 job projection必须为NULL，成功事务才分配和补齐。
-- 现有`AiJob.policyRevision/retentionPolicyVersion`继续是Int；contract string revision/version进入P2专用projection/checkpoint列，不改旧列类型且两套值同时CAS。
-- P2-B `claim_revision`映射immutable claim revision 1；evidence `source_revision`映射evidence-link authority revision 1，实际transcript text/speaker revisions从冻结input segment校验。
-- retention不新建第二root表：自动P2对象继承AiJob root并用无状态typed target child投影；`MemoryRetentionRoot` ownership与`RetentionState`枚举保持不变。完整typed FK inventory和fresh/upgrade/interrupted/repeat语义以`04` §17为准。

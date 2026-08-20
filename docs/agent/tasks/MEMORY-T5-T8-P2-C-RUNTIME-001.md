@@ -52,9 +52,9 @@ LLM 只能提出 `SemanticProposal`。程序唯一拥有 Context 冻结、valida
 
 1. checkpoint不落歧义`source_p1_final_job_id`：durable使用真实P1 `source_p1_terminal_job_id`与独立`p2_producer_job_id`；P2-B把该source当`mid_final` job的validator行为不得照搬。
 2. online必须绑定Working snapshot+thread且P1 terminal为空；successful final必须绑定当前P1 v1.2 snapshot+thread+真实P1 terminal。历史v1.1 snapshot只读，新producer只允许v1.2。
-3. existing `AiJob.policyRevision/retentionPolicyVersion`保持Int；P2 string contract revision/version进入专用job projection/checkpoint字段，两套值同时CAS，不隐式改型。
+3. existing `AiJob.policyRevision/retentionPolicyVersion`与checkpoint snapshot保持Int；P2 string policy revision/version只进入`memory_p2_job_projection.p2_policy_revision/p2_retention_policy_version` VARCHAR。checkpoint仅保留独立contract identity，不提供第二policy source；三类值分别CAS/验证，禁止cast或替代。
 4. pending/running/failed/cancelled/unavailable不得预留final target revision/new identity ID；只有成功写回事务补齐nullable target provenance。final Mid prerequisite不可用时Long唯一terminal unavailable、零provider/target/projection。
-5. `MemoryClaim.claim_revision=1`映射immutable claim；`MemoryClaimEvidence.id + authority_revision=1`是evidence-link authority，不是semantic authority，text/speaker revision从冻结input segment校验。
+5. `MemoryClaim.claim_revision=1`映射immutable claim；`memory_evidence_authority.authority_revision=1`是唯一evidence revision owner；`MemoryClaimEvidence`/bridge只承担`(claim_id,evidence_id,authority_revision)` pair/parity，不得称为authority，text/speaker revision从冻结input segment校验。
 6. existing-slot新建Resolution row、复用stable authority ID、revision+1并`supersedes_resolution_id`指旧current row；禁止原地覆盖。
 7. typed FK、旧root单一状态机与fresh/upgrade/interrupted/repeat migration语义以`04` §17为唯一实现依据。
 
@@ -65,6 +65,23 @@ LLM 只能提出 `SemanticProposal`。程序唯一拥有 Context 冻结、valida
 - P4 Context budget、Director Context；
 - UI、记忆管理页、API 产品面扩展；
 - 修改 `apps/`、Prisma、migration、package 或 `.codex` 均不属于本次治理/契约前置提交。
+
+## P2-C contract repair round
+
+本回合只修复 `memory-persistence-p2c-compatibility-v1.md` 与 `04/07/08/09/10` 的正式兼容映射，不改已接收 P2-B Schema/fixture/validator 字节，不修改 Prisma、migration、repository、runtime、package 或 `.codex`。
+
+- retention root_kind 固定为 `checkpoint|layer_revision|job|trace`；Long projection 不是 root；live reference 全部 `RESTRICT`，唯一 `SET NULL` 仅 cleanup/audit pointer，不使用数据库 `CASCADE`；
+- stable resolution authority 使用可被 FK 引用的 registry，`origin_thread_id` 恢复 NOT NULL；Long 无法继承可证明 thread 时只能 unavailable；
+- 独立 `MemoryEvidenceAuthority` 承担可跨 claim 复用的 evidence identity，`MemoryClaimEvidence` 只承担 claim/evidence pair link；
+- durable checkpoint/job/Trace source refs 统一冻结 `deletion_scope_digest`；memory Trace 使用现有非空字段的 neutral sentinel；
+- 拆分 P1 terminal 与 P2 producer、明确非 success target NULL、Int/string policy 分列、migration fingerprint/cursor/interruption 语义与稳定 P2 error-code registry。
+- `memory-persistence-p2c-physical-fk-v1.json` 逐条冻结 physical FK、P2-B view boundary、retention root view 列映射以及当前 predecessor migration IDs/checksums、fingerprint、advisory lock、cursor 和 transaction/retry 规则。
+- Trace source reference 使用 typed nullable `source_checkpoint_id/source_job_id/ai_job_input_segment_id/evidence_id/resolution_authority_id` 与 source-kind/ exactly-one CHECK；`deletion_scope_digest` 仅是 non-null SHA-256 scalar/CAS fact，不是 FK。
+- 本轮 6de1d96 correction：`memory_resolution.authority_id` 物理 FK 对 legacy 保持 nullable，P2 新写入由 CHECK/trigger/reader gate 强制非空；P2-B string policy 只读取 projection 的 `p2_policy_revision`/`p2_retention_policy_version` VARCHAR，旧 AiJob Int 仅 legacy snapshot且禁止 cast；migration manifest 自校验恰好 26 条 checksum、upgrade expected_count=26，canonical predecessor fingerprint 固定为 `2b1a4ba4a0a20f2e986cec7de2c9863dd7a67673abb033406374517e4bafcea6`。
+- integration correction：Trace 五个 typed source FK 列全部物理 nullable，且不进入 `source_reference_non_null_columns`；source-kind CHECK + `num_nonnulls(...)=1` 才决定每行唯一 target。`trace_id/source_kind/source_revision/membership_digest/deletion_scope_digest/input_order` 保持非空，并由 machine positive/negative cases 防止误放宽。
+- pre-integration `c3eaa4ae…` REQUEST_CHANGES correction：source-kind 增加五值闭域 CHECK，Trace parent/child 逐列归位；Evidence revision owner 统一到 `memory_evidence_authority.authority_revision`；P2 string policy source 收敛为 projection-only，checkpoint只保留legacy Int snapshot与独立contract identity。该记录仅关闭三项P1候选修复，不构成PASS/DONE。
+
+该回合完成后仍需新的独立审查；不得把 docs-only 修复宣布为 P2-C implementation PASS/DONE。
 
 ## 验收与审查
 

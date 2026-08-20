@@ -435,6 +435,73 @@
 - 关闭确认：accepted content `77fb3a860ccd372f1fdc3465654f86d931688a89` / CI `31783061076` 与 latest-main integration `a324e2bcc1e5250ff5e43fa977ecd4c2b4aeec9a` / CI `31787175381` 均获项目负责人 PASS（P0/P1/P2=0）；PR #52 merge/main `99ce83d001ffca5075d63f60c26067a2f9f2de59` / main CI `31789810221` attempt 1 SUCCESS。故只就“provider-neutral 契约未冻结”标记 RESOLVED，并保持不在开放索引中。
 - 外部门禁：`DEV-ASR-PROVIDER-001` 正式 PASS、provider/model/region 选择、DPA/retention/training/跨境与所需重授权接收、真实 secret injection、runtime/migration/真实 provider 验收均未完成；关闭 CON-031 不自动等于其中任何一项 PASS，也不允许发送真实访谈内容。
 
+### CON-032｜P2-C contract-first 与已接收 P2-B retention/evidence/authority mapping 冲突
+
+- 状态：`RESOLVED`（仅关闭本轮 contract-first 映射冲突；P2-C Prisma/runtime implementation 仍未开始）
+- 发现时间：2026-08-20
+- 发现者：P2-C contract-first 独立只读复核；总控按任务边界执行 docs-only correction
+- 涉及文件与章节：`04` §17.1-17.7、`07` §23、`08` §25、`09` §24、`10` §23、P2-B accepted `memory-persistence-v1`、ADR-053
+- 冲突内容：原 P2-C 草案把 `long_projection` 当 retention target kind 并允许 owned `CASCADE`，与 P2-B accepted 的 `checkpoint|layer_revision|job|trace`、live `RESTRICT`/唯一 cleanup `SET NULL` 不一致；stable resolution authority 没有可被 FK 引用的 registry，`origin_thread_id` 被放宽为 nullable；claim-scoped `MemoryClaimEvidence.id` 无法承担跨 claim evidence authority；deletion scope digest、DecisionTrace 非空字段映射、physical FK manifest、稳定 error-code registry 也未冻结。
+- 受影响任务：`MEMORY-T5-T8-P2-C-RUNTIME-001`；P2-D、P3/P4、真实 provider/data 仍不解锁。
+- 临时处理：保持 P2-C `REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`，不修改 P2-B accepted Schema/fixture/validator 字节，不实现 Prisma/runtime/provider。
+- 最终决定：新增 `docs/contracts/memory-persistence-p2c-compatibility-v1.md`。stable authority 使用真实 registry；`origin_thread_id` 必填；evidence 使用独立 authority + claim/evidence bridge；retention root kind 与 FK policy 对齐 P2-B（live `RESTRICT`，唯一 cleanup pointer `SET NULL`，无数据库 `CASCADE`）；P2 freeze/job/checkpoint/Trace source refs 共享 deletion scope digest；现有 DecisionTrace 非空字段使用明确 neutral sentinel；migration fingerprint/cursor/interruption 与稳定 P2 error registry 固定。
+- 需要同步修改的文件：`04/07/08/09/10`、ADR-053、task/board/trace/handoff/review、contracts README；P2-B accepted artifacts 保持不变。
+- 完成确认：本 docs-only correction 在当前工作树完成局部检查后，需以新 exact commit 接受独立复审；本条不构成 implementation PASS/DONE。
+
+### CON-033｜P2-C physical FK/retention view/migration manifest 不可机械执行
+
+- 状态：`RESOLVED`（仅关闭 contract-first 文档缺口；P2-C implementation 仍未开始）
+- 发现时间：2026-08-20
+- 发现者：DB 独立复审对 exact `0ea5f47` 的正式 FAIL
+- 涉及文件与章节：`04` §17、`08` §25、`09` §24、`docs/contracts/memory-persistence-p2c-compatibility-v1.md`、P2-B accepted persistence view
+- 冲突内容：原 compatibility artifact 只用 prose 引用 physical FK，未逐条冻结 name/from/to/nullable/onDelete；retention root view 的 cleanup_job、旧 cleanup request、deletion digest 与 policy/expiry 来源未形成列映射；evidence authority 未分离 authority_revision 与 transcript revisions；Trace deletion digest 物理落点和 non-null/sentinel/index 约束不完整；migration predecessor 只写概念 fingerprint，没有 literal IDs/checksums、unique key、advisory lock、cursor、mode 与事务边界。
+- 受影响任务：`MEMORY-T5-T8-P2-C-RUNTIME-001`；Prisma/runtime implementation 必须继续等待。
+- 临时处理：保持 `REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`，不改 Prisma/runtime/CI/sub-agent，不附着分支或写 Git 元数据。
+- 最终决定：新增机器可读 `docs/contracts/memory-persistence-p2c-physical-fk-v1.json`，列出全部 P2-C physical FKs、P2-B view boundary、retention root view 列映射与当前 26 条 predecessor migration ID/SHA-256；compatibility artifact 补 authority_revision、独立 transcript revisions、Trace deletion digest physical child、fingerprint/advisory/cursor/mode/transaction/retry 规则。
+- 需要同步修改的文件：`04/07/08/09/10`、contracts README、task/board/trace/ADR/conflict/handoff/review。
+- 完成确认：docs-only local checks 通过后，须由总控整合为新 exact commit并安排独立复审；本条不构成 PASS/DONE。
+
+### CON-034｜P2-C Trace source reference 与 migration hash manifest 定向修复
+
+- 状态：`RESOLVED`（仅关闭本轮 docs-only contract correction；P2-C implementation 仍未开始）
+- 发现时间：2026-08-20
+- 发现者：DB/runtime 双复审对 exact `545df8d` 的 3 项 P1
+- 涉及文件：`docs/contracts/memory-persistence-p2c-physical-fk-v1.json`、`memory-persistence-p2c-compatibility-v1.md`、contracts README、P2-C task/handoff/review/ADR/board/trace
+- 冲突内容：deletion digest 被错误标成 physical FK；Trace source reference 只有裸 `source_kind/source_id`，缺 checkpoint/job typed columns/FK/CHECK；manifest 中 `20260814210000_dev008b2_review_invariants` hash 必须以当前主工作树实际文件重新计算。
+- 最终决定：digest 是 SHA-256 scalar/provenance，不是 FK；所有 `is_physical_fk=true` view ref 必须精确匹配 foreign_keys，自校验规则写入 manifest；source reference 增加 nullable `source_checkpoint_id/source_job_id` 与其他 typed source columns，增加逐项 physical FK 和 source-kind/ exactly-one CHECK，裸 `source_id` 仅兼容展示字段；hash verification 绑定当前文件与 `git show 0ea5f47`，实际 SHA-256 为 `92a8faae0197f0390c3547664872a4a0ad167f9a139daea6c44c1393e31d049e`。
+- 完成确认：JSON semantic、Prettier、链接、scope、diff checks 通过；未附着分支、未写 Git 元数据、未 commit/push/CI；旧 FAIL 历史继续保留。
+
+### CON-035｜P2-C legacy authority、P2 policy string source 与 26-migration fingerprint 定向修复
+
+- 状态：`RESOLVED`（仅关闭本轮 docs-only contract correction；P2-C implementation 仍未开始）
+- 发现时间：2026-08-20
+- 发现者：DB/runtime 双窗口复审对 exact `6de1d96` 的 3 项 P1
+- 涉及文件：`memory-persistence-p2c-physical-fk-v1.json`、`memory-persistence-p2c-compatibility-v1.md`、`04-数据模型规范.md`、P2-C task/handoff/review/ADR/README
+- 冲突内容：stable authority FK 若物理列 NOT NULL 将无法保留 legacy NULL；retention view 把 legacy Int policy 字段当作 P2 string source；migration manifest 未机械声明 26 条 expected count，且 predecessor fingerprint/hash verification 缺少可复算的 canonical 自校验。
+- 最终决定：`memory_resolution.authority_id` 物理 FK nullable=true，P2 新写入由 CHECK/trigger/reader gate 强制非空，legacy NULL 只能 unavailable；P2-B string `policy_revision`/`retention_policy_version` 只来自 projection 专用 VARCHAR `p2_policy_revision`/`p2_retention_policy_version`，旧 AiJob Int 仅 legacy snapshot、禁止 cast；manifest 固定 `migrations.length=26`、upgrade expected_count=26、migration SHA 与实际 bytes 相等，canonical predecessor fingerprint 为 `2b1a4ba4a0a20f2e986cec7de2c9863dd7a67673abb033406374517e4bafcea6`，目标 migration SHA 为 `92a8faae0197f0390c3547664872a4a0ad167f9a139daea6c44c1393e31d049e`。
+- 完成确认：JSON semantic、实际 migration SHA、canonical fingerprint、Prettier、scope、diff checks 通过后，须由总控整合为新 exact commit并安排独立复审；旧 FAIL 历史继续保留。
+
+### CON-036｜P2-C Trace typed source union 的 input-segment FK 被误设为物理非空
+
+- 状态：`RESOLVED`（仅关闭 integration docs/machine-contract 缺口；P2-C implementation 仍未开始）
+- 发现时间：2026-08-20
+- 发现者：总控机器检查
+- 涉及文件：`memory-persistence-p2c-physical-fk-v1.json`、`memory-persistence-p2c-compatibility-v1.md`、ADR-053、P2-C task/handoff/REV-065
+- 冲突内容：Trace source reference 是 `checkpoint|job|input_segment|evidence|resolution` 五类 exactly-one typed union，但 `decision_trace_memory_source_input_segment_fk nullable=false` 会强制每行都提供 input segment，令其他四类合法 source kind 无法成立；同时 typed refs 本就不在 `source_reference_non_null_columns`。
+- 最终决定：五个 typed source FK 列全部物理 nullable，且继续排除在 row-level non-null inventory 外；source-kind CHECK 与 `num_nonnulls(...)=1` 联合决定唯一有效 typed target。`trace_id/source_kind/source_revision/membership_digest/deletion_scope_digest/input_order` 等真正必填列保持非空，不因 union correction 放宽。
+- 完成确认：machine manifest 加入五类 single-target 正例与 zero/multiple/kind-mismatch/missing-required-column 反例；本地 JSON semantic 检查通过后提交 REVIEW，等待独立 reviewer，旧 FAIL/REQUEST_CHANGES 历史继续保留。
+
+### CON-037｜P2-C pre-integration Trace/Evidence/Policy 三项契约未闭合
+
+- 状态：`RESOLVED CANDIDATE / NOT RE-REVIEWED`（只表示 integration docs/machine-contract 已窄修，不表示 reviewer CLOSED/PASS）
+- 发现时间：2026-08-20
+- 发现者：独立 pre-integration reviewer；dirty snapshot `c3eaa4ae…` 正式 `REQUEST_CHANGES`（`P0=0/P1=3/P2=0`）
+- 涉及文件：physical manifest、compatibility、`04/07/08/09`、P2-C task/handoff/REV-065/ADR-053 及治理索引
+- 冲突内容：Trace source kind 缺五值闭域，且 parent 的 decision/outcome/status/stage/error/sentinel 被误列入 semantic child；Evidence revision owner 在 authority 与 claim bridge 间表述摇摆；Checkpoint 被写成第二 P2 string policy source。
+- 最终决定：`source_kind IN ('checkpoint','job','input_segment','evidence','resolution')` 与 exactly-one typed ref 联合生效；`decision_trace` parent 保存 trace/outcome/decision/status/stage/error/sentinel/真实 lifecycle，semantic child 只保存 job/source/commit digest；`memory_evidence_authority.authority_revision` 是唯一 owner，claim evidence/bridge 只做 pair parity；P2 string policy 只来自 `memory_p2_job_projection`，checkpoint 仅有 legacy Int snapshot 与独立 contract identity，禁止 cast/替代。
+- 已通过项：该轮 `P0=0/P2=0`，且 legacy-null gate、26 migration/SHA/fingerprint、62 FK/唯一 SET_NULL、P2-B accepted artifacts immutable 未被提出新缺陷；全部旧 FAIL/REQUEST_CHANGES 与 A1/P2-B accepted 历史继续保留。
+- 完成确认：machine positive/negative checks 与 docs-only checks 通过后形成新 exact head；当前仍 `REVIEW / NOT RE-REVIEWED`，不得自行 PASS/DONE/merge。
+
 ## 登记模板
 
 ```text

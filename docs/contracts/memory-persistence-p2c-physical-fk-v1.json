@@ -1,0 +1,325 @@
+{
+  "manifest_version": "memory-persistence-p2c-physical-fk-v1",
+  "status": "PROPOSED / REVIEW",
+  "scope": {
+    "architecture_mapping": ["T5-T8/P2", "T18-T19/P6", "T0/Foundation-Observability"],
+    "implementation_boundary": "contract-only; no Prisma/runtime/provider/data implementation",
+    "p2b_accepted_artifacts_immutable": true,
+    "p2c_predecessor_review_head": "0ea5f47"
+  },
+  "p2b_view_boundary": {
+    "physical_fk_policy": "P2-B view references are projections over the physical rows below; view IDs never authorize a polymorphic bare target_id FK.",
+    "view_references": [
+      { "view": "resolution_authorities", "view_column": "resolution_id", "physical_authority": "memory_resolution_authority.authority_id", "is_physical_fk": false },
+      { "view": "claim_authorities", "view_column": "claim_id", "physical_authority": "memory_claim.id", "is_physical_fk": false },
+      { "view": "evidence_authorities", "view_column": "evidence_id", "physical_authority": "memory_evidence_authority.evidence_id", "is_physical_fk": false },
+      { "view": "retention_roots", "view_column": "target_id", "physical_authority": "typed target selected by root_kind", "is_physical_fk": false },
+      { "view": "checkpoint", "view_column": "source_p1_final_job_id", "physical_authority": "memory_evolution_checkpoint.source_p1_terminal_job_id + p2_producer_job_id", "is_physical_fk": false },
+      { "view": "memory_trace", "view_column": "deletion_scope_digest", "physical_authority": "decision_trace_memory_semantic.deletion_scope_digest", "is_physical_fk": false }
+    ]
+  },
+  "self_validation": {
+    "physical_view_reference_rule": "for every p2b_view_boundary.view_references item with is_physical_fk=true, an exact from_table/from_columns/to_table/to_columns match must exist in foreign_keys; false means scalar/provenance consistency, never an FK",
+    "digest_rule": "deletion_scope_digest is lowercase SHA-256, non-null on P2 freeze/Trace semantic/source-reference/job/checkpoint projections, and is checked by cross-table CAS; it is never classified as an FK",
+    "typed_source_rule": "source reference rows must satisfy the closed source_kind domain CHECK and exactly one matching typed source column; all five typed columns are physically nullable and bare source_id is not an FK",
+    "trace_placement_rule": "decision_outcome/director_invoked/status/stage/error_code/context_revision/stage_timings_json remain on decision_trace parent; decision_trace_memory_semantic must not duplicate them",
+    "evidence_revision_owner_rule": "memory_evidence_authority.authority_revision is the only authority revision owner; memory_claim_evidence/memory_evidence_bridge may mirror the claim/evidence/revision tuple only for pair parity",
+    "p2_string_policy_source_rule": "p2_policy_revision and p2_retention_policy_version exist only on memory_p2_job_projection as bounded VARCHAR; checkpoint legacy Int snapshots and independent contract identity columns cannot substitute or cast"
+  },
+  "authority_null_gate": {
+    "column": "memory_resolution.authority_id",
+    "legacy_column_nullable": true,
+    "p2_new_write_check": "p2_write=true implies authority_id IS NOT NULL",
+    "legacy_null_status": "unavailable",
+    "reader_gate": "authority_id IS NULL makes the P2 reader/checkpoint/Long selector unavailable; it may not infer an authority"
+  },
+  "evidence_revision_ownership": {
+    "owner_table": "memory_evidence_authority",
+    "owner_column": "authority_revision",
+    "owner_key": ["evidence_id", "authority_revision"],
+    "pair_parity_tables": ["memory_claim_evidence", "memory_evidence_bridge"],
+    "pair_parity_columns": ["claim_id", "evidence_id", "authority_revision"],
+    "rule": "pair rows mirror authority_revision and must FK/CAS to the owner tuple; they never own or advance an evidence authority revision",
+    "forbidden_revision_owners": ["memory_claim_evidence.authority_revision", "memory_evidence_bridge.authority_revision"],
+    "semantic_cases": [
+      { "name": "authority_row_owns_revision", "owner": "memory_evidence_authority.authority_revision", "pair_revision_matches_owner": true, "expected_valid": true },
+      { "name": "bridge_mirrors_owner_revision", "owner": "memory_evidence_authority.authority_revision", "pair_table": "memory_evidence_bridge", "pair_revision_matches_owner": true, "expected_valid": true },
+      { "name": "claim_link_declared_as_owner", "owner": "memory_claim_evidence.authority_revision", "pair_revision_matches_owner": true, "expected_valid": false },
+      { "name": "bridge_revision_drift", "owner": "memory_evidence_authority.authority_revision", "pair_table": "memory_evidence_bridge", "pair_revision_matches_owner": false, "expected_valid": false }
+    ]
+  },
+  "policy_source_contract": {
+    "p2_string_policy_source": {
+      "table": "memory_p2_job_projection",
+      "columns": ["p2_policy_revision", "p2_retention_policy_version"],
+      "physical_type": "bounded VARCHAR",
+      "exclusive": true
+    },
+    "checkpoint_legacy_int_snapshot": {
+      "table": "memory_evolution_checkpoint",
+      "columns": ["ai_policy_revision", "retention_policy_version"],
+      "physical_type": "INT",
+      "meaning": "legacy AiJob snapshot only"
+    },
+    "checkpoint_contract_identity": {
+      "table": "memory_evolution_checkpoint",
+      "columns": ["p2_policy_contract_revision", "p2_retention_contract_version"],
+      "meaning": "independent contract identity only; never a P2 policy string source"
+    },
+    "forbidden_checkpoint_columns": ["p2_policy_revision", "p2_retention_policy_version"],
+    "forbidden_coercions": ["INT-to-VARCHAR cast", "contract identity substituted for policy revision", "contract identity substituted for retention policy version"],
+    "semantic_cases": [
+      { "name": "projection_varchar_policy", "source_table": "memory_p2_job_projection", "source_columns": ["p2_policy_revision", "p2_retention_policy_version"], "expected_valid": true },
+      { "name": "checkpoint_legacy_int_snapshot", "source_table": "memory_evolution_checkpoint", "source_columns": ["ai_policy_revision", "retention_policy_version"], "expected_valid": true },
+      { "name": "checkpoint_contract_identity", "source_table": "memory_evolution_checkpoint", "source_columns": ["p2_policy_contract_revision", "p2_retention_contract_version"], "expected_valid": true },
+      { "name": "checkpoint_as_p2_string_source", "source_table": "memory_evolution_checkpoint", "source_columns": ["p2_policy_revision", "p2_retention_policy_version"], "expected_valid": false },
+      { "name": "legacy_int_cast_as_p2_string", "source_table": "memory_evolution_checkpoint", "source_columns": ["ai_policy_revision", "retention_policy_version"], "coercion": "INT-to-VARCHAR cast", "expected_valid": false },
+      { "name": "contract_identity_as_policy_source", "source_table": "memory_evolution_checkpoint", "source_columns": ["p2_policy_contract_revision", "p2_retention_contract_version"], "substitution": true, "expected_valid": false }
+    ]
+  },
+  "source_reference_checks": [
+    { "name": "decision_trace_memory_source_kind_domain_ck", "expression": "source_kind IN ('checkpoint', 'job', 'input_segment', 'evidence', 'resolution')" },
+    { "name": "decision_trace_memory_source_kind_checkpoint_ck", "expression": "source_kind <> 'checkpoint' OR (source_checkpoint_id IS NOT NULL AND source_job_id IS NULL)" },
+    { "name": "decision_trace_memory_source_kind_job_ck", "expression": "source_kind <> 'job' OR (source_job_id IS NOT NULL AND source_checkpoint_id IS NULL)" },
+    { "name": "decision_trace_memory_source_kind_input_segment_ck", "expression": "source_kind <> 'input_segment' OR ai_job_input_segment_id IS NOT NULL" },
+    { "name": "decision_trace_memory_source_kind_evidence_ck", "expression": "source_kind <> 'evidence' OR evidence_id IS NOT NULL" },
+    { "name": "decision_trace_memory_source_kind_resolution_ck", "expression": "source_kind <> 'resolution' OR resolution_authority_id IS NOT NULL" },
+    { "name": "decision_trace_memory_source_exactly_one_typed_ref_ck", "expression": "num_nonnulls(source_checkpoint_id, source_job_id, ai_job_input_segment_id, evidence_id, resolution_authority_id) = 1" }
+  ],
+  "source_reference_semantic_cases": [
+    { "name": "checkpoint_only", "source_kind": "checkpoint", "non_null_typed_refs": ["source_checkpoint_id"], "required_columns_present": true, "expected_valid": true },
+    { "name": "job_only", "source_kind": "job", "non_null_typed_refs": ["source_job_id"], "required_columns_present": true, "expected_valid": true },
+    { "name": "input_segment_only", "source_kind": "input_segment", "non_null_typed_refs": ["ai_job_input_segment_id"], "required_columns_present": true, "expected_valid": true },
+    { "name": "evidence_only", "source_kind": "evidence", "non_null_typed_refs": ["evidence_id"], "required_columns_present": true, "expected_valid": true },
+    { "name": "resolution_only", "source_kind": "resolution", "non_null_typed_refs": ["resolution_authority_id"], "required_columns_present": true, "expected_valid": true },
+    { "name": "zero_typed_refs", "source_kind": "job", "non_null_typed_refs": [], "required_columns_present": true, "expected_valid": false },
+    { "name": "multiple_typed_refs", "source_kind": "checkpoint", "non_null_typed_refs": ["source_checkpoint_id", "source_job_id"], "required_columns_present": true, "expected_valid": false },
+    { "name": "source_kind_mismatch", "source_kind": "job", "non_null_typed_refs": ["source_checkpoint_id"], "required_columns_present": true, "expected_valid": false },
+    { "name": "missing_required_trace_id", "source_kind": "input_segment", "non_null_typed_refs": ["ai_job_input_segment_id"], "required_columns_present": false, "expected_valid": false },
+    { "name": "unknown_source_kind", "source_kind": "unknown", "non_null_typed_refs": ["source_job_id"], "required_columns_present": true, "expected_valid": false }
+  ],
+  "decision_trace_parent_columns": {
+    "table": "decision_trace",
+    "existing_non_null_columns": ["id", "project_id", "session_id", "owner_actor_id", "request_id", "generation_id", "trigger_type", "decision_outcome", "director_invoked", "status", "started_at", "created_at", "context_revision", "input_hash", "stage_timings_json", "retention_state", "expires_at", "retention_cleanup_attempt_count"],
+    "forward_discriminator_columns": {
+      "trace_kind": "parent NOT NULL; legacy/question rows use question_orchestration and P2 memory rows use memory_layer_evolve",
+      "memory_outcome": "parent nullable for question rows but required for memory_layer_evolve by CHECK/reader gate"
+    },
+    "p2_memory_required_values": {
+      "scope_and_identity": "id/project_id/session_id/owner_actor_id/request_id/generation_id are real owning authorities, never sentinels",
+      "ai_job_id": "physical parent column remains nullable for legacy/question rows but is required and real for P2 memory rows",
+      "trigger_type": "memory_layer_evolve",
+      "trace_kind": "memory_layer_evolve",
+      "memory_outcome": "checkpoint_committed|long_committed|no_change|unjudged|failed|cancelled|unavailable",
+      "decision_outcome": "unavailable neutral sentinel",
+      "director_invoked": false,
+      "status": "running|succeeded|failed|cancelled|unavailable actual lifecycle status",
+      "stage": "frozen|proposed|validated|planned|committed|recovered|terminal; physical parent column is nullable for legacy rows but required for P2 memory rows",
+      "error_code": "NULL while no error; stable P2 error code on failed/unavailable terminal rows; physical parent column remains nullable",
+      "started_at_created_at_completed_at_duration_ms": "actual lifecycle timestamps/duration; existing nullable completion fields remain nullable until terminal",
+      "context_revision": 0,
+      "input_hash": "lowercase SHA-256 of the frozen P2 input authority",
+      "stage_timings_json": {},
+      "retention_state_expires_at_retention_cleanup_attempt_count": "actual owning AiJob retention facts; never neutral placeholders"
+    },
+    "p2_memory_nullable_neutral_columns": { "attempt_id": null, "gate_reason": null, "publication_outcome": null, "working_revision": null, "active_thread_id": "NULL unless a typed current thread authority is explicitly available", "context_digest": null, "retention_hidden_at": null, "retention_cleanup_request_id": null, "retention_cleanup_started_at": null, "retention_cleanup_error_code": null },
+    "semantic_cases": [
+      { "name": "memory_parent_and_digest_child", "parent_fields_present": true, "parent_sentinels_valid": true, "child_contains_parent_duplicates": false, "expected_valid": true },
+      { "name": "terminal_error_on_parent", "parent_fields_present": true, "parent_sentinels_valid": true, "parent_status": "unavailable", "parent_error_code": "P2_TERMINAL_UNAVAILABLE", "child_contains_parent_duplicates": false, "expected_valid": true },
+      { "name": "parent_field_copied_to_child", "parent_fields_present": true, "parent_sentinels_valid": true, "child_contains_parent_duplicates": true, "expected_valid": false },
+      { "name": "missing_parent_decision_sentinel", "parent_fields_present": true, "parent_sentinels_valid": false, "child_contains_parent_duplicates": false, "expected_valid": false },
+      { "name": "missing_required_parent_status", "parent_fields_present": false, "parent_sentinels_valid": true, "child_contains_parent_duplicates": false, "expected_valid": false }
+    ]
+  },
+  "decision_trace_memory_columns": {
+    "table": "decision_trace_memory_semantic",
+    "non_null_columns": ["trace_id", "ai_job_id", "deletion_scope_digest", "source_manifest_hash", "created_at"],
+    "nullable_columns": ["proposal_digest", "plan_digest", "commit_digest"],
+    "forbidden_parent_duplicates": ["trace_kind", "memory_outcome", "decision_outcome", "director_invoked", "status", "stage", "error_code", "context_revision", "stage_timings_json"],
+    "indexes": ["decision_trace_memory_semantic_job_idx", "decision_trace_memory_semantic_deletion_scope_digest_idx"],
+    "source_reference_table": "decision_trace_memory_source_reference",
+    "source_reference_columns": ["trace_id", "source_kind", "source_id", "source_revision", "membership_digest", "deletion_scope_digest", "input_order", "source_checkpoint_id", "source_job_id", "ai_job_input_segment_id", "evidence_id", "resolution_authority_id"],
+    "source_reference_non_null_columns": ["trace_id", "source_kind", "source_revision", "membership_digest", "deletion_scope_digest", "input_order"],
+    "source_reference_check": "source_kind must be in the closed checkpoint|job|input_segment|evidence|resolution domain and must match exactly one typed FK column; source_id is a compatibility display field only",
+    "consistency": "parent trace_kind/memory_outcome/status/stage/error/sentinel fields, child ai_job_id/source_manifest_hash/deletion_scope_digest and typed source IDs/revisions must match the P2 job projection/checkpoint CAS and their FK authorities"
+  },
+  "foreign_keys": [
+    { "name": "memory_resolution_authority_project_fk", "from_table": "memory_resolution_authority", "from_columns": ["project_id"], "to_table": "elder_project", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_resolution_authority_session_fk", "from_table": "memory_resolution_authority", "from_columns": ["origin_session_id"], "to_table": "interview_session", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_resolution_authority_thread_fk", "from_table": "memory_resolution_authority", "from_columns": ["origin_thread_id"], "to_table": "memory_thread", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_resolution_authority_revision_fk", "from_table": "memory_resolution", "from_columns": ["authority_id"], "to_table": "memory_resolution_authority", "to_columns": ["authority_id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority", "legacy_null_rule": "legacy NULL remains unavailable; P2-only CHECK/trigger/reader gate rejects new NULL writes" },
+    { "name": "memory_resolution_supersedes_fk", "from_table": "memory_resolution", "from_columns": ["supersedes_resolution_id"], "to_table": "memory_resolution", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_resolution_member_resolution_fk", "from_table": "memory_resolution_member", "from_columns": ["memory_resolution_id"], "to_table": "memory_resolution", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_resolution_member_claim_fk", "from_table": "memory_resolution_member", "from_columns": ["memory_claim_id"], "to_table": "memory_claim", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_evidence_authority_project_fk", "from_table": "memory_evidence_authority", "from_columns": ["project_id"], "to_table": "elder_project", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_evidence_authority_session_fk", "from_table": "memory_evidence_authority", "from_columns": ["session_id"], "to_table": "interview_session", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_evidence_authority_transcript_fk", "from_table": "memory_evidence_authority", "from_columns": ["source_id"], "to_table": "transcript_segment", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "source" },
+    { "name": "memory_evidence_bridge_authority_fk", "from_table": "memory_evidence_bridge", "from_columns": ["evidence_id"], "to_table": "memory_evidence_authority", "to_columns": ["evidence_id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_evidence_bridge_claim_fk", "from_table": "memory_evidence_bridge", "from_columns": ["claim_id"], "to_table": "memory_claim", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_evidence_bridge_input_segment_fk", "from_table": "memory_evidence_bridge", "from_columns": ["ai_job_input_segment_id"], "to_table": "ai_job_input_segment", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "source" },
+    { "name": "memory_checkpoint_project_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["project_id"], "to_table": "elder_project", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_checkpoint_session_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["source_session_id"], "to_table": "interview_session", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_checkpoint_p2_job_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["p2_producer_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_checkpoint_p1_terminal_job_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["source_p1_terminal_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_checkpoint_working_snapshot_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["source_working_snapshot_id"], "to_table": "memory_working_snapshot", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_checkpoint_thread_revision_fk", "from_table": "memory_evolution_checkpoint", "from_columns": ["source_thread_revision_id"], "to_table": "memory_thread_revision", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_checkpoint_member_checkpoint_fk", "from_table": "memory_evolution_checkpoint_member", "from_columns": ["checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_checkpoint_member_resolution_fk", "from_table": "memory_evolution_checkpoint_member", "from_columns": ["resolution_row_id"], "to_table": "memory_resolution", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "membership" },
+    { "name": "memory_checkpoint_member_authority_fk", "from_table": "memory_evolution_checkpoint_member", "from_columns": ["resolution_authority_id"], "to_table": "memory_resolution_authority", "to_columns": ["authority_id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "membership" },
+    { "name": "memory_layer_identity_project_fk", "from_table": "memory_layer_identity", "from_columns": ["project_id"], "to_table": "elder_project", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_layer_identity_session_fk", "from_table": "memory_layer_identity", "from_columns": ["origin_session_id"], "to_table": "interview_session", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_layer_identity_thread_fk", "from_table": "memory_layer_identity", "from_columns": ["origin_thread_id"], "to_table": "memory_thread", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_layer_identity_resolution_authority_fk", "from_table": "memory_layer_identity", "from_columns": ["origin_resolution_authority_id"], "to_table": "memory_resolution_authority", "to_columns": ["authority_id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_layer_revision_identity_fk", "from_table": "memory_layer_revision", "from_columns": ["identity_id"], "to_table": "memory_layer_identity", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_layer_revision_checkpoint_fk", "from_table": "memory_layer_revision", "from_columns": ["source_checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_layer_revision_job_fk", "from_table": "memory_layer_revision", "from_columns": ["source_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_layer_revision_resolution_fk", "from_table": "memory_layer_revision", "from_columns": ["resolution_row_id"], "to_table": "memory_resolution", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_layer_revision_authority_fk", "from_table": "memory_layer_revision", "from_columns": ["resolution_authority_id"], "to_table": "memory_resolution_authority", "to_columns": ["authority_id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_layer_revision_predecessor_fk", "from_table": "memory_layer_revision", "from_columns": ["predecessor_revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "authority" },
+    { "name": "memory_layer_revision_member_revision_fk", "from_table": "memory_layer_revision_member", "from_columns": ["revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_layer_revision_member_claim_fk", "from_table": "memory_layer_revision_member", "from_columns": ["memory_claim_id"], "to_table": "memory_claim", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_long_projection_job_fk", "from_table": "memory_long_job_projection", "from_columns": ["ai_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_long_projection_target_revision_fk", "from_table": "memory_long_job_projection", "from_columns": ["target_layer_revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_long_projection_checkpoint_fk", "from_table": "memory_long_job_projection", "from_columns": ["source_final_checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_long_projection_source_projection_fk", "from_table": "memory_long_job_projection_source", "from_columns": ["projection_id"], "to_table": "memory_long_job_projection", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "membership" },
+    { "name": "memory_long_projection_source_session_fk", "from_table": "memory_long_job_projection_source", "from_columns": ["source_session_id"], "to_table": "interview_session", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "source" },
+    { "name": "memory_long_projection_source_revision_fk", "from_table": "memory_long_job_projection_source", "from_columns": ["source_mid_revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_job_fk", "from_table": "memory_p2_job_projection", "from_columns": ["ai_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_p2_job_projection_checkpoint_fk", "from_table": "memory_p2_job_projection", "from_columns": ["source_checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_final_mid_fk", "from_table": "memory_p2_job_projection", "from_columns": ["source_final_mid_checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_p1_terminal_fk", "from_table": "memory_p2_job_projection", "from_columns": ["source_p1_terminal_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_snapshot_fk", "from_table": "memory_p2_job_projection", "from_columns": ["source_working_snapshot_id"], "to_table": "memory_working_snapshot", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_thread_revision_fk", "from_table": "memory_p2_job_projection", "from_columns": ["source_thread_revision_id"], "to_table": "memory_thread_revision", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "source" },
+    { "name": "memory_p2_job_projection_target_identity_fk", "from_table": "memory_p2_job_projection", "from_columns": ["target_layer_identity_id"], "to_table": "memory_layer_identity", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_p2_job_projection_target_revision_fk", "from_table": "memory_p2_job_projection", "from_columns": ["target_layer_revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "decision_trace_memory_semantic_trace_fk", "from_table": "decision_trace_memory_semantic", "from_columns": ["trace_id"], "to_table": "decision_trace", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_semantic_job_fk", "from_table": "decision_trace_memory_semantic", "from_columns": ["ai_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_trace_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["trace_id"], "to_table": "decision_trace", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_checkpoint_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["source_checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_job_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["source_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_input_segment_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["ai_job_input_segment_id"], "to_table": "ai_job_input_segment", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_evidence_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["evidence_id"], "to_table": "memory_evidence_authority", "to_columns": ["evidence_id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "trace_reference" },
+    { "name": "decision_trace_memory_source_authority_fk", "from_table": "decision_trace_memory_source_reference", "from_columns": ["resolution_authority_id"], "to_table": "memory_resolution_authority", "to_columns": ["authority_id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "trace_reference" },
+    { "name": "memory_p2_retention_target_job_fk", "from_table": "memory_p2_retention_target", "from_columns": ["ai_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": false, "on_delete": "RESTRICT", "deferrable": false, "semantic_role": "authority" },
+    { "name": "memory_p2_retention_target_checkpoint_fk", "from_table": "memory_p2_retention_target", "from_columns": ["checkpoint_id"], "to_table": "memory_evolution_checkpoint", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_p2_retention_target_revision_fk", "from_table": "memory_p2_retention_target", "from_columns": ["layer_revision_id"], "to_table": "memory_layer_revision", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_p2_retention_target_job_target_fk", "from_table": "memory_p2_retention_target", "from_columns": ["job_target_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_p2_retention_target_trace_fk", "from_table": "memory_p2_retention_target", "from_columns": ["trace_id"], "to_table": "decision_trace", "to_columns": ["id"], "nullable": true, "on_delete": "RESTRICT", "deferrable": true, "semantic_role": "target" },
+    { "name": "memory_p2_retention_target_cleanup_job_fk", "from_table": "memory_p2_retention_target", "from_columns": ["cleanup_job_id"], "to_table": "ai_job", "to_columns": ["id"], "nullable": true, "on_delete": "SET_NULL", "deferrable": false, "semantic_role": "cleanup_pointer" }
+  ],
+  "retention_root_view": {
+    "root_source": "AiJob.id + memory_p2_retention_target typed child; no second P2 root table",
+    "root_kind_mapping": [
+      { "root_kind": "checkpoint", "target_column": "checkpoint_id", "physical_table": "memory_evolution_checkpoint" },
+      { "root_kind": "layer_revision", "target_column": "layer_revision_id", "physical_table": "memory_layer_revision" },
+      { "root_kind": "job", "target_column": "job_target_id", "physical_table": "ai_job" },
+      { "root_kind": "trace", "target_column": "trace_id", "physical_table": "decision_trace" }
+    ],
+    "columns": [
+      { "view_column": "retention_root_id", "source_table": "ai_job", "source_column": "id", "nullable": false, "meaning": "owning AiJob root identity" },
+      { "view_column": "cleanup_job_id", "source_table": "memory_p2_retention_target", "source_column": "cleanup_job_id", "nullable": true, "meaning": "nullable cleanup job pointer only" },
+      { "view_column": "deletion_scope_digest", "source_table": "memory_p2_job_projection", "source_column": "deletion_scope_digest", "nullable": false, "meaning": "frozen deletion scope CAS fact" },
+      { "view_column": "policy_revision", "source_table": "memory_p2_job_projection", "source_column": "p2_policy_revision", "nullable": false, "meaning": "P2 bounded VARCHAR policy revision; no cast from legacy Int" },
+      { "view_column": "retention_policy_version", "source_table": "memory_p2_job_projection", "source_column": "p2_retention_policy_version", "nullable": false, "meaning": "P2 bounded VARCHAR retention policy version; no cast from legacy Int" },
+      { "view_column": "legacy_policy_revision", "source_table": "ai_job", "source_column": "policy_revision", "nullable": false, "meaning": "legacy Int snapshot only; not a P2-B string source" },
+      { "view_column": "legacy_retention_policy_version", "source_table": "ai_job", "source_column": "retention_policy_version", "nullable": false, "meaning": "legacy Int snapshot only; not a P2-B string source" },
+      { "view_column": "p2_policy_contract_revision", "source_table": "memory_p2_job_projection", "source_column": "p2_policy_contract_revision", "nullable": false, "meaning": "P2 bounded string contract revision" },
+      { "view_column": "expires_at", "source_table": "ai_job", "source_column": "expires_at", "nullable": false, "meaning": "owning root expiry" },
+      { "view_column": "status", "source_table": "ai_job", "source_column": "retention_state", "nullable": false, "meaning": "active/hidden/purging/cleanup_failed with view-only expired/detached/purged projection" }
+    ],
+    "cleanup_pointer_rule": "memory_p2_retention_target.cleanup_job_id -> ai_job.id ON DELETE SET NULL; it is not a target authority",
+    "old_request_id_rule": "ai_job.retention_cleanup_request_id and decision_trace.retention_cleanup_request_id are legacy audit/request identifiers; they are not cleanup_job_id and cannot satisfy the P2 job FK"
+  },
+  "migration_contract": {
+    "predecessor": {
+      "review_head": "0ea5f47",
+      "migration_count": 26,
+      "migrations": [
+        { "id": "20260802000000_engineering_baseline", "migration_sql_sha256": "24a9fe2b013e6da966dd9b6ce9c321ff722d79b70bb169e0a933bea419caabfa" },
+        { "id": "20260802112719_identity_security", "migration_sql_sha256": "ec51be16aed74332dfa6e33cf01be17ccc99b73e61d6fce25f50970ecbd34cc4" },
+        { "id": "20260803153000_project_consent_session", "migration_sql_sha256": "d24ee7e218ab46881e3564f7bf2e8473693748d62db2bb012f297d1960203abb" },
+        { "id": "20260804120000_audio_objects", "migration_sql_sha256": "3c3c6a41a44cb32ff4ee57dcdb9df9a6165dd447f36005d2fee6f8cad82264e6" },
+        { "id": "20260804180000_transcript_evidence_core", "migration_sql_sha256": "4443b9532d597458ef88a3198be6a68b4941a2cd5e759a0c61f94c2b153b84a8" },
+        { "id": "20260807190000_session_finalization", "migration_sql_sha256": "aa2b950057492f8fe4f8bf4f548ed363e0bf506780cc4bbf6f86b03519f6c7cf" },
+        { "id": "20260807233000_capture_lifecycle", "migration_sql_sha256": "b837cc1ee2c53c59865ba0048ea78a9bb598eeae83957e0ef4d9b6ccf931888a" },
+        { "id": "20260809190000_speaker_calibration_core", "migration_sql_sha256": "e78a3a132bf66f41cea91c63d170f9f692e93ecff0043a52973d465948803211" },
+        { "id": "20260809230000_speaker_correction_core", "migration_sql_sha256": "33f0c6b0823d3eaac719117e1fdb9523e8482e9ddb4c244d22d003c626f4710d" },
+        { "id": "20260810043209_ai_memory_question_evidence_core", "migration_sql_sha256": "ff964999a91a48a43df05c6b8a906d431ffe825c3766b06ab9b050fd420a557e" },
+        { "id": "20260810062000_dev006_review_invariants", "migration_sql_sha256": "3a927be1d328404685645f2898a3ce372ed6b76c4eed974097796981de5ac1a0" },
+        { "id": "20260810193000_dev007a_question_bank", "migration_sql_sha256": "3cf8e03f3b51d3dbc82ba4db1991e54024c69366af38cee011b3c3abba777f0a" },
+        { "id": "20260810223000_dev007b_question_presentation", "migration_sql_sha256": "2a3dd379143fb46ffdc114e63bd5ac8b9127eaf4e33bfafc20f8de5129d34849" },
+        { "id": "20260812143000_dev008a2_create_idempotency", "migration_sql_sha256": "f4d3160389225cf6be07ae892d9613522a31fc9c628ae346bcbf3a1dec5b5a8e" },
+        { "id": "20260814120000_public_auth_security", "migration_sql_sha256": "ddfbf4c232ca6d7b38b6ef712d9438d61fa2d2fe58d47d757df0e67ce62448c9" },
+        { "id": "20260814121000_public_auth_audit_shape", "migration_sql_sha256": "9b0ab56f345722af8ff90ff8c380483a69378147bab0728dd12079d23293d038" },
+        { "id": "20260814210000_dev008b2_review_invariants", "migration_sql_sha256": "92a8faae0197f0390c3547664872a4a0ad167f9a139daea6c44c1393e31d049e" },
+        { "id": "20260815120000_drop_legacy_speaker_mapping_session_unique", "migration_sql_sha256": "997adc07c9c2872a10b90ec485c3ad30da750250376f1ac6f4a04c56a3d421b1" },
+        { "id": "20260816100000_decision_trace_v1", "migration_sql_sha256": "1bdd42b4a8d508274cd0a20900bc134bb654f8e21c76e06be140bc85242fb62c" },
+        { "id": "20260816101000_decision_trace_nullable_references", "migration_sql_sha256": "6d93254d40ad5e9e28e3ea4fb62b566dbad9244e395e4816ad543ebc27b66f6e" },
+        { "id": "20260816102000_decision_trace_revision_status", "migration_sql_sha256": "de5923e7a25c84753d39f7b50827cf3d5127857782ff5a5faa5dcb6046112768" },
+        { "id": "20260817120000_working_memory_maintain_job_type", "migration_sql_sha256": "954bd7aa1b7899696c3393a90640f0a922edd3a6f15bd0887ccbf1234c729642" },
+        { "id": "20260817121000_memory_maintainer_v1_1_runtime", "migration_sql_sha256": "ae706773fdaab6c30c3a321c1d30bddff29a60aff035ae37bf27b6e63b174bfc" },
+        { "id": "20260817130000_memory_maintainer_review_fixes", "migration_sql_sha256": "ec04ff238a116fb7eccef10941d57f0d53ffffdc64b709575525112f01acbe9d" },
+        { "id": "20260818100000_memory_maintainer_v1_2_semantic_trigger", "migration_sql_sha256": "fbe78fa0a6accf252940a1c43bc7b8aa4ba54c6f756c83a1d8436d97caf3cf62" },
+        { "id": "20260818101000_decision_trace_memory_trigger_observation", "migration_sql_sha256": "c2870e1b9d70bf7b68140a6f1e4ae859d309eba206c634f7915d2965f386ba55" }
+      ],
+      "hash_verification": {
+        "migration_id": "20260814210000_dev008b2_review_invariants",
+        "relative_path": "apps/api/prisma/migrations/20260814210000_dev008b2_review_invariants/migration.sql",
+        "sha256": "92a8faae0197f0390c3547664872a4a0ad167f9a139daea6c44c1393e31d049e",
+        "computed_from": "current main worktree exact bytes and git show 0ea5f47:<relative_path>"
+      }
+    },
+    "fingerprint": {
+      "algorithm": "SHA-256",
+      "canonicalization": "canonical-json-v1: UTF-8, object keys sorted, arrays preserved in declared order, no insignificant whitespace",
+      "input_fields": ["review_head", "migration_ids_and_sha256", "prisma_schema_sha256", "p1_v1_2_migration_sha256", "decision_trace_observation_migration_sha256", "physical_fk_manifest_version"],
+      "prisma_schema_sha256_at_predecessor": "3d27afa04834f4f9f87d9005f9e1ca1b72e0fa4ece719710e9199602b92be61e",
+      "p1_v1_2_migration_sha256": "fbe78fa0a6accf252940a1c43bc7b8aa4ba54c6f756c83a1d8436d97caf3cf62",
+      "decision_trace_observation_migration_sha256": "c2870e1b9d70bf7b68140a6f1e4ae859d309eba206c634f7915d2965f386ba55",
+      "predecessor_fingerprint": "2b1a4ba4a0a20f2e986cec7de2c9863dd7a67673abb033406374517e4bafcea6",
+      "mismatch_code": "P2_MIGRATION_UNAVAILABLE"
+    },
+    "manifest_identity": {
+      "table": "memory_p2_migration_manifest",
+      "unique_key": ["schema_version", "source_version", "target_version", "mode", "predecessor_fingerprint"],
+      "completed_noop": "same unique key and completed status returns the existing manifest without DDL or backfill"
+    },
+    "advisory_lock": {
+      "kind": "pg_advisory_xact_lock",
+      "key_formula": "signed_int64(SHA256('memory-p2-migration:' + predecessor_fingerprint)[0:16])",
+      "scope": "one migration manifest transaction per database"
+    },
+    "cursor_ordering": {
+      "table": "memory_resolution",
+      "order": ["id ASC"],
+      "last_cursor_field": "last_resolution_id",
+      "resume_rule": "process rows with id > last_cursor inside bounded transactions; update cursor only after the batch commits"
+    },
+      "self_validation": {
+        "migration_array_rule": "migrations.length === migration_count && migration_count === 26",
+        "upgrade_expected_count": 26,
+        "hash_rule": "hash_verification.sha256 must equal the matching migrations[] checksum and the SHA-256 of relative_path bytes",
+        "fingerprint_rule": "predecessor_fingerprint equals SHA-256(canonical-json-v1 of fingerprint input_fields)",
+        "authority_null_rule": "memory_resolution.authority_id nullable=true only for legacy rows; P2 new writes require non-null by CHECK/trigger/reader gate",
+        "trace_typed_source_nullable_rule": "source_checkpoint_id, source_job_id, ai_job_input_segment_id, evidence_id and resolution_authority_id physical FKs all have nullable=true and are absent from source_reference_non_null_columns; source-kind checks plus num_nonnulls(...)=1 determine the valid typed reference",
+        "trace_required_columns_rule": "trace_id, source_kind, source_revision, membership_digest, deletion_scope_digest and input_order remain physical non-null columns and every source_reference_semantic_cases result must match expected_valid"
+      },
+      "mode_detection": {
+      "fresh": "no memory_p2_migration_manifest and no P2 tables; execute DDL transaction then completed manifest",
+      "upgrade": "predecessor fingerprint and all 26 migration checksums match; create upgrading manifest before backfill",
+      "upgrade_expected_count": 26,
+      "unknown": "any partial, mismatched or unrecognized state is unavailable; no guessed backfill"
+    },
+    "transaction_boundaries": {
+      "ddl": "fresh DDL and completed manifest are one transaction; failure rolls back all new DDL",
+      "backfill": "upgrade backfill uses bounded transactions under the migration advisory lock; each committed batch advances last_cursor",
+      "interruption": "a killed batch rolls back that batch; restart resumes from the last committed cursor and does not claim DDL itself persisted interrupted",
+      "reader_gate": "upgrading, interrupted, unavailable or fingerprint mismatch makes P2 reader/scanner/provider unavailable"
+    },
+    "retry_rules": {
+      "completed": "same manifest is an idempotent no-op",
+      "unavailable": "requires a new reviewed predecessor/manifest identity; never silently mutates the failed one",
+      "failed_batch": "retry the same manifest from last_cursor after the failed transaction is rolled back"
+    }
+  }
+}

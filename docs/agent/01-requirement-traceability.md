@@ -140,10 +140,10 @@ PR #71 exact `dbb0cc76` / CI `32210618025` / owner PASS 接收 A1 contract-only�
 | Claim/Resolution sole semantic authority; Proposal/Plan transient | T5-T8/P2 | `07` §23.2、ADR-052/053、A1 accepted contract | REVIEW / mandatory runtime invariant |
 | program validate/plan/CAS/atomic commit | T5-T8/P2 + T18-T19/P6 | `07` §23.2、`09` §24 | REVIEW / implementation not started |
 | duplicate/concurrent/retry/rebase/crash/restart/late/final-tail exactly-once | T18-T19/P6 | `07` §23.3-23.4、`09` §24 | REVIEW / runtime verification pending |
-| typed retention/deletion and reference-only evidence/Trace | T0/Foundation-Observability + P6 | `04` §17.4-17.6、`08` §25、`09` §24 | REVIEW / formal target frozen |
+| typed retention/deletion and reference-only evidence/Trace | T0/Foundation-Observability + P6 | `04` §17.4-17.6、`08` §25、`09` §24、`memory-persistence-p2c-physical-fk-v1.json` | REVIEW / corrected candidate；Trace五值闭域+typed nullable exactly-one，parent/child逐列分离；Evidence revision唯一owner已冻结 |
 | deterministic/unavailable provider-neutral seam | T5-T8/P2 | `07` §23.5、`08` §25.1、`09` §24 | REVIEW / real provider explicitly excluded |
-| P2-A/B compatibility mapping closes current-schema conflicts | T5-T8/P2 + T18-T19/P6 | `04` §17、`07` §23.7、`09` §24、ADR-053 | REVIEW / P1-vs-P2 job refs、nullable target、Int/string policy、v1.1/v1.2、retention root frozen |
-| P2-C contract-first governance and downstream gate | P2 governance | `10` §23、P2-C task/handoff、REV-065 placeholder | REVIEW；no remote CI/PASS/DONE/merge |
+| P2-A/B compatibility mapping closes current-schema conflicts | T5-T8/P2 + T18-T19/P6 | `04` §17、`07` §23.7、`09` §24、ADR-053 | REVIEW / P1-vs-P2 job refs、nullable target、projection-only P2 VARCHAR policy、checkpoint legacy Int+contract identity、v1.1/v1.2、retention root frozen |
+| P2-C contract-first governance and downstream gate | P2 governance | `10` §23、P2-C task/handoff、REV-065、`memory-persistence-p2c-compatibility-v1.md`、`memory-persistence-p2c-physical-fk-v1.json` | REVIEW；`c3eaa4ae…` formal REQUEST_CHANGES P1=3历史永久保留，correction head尚未复审；无远端CI/PASS/DONE/merge |
 
 ## Memory System V1 产品决策追踪
 
