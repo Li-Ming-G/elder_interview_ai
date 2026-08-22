@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres-test:
-        image: postgres:18.3-alpine
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_DB: elder_interview_test
           POSTGRES_PASSWORD: local_test_only

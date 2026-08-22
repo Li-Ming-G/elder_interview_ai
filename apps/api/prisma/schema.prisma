@@ -1360,6 +1360,42 @@ model MemoryLayerRevisionMember {
   @@map("memory_layer_revision_member")
 }
 
+// P3 retrieval substrate rows are derived projections. They never own semantic
+// values or lifecycle/status authority; deleting their source identity/revision
+// removes the derived rows with it.
+model MemoryEmbedding {
+  id                String   @id @default(uuid()) @db.Uuid
+  projectId         String   @map("project_id") @db.Uuid
+  layerIdentityId   String   @map("layer_identity_id") @db.Uuid
+  layerRevisionId   String   @map("layer_revision_id") @db.Uuid
+  embeddingProfile  String   @map("embedding_profile") @db.VarChar(120)
+  embeddingVersion  String   @map("embedding_version") @db.VarChar(120)
+  dimensions        Int
+  inputDigest       String   @map("input_digest") @db.Char(64)
+  vector            Unsupported("vector")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([projectId, layerIdentityId, layerRevisionId, embeddingProfile, embeddingVersion])
+  @@index([projectId, layerIdentityId])
+  @@index([projectId, layerRevisionId])
+  @@map("memory_embedding")
+}
+
+model MemoryGraphRelation {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  sourceMemoryId String   @map("source_memory_id") @db.Uuid
+  targetMemoryId String   @map("target_memory_id") @db.Uuid
+  relationType   String   @map("relation_type") @db.VarChar(24)
+  provenanceDigest String? @map("provenance_digest") @db.Char(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([projectId, sourceMemoryId, targetMemoryId, relationType])
+  @@index([projectId, sourceMemoryId, relationType])
+  @@index([projectId, targetMemoryId, relationType])
+  @@map("memory_graph_relation")
+}
+
 model MemoryLongJobProjection {
   id                      String   @id @default(uuid()) @db.Uuid
   aiJobId                 String   @unique @map("ai_job_id") @db.Uuid
