@@ -434,7 +434,9 @@ CREATE TABLE "memory_p2_migration_manifest" (
 
 CREATE INDEX "memory_p2_migration_manifest_status_idx" ON "memory_p2_migration_manifest" ("status");
 
--- Remove legacy semantic-authority cascades. P2 cleanup is explicit and ordered.
+-- Keep the pre-P2 actions on legacy ownership FKs. These constraints are used by
+-- existing cleanup flows; the P2-only guard below prevents them from cascading a
+-- P2 semantic row. P2 reference/provenance FKs remain RESTRICT below.
 ALTER TABLE "memory_claim" DROP CONSTRAINT IF EXISTS "memory_claim_project_fkey";
 ALTER TABLE "memory_claim" DROP CONSTRAINT IF EXISTS "memory_claim_job_fkey";
 ALTER TABLE "memory_claim" DROP CONSTRAINT IF EXISTS "memory_claim_retention_root_fkey";
@@ -449,16 +451,98 @@ ALTER TABLE "memory_resolution" DROP CONSTRAINT IF EXISTS "memory_resolution_sup
 ALTER TABLE "memory_resolution_member" DROP CONSTRAINT IF EXISTS "memory_resolution_member_resolution_fkey";
 ALTER TABLE "memory_resolution_member" DROP CONSTRAINT IF EXISTS "memory_resolution_member_claim_fkey";
 
-ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_project_fkey" FOREIGN KEY ("project_id") REFERENCES "elder_project"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_job_fkey" FOREIGN KEY ("ai_job_id") REFERENCES "ai_job"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_retention_root_fkey" FOREIGN KEY ("memory_retention_root_id") REFERENCES "memory_retention_root"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_derived_fkey" FOREIGN KEY ("ai_derived_output_id") REFERENCES "ai_derived_output"("id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE "memory_claim_evidence" ADD CONSTRAINT "memory_claim_evidence_claim_fkey" FOREIGN KEY ("memory_claim_id") REFERENCES "memory_claim"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_claim_evidence" ADD CONSTRAINT "memory_claim_evidence_input_fkey" FOREIGN KEY ("ai_job_input_segment_id") REFERENCES "ai_job_input_segment"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_project_fkey" FOREIGN KEY ("project_id") REFERENCES "elder_project"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_job_fkey" FOREIGN KEY ("ai_job_id") REFERENCES "ai_job"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_retention_root_fkey" FOREIGN KEY ("memory_retention_root_id") REFERENCES "memory_retention_root"("id") ON DELETE RESTRICT;
-ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_derived_fkey" FOREIGN KEY ("ai_derived_output_id") REFERENCES "ai_derived_output"("id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_project_fkey" FOREIGN KEY ("project_id") REFERENCES "elder_project"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_job_fkey" FOREIGN KEY ("ai_job_id") REFERENCES "ai_job"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_retention_root_fkey" FOREIGN KEY ("memory_retention_root_id") REFERENCES "memory_retention_root"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_claim" ADD CONSTRAINT "memory_claim_derived_fkey" FOREIGN KEY ("ai_derived_output_id") REFERENCES "ai_derived_output"("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE "memory_claim_evidence" ADD CONSTRAINT "memory_claim_evidence_claim_fkey" FOREIGN KEY ("memory_claim_id") REFERENCES "memory_claim"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_claim_evidence" ADD CONSTRAINT "memory_claim_evidence_input_fkey" FOREIGN KEY ("ai_job_input_segment_id") REFERENCES "ai_job_input_segment"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_project_fkey" FOREIGN KEY ("project_id") REFERENCES "elder_project"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_job_fkey" FOREIGN KEY ("ai_job_id") REFERENCES "ai_job"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_retention_root_fkey" FOREIGN KEY ("memory_retention_root_id") REFERENCES "memory_retention_root"("id") ON DELETE CASCADE;
+ALTER TABLE "memory_resolution" ADD CONSTRAINT "memory_resolution_derived_fkey" FOREIGN KEY ("ai_derived_output_id") REFERENCES "ai_derived_output"("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+CREATE FUNCTION "prevent_p2_semantic_cascade"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  p2_claim BOOLEAN := false;
+  p2_resolution BOOLEAN := false;
+  p2_evidence BOOLEAN := false;
+BEGIN
+  IF TG_TABLE_NAME = 'ai_job' THEN
+    p2_claim := OLD."job_type"::text IN ('mid_online', 'mid_final', 'long_session_end')
+      AND EXISTS (SELECT 1 FROM "memory_claim" WHERE "ai_job_id" = OLD."id");
+    p2_resolution := EXISTS (
+      SELECT 1 FROM "memory_resolution"
+       WHERE "ai_job_id" = OLD."id" AND ("p2_write" OR "authority_id" IS NOT NULL)
+    );
+  ELSIF TG_TABLE_NAME = 'elder_project' THEN
+    p2_claim := EXISTS (
+      SELECT 1 FROM "memory_claim" c
+      JOIN "ai_job" j ON j."id" = c."ai_job_id"
+       WHERE c."project_id" = OLD."id"
+         AND j."job_type"::text IN ('mid_online', 'mid_final', 'long_session_end')
+    );
+    p2_resolution := EXISTS (
+      SELECT 1 FROM "memory_resolution"
+       WHERE "project_id" = OLD."id" AND ("p2_write" OR "authority_id" IS NOT NULL)
+    );
+  ELSIF TG_TABLE_NAME = 'memory_retention_root' THEN
+    p2_claim := EXISTS (
+      SELECT 1 FROM "memory_claim" c
+      JOIN "ai_job" j ON j."id" = c."ai_job_id"
+       WHERE c."memory_retention_root_id" = OLD."id"
+         AND j."job_type"::text IN ('mid_online', 'mid_final', 'long_session_end')
+    );
+    p2_resolution := EXISTS (
+      SELECT 1 FROM "memory_resolution"
+       WHERE "memory_retention_root_id" = OLD."id" AND ("p2_write" OR "authority_id" IS NOT NULL)
+    );
+  ELSIF TG_TABLE_NAME = 'ai_derived_output' THEN
+    p2_claim := EXISTS (
+      SELECT 1 FROM "memory_claim" c
+      JOIN "ai_job" j ON j."id" = c."ai_job_id"
+       WHERE c."ai_derived_output_id" = OLD."id"
+         AND j."job_type"::text IN ('mid_online', 'mid_final', 'long_session_end')
+    );
+    p2_resolution := EXISTS (
+      SELECT 1 FROM "memory_resolution"
+       WHERE "ai_derived_output_id" = OLD."id" AND ("p2_write" OR "authority_id" IS NOT NULL)
+    );
+  ELSIF TG_TABLE_NAME = 'ai_job_input_segment' THEN
+    p2_evidence := EXISTS (
+      SELECT 1 FROM "memory_claim_evidence"
+       WHERE "ai_job_input_segment_id" = OLD."id" AND "evidence_id" IS NOT NULL
+    ) OR EXISTS (
+      SELECT 1 FROM "memory_evidence_bridge" WHERE "ai_job_input_segment_id" = OLD."id"
+    );
+  ELSIF TG_TABLE_NAME = 'memory_claim' THEN
+    p2_evidence := EXISTS (
+      SELECT 1 FROM "memory_claim_evidence"
+       WHERE "memory_claim_id" = OLD."id" AND "evidence_id" IS NOT NULL
+    ) OR EXISTS (
+      SELECT 1 FROM "memory_evidence_bridge" WHERE "claim_id" = OLD."id"
+    );
+  END IF;
+
+  IF p2_claim OR p2_resolution OR p2_evidence THEN
+    RAISE EXCEPTION 'P2_SEMANTIC_CASCADE_FORBIDDEN' USING ERRCODE = '23514';
+  END IF;
+  RETURN OLD;
+END $$;
+
+CREATE TRIGGER "ai_job_p2_semantic_cascade_guard"
+  BEFORE DELETE ON "ai_job" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
+CREATE TRIGGER "elder_project_p2_semantic_cascade_guard"
+  BEFORE DELETE ON "elder_project" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
+CREATE TRIGGER "memory_retention_root_p2_semantic_cascade_guard"
+  BEFORE DELETE ON "memory_retention_root" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
+CREATE TRIGGER "ai_derived_output_p2_semantic_cascade_guard"
+  BEFORE DELETE ON "ai_derived_output" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
+CREATE TRIGGER "ai_job_input_segment_p2_evidence_guard"
+  BEFORE DELETE ON "ai_job_input_segment" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
+CREATE TRIGGER "memory_claim_p2_evidence_guard"
+  BEFORE DELETE ON "memory_claim" FOR EACH ROW EXECUTE FUNCTION "prevent_p2_semantic_cascade"();
 
 CREATE UNIQUE INDEX "memory_resolution_authority_id_resolution_revision_key"
   ON "memory_resolution" ("authority_id", "resolution_revision");
