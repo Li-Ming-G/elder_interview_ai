@@ -49,8 +49,6 @@ CREATE TABLE "memory_graph_relation" (
     CHECK ("relation_type" IN ('CONTINUATION', 'RESUME', 'BRANCH', 'RELATED')),
   CONSTRAINT "memory_graph_relation_no_self_edge_ck"
     CHECK ("source_memory_id" <> "target_memory_id"),
-  CONSTRAINT "memory_graph_relation_related_direction_ck"
-    CHECK ("relation_type" <> 'RELATED' OR "source_memory_id" < "target_memory_id"),
   CONSTRAINT "memory_graph_relation_provenance_ck"
     CHECK ("provenance_digest" IS NULL OR "provenance_digest" ~ '^[0-9a-f]{64}$')
 );

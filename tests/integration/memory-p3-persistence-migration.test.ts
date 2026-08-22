@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createTestPrismaClient } from '../../apps/api/test-support/prisma-client.js';
+import { MemoryP3PersistenceRepository } from '../../apps/api/src/memory/memory-p3-persistence.repository.js';
+import type { PrismaService } from '../../apps/api/src/database/prisma.service.js';
+
 const requireFromApi = createRequire(
   join(dirname(fileURLToPath(import.meta.url)), '../../apps/api/package.json'),
 );
@@ -30,15 +34,20 @@ describe('T9-T10 / P3R-02 retrieval substrate migration', () => {
     session: randomUUID(),
     thread: randomUUID(),
     user: randomUUID(),
-    firstIdentity: randomUUID(),
-    secondIdentity: randomUUID(),
+    // B intentionally sorts after A to prove that RELATED keeps supplied direction.
+    firstIdentity: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    secondIdentity: '11111111-1111-4111-8111-111111111111',
   };
+  let repository!: MemoryP3PersistenceRepository;
+  let prisma!: ReturnType<typeof createTestPrismaClient>;
 
   beforeAll(async () => {
     const databaseUrl = process.env.TEST_DATABASE_URL;
     if (databaseUrl === undefined) throw new Error('TEST_DATABASE_URL is required');
     client = new Client({ connectionString: databaseUrl });
     await client.connect();
+    prisma = createTestPrismaClient(databaseUrl);
+    repository = new MemoryP3PersistenceRepository(prisma as unknown as PrismaService);
     await client.query(
       `INSERT INTO "user" ("id", "email", "display_name", "password_hash", "role", "updated_at")
        VALUES ($1, $2, 'P3 fictional fixture', 'test-only', 'interviewer', now())`,
@@ -107,6 +116,7 @@ describe('T9-T10 / P3R-02 retrieval substrate migration', () => {
       await client.query('DELETE FROM "user" WHERE "id" = $1', [ids.user]);
       await client.query('SET session_replication_role = origin');
       await client.end();
+      await prisma.$disconnect();
     }
   });
 
@@ -125,26 +135,59 @@ describe('T9-T10 / P3R-02 retrieval substrate migration', () => {
     expect(vectorColumn.rows).toEqual([{ data_type: 'vector', typmod: -1 }]);
   });
 
-  it('enforces graph scope, relation set, direction and RELATED traversal shape', async () => {
-    const sourceMemoryId =
-      ids.firstIdentity < ids.secondIdentity ? ids.firstIdentity : ids.secondIdentity;
-    const targetMemoryId =
-      ids.firstIdentity < ids.secondIdentity ? ids.secondIdentity : ids.firstIdentity;
-    await client.query(
-      `INSERT INTO "memory_graph_relation"
-         ("project_id", "source_memory_id", "target_memory_id", "relation_type")
-       VALUES ($1, $2, $3, 'RELATED')`,
-      [ids.project, sourceMemoryId, targetMemoryId],
-    );
-    const related = await client.query<{ source_memory_id: string; target_memory_id: string }>(
+  it('persists RELATED exactly as supplied, traversing it from either endpoint', async () => {
+    const related = await repository.createGraphRelation({
+      projectId: ids.project,
+      relationType: 'RELATED',
+      sourceMemoryId: ids.firstIdentity,
+      targetMemoryId: ids.secondIdentity,
+    });
+    const replay = await repository.createGraphRelation({
+      projectId: ids.project,
+      relationType: 'RELATED',
+      sourceMemoryId: ids.firstIdentity,
+      targetMemoryId: ids.secondIdentity,
+    });
+    expect(replay.id).toBe(related.id);
+    expect(replay.sourceMemoryId).toBe(ids.firstIdentity);
+    expect(replay.targetMemoryId).toBe(ids.secondIdentity);
+    const stored = await client.query<{ source_memory_id: string; target_memory_id: string }>(
       `SELECT "source_memory_id"::text, "target_memory_id"::text
          FROM "memory_graph_relation"
         WHERE "project_id" = $1`,
       [ids.project],
     );
-    expect(related.rows).toEqual([
-      { source_memory_id: sourceMemoryId, target_memory_id: targetMemoryId },
+    expect(stored.rows).toEqual([
+      { source_memory_id: ids.firstIdentity, target_memory_id: ids.secondIdentity },
     ]);
+
+    await expect(repository.listGraphNeighbors(ids.project, ids.firstIdentity)).resolves.toEqual([
+      expect.objectContaining({ neighborMemoryId: ids.secondIdentity }),
+    ]);
+    await expect(repository.listGraphNeighbors(ids.project, ids.secondIdentity)).resolves.toEqual([
+      expect.objectContaining({ neighborMemoryId: ids.firstIdentity }),
+    ]);
+  });
+
+  it('preserves directed CONTINUATION source-to-target traversal only', async () => {
+    const continuation = await repository.createGraphRelation({
+      projectId: ids.project,
+      relationType: 'CONTINUATION',
+      sourceMemoryId: ids.firstIdentity,
+      targetMemoryId: ids.secondIdentity,
+    });
+    expect(continuation.sourceMemoryId).toBe(ids.firstIdentity);
+    expect(continuation.targetMemoryId).toBe(ids.secondIdentity);
+
+    const forward = await repository.listGraphNeighbors(ids.project, ids.firstIdentity);
+    expect(
+      forward.some(
+        ({ neighborMemoryId, relation }) =>
+          relation.relationType === 'CONTINUATION' && neighborMemoryId === ids.secondIdentity,
+      ),
+    ).toBe(true);
+    const reverse = await repository.listGraphNeighbors(ids.project, ids.secondIdentity);
+    expect(reverse.some(({ relation }) => relation.relationType === 'CONTINUATION')).toBe(false);
 
     await expect(
       client.query(
@@ -162,14 +205,6 @@ describe('T9-T10 / P3R-02 retrieval substrate migration', () => {
         [ids.project, ids.firstIdentity, ids.secondIdentity],
       ),
     ).rejects.toMatchObject({ code: '23514' });
-    await expect(
-      client.query(
-        `INSERT INTO "memory_graph_relation"
-           ("project_id", "source_memory_id", "target_memory_id", "relation_type")
-         VALUES ($1, $2, $3, 'RELATED')`,
-        [ids.project, targetMemoryId, sourceMemoryId],
-      ),
-    ).rejects.toMatchObject({ code: '23514' });
   });
 
   it('uses cascading derived-row cleanup and same-project composite references', async () => {
@@ -179,7 +214,7 @@ describe('T9-T10 / P3R-02 retrieval substrate migration', () => {
         WHERE "project_id" = $1`,
       [ids.project],
     );
-    expect(source.rows).toHaveLength(1);
+    expect(source.rows).toHaveLength(2);
     const foreignKeys = await client.query<{ name: string; delete_type: string }>(
       `SELECT c."conname" AS name, c."confdeltype" AS delete_type
          FROM "pg_constraint" c

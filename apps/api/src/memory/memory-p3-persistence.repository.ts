@@ -75,13 +75,12 @@ export class MemoryP3PersistenceRepository {
     input: MemoryP3GraphRelationInput,
   ): Promise<MemoryP3GraphRelationRecord> {
     assertGraphRelationInput(input);
-    const canonical = canonicalizeGraphRelation(input);
     const rows = await this.prisma.$queryRaw<RawGraphRelationRow[]>`
       INSERT INTO "memory_graph_relation"
         ("project_id", "source_memory_id", "target_memory_id", "relation_type", "provenance_digest")
       VALUES
-        (${canonical.projectId}::uuid, ${canonical.sourceMemoryId}::uuid,
-         ${canonical.targetMemoryId}::uuid, ${canonical.relationType}, ${canonical.provenanceDigest ?? null})
+        (${input.projectId}::uuid, ${input.sourceMemoryId}::uuid,
+         ${input.targetMemoryId}::uuid, ${input.relationType}, ${input.provenanceDigest ?? null})
       ON CONFLICT
         ("project_id", "source_memory_id", "target_memory_id", "relation_type")
       DO NOTHING
@@ -94,10 +93,10 @@ export class MemoryP3PersistenceRepository {
       SELECT "id", "project_id", "source_memory_id", "target_memory_id", "relation_type",
         "provenance_digest", "created_at"
       FROM "memory_graph_relation"
-      WHERE "project_id" = ${canonical.projectId}::uuid
-        AND "source_memory_id" = ${canonical.sourceMemoryId}::uuid
-        AND "target_memory_id" = ${canonical.targetMemoryId}::uuid
-        AND "relation_type" = ${canonical.relationType}
+      WHERE "project_id" = ${input.projectId}::uuid
+        AND "source_memory_id" = ${input.sourceMemoryId}::uuid
+        AND "target_memory_id" = ${input.targetMemoryId}::uuid
+        AND "relation_type" = ${input.relationType}
     `;
     const row = existing[0];
     if (row === undefined) throw new Error('memory graph relation replay returned no row');
@@ -143,18 +142,6 @@ export class MemoryP3PersistenceRepository {
       relation: mapGraphRelation(row),
     }));
   }
-}
-
-export function canonicalizeGraphRelation(
-  input: MemoryP3GraphRelationInput,
-): MemoryP3GraphRelationInput {
-  if (input.relationType !== 'RELATED' || input.sourceMemoryId < input.targetMemoryId)
-    return { ...input };
-  return {
-    ...input,
-    sourceMemoryId: input.targetMemoryId,
-    targetMemoryId: input.sourceMemoryId,
-  };
 }
 
 function assertEmbeddingInput(input: MemoryP3EmbeddingInput): void {
