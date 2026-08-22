@@ -61,12 +61,39 @@ describe('T9-T10 / P3R-05 synthetic PostgreSQL lifecycle', () => {
     await client.query('SET session_replication_role = replica');
     await client.query('DELETE FROM "memory_embedding" WHERE "project_id" = $1', [projectId]);
     await client.query('DELETE FROM "memory_graph_relation" WHERE "project_id" = $1', [projectId]);
+    await client.query(
+      'DELETE FROM "memory_layer_revision_member" WHERE "revision_id" IN (SELECT "id" FROM "memory_layer_revision" WHERE "project_id" = $1)',
+      [projectId],
+    );
+    await client.query(
+      'DELETE FROM "memory_resolution_member" WHERE "memory_resolution_id" IN (SELECT "id" FROM "memory_resolution" WHERE "project_id" = $1)',
+      [projectId],
+    );
+    await client.query('DELETE FROM "memory_resolution" WHERE "project_id" = $1', [projectId]);
+    await client.query('DELETE FROM "memory_claim" WHERE "project_id" = $1', [projectId]);
+    await client.query('DELETE FROM "memory_retention_root" WHERE "project_id" = $1', [projectId]);
+    await client.query('DELETE FROM "memory_resolution_authority" WHERE "project_id" = $1', [
+      projectId,
+    ]);
     for (const [identityId, revisionId, sessionId] of [
       [ids.currentMid, ids.currentMidRevision, 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'],
       [ids.crossSessionLong, ids.crossSessionLongRevision, 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2'],
       [ids.graphOnlyLong, ids.graphOnlyLongRevision, 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2'],
       [ids.otherSessionMid, ids.otherSessionMidRevision, 'cccccccc-cccc-4ccc-8ccc-ccccccccccc3'],
     ] as const) {
+      await client.query(
+        `INSERT INTO "memory_resolution_authority"
+          ("authority_id", "project_id", "semantic_kind", "canonical_key",
+           "origin_session_id", "origin_thread_id")
+         VALUES ($1, $2, 'fact', $3, $4, $5)`,
+        [
+          identityId,
+          projectId,
+          `p3.synthetic.${identityId}`,
+          sessionId,
+          'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+        ],
+      );
       await client.query(
         `INSERT INTO "memory_layer_identity"
           ("id", "project_id", "origin_session_id", "origin_thread_id",
@@ -83,12 +110,57 @@ describe('T9-T10 / P3R-05 synthetic PostgreSQL lifecycle', () => {
         ],
       );
       await client.query(
+        `INSERT INTO "memory_retention_root"
+          ("id", "project_id", "source_kind", "source_operation_id",
+           "retention_policy_version", "expires_at", "retention_state")
+         VALUES ($1, $2, 'system_migration', $3, 1, '2030-01-01T00:00:00Z', 'active')`,
+        [revisionId, projectId, identityId],
+      );
+      await client.query(
+        `INSERT INTO "memory_claim"
+          ("id", "project_id", "memory_retention_root_id", "memory_type", "canonical_key",
+           "value_kind", "value_json", "normalized_value_digest", "authority", "semantic_kind",
+           "layer", "claim_revision")
+         VALUES ($1, $2, $3, 'event', $4, 'exact', $5::jsonb, $6, 'system_migration', 'fact', $7, 1)`,
+        [
+          identityId,
+          projectId,
+          revisionId,
+          `p3.synthetic.${identityId}`,
+          JSON.stringify({ value: 'synthetic semantic value' }),
+          'f'.repeat(64),
+          identityId === ids.currentMid || identityId === ids.otherSessionMid ? 'mid' : 'long',
+        ],
+      );
+      await client.query(
+        `INSERT INTO "memory_resolution"
+          ("id", "project_id", "memory_retention_root_id", "memory_type", "canonical_key",
+           "resolution_revision", "resolution_kind", "resolved_value_json", "authority", "status", "authority_id", "p2_write",
+           "semantic_kind", "layer", "semantic_status")
+         VALUES ($1, $2, $3, 'event', $4, 1, 'single', $5::jsonb, 'system_migration', 'current', $1, true,
+                 'fact', $6, 'current')`,
+        [
+          identityId,
+          projectId,
+          revisionId,
+          `p3.synthetic.${identityId}`,
+          JSON.stringify({ value: 'synthetic semantic value' }),
+          identityId === ids.currentMid || identityId === ids.otherSessionMid ? 'mid' : 'long',
+        ],
+      );
+      await client.query(
+        `INSERT INTO "memory_resolution_member"
+          ("id", "memory_resolution_id", "memory_claim_id", "member_order")
+         VALUES ($1, $2, $2, 0)`,
+        [revisionId, identityId],
+      );
+      await client.query(
         `INSERT INTO "memory_layer_revision"
           ("id", "identity_id", "layer", "revision_no", "lifecycle_status", "project_id",
            "source_session_id", "source_checkpoint_id", "source_job_id", "resolution_row_id",
            "resolution_authority_id", "resolution_revision", "semantic_status", "expected_member_count",
            "member_manifest_hash", "manifest_algorithm_version")
-         VALUES ($1, $2, $3, 1, 'current', $4, $5, $6, $7, $8, $9, 1, 'current', 0, $10, 'p3-test')
+         VALUES ($1, $2, $3, 1, 'current', $4, $5, $6, $7, $8, $9, 1, 'current', 1, $10, 'p3-test')
          ON CONFLICT ("id") DO NOTHING`,
         [
           revisionId,
@@ -102,6 +174,13 @@ describe('T9-T10 / P3R-05 synthetic PostgreSQL lifecycle', () => {
           identityId,
           'e'.repeat(64),
         ],
+      );
+      await client.query(
+        `INSERT INTO "memory_layer_revision_member"
+          ("revision_id", "memory_claim_id", "claim_revision", "role", "input_order",
+           "evidence_membership_digest")
+         VALUES ($1, $2, 1, 'primary', 0, $3)`,
+        [revisionId, identityId, 'f'.repeat(64)],
       );
     }
     await client.query('SET session_replication_role = origin');
@@ -119,7 +198,19 @@ describe('T9-T10 / P3R-05 synthetic PostgreSQL lifecycle', () => {
       await client.query('DELETE FROM "memory_layer_revision" WHERE "project_id" = $1', [
         projectId,
       ]);
+      await client.query(
+        'DELETE FROM "memory_resolution_member" WHERE "memory_resolution_id" IN (SELECT "id" FROM "memory_resolution" WHERE "project_id" = $1)',
+        [projectId],
+      );
+      await client.query('DELETE FROM "memory_resolution" WHERE "project_id" = $1', [projectId]);
+      await client.query('DELETE FROM "memory_claim" WHERE "project_id" = $1', [projectId]);
+      await client.query('DELETE FROM "memory_retention_root" WHERE "project_id" = $1', [
+        projectId,
+      ]);
       await client.query('DELETE FROM "memory_layer_identity" WHERE "project_id" = $1', [
+        projectId,
+      ]);
+      await client.query('DELETE FROM "memory_resolution_authority" WHERE "project_id" = $1', [
         projectId,
       ]);
       await client.query('SET session_replication_role = origin');
