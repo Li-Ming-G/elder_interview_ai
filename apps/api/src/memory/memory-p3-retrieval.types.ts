@@ -9,60 +9,66 @@ export type MemoryP3MemoryKind = (typeof MEMORY_P3_MEMORY_KINDS)[number];
 export const MEMORY_P3_READABLE_STATUSES = ['current', 'uncertain', 'disputed'] as const;
 export type MemoryP3ReadableStatus = (typeof MEMORY_P3_READABLE_STATUSES)[number];
 
-export const MEMORY_P3_RETRIEVAL_SOURCES = ['embedding', 'graph_neighbor'] as const;
+export const MEMORY_P3_RETRIEVAL_SOURCES = ['embedding', 'graph'] as const;
 export type MemoryP3RetrievalSource = (typeof MEMORY_P3_RETRIEVAL_SOURCES)[number];
 
 export const MEMORY_P3_GRAPH_RELATIONS = ['CONTINUATION', 'RESUME', 'BRANCH', 'RELATED'] as const;
 export type MemoryP3GraphRelation = (typeof MEMORY_P3_GRAPH_RELATIONS)[number];
 
-/** Stable P2 identity; graph edges bind identities, never transient revisions. */
+/** Stable P2 MemoryLayerIdentity; graph edges bind identities, never revisions or authorities. */
 export interface MemoryLayerIdentityReference {
   readonly layerIdentityId: string;
   readonly projectId: string;
   readonly originSessionId: string;
   readonly originThreadId: string;
-  readonly originResolutionId: string;
+  readonly originResolutionAuthorityId: string;
 }
 
 /** Working is query-side signal only. It is intentionally not a candidate shape. */
 export interface MemoryP3WorkingQuerySignal {
+  readonly signalId: string;
   readonly workingMemoryId: string;
   readonly threadId: string;
   readonly revision: number;
-  readonly kind: MemoryP3MemoryKind;
-  readonly status: MemoryP3ReadableStatus;
+  readonly semanticKind: MemoryP3MemoryKind;
+  readonly semanticStatus: MemoryP3ReadableStatus;
   readonly queryText?: string;
 }
 
-export interface MemoryP3Query {
-  readonly workingSignals: readonly MemoryP3WorkingQuerySignal[];
-  readonly queryVector?: readonly number[];
+/** Reference-safe, bounded recent final transcript signal; it is never a candidate. */
+export interface MemoryP3RecentTranscriptQuerySignal {
+  readonly segmentId: string;
+  readonly sessionId: string;
+  readonly textRevision: number;
+  readonly speakerRoleRevision: number;
+  readonly effectiveTextDigest: string;
+  readonly eligibility: 'trusted-elder-final-conversation';
+  readonly boundedQueryText?: string;
 }
 
 export interface MemoryP3RetrievalConfiguration {
   readonly embeddingThreshold: number;
   readonly candidateLimit: number;
-  readonly graphNeighborDepth: number;
-  readonly graphNeighborLimit: number;
+  readonly graphDepth: number;
+  readonly graphLimit: number;
 }
 
 export interface MemoryP3Candidate {
+  /** Exactly the stable MemoryLayerIdentity.id. */
   readonly memoryId: string;
-  readonly authorityId: string;
-  /** MemoryResolution revision observed by the readable P2 projection. */
-  readonly revision: number;
+  /** MemoryResolution authority identity observed by the readable P2 projection. */
+  readonly resolutionAuthorityId: string;
+  /** Exactly the MemoryLayerRevision.id observed by P3. */
+  readonly revisionId: string;
+  readonly revisionNo?: number;
   readonly sourceLevel: MemoryP3SourceLevel;
-  /** Mid has exactly the current session; Long is the readable project source set. */
-  readonly sourceSessionIds: readonly string[];
-  readonly kind: MemoryP3MemoryKind;
-  readonly status: MemoryP3ReadableStatus;
+  readonly semanticKind: MemoryP3MemoryKind;
+  readonly semanticStatus: MemoryP3ReadableStatus;
   /** Authority-derived safe semantic content; never transcript or evidence body. */
   readonly safeContent: string;
-  readonly layerIdentity: MemoryLayerIdentityReference;
   readonly retrievalSources: readonly MemoryP3RetrievalSource[];
   readonly embeddingScore: number | null;
   readonly graphDistance: number | null;
-  readonly score: number;
   readonly rank: number;
 }
 
@@ -72,15 +78,16 @@ export interface MemoryP3GraphEdge {
   readonly to: MemoryLayerIdentityReference;
 }
 
-export interface MemoryP3RetrievalScope {
-  readonly projectId: string;
-  readonly currentSessionId: string;
-}
-
 export interface MemoryP3RetrievalRequest {
   readonly contractVersion: typeof MEMORY_P3_RETRIEVAL_CONTRACT_VERSION;
-  readonly scope: MemoryP3RetrievalScope;
-  readonly query: MemoryP3Query;
+  readonly projectId: string;
+  readonly currentSessionId: string;
+  /** Null means no active thread; non-null is an explicit current-thread reference. */
+  readonly activeThreadId: string | null;
+  readonly activeThreadRevision: number | null;
+  readonly currentWorkingSignals: readonly MemoryP3WorkingQuerySignal[];
+  readonly recentEligibleTranscriptSignals: readonly MemoryP3RecentTranscriptQuerySignal[];
+  readonly queryVector?: readonly number[];
   readonly configuration: MemoryP3RetrievalConfiguration;
 }
 

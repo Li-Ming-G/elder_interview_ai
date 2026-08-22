@@ -12,7 +12,9 @@ P3 是纯程序检索。它可以把当前会话的 Working 记忆作为 query s
 
 ## 2. Readable search set
 
-一次 retrieval request 的 scope 是一个 `project_id` 与一个当前 `session_id`。可检索集合严格限定为：
+Formal P3 request 必须显式携带 `project_id`/`projectId`、`current_session_id`/`currentSessionId`、`active_thread_id`/`activeThreadId` 与对应 `active_thread_revision`。它还必须携带当前 Working signals 和 recent eligible transcript signals；active thread 没有时两个 active-thread fields 都是 `null`。这些字段组成 query-side provenance，不会改变 candidate scope。
+
+一次 retrieval request 的 readable scope 是一个 `project_id` 与一个当前 `session_id`。可检索集合严格限定为：
 
 | Source level | Readable scope | Required gate |
 | --- | --- | --- |
@@ -25,38 +27,36 @@ Working、raw transcript、transcript segment、evidence row、interim/未 final
 
 ## 3. Query signal and candidate shape
 
-Working 只以 `MemoryP3WorkingQuerySignal` 进入 query side。它可以携带当前 Working 的稳定引用和有限 semantic query signal，但不得携带 raw transcript/evidence 作为 candidate 输出；P3 也不得把 Working signal 映射成 `MemoryP3Candidate`。
+Working 只以 `MemoryP3WorkingQuerySignal` 进入 query side。recent transcript 只以 `MemoryP3RecentTranscriptQuerySignal` 进入 query side：必须是当前 session 的 trusted elder final conversation，使用 segment/session/revision/digest reference，并可带 bounded query text；不得带 evidence body。两者都是 bounded/reference-safe query signals，永远不会映射成 `MemoryP3Candidate`。
 
 每个 candidate 必须同时暴露以下信息：
 
-- `memory_id`：语义 memory reference；
-- `authority_id`：对应 `MemoryResolution` authority；
-- `revision`：authority revision observed at read time；
-- `source_level`：`mid` 或 `long`；
-- `source_session_ids`：Mid 必须只含当前 session；Long 是同 project 内该 readable Long revision 的完整 source session set；
-- `kind`：`episode` 或 `fact`；
-- `status`：仅 readable 的 `current`、`uncertain` 或 `disputed`；
+- `memory_id`/`memoryId`：stable `MemoryLayerIdentity.id`；
+- `resolution_authority_id`/`resolutionAuthorityId`：对应 `MemoryResolution` authority identity；
+- `revision_id`/`revisionId`：P3 观察到的精确 `MemoryLayerRevision.id`；可选 `revision_no`/`revisionNo` 只是展示 metadata，不能替代 `revision_id`；
+- `source_level`/`sourceLevel`：`mid` 或 `long`；
+- `semantic_kind`/`semanticKind`：`episode` 或 `fact`；
+- `semantic_status`/`semanticStatus`：仅 readable 的 `current`、`uncertain` 或 `disputed`；
 - `safe_content`：来自 semantic authority 的有界安全内容，不是 transcript/evidence/raw provider payload；
-- `retrieval_sources`、分项 scores、综合 `score` 与最终 `rank`；
-- stable `MemoryLayerIdentity` reference，用于 revision/graph provenance。
+- `retrieval_sources`/`retrievalSources`、`embedding_score`/`embeddingScore`、`graph_distance`/`graphDistance` 与最终 `rank`。
 
 Candidate closed shape 不允许 raw transcript、evidence body、prompt、context、provider payload、SQL/CAS/transaction control fields 或未声明的扩展字段。evidence 只可通过已有 authority/reference provenance 在其他受控流程中 drill down，不能嵌入 P3 candidate。
 
-P3 V1 的 retrieval sources 是 `embedding` 与 `graph_neighbor`。没有 embedding provider/model 时不得伪造真实 embedding 成功；实现可在配置允许时只使用已存在的合法 source，但不得改变 candidate scope 或安全边界。
+P3 V1 的 canonical retrieval sources 只有 `embedding` 与 `graph`。没有 embedding provider/model 时不得伪造真实 embedding 成功；实现可在配置允许时只使用已存在的合法 source，但不得改变 candidate scope 或安全边界。
 
 ## 4. Deterministic ranking and configuration
 
-P3 的输入、readable snapshot、query signal、configured threshold/limit 与 graph neighborhood 相同，输出 candidate identity、scores、source set、排序和 rank 必须相同。实现不得依赖 wall clock、随机数、provider response ordering 或未声明的数据库顺序。
+P3 的输入、readable snapshot、query signal、configured threshold/limit 与 graph neighborhood 相同，输出 candidate identity、source set、排序和 rank 必须相同。实现不得依赖 wall clock、随机数、provider response ordering 或未声明的数据库顺序；P3 不计算未在本节声明的 aggregate score。
 
-`embedding_threshold`、`candidate_limit`、`graph_neighbor_depth` 与 `graph_neighbor_limit` 是配置项；P3 不冻结具体生产数值，也不引入 P4 numeric budget。threshold/limit 必须在 request/config 中显式可追踪，超出 limit 的 row 不得作为 candidate 返回。tie-break 必须使用稳定 key（最终至少按 score descending、source priority、stable memory/layer identity ascending）。
+`embedding_threshold`、`candidate_limit`、`graph_depth` 与 `graph_limit` 是配置项；P3 不冻结具体生产数值，也不引入 P4 numeric budget。threshold/limit 必须在 request/config 中显式可追踪，超出 limit 的 row 不得作为 candidate 返回。确定性排序固定为：`retrieval_sources` 同时含 `embedding` 与 `graph` 者优先；`embedding_score` 降序；`graph_distance` 升序；current-session Mid 优先于 Long；最后按 stable `memory_id` 升序（仍相同则按 `revision_id` 升序）。null score/distance 排在对应的有值项之后。
 
 ## 5. Graph contract
 
 V1 只允许四种 graph relation：`CONTINUATION`、`RESUME`、`BRANCH`、`RELATED`。任何其他关系名、隐式 hierarchy、session-only edge 或未经 identity 绑定的 edge 都 invalid。
 
-每条 edge 必须绑定同一 project scope 内两个 stable `MemoryLayerIdentity` references。edge 连接 identity，不连接某个临时 candidate、raw transcript/evidence、Working item 或只存在于某一 revision 的 node；revision 只能作为 provenance/readability metadata。identity tuple 沿用 P2 persistence contract：`project_id + origin_session_id + origin_thread_id + origin_resolution_id`。A → B → A 必须复用 A 的 stable identity。
+每条 edge 必须绑定同一 project scope 内两个 stable `MemoryLayerIdentity` references。edge 连接 identity，不连接某个临时 candidate、`MemoryResolution` row、raw transcript/evidence、Working item 或只存在于某一 revision 的 node；revision 只能作为 provenance/readability metadata。accepted P2 stable identity tuple 为 `project_id + origin_session_id + origin_thread_id + origin_resolution_authority_id`。A → B → A 必须复用 A 的 stable identity。
 
-Graph traversal 只能产生 `graph_neighbor` source，并遵守 configured depth/limit 与同一 readable Mid/Long scope。它不得扩大 project/session scope，也不得绕过 authority、retention、deletion 或 status gate。
+Graph traversal 只能产生 canonical `graph` source，并遵守 configured depth/limit 与同一 readable Mid/Long scope。它不得扩大 project/session scope，也不得绕过 authority、retention、deletion 或 status gate。
 
 ## 6. Embedding and storage seam
 

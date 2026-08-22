@@ -4,11 +4,35 @@
   "title": "Memory P3 Retrieval V1 contract surface",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "scope", "query", "configuration", "storage", "embedding", "candidates", "graph_edges"],
+  "allOf": [
+    {
+      "if": { "properties": { "active_thread_id": { "type": "null" } } },
+      "then": { "properties": { "active_thread_revision": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "active_thread_id": { "type": "string" } } },
+      "then": { "properties": { "active_thread_revision": { "type": "integer", "minimum": 1 } } }
+    }
+  ],
+  "required": ["contract_version", "project_id", "current_session_id", "active_thread_id", "active_thread_revision", "current_working_signals", "recent_eligible_transcript_signals", "configuration", "storage", "embedding", "candidates", "graph_edges"],
   "properties": {
     "contract_version": { "const": "memory-p3-retrieval-v1" },
-    "scope": { "$ref": "#/$defs/scope" },
-    "query": { "$ref": "#/$defs/query" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "current_session_id": { "$ref": "#/$defs/uuid" },
+    "active_thread_id": { "type": ["string", "null"], "format": "uuid" },
+    "active_thread_revision": { "type": ["integer", "null"], "minimum": 1 },
+    "current_working_signals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workingSignal" }
+    },
+    "recent_eligible_transcript_signals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recentTranscriptSignal" }
+    },
+    "query_vector": {
+      "type": "array",
+      "items": { "type": "number" }
+    },
     "configuration": { "$ref": "#/$defs/configuration" },
     "storage": {
       "type": "object",
@@ -41,94 +65,78 @@
       "type": "string",
       "format": "uuid"
     },
-    "scope": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["project_id", "current_session_id"],
-      "properties": {
-        "project_id": { "$ref": "#/$defs/uuid" },
-        "current_session_id": { "$ref": "#/$defs/uuid" }
-      }
-    },
     "workingSignal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["working_memory_id", "thread_id", "revision", "kind", "status"],
+      "required": ["signal_id", "working_memory_id", "thread_id", "revision", "semantic_kind", "semantic_status"],
       "properties": {
+        "signal_id": { "type": "string", "minLength": 1 },
         "working_memory_id": { "type": "string", "minLength": 1 },
         "thread_id": { "$ref": "#/$defs/uuid" },
         "revision": { "type": "integer", "minimum": 1 },
-        "kind": { "enum": ["episode", "fact"] },
-        "status": { "enum": ["current", "uncertain", "disputed"] },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
         "query_text": { "type": "string", "minLength": 1, "maxLength": 4000 }
       }
     },
-    "query": {
+    "recentTranscriptSignal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["working_signals"],
+      "required": ["segment_id", "session_id", "text_revision", "speaker_role_revision", "effective_text_digest", "eligibility"],
       "properties": {
-        "working_signals": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/workingSignal" }
-        },
-        "query_vector": {
-          "type": "array",
-          "items": { "type": "number" }
-        }
+        "segment_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "eligibility": { "const": "trusted-elder-final-conversation" },
+        "bounded_query_text": { "type": "string", "minLength": 1, "maxLength": 1000 }
       }
     },
     "configuration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["embedding_threshold", "candidate_limit", "graph_neighbor_depth", "graph_neighbor_limit"],
+      "required": ["embedding_threshold", "candidate_limit", "graph_depth", "graph_limit"],
       "properties": {
         "embedding_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "candidate_limit": { "type": "integer", "minimum": 1 },
-        "graph_neighbor_depth": { "type": "integer", "minimum": 0 },
-        "graph_neighbor_limit": { "type": "integer", "minimum": 0 }
+        "graph_depth": { "type": "integer", "minimum": 0 },
+        "graph_limit": { "type": "integer", "minimum": 0 }
       }
     },
     "layerIdentity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["layer_identity_id", "project_id", "origin_session_id", "origin_thread_id", "origin_resolution_id"],
+      "required": ["layer_identity_id", "project_id", "origin_session_id", "origin_thread_id", "origin_resolution_authority_id"],
       "properties": {
         "layer_identity_id": { "$ref": "#/$defs/uuid" },
         "project_id": { "$ref": "#/$defs/uuid" },
         "origin_session_id": { "$ref": "#/$defs/uuid" },
         "origin_thread_id": { "$ref": "#/$defs/uuid" },
-        "origin_resolution_id": { "$ref": "#/$defs/uuid" }
+        "origin_resolution_authority_id": { "$ref": "#/$defs/uuid" }
       }
     },
     "candidate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["memory_id", "authority_id", "revision", "source_level", "source_session_ids", "kind", "status", "safe_content", "layer_identity", "retrieval_sources", "embedding_score", "graph_distance", "score", "rank"],
+      "required": ["memory_id", "resolution_authority_id", "revision_id", "source_level", "semantic_kind", "semantic_status", "safe_content", "retrieval_sources", "embedding_score", "graph_distance", "rank"],
       "properties": {
-        "memory_id": { "type": "string", "minLength": 1 },
-        "authority_id": { "$ref": "#/$defs/uuid" },
-        "revision": { "type": "integer", "minimum": 1 },
+        "memory_id": { "$ref": "#/$defs/uuid" },
+        "resolution_authority_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
         "source_level": { "enum": ["mid", "long"] },
-        "source_session_ids": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": { "$ref": "#/$defs/uuid" }
-        },
-        "kind": { "enum": ["episode", "fact"] },
-        "status": { "enum": ["current", "uncertain", "disputed"] },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
         "safe_content": { "type": "string", "minLength": 1, "maxLength": 12000 },
-        "layer_identity": { "$ref": "#/$defs/layerIdentity" },
         "retrieval_sources": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["embedding", "graph_neighbor"] }
+          "items": { "enum": ["embedding", "graph"] }
         },
         "embedding_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
         "graph_distance": { "type": ["integer", "null"], "minimum": 0 },
-        "score": { "type": "number", "minimum": 0, "maximum": 1 },
         "rank": { "type": "integer", "minimum": 0 }
       }
     },
