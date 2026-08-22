@@ -321,6 +321,142 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     );
   });
 
+  it('rolls back a multi-target commit when the second input loses its target CAS', async () => {
+    const rollbackFixture = await seedFixture(prisma);
+    integrationFixtures.push(rollbackFixture);
+    const frozen = freezeInput(
+      rollbackFixture,
+      await createP2Job(prisma, rollbackFixture, 'multi-target-rollback'),
+    );
+    await repository.freezeCheckpoint(frozen);
+    const valid = commitInput(rollbackFixture, frozen, {
+      canonicalKey: 'fact:multi-target-rollback',
+    });
+    const invalid = commitInput(rollbackFixture, frozen, {
+      canonicalKey: 'fact:multi-target-rollback-invalid',
+      expectedCurrentRevision: 1,
+    });
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    const retentionBefore = await prisma.memoryP2RetentionTarget.count({
+      where: { aiJobId: frozen.aiJobId },
+    });
+
+    await expect(repository.commitLayerRevisions([valid, invalid])).rejects.toMatchObject({
+      code: 'MEMORY_P2_AUTHORITY_CAS_MISMATCH',
+    });
+
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
+    expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: frozen.aiJobId } })).toBe(
+      0,
+    );
+    expect(await prisma.memoryResolution.count({ where: { aiJobId: frozen.aiJobId } })).toBe(0);
+    expect(await prisma.memoryClaim.count({ where: { aiJobId: frozen.aiJobId } })).toBe(0);
+    expect(await prisma.memoryP2RetentionTarget.count({ where: { aiJobId: frozen.aiJobId } })).toBe(
+      retentionBefore,
+    );
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: frozen.aiJobId } })).toMatchObject({
+      status: 'running',
+      failureCode: null,
+    });
+    expect(
+      await prisma.memoryP2JobProjection.findUniqueOrThrow({ where: { aiJobId: frozen.aiJobId } }),
+    ).toMatchObject({
+      targetLayerIdentityId: null,
+      targetLayerRevisionId: null,
+      targetRevisionDigest: null,
+    });
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({ where: { id: frozen.traceId } }),
+    ).toMatchObject({ status: 'running', errorCode: null });
+    expect(
+      await prisma.decisionTraceMemorySemantic.findUniqueOrThrow({
+        where: { aiJobId: frozen.aiJobId },
+      }),
+    ).toMatchObject({ commitDigest: null, planDigest: null, proposalDigest: null });
+  });
+
+  it('converges a committed multi-target job without duplicating durable authority', async () => {
+    const recoveryFixture = await seedFixture(prisma);
+    integrationFixtures.push(recoveryFixture);
+    const frozen = freezeInput(
+      recoveryFixture,
+      await createP2Job(prisma, recoveryFixture, 'multi-target-recovery'),
+    );
+    frozen.sourceTraceReferences = frozen.sourceTraceReferences.map((reference) =>
+      reference.sourceKind === 'job'
+        ? { ...reference, membershipDigest: sha256(`input:${frozen.aiJobId}`) }
+        : reference,
+    );
+    await repository.freezeCheckpoint(frozen);
+    await prisma.aiJobSessionScope.create({
+      data: {
+        aiJobId: frozen.aiJobId,
+        eligibleSegmentCount: 1,
+        id: randomUUID(),
+        inputOrder: 0,
+        maxSegmentId: recoveryFixture.segmentId,
+        maxSegmentStartMs: 0,
+        scopeReason: 'memory-p2-focused-recovery',
+        segmentManifestHash: manifestHash([
+          `${String(frozen.inputSegmentId)}:${recoveryFixture.segmentId}:0:1:${recoveryFixture.segmentDigest}`,
+        ]),
+        sessionId: recoveryFixture.sessionId,
+        speakerRoleRevision: 1,
+      },
+    });
+    const results = await repository.commitLayerRevisions([
+      commitInput(recoveryFixture, frozen, { canonicalKey: 'fact:multi-target-recovery-a' }),
+      commitInput(recoveryFixture, frozen, { canonicalKey: 'fact:multi-target-recovery-b' }),
+    ]);
+    expect(results).toHaveLength(2);
+
+    const authorityBefore = await repository.readRecoveryAuthority(frozen.aiJobId);
+    expect(authorityBefore?.committed).not.toBeNull();
+    if (authorityBefore?.committed === null || authorityBefore === null)
+      throw new Error('expected committed multi-target recovery authority');
+    const committedBefore = authorityBefore.committed;
+    const countsBefore = await businessCounts(prisma, frozen.aiJobId);
+    const recovery = new MemoryP2RecoveryService(
+      {
+        applyRecovery: repository.applyRecovery.bind(repository),
+        readRecoveryAuthority: repository.readRecoveryAuthority.bind(repository),
+        scanCandidateJobIds: repository.scanCandidateJobIds.bind(repository),
+        transactionOwnership: 'existing_ai_job_coordinator',
+      },
+      { record: (): void => undefined },
+      { now: (): Date => new Date('2026-08-22T00:00:00.000Z') },
+    );
+
+    expect(await recovery.reconcileJob(frozen.aiJobId)).toBe('already_converged');
+    expect(await recovery.reconcileJob(frozen.aiJobId)).toBe('already_converged');
+
+    const authorityAfter = await repository.readRecoveryAuthority(frozen.aiJobId);
+    expect(authorityAfter?.committed).toEqual(committedBefore);
+    expect(authorityAfter?.jobStatus).toBe('succeeded');
+    expect(authorityAfter?.trace?.status).toBe('succeeded');
+    expect(authorityAfter?.trace?.errorCode).toBeNull();
+    expect(
+      await prisma.memoryResolutionAuthority.count({
+        where: { authorityId: { in: committedBefore.resolutionAuthorityIds } },
+      }),
+    ).toBe(committedBefore.resolutionAuthorityIds.length);
+    expect(
+      await prisma.memoryEvidenceAuthority.count({
+        where: { evidenceId: { in: committedBefore.evidenceAuthorityIds } },
+      }),
+    ).toBe(committedBefore.evidenceAuthorityIds.length);
+    expect(await prisma.memoryResolution.count({ where: { aiJobId: frozen.aiJobId } })).toBe(2);
+    expect(await prisma.memoryClaim.count({ where: { aiJobId: frozen.aiJobId } })).toBe(2);
+    expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: frozen.aiJobId } })).toBe(
+      2,
+    );
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(countsBefore);
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: frozen.aiJobId } })).toMatchObject({
+      status: 'succeeded',
+      failureCode: null,
+    });
+  });
+
   it('returns cas_lost with zero semantic recovery mutation after a durable fence drift', async () => {
     const frozen = freezeInput(fixture, await createP2Job(prisma, fixture, 'recovery-fence'));
     await repository.freezeCheckpoint(frozen);
