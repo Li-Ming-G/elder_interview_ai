@@ -946,6 +946,7 @@ async function cleanupFixture(
   fixture: Awaited<ReturnType<typeof seedFixture>>,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL elder.p2_cleanup = 'on'");
     const [
       jobRows,
       checkpointRows,
