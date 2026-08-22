@@ -233,6 +233,7 @@ export interface MemoryP2TerminalizeUnavailableInput {
   aiJobId: string;
   errorCode: string;
   lease: MemoryP2LeaseToken;
+  status?: 'failed' | 'cancelled' | 'unavailable';
   traceId: string;
 }
 

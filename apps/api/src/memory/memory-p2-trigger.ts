@@ -1,17 +1,24 @@
 import { semanticCanonicalDigest } from './memory-semantic-envelope-contract.js';
 import {
   MEMORY_P2_SOURCE_CONTRACT_VERSION,
+  type MemoryP2AnyTriggerRequest,
   type MemoryP2Trigger,
-  type MemoryP2TriggerRequest,
 } from './memory-p2-runtime.types.js';
 
 const FINAL_TRIGGER = 'session_final_flush';
+const LONG_TRIGGER = 'long_session_end';
 
-export function buildMemoryP2Trigger(request: MemoryP2TriggerRequest): MemoryP2Trigger {
+export function buildMemoryP2Trigger(request: MemoryP2AnyTriggerRequest): MemoryP2Trigger {
   assertTriggerRequest(request);
-  const jobKind = request.kind === FINAL_TRIGGER ? 'mid_final' : 'mid_online';
+  const jobKind =
+    request.kind === LONG_TRIGGER
+      ? 'long_session_end'
+      : request.kind === FINAL_TRIGGER
+        ? 'mid_final'
+        : 'mid_online';
   const triggerIdentity = semanticCanonicalDigest('memory-p2-trigger-v1', {
-    final_tail_manifest_hash: request.finalTailManifestHash ?? null,
+    final_tail_manifest_hash:
+      'finalTailManifestHash' in request ? (request.finalTailManifestHash ?? null) : null,
     job_kind: jobKind,
     kind: request.kind,
     p1_source_contract_version: request.p1SourceContractVersion,
@@ -35,7 +42,7 @@ export function buildMemoryP2Trigger(request: MemoryP2TriggerRequest): MemoryP2T
   return { ...request, attemptNo, jobKind, requestIdentity, triggerIdentity };
 }
 
-function assertTriggerRequest(request: MemoryP2TriggerRequest): void {
+function assertTriggerRequest(request: MemoryP2AnyTriggerRequest): void {
   const sourceContractVersion = request.p1SourceContractVersion as string;
   if (sourceContractVersion !== MEMORY_P2_SOURCE_CONTRACT_VERSION)
     throw new Error('P2_P1_SOURCE_VERSION_INVALID');
@@ -51,7 +58,9 @@ function assertTriggerRequest(request: MemoryP2TriggerRequest): void {
   )
     throw new Error('P2_RETRY_PREDECESSOR_INVALID');
 
-  if (request.kind === FINAL_TRIGGER) {
+  if (request.kind === LONG_TRIGGER) {
+    if (request.p1TerminalJobId === null) throw new Error('P2_LONG_SOURCE_REQUIRED');
+  } else if (request.kind === FINAL_TRIGGER) {
     if (request.p1TerminalJobId === null || request.finalTailManifestHash === undefined)
       throw new Error('P2_FINAL_SOURCE_REQUIRED');
   } else if (request.p1TerminalJobId !== null || request.finalTailManifestHash !== undefined) {

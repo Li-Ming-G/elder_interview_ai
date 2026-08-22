@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { MemoryP2TriggerRequest } from './memory-p2-runtime.types.js';
+import type {
+  MemoryP2LongTriggerRequest,
+  MemoryP2TriggerRequest,
+} from './memory-p2-runtime.types.js';
 import { buildMemoryP2Trigger } from './memory-p2-trigger.js';
 
 describe('buildMemoryP2Trigger', () => {
@@ -36,6 +39,16 @@ describe('buildMemoryP2Trigger', () => {
         p1TerminalJobId: 'p1:terminal',
       }).jobKind,
     ).toBe('mid_final');
+  });
+
+  it('maps a durable Long wake to an explicit long_session_end job', () => {
+    const trigger = buildMemoryP2Trigger({
+      ...onlineRequest(),
+      kind: 'long_session_end',
+      p1TerminalJobId: 'p1:terminal',
+    } satisfies MemoryP2LongTriggerRequest);
+    expect(trigger.jobKind).toBe('long_session_end');
+    expect(trigger.kind).toBe('long_session_end');
   });
 
   it('rejects legacy P1 and non-terminal retry sources', () => {
