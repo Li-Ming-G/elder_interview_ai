@@ -122,73 +122,27 @@ describe('MemoryP3RetrievalService', () => {
     expect(result.graphEdges).toEqual([]);
   });
 
-  it('uses the supplied query vector and never turns Working into a candidate', async () => {
-    const source = makeSource('readable', 'mid', SESSION_ID, 'thread-other');
+  it('rejects a supplied query vector before any semantic comparison', async () => {
     const embed = vi.fn();
     const provider = {
       embed,
       modelId: 'fake-v1',
       providerId: 'fake-provider',
     };
-    const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
-      listEmbeddings: vi
-        .fn()
-        .mockResolvedValue([makeEmbedding(source.layerIdentityId, source.layerRevisionId, [1, 0])]),
-      listGraphNeighbors: vi.fn().mockResolvedValue([]),
+    const listEmbeddings = vi.fn();
+    const listGraphNeighbors = vi.fn();
+    const service = new MemoryP3RetrievalService(readerFor([]), provider, {
+      listEmbeddings,
+      listGraphNeighbors,
     });
 
-    const result = await service.retrieve({
-      ...makeRequest(),
-      queryVector: [1, 0],
-      currentWorkingSignals: [
-        { ...makeRequest().currentWorkingSignals[0], workingMemoryId: 'working-only' },
-      ],
-    });
+    await expect(service.retrieve({ ...makeRequest(), queryVector: [1, 0] })).rejects.toThrow(
+      'supplied query vector lacks structurally bound embedding identity',
+    );
 
     expect(embed).not.toHaveBeenCalled();
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]?.memoryId).toBe('readable');
-    expect(result.candidates[0]).not.toHaveProperty('workingMemoryId');
-  });
-
-  it('filters supplied query vectors to the exact configured profile and version', async () => {
-    const source = makeSource('same-layer', 'mid', SESSION_ID, 'thread-other');
-    const provider = {
-      embed: vi.fn(),
-      modelId: 'version-a',
-      providerId: 'profile-a',
-    };
-    const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
-      listEmbeddings: vi.fn().mockResolvedValue([
-        {
-          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [0.8, 0.6]),
-          embeddingProfile: 'profile-a',
-          embeddingVersion: 'version-a',
-        },
-        {
-          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [1, 0]),
-          embeddingProfile: 'profile-a',
-          embeddingVersion: 'version-b',
-        },
-        {
-          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [1, 0]),
-          embeddingProfile: 'profile-b',
-          embeddingVersion: 'version-a',
-        },
-      ]),
-      listGraphNeighbors: vi.fn().mockResolvedValue([]),
-    });
-
-    const result = await service.retrieve({
-      ...makeRequest(),
-      activeThreadId: null,
-      activeThreadRevision: null,
-      queryVector: [1, 0],
-      configuration: { ...makeRequest().configuration, embeddingThreshold: 0.5 },
-    });
-
-    expect(result.candidates).toHaveLength(1);
-    expect(result.candidates[0]?.embeddingScore).toBeCloseTo(0.8, 5);
+    expect(listEmbeddings).not.toHaveBeenCalled();
+    expect(listGraphNeighbors).not.toHaveBeenCalled();
   });
 
   it('fails closed when a generated query has no model version', async () => {
@@ -211,19 +165,21 @@ describe('MemoryP3RetrievalService', () => {
     );
   });
 
-  it('fails closed when a supplied query vector has no configured model version', async () => {
+  it('rejects a supplied query vector even when provider identity could relabel it', async () => {
+    const listEmbeddings = vi.fn();
     const provider: EmbeddingProvider = {
       embed: vi.fn(),
-      providerId: 'fake-provider',
+      providerId: 'profile-a',
     };
     const service = new MemoryP3RetrievalService(readerFor([]), provider, {
-      listEmbeddings: vi.fn(),
+      listEmbeddings,
       listGraphNeighbors: vi.fn(),
     });
 
     await expect(service.retrieve({ ...makeRequest(), queryVector: [1, 0] })).rejects.toThrow(
-      'supplied query vector requires exact embedding profile and version',
+      'supplied query vector lacks structurally bound embedding identity',
     );
+    expect(listEmbeddings).not.toHaveBeenCalled();
   });
 });
 

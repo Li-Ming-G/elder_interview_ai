@@ -49,10 +49,6 @@ interface QueryEmbedding {
   readonly vector: readonly number[];
 }
 
-interface EmbeddingProviderWithModel extends EmbeddingProvider {
-  readonly modelId?: string;
-}
-
 /**
  * P3's deterministic candidate-set runtime. Working and transcript values
  * are used only to form the query embedding; readable P2 sources are the
@@ -68,20 +64,16 @@ export class MemoryP3RetrievalService {
 
   public async retrieve(request: MemoryP3RetrievalRequest): Promise<MemoryP3RetrievalResult> {
     assertRequest(request);
+    if (request.queryVector !== undefined)
+      throw new Error('supplied query vector lacks structurally bound embedding identity');
     const sources = (await this.sourceReader.read(request.projectId))
       .filter((source) => isReadableScope(source, request))
       .sort(compareSources);
     const sourcesById = new Map(sources.map((source) => [source.layerIdentityId, source]));
 
-    const queryEmbedding =
-      request.queryVector === undefined
-        ? await this.embedQuery(request)
-        : {
-            ...configuredEmbeddingIdentity(this.embeddingProvider),
-            vector: validateVector(request.queryVector, 'query vector'),
-          };
+    const queryEmbedding = await this.embedQuery(request);
     const queryVector = queryEmbedding.vector;
-    const resultRequest = request.queryVector === undefined ? { ...request, queryVector } : request;
+    const resultRequest = { ...request, queryVector };
     const embeddings = await this.persistence.listEmbeddings(request.projectId);
     const candidates = new Map<string, CandidateState>();
     const semanticSeeds = new Set<string>();
@@ -218,16 +210,6 @@ function assertRequest(request: MemoryP3RetrievalRequest): void {
   if (!Number.isSafeInteger(configuration.graphLimit) || configuration.graphLimit < 0)
     throw new Error('graph limit must be a non-negative safe integer');
   if (request.queryVector !== undefined) validateVector(request.queryVector, 'query vector');
-}
-
-function configuredEmbeddingIdentity(
-  provider: EmbeddingProvider,
-): Pick<QueryEmbedding, 'modelId' | 'providerId'> {
-  const providerId = provider.providerId.trim();
-  const modelId = (provider as EmbeddingProviderWithModel).modelId?.trim();
-  if (providerId.length === 0 || modelId === undefined || modelId.length === 0)
-    throw new Error('supplied query vector requires exact embedding profile and version');
-  return { modelId, providerId };
 }
 
 function buildQuerySignal(request: MemoryP3RetrievalRequest): string {
