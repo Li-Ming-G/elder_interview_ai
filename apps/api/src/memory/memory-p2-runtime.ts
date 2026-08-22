@@ -332,11 +332,13 @@ export class MemoryP2RuntimeStoreAdapter
   public async readPolicyAuthority(
     aiJobId: string,
     writeAt: Date,
+    transaction?: Tx,
   ): Promise<MemoryP2TracePolicyAuthority | null> {
     void writeAt;
+    const db = transaction ?? this.prisma;
     const [job, projection] = await Promise.all([
-      this.prisma.aiJob.findUnique({ where: { id: aiJobId } }),
-      this.prisma.memoryP2JobProjection.findUnique({ where: { aiJobId } }),
+      db.aiJob.findUnique({ where: { id: aiJobId } }),
+      db.memoryP2JobProjection.findUnique({ where: { aiJobId } }),
     ]);
     if (job === null || projection === null) return null;
     return {
@@ -351,11 +353,13 @@ export class MemoryP2RuntimeStoreAdapter
 
   public async readSourceSessionAuthority(
     aiJobId: string,
+    transaction?: Tx,
   ): Promise<MemoryP2TraceSourceSessionAuthority | null> {
+    const db = transaction ?? this.prisma;
     const [job, projection, longProjection] = await Promise.all([
-      this.prisma.aiJob.findUnique({ where: { id: aiJobId } }),
-      this.prisma.memoryP2JobProjection.findUnique({ where: { aiJobId } }),
-      this.prisma.memoryLongJobProjection.findUnique({ where: { aiJobId } }),
+      db.aiJob.findUnique({ where: { id: aiJobId } }),
+      db.memoryP2JobProjection.findUnique({ where: { aiJobId } }),
+      db.memoryLongJobProjection.findUnique({ where: { aiJobId } }),
     ]);
     if (job === null) return null;
     if (job.jobType === 'long_session_end' && longProjection !== null)
@@ -365,7 +369,7 @@ export class MemoryP2RuntimeStoreAdapter
         sourceSessionManifestHash: longProjection.sourceSessionSetHash,
         targetLayer: 'long',
       };
-    const checkpoint = await this.prisma.memoryEvolutionCheckpoint.findFirst({
+    const checkpoint = await db.memoryEvolutionCheckpoint.findFirst({
       where:
         projection?.sourceFinalMidCheckpointId === null ||
         projection?.sourceFinalMidCheckpointId === undefined
@@ -386,14 +390,54 @@ export class MemoryP2RuntimeStoreAdapter
 
   public async readReferenceAuthorities(
     references: readonly MemoryP2TraceReference[],
+    transaction?: Tx,
   ): Promise<readonly MemoryP2TraceReferenceAuthority[]> {
+    const db = transaction ?? this.prisma;
     const authorities: MemoryP2TraceReferenceAuthority[] = [];
     for (const reference of references) {
-      const authority = await this.readReferenceAuthority(reference);
+      const authority = await this.readReferenceAuthority(reference, db);
       if (authority === null) return [];
       authorities.push(authority);
     }
     return authorities;
+  }
+
+  private async validateTraceWriteAuthorities(
+    tx: Tx,
+    write: MemoryP2DecisionTraceWrite,
+    expectedPolicyAuthority: MemoryP2TracePolicyAuthority,
+    expectedSourceSessionAuthority: MemoryP2TraceSourceSessionAuthority,
+    writeAt: Date,
+    expectedJobStatuses: readonly MemoryP2JobStatus[] = ['running'],
+  ): Promise<boolean> {
+    const job = await tx.aiJob.findUnique({ where: { id: write.parent.aiJobId } });
+    if (job === null || !expectedJobStatuses.includes(job.status)) return false;
+    const [policy, source, references] = await Promise.all([
+      this.readPolicyAuthority(write.parent.aiJobId, writeAt, tx),
+      this.readSourceSessionAuthority(write.parent.aiJobId, tx),
+      this.readReferenceAuthorities(write.references, tx),
+    ]);
+    return (
+      policy !== null &&
+      policy.aiJobId === expectedPolicyAuthority.aiJobId &&
+      policy.p2PolicyRevision === expectedPolicyAuthority.p2PolicyRevision &&
+      policy.p2RetentionPolicyVersion === expectedPolicyAuthority.p2RetentionPolicyVersion &&
+      policy.deletionScopeDigest === expectedPolicyAuthority.deletionScopeDigest &&
+      policy.retentionState === expectedPolicyAuthority.retentionState &&
+      policy.expiresAt.getTime() === expectedPolicyAuthority.expiresAt.getTime() &&
+      source !== null &&
+      source.aiJobId === expectedSourceSessionAuthority.aiJobId &&
+      source.targetLayer === expectedSourceSessionAuthority.targetLayer &&
+      sameStrings(source.sourceSessionIds, expectedSourceSessionAuthority.sourceSessionIds) &&
+      source.sourceSessionManifestHash ===
+        expectedSourceSessionAuthority.sourceSessionManifestHash &&
+      traceReferenceAuthoritiesMatch(
+        write.references,
+        references,
+        write.parent.projectId,
+        expectedSourceSessionAuthority.sourceSessionIds,
+      )
+    );
   }
 
   public async createRunning(input: {
@@ -403,10 +447,31 @@ export class MemoryP2RuntimeStoreAdapter
     writeAt: Date;
   }): Promise<MemoryP2TraceWriteResult> {
     return this.prisma.$transaction(async (tx) => {
+      if (
+        !(await this.validateTraceWriteAuthorities(
+          tx,
+          input.write,
+          input.expectedPolicyAuthority,
+          input.expectedSourceSessionAuthority,
+          input.writeAt,
+        ))
+      )
+        return { outcome: 'cas_lost', trace: null };
       const existing = await tx.decisionTrace.findUnique({
         where: { id: input.write.parent.traceId },
       });
-      if (existing !== null) return { outcome: 'replayed', trace: input.write };
+      if (existing !== null) {
+        const semantic = await tx.decisionTraceMemorySemantic.findUnique({
+          where: { traceId: input.write.parent.traceId },
+        });
+        return existing.status === 'running' &&
+          existing.stage === 'frozen' &&
+          semantic !== null &&
+          semantic.sourceManifestHash === input.write.semantic.sourceManifestHash &&
+          semantic.deletionScopeDigest === input.write.semantic.deletionScopeDigest
+          ? { outcome: 'replayed', trace: input.write }
+          : { outcome: 'cas_lost', trace: null };
+      }
       await tx.decisionTrace.create({ data: traceParentRow(input.write.parent) });
       await tx.decisionTraceMemorySemantic.create({ data: traceSemanticRow(input.write.semantic) });
       await tx.decisionTraceMemorySourceReference.createMany({
@@ -426,6 +491,16 @@ export class MemoryP2RuntimeStoreAdapter
     writeAt: Date;
   }): Promise<MemoryP2TraceWriteResult> {
     return this.prisma.$transaction(async (tx) => {
+      if (
+        !(await this.validateTraceWriteAuthorities(
+          tx,
+          input.write,
+          input.expectedPolicyAuthority,
+          input.expectedSourceSessionAuthority,
+          input.writeAt,
+        ))
+      )
+        return { outcome: 'cas_lost', trace: null };
       const semantic = await tx.decisionTraceMemorySemantic.findUnique({
         where: { traceId: input.write.parent.traceId },
       });
@@ -466,6 +541,17 @@ export class MemoryP2RuntimeStoreAdapter
     writeAt: Date;
   }): Promise<MemoryP2TraceWriteResult> {
     return this.prisma.$transaction(async (tx) => {
+      if (
+        !(await this.validateTraceWriteAuthorities(
+          tx,
+          input.write,
+          input.expectedPolicyAuthority,
+          input.expectedSourceSessionAuthority,
+          input.writeAt,
+          input.expectedJobStatuses,
+        ))
+      )
+        return { outcome: 'cas_lost', trace: null };
       const semantic = await tx.decisionTraceMemorySemantic.findUnique({
         where: { traceId: input.write.parent.traceId },
       });
@@ -734,6 +820,7 @@ export class MemoryP2RuntimeStoreAdapter
 
   private async readReferenceAuthority(
     reference: MemoryP2TraceReference,
+    db: Tx | PrismaService = this.prisma,
   ): Promise<MemoryP2TraceReferenceAuthority | null> {
     const targetId = referenceTarget(reference);
     const base = {
@@ -744,7 +831,7 @@ export class MemoryP2RuntimeStoreAdapter
       targetId,
     } as const;
     if (reference.sourceKind === 'checkpoint') {
-      const row = await this.prisma.memoryEvolutionCheckpoint.findUnique({
+      const row = await db.memoryEvolutionCheckpoint.findUnique({
         where: { id: targetId },
       });
       return row === null
@@ -759,7 +846,7 @@ export class MemoryP2RuntimeStoreAdapter
           };
     }
     if (reference.sourceKind === 'job') {
-      const row = await this.prisma.aiJob.findUnique({ where: { id: targetId } });
+      const row = await db.aiJob.findUnique({ where: { id: targetId } });
       return row === null
         ? null
         : {
@@ -770,14 +857,14 @@ export class MemoryP2RuntimeStoreAdapter
               row.retentionState === 'active' && row.expiresAt > this.clock.now()
                 ? 'active'
                 : 'expired',
-            sessionId: await this.jobSessionId(row.id),
+            sessionId: await this.jobSessionId(row.id, db),
             sourceRevision: 1,
           };
     }
     if (reference.sourceKind === 'input_segment') {
-      const row = await this.prisma.aiJobInputSegment.findUnique({ where: { id: targetId } });
+      const row = await db.aiJobInputSegment.findUnique({ where: { id: targetId } });
       if (row === null) return null;
-      const job = await this.prisma.aiJob.findUnique({ where: { id: row.aiJobId } });
+      const job = await db.aiJob.findUnique({ where: { id: row.aiJobId } });
       return job === null
         ? null
         : {
@@ -793,7 +880,7 @@ export class MemoryP2RuntimeStoreAdapter
           };
     }
     if (reference.sourceKind === 'evidence') {
-      const row = await this.prisma.memoryEvidenceAuthority.findUnique({
+      const row = await db.memoryEvidenceAuthority.findUnique({
         where: { evidenceId: targetId },
       });
       return row === null
@@ -807,11 +894,11 @@ export class MemoryP2RuntimeStoreAdapter
             sourceRevision: row.authorityRevision,
           };
     }
-    const row = await this.prisma.memoryResolutionAuthority.findUnique({
+    const row = await db.memoryResolutionAuthority.findUnique({
       where: { authorityId: targetId },
     });
     if (row === null) return null;
-    const member = await this.prisma.memoryEvolutionCheckpointMember.findFirst({
+    const member = await db.memoryEvolutionCheckpointMember.findFirst({
       orderBy: { inputOrder: 'asc' },
       where: { resolutionAuthorityId: row.authorityId },
     });
@@ -824,8 +911,8 @@ export class MemoryP2RuntimeStoreAdapter
     };
   }
 
-  private async jobSessionId(jobId: string): Promise<string> {
-    const row = await this.prisma.aiJobSessionScope.findFirst({
+  private async jobSessionId(jobId: string, db: Tx | PrismaService = this.prisma): Promise<string> {
+    const row = await db.aiJobSessionScope.findFirst({
       orderBy: { inputOrder: 'asc' },
       where: { aiJobId: jobId },
     });
@@ -1428,7 +1515,24 @@ export class MemoryP2RuntimeStoreAdapter
       entry.target.existing_source_ref_id === null ? null : sourceMember.resolution_revision;
     const existingResolutionId =
       entry.target.existing_source_ref_id === null ? null : sourceMember.resolution_id;
+    const existingAuthorityId =
+      entry.target.existing_source_ref_id === null
+        ? null
+        : sourceMember.source_ref_id.slice(sourceMember.source_ref_id.lastIndexOf(':') + 1);
     const targetLayer = request.attempt.context.mode === 'session_end_to_long' ? 'long' : 'mid';
+    const existingIdentity =
+      entry.target.existing_source_ref_id === null
+        ? null
+        : await this.prisma.memoryLayerIdentity.findUnique({
+            where: {
+              identityKeyDigest: semanticCanonicalDigest('memory-p2-layer-identity-v1', [
+                job.projectId,
+                targetState.canonical_key,
+                targetState.semantic_kind,
+                targetLayer,
+              ]),
+            },
+          });
     const longSources =
       targetLayer === 'long' ? await this.longSources(this.prisma, { id: checkpoint.id }) : [];
     const longSourceMidManifestHash =
@@ -1452,11 +1556,11 @@ export class MemoryP2RuntimeStoreAdapter
       proposalDigest: request.plan.proposal_digest,
       sourceSessionId: request.attempt.trigger.sessionId,
       target: {
-        authorityId: null,
+        authorityId: entry.target.existing_source_ref_id === null ? null : existingAuthorityId,
         canonicalKey: targetState.canonical_key,
         expectedCurrentResolutionId: existingResolutionId,
         expectedCurrentRevision: targetRevision ?? 0,
-        identityId: null,
+        identityId: existingIdentity?.id ?? null,
         identityKeyDigest: semanticCanonicalDigest('memory-p2-layer-identity-v1', [
           job.projectId,
           targetState.canonical_key,
@@ -1746,6 +1850,37 @@ function persistenceRetentionState(
     value === 'cleanup_failed'
     ? value
     : 'cleanup_failed';
+}
+
+function sameStrings(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length && actual.every((value, index) => value === expected[index])
+  );
+}
+
+function traceReferenceAuthoritiesMatch(
+  references: readonly MemoryP2TraceReference[],
+  authorities: readonly MemoryP2TraceReferenceAuthority[],
+  projectId: string,
+  sourceSessionIds: readonly string[],
+): boolean {
+  return (
+    references.length === authorities.length &&
+    references.every((reference, index) => {
+      const authority = authorities[index];
+      return (
+        authority !== undefined &&
+        authority.sourceKind === reference.sourceKind &&
+        authority.targetId === referenceTarget(reference) &&
+        authority.projectId === projectId &&
+        sourceSessionIds.includes(authority.sessionId) &&
+        authority.sourceRevision === reference.sourceRevision &&
+        authority.membershipDigest === reference.membershipDigest &&
+        authority.deletionScopeDigest === reference.deletionScopeDigest &&
+        authority.readability === 'active'
+      );
+    })
+  );
 }
 
 function deterministicUuid(value: string): string {

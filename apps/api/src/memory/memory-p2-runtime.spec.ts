@@ -85,6 +85,8 @@ describe('MemoryP2RuntimeStoreAdapter', () => {
         findMany: vi.fn(() =>
           Promise.resolve([
             {
+              projectId: PROJECT_ID,
+              sessionId: SESSION_ID,
               sourceKind: 'job',
               sourceJobId: JOB_ID,
               sourceCheckpointId: null,
@@ -130,6 +132,30 @@ describe('MemoryP2RuntimeStoreAdapter', () => {
 
     expect(parent.stage).toBe('validated');
     expect(semantic.proposalDigest).toBe(DIGEST);
+    expect(prisma.decisionTrace.updateMany).toHaveBeenCalledTimes(2);
+
+    const originalReadPolicyAuthority = adapter.readPolicyAuthority.bind(adapter);
+    let authorityReads = 0;
+    adapter.readPolicyAuthority = async (
+      aiJobId,
+      writeAt,
+      transaction,
+    ): Promise<Awaited<ReturnType<MemoryP2RuntimeStoreAdapter['readPolicyAuthority']>>> => {
+      const authority = await originalReadPolicyAuthority(aiJobId, writeAt, transaction);
+      authorityReads += 1;
+      return authorityReads >= 3 && authority !== null
+        ? { ...authority, deletionScopeDigest: 'b'.repeat(64) }
+        : authority;
+    };
+    await expect(
+      adapter.recordProgress({
+        jobId: JOB_ID,
+        planDigest: DIGEST,
+        proposalDigest: DIGEST,
+        sourceManifestHash: DIGEST,
+        stage: 'plan_built',
+      }),
+    ).rejects.toThrow('P2_CAS_LOST');
     expect(prisma.decisionTrace.updateMany).toHaveBeenCalledTimes(2);
   });
 });
