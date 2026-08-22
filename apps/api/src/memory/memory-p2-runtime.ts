@@ -14,6 +14,7 @@ import { MemoryP2PersistenceReader } from './memory-p2-persistence.reader.js';
 import { MemoryP2PersistenceRepository } from './memory-p2-persistence.repository.js';
 import { MemoryP2RecoveryService } from './memory-p2-recovery.service.js';
 import { MemoryP2DecisionTraceService } from './memory-p2-decision-trace.service.js';
+import { semanticSourceKindManifestHash } from './memory-semantic-envelope-contract.js';
 import {
   MemoryP2OrchestrationService,
   type MemoryP2Clock,
@@ -153,7 +154,7 @@ export class MemoryP2RuntimeStoreAdapter
     const frozen = await this.jobs.freeze({
       ...request,
       afterFreeze: async (tx, job) => {
-        const material = await this.material(tx, trigger, job, source);
+        const material = await this.material(tx, trigger, job, source, !source.long);
         const lease = this.lease(request.expiresAt);
         const traceId = deterministicUuid(`trace:${trigger.requestIdentity}`);
         if (source.long) {
@@ -955,6 +956,16 @@ export class MemoryP2RuntimeStoreAdapter
       where: { checkpointId: checkpoint.id },
       orderBy: { inputOrder: 'asc' },
     });
+    const midProjection = await this.prisma.memoryP2JobProjection.findFirst({
+      where: { jobKind: 'mid_final', sourceCheckpointId: checkpoint.id },
+    });
+    const midRevision =
+      midProjection?.targetLayerRevisionId === null ||
+      midProjection?.targetLayerRevisionId === undefined
+        ? null
+        : await this.prisma.memoryLayerRevision.findUnique({
+            where: { id: midProjection.targetLayerRevisionId },
+          });
     const snapshot = await this.prisma.memoryWorkingSnapshot.findFirst({
       orderBy: [{ committedAt: 'desc' }, { id: 'desc' }],
       where: {
@@ -963,19 +974,13 @@ export class MemoryP2RuntimeStoreAdapter
         contractVersion: 'memory-maintainer-v1.2',
       },
     });
-    const current =
-      snapshot === null
-        ? []
-        : await this.prisma.memoryWorkingSnapshotResolution.findMany({
-            where: { snapshotId: snapshot.id },
-            orderBy: { inputOrder: 'asc' },
-          });
     return {
       checkpointId: checkpoint.id,
       resolutionIds: [
         ...new Set([
-          ...mid.map((row) => row.resolutionRowId),
-          ...current.map((row) => row.memoryResolutionId),
+          ...(midRevision === null
+            ? mid.map((row) => row.resolutionRowId)
+            : [midRevision.resolutionRowId]),
         ]),
       ],
       snapshotId: snapshot?.id ?? null,
@@ -1057,18 +1062,34 @@ export class MemoryP2RuntimeStoreAdapter
             orderBy: { inputOrder: 'asc' },
             where: { checkpointId: checkpoint.id },
           });
+    const checkpointProjection =
+      source.long && checkpoint !== null
+        ? await tx.memoryP2JobProjection.findFirst({
+            where: { jobKind: 'mid_final', sourceCheckpointId: checkpoint.id },
+          })
+        : null;
+    const checkpointRevision =
+      checkpointProjection?.targetLayerRevisionId === null ||
+      checkpointProjection?.targetLayerRevisionId === undefined
+        ? null
+        : await tx.memoryLayerRevision.findUnique({
+            where: { id: checkpointProjection.targetLayerRevisionId },
+          });
     const selected = source.long
       ? [
-          ...checkpointRows.map((row) => ({
-            id: row.resolutionRowId,
-            order: row.inputOrder,
-            kind: 'mid_resolution' as const,
-          })),
-          ...snapshotRows.map((row) => ({
-            id: row.memoryResolutionId,
-            order: checkpointRows.length + row.inputOrder,
-            kind: 'current_resolution' as const,
-          })),
+          ...(checkpointRevision === null
+            ? checkpointRows.map((row) => ({
+                id: row.resolutionRowId,
+                order: row.inputOrder,
+                kind: 'mid_resolution' as const,
+              }))
+            : [
+                {
+                  id: checkpointRevision.resolutionRowId,
+                  order: 0,
+                  kind: 'mid_resolution' as const,
+                },
+              ]),
         ]
       : snapshotRows.map((row) => ({
           id: row.memoryResolutionId,
@@ -1126,7 +1147,7 @@ export class MemoryP2RuntimeStoreAdapter
         for (const link of byClaimEvidence.get(claim.id) ?? []) {
           const segment = byTranscript.get(link.transcriptSegmentId);
           if (segment === undefined) throw new MemoryP2RuntimeError('P2_SOURCE_DRIFT');
-          const ref = `evidence:${link.evidenceId ?? link.transcriptSegmentId}`;
+          const ref = `evidence:${link.transcriptSegmentId}`;
           refs.push(ref);
           if (!evidenceSeen.has(ref)) {
             evidenceSeen.add(ref);
@@ -1146,7 +1167,7 @@ export class MemoryP2RuntimeStoreAdapter
         semanticClaims.push({
           claim_key: claim.canonicalKey,
           evidence_ref_ids: refs,
-          source_claim_ref_id: claim.id,
+          source_claim_ref_id: `claim:${claim.id}`,
           value: claim.valueJson,
           value_kind: claim.valueKind,
         });
@@ -1259,11 +1280,15 @@ export class MemoryP2RuntimeStoreAdapter
           mid_expected_count: sourceMembers.filter(
             (member) => member.source_kind === 'mid_resolution',
           ).length,
-          mid_manifest_hash: null,
+          mid_manifest_hash: source.long
+            ? semanticSourceKindManifestHash('mid_resolution', sourceMembers)
+            : null,
           current_expected_count: sourceMembers.filter(
             (member) => member.source_kind === 'current_resolution',
           ).length,
-          current_manifest_hash: null,
+          current_manifest_hash: source.long
+            ? semanticSourceKindManifestHash('current_resolution', sourceMembers)
+            : null,
         },
         terminal_status: 'succeeded',
       },
@@ -1332,15 +1357,18 @@ export class MemoryP2RuntimeStoreAdapter
       retentionPolicyVersion: trigger.policy.retentionPolicyVersion,
       rootIdentity: trigger.sourceCheckpointRootIdentity,
       sourceBoundaryManifestHash: material.boundaryManifestHash,
-      sourceCurrentExpectedCount: 0,
-      sourceCurrentManifestHash: null,
+      sourceCurrentExpectedCount:
+        trigger.kind === 'session_final_flush' ? material.members.length : 0,
+      sourceCurrentManifestHash:
+        trigger.kind === 'session_final_flush' ? material.resolutionManifestHash : null,
       sourceP1TerminalJobId: trigger.p1TerminalJobId,
       sourceP1TerminalOutcome: trigger.p1TerminalJobId === null ? null : 'succeeded',
       sourceP1TerminalStatus: trigger.p1TerminalJobId === null ? null : 'succeeded',
       sourceResolutionManifestHash: material.resolutionManifestHash,
       sourceRevisionDigest: memberManifestHash,
       sourceSessionId: trigger.sessionId,
-      sourceSetKind: 'working_checkpoint',
+      sourceSetKind:
+        trigger.kind === 'session_final_flush' ? 'final_mid_and_current' : 'working_checkpoint',
       sourceThreadId: material.threadId,
       sourceThreadManifestHash: material.threadManifestHash,
       sourceThreadRevision: material.threadRevision,
@@ -1441,11 +1469,18 @@ export class MemoryP2RuntimeStoreAdapter
   private async commitInputForProposal(
     request: MemoryP2CommitRequest,
   ): Promise<MemoryP2CommitInput | null> {
+    const sourceCheckpointId = request.attempt.context.source_checkpoint.checkpoint_id;
+    const checkpointPromise =
+      request.attempt.context.mode === 'session_end_to_long'
+        ? this.prisma.memoryEvolutionCheckpoint.findUnique({
+            where: { id: typeof sourceCheckpointId === 'string' ? sourceCheckpointId : '' },
+          })
+        : this.prisma.memoryEvolutionCheckpoint.findFirst({
+            where: { p2ProducerJobId: request.attempt.jobId },
+          });
     const [projection, checkpoint, trace, job] = await Promise.all([
       this.prisma.memoryP2JobProjection.findUnique({ where: { aiJobId: request.attempt.jobId } }),
-      this.prisma.memoryEvolutionCheckpoint.findFirst({
-        where: { p2ProducerJobId: request.attempt.jobId },
-      }),
+      checkpointPromise,
       this.prisma.decisionTraceMemorySemantic.findUnique({
         where: { aiJobId: request.attempt.jobId },
       }),
@@ -1459,8 +1494,9 @@ export class MemoryP2RuntimeStoreAdapter
       job === null ||
       entry === undefined ||
       request.proposal.proposals.length !== 1
-    )
+    ) {
       return null;
+    }
     const targetState = entry.proposed_state;
     const sourceMember =
       request.attempt.context.source_members.find(
@@ -1469,7 +1505,9 @@ export class MemoryP2RuntimeStoreAdapter
       request.attempt.context.source_members.find(
         (member) => member.source_ref_id === entry.source_member_ref_ids[0],
       );
-    if (sourceMember === undefined) return null;
+    if (sourceMember === undefined) {
+      return null;
+    }
     const segmentRows = await this.prisma.aiJobInputSegment.findMany({
       where: { aiJobId: job.id },
     });
@@ -1482,18 +1520,27 @@ export class MemoryP2RuntimeStoreAdapter
       const evidences: MemoryP2EvidenceInput[] = [];
       for (const ref of claim.evidence_ref_ids) {
         const evidence = evidenceByRef.get(ref);
-        if (evidence === undefined) return null;
+        if (evidence === undefined) {
+          return null;
+        }
         const segment = segments.get(String(evidence.segment_id));
-        if (segment === undefined) return null;
+        if (segment === undefined) {
+          return null;
+        }
+        const membershipDigest = semanticCanonicalDigest(
+          'memory-p2-evidence-membership-v1',
+          evidence,
+        );
         evidences.push({
           authorityRevision: 1,
           effectiveTextDigest: segment.effectiveTextDigest,
-          expectedEvidenceId: ref.slice('evidence:'.length).includes('-')
-            ? ref.slice('evidence:'.length)
-            : null,
+          expectedEvidenceId:
+            ref.slice('evidence:'.length) === String(evidence.segment_id)
+              ? null
+              : ref.slice('evidence:'.length),
           inputOrder: segment.inputOrder,
           inputSegmentId: segment.id,
-          membershipDigest: semanticCanonicalDigest('memory-p2-evidence-membership-v1', evidence),
+          membershipDigest,
           sourceId: segment.transcriptSegmentId,
           speakerRoleRevision: segment.speakerRoleRevision,
           textRevision: segment.textRevision,
@@ -1520,6 +1567,7 @@ export class MemoryP2RuntimeStoreAdapter
         ? null
         : sourceMember.source_ref_id.slice(sourceMember.source_ref_id.lastIndexOf(':') + 1);
     const targetLayer = request.attempt.context.mode === 'session_end_to_long' ? 'long' : 'mid';
+    const identityLayer = targetLayer === 'long' ? 'mid' : targetLayer;
     const existingIdentity =
       entry.target.existing_source_ref_id === null
         ? null
@@ -1529,7 +1577,7 @@ export class MemoryP2RuntimeStoreAdapter
                 job.projectId,
                 targetState.canonical_key,
                 targetState.semantic_kind,
-                targetLayer,
+                identityLayer,
               ]),
             },
           });
@@ -1565,7 +1613,7 @@ export class MemoryP2RuntimeStoreAdapter
           job.projectId,
           targetState.canonical_key,
           targetState.semantic_kind,
-          targetLayer,
+          identityLayer,
         ]),
         layer: targetLayer,
         resolutionKind:
@@ -1652,7 +1700,7 @@ export class MemoryP2RuntimeStoreAdapter
       targetRevision: 0,
     });
     const source = await this.sourceSpec(provisional);
-    const material = await this.material(
+    await this.material(
       this.prisma,
       provisional,
       {
@@ -1672,10 +1720,7 @@ export class MemoryP2RuntimeStoreAdapter
       source,
       false,
     );
-    return buildMemoryP2Trigger({
-      ...provisional,
-      sourceManifestHash: material.context.source_manifest_hash,
-    });
+    return provisional;
   }
 }
 
@@ -1959,7 +2004,7 @@ function traceRefs(
       deletionScopeDigest,
       inputOrder: refs.length,
       membershipDigest: member.content_digest,
-      sourceId: member.resolution_id,
+      sourceId: member.source_ref_id.slice(member.source_ref_id.lastIndexOf(':') + 1),
       sourceKind: 'resolution',
       sourceRevision: member.resolution_revision,
     });

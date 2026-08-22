@@ -3,17 +3,35 @@ import { randomUUID } from 'node:crypto';
 import { loadApiConfig } from '@elder-interview/config';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { AiJobCoordinatorService } from '../../apps/api/src/ai-runtime/ai-job-coordinator.service.js';
+import { AiOutputEligibilityService } from '../../apps/api/src/ai-runtime/ai-output-eligibility.service.js';
+import {
+  AiPolicyService,
+  LocalTestBoundaryPolicyFixtureReader,
+} from '../../apps/api/src/ai-runtime/ai-policy.service.js';
+import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { canonicalDigest } from '../../apps/api/src/memory/memory-persistence-contract.js';
 import {
+  EMPTY_MANIFEST_HASH,
   effectiveTextDigest,
   manifestHash,
   sha256,
 } from '../../apps/api/src/ai-runtime/ai-provenance.js';
 import { PrismaService } from '../../apps/api/src/database/prisma.service.js';
 import { Prisma } from '../../apps/api/src/generated/prisma/client.js';
+import {
+  DeterministicMemoryP2Provider,
+  type MemoryP2ProviderPort,
+} from '../../apps/api/src/memory/memory-p2-provider.port.js';
 import { MemoryP2PersistenceReader } from '../../apps/api/src/memory/memory-p2-persistence.reader.js';
 import { MemoryP2PersistenceRepository } from '../../apps/api/src/memory/memory-p2-persistence.repository.js';
+import { MemoryP2PlanAdapter } from '../../apps/api/src/memory/memory-p2-plan-adapter.js';
 import { MemoryP2RecoveryService } from '../../apps/api/src/memory/memory-p2-recovery.service.js';
+import {
+  MemoryP2RuntimeFacade,
+  MemoryP2RuntimeStoreAdapter,
+} from '../../apps/api/src/memory/memory-p2-runtime.js';
+import { buildMemoryP2Trigger } from '../../apps/api/src/memory/memory-p2-trigger.js';
 import {
   memoryP2CheckpointManifestHash,
   memoryP2LongSourceManifestHash,
@@ -23,12 +41,25 @@ import {
   type MemoryP2FreezeCheckpointInput,
   type MemoryP2LeaseToken,
 } from '../../apps/api/src/memory/memory-p2-persistence.types.js';
+import {
+  semanticContentDigest,
+  semanticEvidenceManifestHash,
+  semanticSourceManifestHash,
+} from '../../apps/api/src/memory/memory-semantic-envelope-contract.js';
+import type {
+  MemoryP2AnyTriggerRequest,
+  MemoryP2MidTriggerKind,
+  MemoryP2RunResult,
+  MemoryP2SemanticContext,
+  MemoryP2SemanticProposal,
+} from '../../apps/api/src/memory/memory-p2-runtime.types.js';
 
 describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
   let prisma: PrismaService;
   let repository: MemoryP2PersistenceRepository;
   let reader: MemoryP2PersistenceReader;
   let fixture: Awaited<ReturnType<typeof seedFixture>>;
+  const integrationFixtures: Array<Awaited<ReturnType<typeof seedFixture>>> = [];
 
   beforeAll(async () => {
     const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -50,10 +81,138 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
 
   afterAll(async () => {
     try {
+      for (const integrationFixture of integrationFixtures)
+        await cleanupFixture(prisma, integrationFixture);
       await cleanupFixture(prisma, fixture);
     } finally {
       await prisma.$disconnect();
     }
+  });
+
+  it('runs the accepted PostgreSQL binding through Mid, Long wake, replay, and recovery', async () => {
+    const onlineFixture = await seedFixture(prisma);
+    const finalFixture = await seedFixture(prisma);
+    integrationFixtures.push(onlineFixture, finalFixture);
+    await prepareRuntimeFixture(prisma, onlineFixture);
+    await prepareRuntimeFixture(prisma, finalFixture);
+    const sourceManifestHash = await runtimeSourceManifestHash(prisma, onlineFixture);
+    const clock = new ManualClock(new Date(Date.now() + 60_000));
+    const deletionScopes = new LocalTestDeletionScopeFixtureReader();
+    const boundaries = new LocalTestBoundaryPolicyFixtureReader(prisma);
+    const policy = new AiPolicyService(prisma, deletionScopes, boundaries);
+    const eligibility = new AiOutputEligibilityService(prisma, policy);
+    const jobs = new AiJobCoordinatorService(prisma, policy, eligibility);
+    const store = new MemoryP2RuntimeStoreAdapter(prisma, jobs, policy, repository, reader, clock);
+    const runtime = new MemoryP2RuntimeFacade(
+      store,
+      new DeterministicNewSlotMemoryP2Provider(),
+      new MemoryP2PlanAdapter(),
+      clock,
+    );
+
+    const online = buildMemoryP2Trigger(
+      runtimeTriggerRequest(onlineFixture, sourceManifestHash, 'capacity_checkpoint'),
+    );
+    const onlineResult = await runtime.run(online);
+    const onlineJobId = requireJobId(onlineResult);
+    expect(onlineResult).toMatchObject({ outcome: 'succeeded', replayed: false });
+    const onlineCounts = await runtimeCounts(prisma, onlineFixture.projectId);
+    expect(onlineCounts).toMatchObject({ midJobs: 1, longJobs: 0, revisions: 1 });
+    expect(await prisma.decisionTrace.count({ where: { aiJobId: onlineJobId } })).toBe(1);
+
+    const onlineReplay = await runtime.run(online);
+    expect(onlineReplay).toMatchObject({ outcome: 'succeeded', replayed: true });
+    expect(await runtimeCounts(prisma, onlineFixture.projectId)).toEqual(onlineCounts);
+
+    const finalSourceManifestHash = await runtimeSourceManifestHash(prisma, finalFixture);
+    const finalClock = new ManualClock(new Date(Date.now() + 60_000));
+    const finalDeletionScopes = new LocalTestDeletionScopeFixtureReader();
+    const finalBoundaries = new LocalTestBoundaryPolicyFixtureReader(prisma);
+    const finalPolicy = new AiPolicyService(prisma, finalDeletionScopes, finalBoundaries);
+    const finalEligibility = new AiOutputEligibilityService(prisma, finalPolicy);
+    const finalJobs = new AiJobCoordinatorService(prisma, finalPolicy, finalEligibility);
+    const finalStore = new MemoryP2RuntimeStoreAdapter(
+      prisma,
+      finalJobs,
+      finalPolicy,
+      repository,
+      reader,
+      finalClock,
+    );
+    const finalRuntime = new MemoryP2RuntimeFacade(
+      finalStore,
+      new DeterministicNewSlotMemoryP2Provider(),
+      new MemoryP2PlanAdapter(),
+      finalClock,
+    );
+
+    const final = buildMemoryP2Trigger(
+      runtimeTriggerRequest(finalFixture, finalSourceManifestHash, 'session_final_flush'),
+    );
+    const finalResult = await finalRuntime.run(final);
+    const finalJobId = requireJobId(finalResult);
+    expect(finalResult).toMatchObject({ outcome: 'succeeded', followUp: 'registered' });
+    const finalProjection = await prisma.memoryP2JobProjection.findUniqueOrThrow({
+      where: { aiJobId: finalJobId },
+    });
+    expect(finalProjection.jobKind).toBe('mid_final');
+
+    const candidate = (await finalRuntime.listPendingLongWakeCandidates()).find(
+      (item) => item.sourceMidJobId === finalJobId,
+    );
+    expect(candidate).toBeDefined();
+    if (candidate === undefined) throw new Error('expected pending Long wake candidate');
+    const longResult = await finalRuntime.runLongWakeCandidate(candidate);
+    const longJobId = requireJobId(longResult);
+    expect(longResult).toMatchObject({ outcome: 'succeeded', replayed: false });
+    const longProjection = await prisma.memoryLongJobProjection.findUniqueOrThrow({
+      where: { aiJobId: longJobId },
+    });
+    const longJobProjection = await prisma.memoryP2JobProjection.findUniqueOrThrow({
+      where: { aiJobId: longJobId },
+    });
+    expect(longJobProjection.jobKind).toBe('long_session_end');
+    expect(longProjection.sourceFinalCheckpointId).toBe(finalProjection.sourceCheckpointId);
+    expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: longJobId } })).toBe(1);
+    expect(
+      await prisma.memoryLayerRevision.count({
+        where: { sourceJobId: longJobId, layer: 'long' },
+      }),
+    ).toBe(1);
+    expect(await prisma.memoryLongJobProjection.count({ where: { aiJobId: onlineJobId } })).toBe(0);
+
+    const stale = buildMemoryP2Trigger(
+      runtimeTriggerRequest(finalFixture, finalSourceManifestHash, 'semantic_park'),
+    );
+    const frozen = await finalStore.freezeJobCheckpointAndRunningTrace(stale);
+    expect(frozen.kind).toBe('claimed');
+    if (frozen.kind !== 'claimed') throw new Error('expected stale trigger to be claimed');
+    const staleJobId = frozen.attempt.jobId;
+    const staleProjection = await prisma.memoryP2JobProjection.findUniqueOrThrow({
+      where: { aiJobId: staleJobId },
+    });
+    await prisma.memoryEvolutionCheckpoint.update({
+      data: { committedAt: new Date(), lifecycleStatus: 'committed' },
+      where: { id: staleProjection.sourceCheckpointId },
+    });
+    const beforeRecovery = await runtimeCounts(prisma, finalFixture.projectId);
+    finalClock.advance(31_000);
+    const recovery = await finalRuntime.reconcilePersistedState();
+    expect(recovery).toContainEqual({ jobId: staleJobId, outcome: 'terminalized_uncommitted' });
+    const afterRecovery = await prisma.aiJob.findUniqueOrThrow({
+      where: { id: staleJobId },
+    });
+    expect(afterRecovery.status).toBe('unavailable');
+    expect(await runtimeCounts(prisma, finalFixture.projectId)).toEqual({
+      ...beforeRecovery,
+      unavailableJobs: beforeRecovery.unavailableJobs + 1,
+    });
+    expect(await finalRuntime.reconcilePersistedState()).toEqual([]);
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: afterRecovery.id } })).toMatchObject(
+      {
+        status: 'unavailable',
+      },
+    );
   });
 
   it('roundtrips freeze and atomic commit through the fail-closed reader', async () => {
@@ -160,6 +319,142 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: frozen.aiJobId } })).toBe(
       2,
     );
+  });
+
+  it('rolls back a multi-target commit when the second input loses its target CAS', async () => {
+    const rollbackFixture = await seedFixture(prisma);
+    integrationFixtures.push(rollbackFixture);
+    const frozen = freezeInput(
+      rollbackFixture,
+      await createP2Job(prisma, rollbackFixture, 'multi-target-rollback'),
+    );
+    await repository.freezeCheckpoint(frozen);
+    const valid = commitInput(rollbackFixture, frozen, {
+      canonicalKey: 'fact:multi-target-rollback',
+    });
+    const invalid = commitInput(rollbackFixture, frozen, {
+      canonicalKey: 'fact:multi-target-rollback-invalid',
+      expectedCurrentRevision: 1,
+    });
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    const retentionBefore = await prisma.memoryP2RetentionTarget.count({
+      where: { aiJobId: frozen.aiJobId },
+    });
+
+    await expect(repository.commitLayerRevisions([valid, invalid])).rejects.toMatchObject({
+      code: 'MEMORY_P2_AUTHORITY_CAS_MISMATCH',
+    });
+
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
+    expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: frozen.aiJobId } })).toBe(
+      0,
+    );
+    expect(await prisma.memoryResolution.count({ where: { aiJobId: frozen.aiJobId } })).toBe(0);
+    expect(await prisma.memoryClaim.count({ where: { aiJobId: frozen.aiJobId } })).toBe(0);
+    expect(await prisma.memoryP2RetentionTarget.count({ where: { aiJobId: frozen.aiJobId } })).toBe(
+      retentionBefore,
+    );
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: frozen.aiJobId } })).toMatchObject({
+      status: 'running',
+      failureCode: null,
+    });
+    expect(
+      await prisma.memoryP2JobProjection.findUniqueOrThrow({ where: { aiJobId: frozen.aiJobId } }),
+    ).toMatchObject({
+      targetLayerIdentityId: null,
+      targetLayerRevisionId: null,
+      targetRevisionDigest: null,
+    });
+    expect(
+      await prisma.decisionTrace.findUniqueOrThrow({ where: { id: frozen.traceId } }),
+    ).toMatchObject({ status: 'running', errorCode: null });
+    expect(
+      await prisma.decisionTraceMemorySemantic.findUniqueOrThrow({
+        where: { aiJobId: frozen.aiJobId },
+      }),
+    ).toMatchObject({ commitDigest: null, planDigest: null, proposalDigest: null });
+  });
+
+  it('converges a committed multi-target job without duplicating durable authority', async () => {
+    const recoveryFixture = await seedFixture(prisma);
+    integrationFixtures.push(recoveryFixture);
+    const frozen = freezeInput(
+      recoveryFixture,
+      await createP2Job(prisma, recoveryFixture, 'multi-target-recovery'),
+    );
+    frozen.sourceTraceReferences = frozen.sourceTraceReferences.map((reference) =>
+      reference.sourceKind === 'job'
+        ? { ...reference, membershipDigest: sha256(`input:${frozen.aiJobId}`) }
+        : reference,
+    );
+    await repository.freezeCheckpoint(frozen);
+    await prisma.aiJobSessionScope.create({
+      data: {
+        aiJobId: frozen.aiJobId,
+        eligibleSegmentCount: 1,
+        id: randomUUID(),
+        inputOrder: 0,
+        maxSegmentId: recoveryFixture.segmentId,
+        maxSegmentStartMs: 0,
+        scopeReason: 'memory-p2-focused-recovery',
+        segmentManifestHash: manifestHash([
+          `${String(frozen.inputSegmentId)}:${recoveryFixture.segmentId}:0:1:${recoveryFixture.segmentDigest}`,
+        ]),
+        sessionId: recoveryFixture.sessionId,
+        speakerRoleRevision: 1,
+      },
+    });
+    const results = await repository.commitLayerRevisions([
+      commitInput(recoveryFixture, frozen, { canonicalKey: 'fact:multi-target-recovery-a' }),
+      commitInput(recoveryFixture, frozen, { canonicalKey: 'fact:multi-target-recovery-b' }),
+    ]);
+    expect(results).toHaveLength(2);
+
+    const authorityBefore = await repository.readRecoveryAuthority(frozen.aiJobId);
+    expect(authorityBefore?.committed).not.toBeNull();
+    if (authorityBefore?.committed === null || authorityBefore === null)
+      throw new Error('expected committed multi-target recovery authority');
+    const committedBefore = authorityBefore.committed;
+    const countsBefore = await businessCounts(prisma, frozen.aiJobId);
+    const recovery = new MemoryP2RecoveryService(
+      {
+        applyRecovery: repository.applyRecovery.bind(repository),
+        readRecoveryAuthority: repository.readRecoveryAuthority.bind(repository),
+        scanCandidateJobIds: repository.scanCandidateJobIds.bind(repository),
+        transactionOwnership: 'existing_ai_job_coordinator',
+      },
+      { record: (): void => undefined },
+      { now: (): Date => new Date('2026-08-22T00:00:00.000Z') },
+    );
+
+    expect(await recovery.reconcileJob(frozen.aiJobId)).toBe('already_converged');
+    expect(await recovery.reconcileJob(frozen.aiJobId)).toBe('already_converged');
+
+    const authorityAfter = await repository.readRecoveryAuthority(frozen.aiJobId);
+    expect(authorityAfter?.committed).toEqual(committedBefore);
+    expect(authorityAfter?.jobStatus).toBe('succeeded');
+    expect(authorityAfter?.trace?.status).toBe('succeeded');
+    expect(authorityAfter?.trace?.errorCode).toBeNull();
+    expect(
+      await prisma.memoryResolutionAuthority.count({
+        where: { authorityId: { in: committedBefore.resolutionAuthorityIds } },
+      }),
+    ).toBe(committedBefore.resolutionAuthorityIds.length);
+    expect(
+      await prisma.memoryEvidenceAuthority.count({
+        where: { evidenceId: { in: committedBefore.evidenceAuthorityIds } },
+      }),
+    ).toBe(committedBefore.evidenceAuthorityIds.length);
+    expect(await prisma.memoryResolution.count({ where: { aiJobId: frozen.aiJobId } })).toBe(2);
+    expect(await prisma.memoryClaim.count({ where: { aiJobId: frozen.aiJobId } })).toBe(2);
+    expect(await prisma.memoryLayerRevision.count({ where: { sourceJobId: frozen.aiJobId } })).toBe(
+      2,
+    );
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(countsBefore);
+    expect(await prisma.aiJob.findUniqueOrThrow({ where: { id: frozen.aiJobId } })).toMatchObject({
+      status: 'succeeded',
+      failureCode: null,
+    });
   });
 
   it('returns cas_lost with zero semantic recovery mutation after a durable fence drift', async () => {
@@ -1057,6 +1352,319 @@ interface RuntimeFixture {
   threadRevisionId: string;
 }
 
+async function prepareRuntimeFixture(
+  prisma: PrismaService,
+  fixture: Awaited<ReturnType<typeof seedFixture>>,
+): Promise<void> {
+  const inputSegmentId = randomUUID();
+  const inputMemoryId = randomUUID();
+  const outputId = randomUUID();
+  const segmentManifestHash = manifestHash([
+    `${inputSegmentId}:${fixture.segmentId}:0:1:${fixture.segmentDigest}`,
+  ]);
+  const memoryManifestHash = manifestHash([`${inputMemoryId}:${fixture.sourceResolutionId}:1`]);
+
+  await prisma.projectAssignment.create({
+    data: {
+      projectId: fixture.projectId,
+      userId: fixture.actorId,
+    },
+  });
+  await prisma.consentRecord.create({
+    data: {
+      consentMethod: 'written',
+      consentTextVersion: 'memory-p2-runtime-fixture-v1',
+      consentedAt: new Date('2026-08-22T00:00:00.000Z'),
+      createdBy: fixture.actorId,
+      projectId: fixture.projectId,
+    },
+  });
+  await prisma.aiJobSessionScope.create({
+    data: {
+      aiJobId: fixture.p1JobId,
+      eligibleSegmentCount: 1,
+      id: randomUUID(),
+      inputOrder: 0,
+      maxSegmentId: fixture.segmentId,
+      maxSegmentStartMs: 0,
+      scopeReason: 'memory-p2-runtime-fixture',
+      segmentManifestHash,
+      sessionId: fixture.sessionId,
+      speakerRoleRevision: 1,
+    },
+  });
+  await prisma.aiJobInputSegment.create({
+    data: {
+      aiJobId: fixture.p1JobId,
+      contentKind: 'conversation',
+      effectiveTextDigest: fixture.segmentDigest,
+      id: inputSegmentId,
+      inputOrder: 0,
+      roleAuthority: 'user_confirmed',
+      sessionId: fixture.sessionId,
+      speakerRoleRevision: 1,
+      textRevision: 0,
+      transcriptSegmentId: fixture.segmentId,
+      trustedEffectiveRole: 'elder',
+    },
+  });
+  await prisma.memoryClaimEvidence.create({
+    data: {
+      aiJobInputSegmentId: inputSegmentId,
+      evidenceOrder: 0,
+      id: randomUUID(),
+      memoryClaimId: fixture.sourceClaimId,
+      transcriptSegmentId: fixture.segmentId,
+    },
+  });
+  await prisma.aiJobInputMemory.create({
+    data: {
+      aiJobId: fixture.p1JobId,
+      id: inputMemoryId,
+      inputOrder: 0,
+      memoryResolutionId: fixture.sourceResolutionId,
+      resolutionRevision: 1,
+    },
+  });
+  await prisma.$transaction(async (tx) => {
+    await tx.aiDerivedOutput.create({
+      data: {
+        aiJobId: fixture.p1JobId,
+        businessOutputId: fixture.sourceResolutionId,
+        expectedMemoryCount: 1,
+        expectedMemoryManifestHash: memoryManifestHash,
+        expectedQuestionCount: 0,
+        expectedQuestionManifestHash: EMPTY_MANIFEST_HASH,
+        expectedSegmentCount: 1,
+        expectedSegmentManifestHash: segmentManifestHash,
+        id: outputId,
+        outputType: 'memory_resolution',
+        projectId: fixture.projectId,
+      },
+    });
+    await tx.memoryResolution.update({
+      data: {
+        aiDerivedOutputId: outputId,
+        aiJobId: fixture.p1JobId,
+        authority: 'automatic',
+        memoryRetentionRootId: null,
+      },
+      where: { id: fixture.sourceResolutionId },
+    });
+  });
+  await prisma.aiOutputSegmentDependency.create({
+    data: {
+      aiDerivedOutputId: outputId,
+      aiJobInputSegmentId: inputSegmentId,
+      dependencyOrder: 0,
+      id: randomUUID(),
+    },
+  });
+  await prisma.aiOutputMemoryDependency.create({
+    data: {
+      aiDerivedOutputId: outputId,
+      aiJobInputMemoryId: inputMemoryId,
+      dependencyOrder: 0,
+      id: randomUUID(),
+    },
+  });
+  await prisma.interviewContextSnapshot.create({
+    data: {
+      actualQuestionCount: 0,
+      actualQuestionManifestHash: EMPTY_MANIFEST_HASH,
+      aiDerivedOutputId: outputId,
+      aiJobId: fixture.p1JobId,
+      consumerSessionId: fixture.sessionId,
+      id: fixture.snapshotId,
+      memoryCount: 1,
+      memoryManifestHash,
+      policyRevision: 1,
+      projectId: fixture.projectId,
+    },
+  });
+  await prisma.contextSnapshotMemory.create({
+    data: {
+      contextSnapshotId: fixture.snapshotId,
+      inputOrder: 0,
+      memoryResolutionId: fixture.sourceResolutionId,
+      resolutionRevision: 1,
+    },
+  });
+}
+
+async function runtimeSourceManifestHash(
+  prisma: PrismaService,
+  fixture: Awaited<ReturnType<typeof seedFixture>>,
+): Promise<string> {
+  const [snapshotRows, resolutions, claims, evidence] = await Promise.all([
+    prisma.memoryWorkingSnapshotResolution.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { snapshotId: fixture.snapshotId },
+    }),
+    prisma.memoryResolution.findMany({ where: { id: fixture.sourceResolutionId } }),
+    prisma.memoryClaim.findMany({ where: { id: fixture.sourceClaimId } }),
+    prisma.memoryClaimEvidence.findMany({
+      orderBy: { evidenceOrder: 'asc' },
+      where: { memoryClaimId: fixture.sourceClaimId },
+    }),
+  ]);
+  const resolution = resolutions[0];
+  const claim = claims[0];
+  if (
+    resolution === undefined ||
+    claim === undefined ||
+    resolution.authorityId === null ||
+    snapshotRows.length !== 1
+  )
+    throw new Error('runtime fixture source rows are incomplete');
+  const snapshotRow = snapshotRows[0];
+  if (snapshotRow === undefined) throw new Error('runtime fixture snapshot row is missing');
+  const evidenceMembership: Record<string, unknown>[] = [];
+  const evidenceRefs = evidence.map((link) => `evidence:${link.transcriptSegmentId}`);
+  for (const [inputOrder, ref] of evidenceRefs.entries()) {
+    evidenceMembership.push({
+      content_kind: 'conversation',
+      effective_text_digest: fixture.segmentDigest,
+      evidence_ref_id: ref,
+      input_order: inputOrder,
+      segment_id: fixture.segmentId,
+      session_id: fixture.sessionId,
+      speaker_role_revision: 1,
+      text_revision: 0,
+      trusted_role: 'elder',
+    });
+  }
+  const state = {
+    canonical_key: resolution.canonicalKey,
+    claims: [
+      {
+        claim_key: claim.canonicalKey,
+        evidence_ref_ids: evidenceRefs,
+        source_claim_ref_id: `claim:${claim.id}`,
+        value: claim.valueJson,
+        value_kind: claim.valueKind,
+      },
+    ],
+    memory_tag: resolution.memoryType,
+    resolution_kind: resolution.resolutionKind,
+    semantic_kind: resolution.semanticKind,
+    semantic_status: resolution.semanticStatus,
+    value: resolution.resolvedValueJson,
+    value_kind: 'exact',
+  } as const;
+  const sourceMembers = [
+    {
+      authority: 'automatic' as const,
+      content_digest: semanticContentDigest(state),
+      input_order: snapshotRow.inputOrder,
+      project_id: resolution.projectId,
+      resolution_id: resolution.id,
+      resolution_revision: resolution.resolutionRevision,
+      semantic_state: state,
+      session_id: resolution.sourceSessionId ?? fixture.sessionId,
+      source_kind: 'working_resolution' as const,
+      source_ref_id: `src:working_resolution:${resolution.authorityId}`,
+    },
+  ];
+  expect(semanticEvidenceManifestHash(evidenceMembership)).toHaveLength(64);
+  return semanticSourceManifestHash(sourceMembers, evidenceMembership);
+}
+
+function runtimeTriggerRequest(
+  fixture: Awaited<ReturnType<typeof seedFixture>>,
+  sourceManifestHash: string,
+  kind: MemoryP2MidTriggerKind,
+): MemoryP2AnyTriggerRequest {
+  const request = {
+    kind,
+    p1SourceContractVersion: 'memory-maintainer-v1.2' as const,
+    p1TerminalJobId: kind === 'session_final_flush' ? fixture.p1JobId : null,
+    policy: {
+      aiPolicyRevision: 1,
+      deletionScopeDigest: sha256(`p2-runtime-scope:${fixture.projectId}`),
+      p2PolicyRevision: 'memory-p2-policy-v1',
+      p2RetentionPolicyVersion: 'memory-p2-retention-v1',
+      retentionPolicyVersion: 1,
+    },
+    projectId: fixture.projectId,
+    sessionId: fixture.sessionId,
+    sourceCheckpointRootIdentity: sha256(`p2-runtime-root:${kind}:${fixture.projectId}`),
+    sourceManifestHash,
+    sourceSnapshotId: fixture.snapshotId,
+    sourceSnapshotRevision: 1,
+    targetLayerRootIdentity: sha256(`p2-runtime-target:${kind}:${fixture.projectId}`),
+    targetRevision: 0,
+  };
+  return kind === 'session_final_flush'
+    ? { ...request, finalTailManifestHash: sha256(`p2-runtime-final-tail:${fixture.sessionId}`) }
+    : request;
+}
+
+function requireJobId(result: MemoryP2RunResult): string {
+  if (!('jobId' in result)) throw new Error('expected a durable P2 job result');
+  return result.jobId;
+}
+
+async function runtimeCounts(
+  prisma: PrismaService,
+  projectId: string,
+): Promise<{
+  longJobs: number;
+  midJobs: number;
+  revisions: number;
+  unavailableJobs: number;
+}> {
+  const [midJobs, longJobs, revisions, unavailableJobs] = await Promise.all([
+    prisma.aiJob.count({ where: { jobType: { in: ['mid_online', 'mid_final'] }, projectId } }),
+    prisma.aiJob.count({ where: { jobType: 'long_session_end', projectId } }),
+    prisma.memoryLayerRevision.count({ where: { projectId } }),
+    prisma.aiJob.count({ where: { projectId, status: 'unavailable' } }),
+  ]);
+  return { longJobs, midJobs, revisions, unavailableJobs };
+}
+
+class ManualClock {
+  public constructor(private current: Date) {}
+
+  public now(): Date {
+    return new Date(this.current);
+  }
+
+  public advance(milliseconds: number): void {
+    this.current = new Date(this.current.getTime() + milliseconds);
+  }
+}
+
+class DeterministicNewSlotMemoryP2Provider implements MemoryP2ProviderPort {
+  private readonly delegate = new DeterministicMemoryP2Provider('test');
+
+  public async propose(
+    context: MemoryP2SemanticContext,
+    signal: AbortSignal,
+  ): Promise<MemoryP2SemanticProposal> {
+    const proposal = await this.delegate.propose(context, signal);
+    if (context.mode === 'session_end_to_long') return proposal;
+    return {
+      ...proposal,
+      proposals: proposal.proposals.map((item) => {
+        const canonicalKey = `${item.proposed_state.canonical_key}:p2-integration`;
+        return {
+          ...item,
+          proposed_state: {
+            ...item.proposed_state,
+            canonical_key: canonicalKey,
+            claims: item.proposed_state.claims.map((claim) => ({
+              ...claim,
+              claim_key: canonicalKey,
+            })),
+          },
+          target: { existing_source_ref_id: null, kind: 'new_slot' as const },
+        };
+      }),
+    };
+  }
+}
+
 async function cleanupFixture(
   prisma: PrismaService,
   fixture: Awaited<ReturnType<typeof seedFixture>>,
@@ -1071,6 +1679,8 @@ async function cleanupFixture(
       traceRows,
       sessionRows,
       threadRows,
+      derivedOutputRows,
+      contextSnapshotRows,
     ] = await Promise.all([
       tx.aiJob.findMany({
         select: { id: true },
@@ -1100,6 +1710,14 @@ async function cleanupFixture(
         select: { id: true },
         where: { projectId: fixture.projectId },
       }),
+      tx.aiDerivedOutput.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.interviewContextSnapshot.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
     ]);
     const jobIds = jobRows.map((row) => row.id);
     const checkpointIds = checkpointRows.map((row) => row.id);
@@ -1108,6 +1726,8 @@ async function cleanupFixture(
     const traceIds = traceRows.map((row) => row.id);
     const sessionIds = sessionRows.map((row) => row.id);
     const threadIds = threadRows.map((row) => row.id);
+    const derivedOutputIds = derivedOutputRows.map((row) => row.id);
+    const contextSnapshotIds = contextSnapshotRows.map((row) => row.id);
     const inputSegmentRows = await tx.aiJobInputSegment.findMany({
       select: { id: true },
       where: { aiJobId: { in: jobIds } },
@@ -1147,8 +1767,23 @@ async function cleanupFixture(
       where: { aiJobInputSegmentId: { in: inputSegmentIds } },
     });
     await tx.memoryClaimEvidence.deleteMany({
-      where: { aiJobInputSegmentId: { in: inputSegmentIds } },
+      where: {
+        OR: [{ aiJobInputSegmentId: { in: inputSegmentIds } }, { memoryClaimId: { in: claimIds } }],
+      },
     });
+    await tx.aiOutputSegmentDependency.deleteMany({
+      where: { aiDerivedOutputId: { in: derivedOutputIds } },
+    });
+    await tx.aiOutputMemoryDependency.deleteMany({
+      where: { aiDerivedOutputId: { in: derivedOutputIds } },
+    });
+    await tx.contextSnapshotMemory.deleteMany({
+      where: { contextSnapshotId: { in: contextSnapshotIds } },
+    });
+    await tx.contextSnapshotActualQuestion.deleteMany({
+      where: { contextSnapshotId: { in: contextSnapshotIds } },
+    });
+    await tx.interviewContextSnapshot.deleteMany({ where: { id: { in: contextSnapshotIds } } });
     await tx.memoryLayerRevisionMember.deleteMany({
       where: { revisionId: { in: layerRevisionIds } },
     });
