@@ -47,7 +47,13 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     fixture = await seedFixture(prisma);
   });
 
-  afterAll(async () => prisma.$disconnect());
+  afterAll(async () => {
+    try {
+      await cleanupFixture(prisma, fixture);
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
 
   it('roundtrips freeze and atomic commit through the fail-closed reader', async () => {
     const frozen = freezeInput(fixture, await createP2Job(prisma, fixture, 'roundtrip'));
@@ -933,4 +939,145 @@ interface RuntimeFixture {
   streamId: string;
   threadId: string;
   threadRevisionId: string;
+}
+
+async function cleanupFixture(
+  prisma: PrismaService,
+  fixture: Awaited<ReturnType<typeof seedFixture>>,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const [
+      jobRows,
+      checkpointRows,
+      layerIdentityRows,
+      layerRevisionRows,
+      traceRows,
+      sessionRows,
+      threadRows,
+    ] = await Promise.all([
+      tx.aiJob.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.memoryEvolutionCheckpoint.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.memoryLayerIdentity.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.memoryLayerRevision.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.decisionTrace.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.interviewSession.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+      tx.memoryThread.findMany({
+        select: { id: true },
+        where: { projectId: fixture.projectId },
+      }),
+    ]);
+    const jobIds = jobRows.map((row) => row.id);
+    const checkpointIds = checkpointRows.map((row) => row.id);
+    const layerIdentityIds = layerIdentityRows.map((row) => row.id);
+    const layerRevisionIds = layerRevisionRows.map((row) => row.id);
+    const traceIds = traceRows.map((row) => row.id);
+    const sessionIds = sessionRows.map((row) => row.id);
+    const threadIds = threadRows.map((row) => row.id);
+    const inputSegmentRows = await tx.aiJobInputSegment.findMany({
+      select: { id: true },
+      where: { aiJobId: { in: jobIds } },
+    });
+    const inputSegmentIds = inputSegmentRows.map((row) => row.id);
+    const longProjectionRows = await tx.memoryLongJobProjection.findMany({
+      select: { id: true },
+      where: { aiJobId: { in: jobIds } },
+    });
+    const longProjectionIds = longProjectionRows.map((row) => row.id);
+    const resolutionRows = await tx.memoryResolution.findMany({
+      select: { id: true },
+      where: { projectId: fixture.projectId },
+    });
+    const resolutionIds = resolutionRows.map((row) => row.id);
+    const claimRows = await tx.memoryClaim.findMany({
+      select: { id: true },
+      where: { projectId: fixture.projectId },
+    });
+    const claimIds = claimRows.map((row) => row.id);
+    const snapshotRows = await tx.memoryWorkingSnapshot.findMany({
+      select: { id: true },
+      where: { projectId: fixture.projectId },
+    });
+    const snapshotIds = snapshotRows.map((row) => row.id);
+
+    // Remove reference/provenance children before their RESTRICT parents.
+    await tx.memoryLongJobProjectionSource.deleteMany({
+      where: { projectionId: { in: longProjectionIds } },
+    });
+    await tx.memoryP2RetentionTarget.deleteMany({ where: { aiJobId: { in: jobIds } } });
+    await tx.decisionTraceMemorySourceReference.deleteMany({
+      where: { traceId: { in: traceIds } },
+    });
+    await tx.decisionTraceMemorySemantic.deleteMany({ where: { traceId: { in: traceIds } } });
+    await tx.memoryEvidenceBridge.deleteMany({
+      where: { aiJobInputSegmentId: { in: inputSegmentIds } },
+    });
+    await tx.memoryClaimEvidence.deleteMany({
+      where: { aiJobInputSegmentId: { in: inputSegmentIds } },
+    });
+    await tx.memoryLayerRevisionMember.deleteMany({
+      where: { revisionId: { in: layerRevisionIds } },
+    });
+    await tx.memoryEvolutionCheckpointMember.deleteMany({
+      where: { checkpointId: { in: checkpointIds } },
+    });
+    await tx.memoryResolutionMember.deleteMany({
+      where: {
+        OR: [{ memoryResolutionId: { in: resolutionIds } }, { memoryClaimId: { in: claimIds } }],
+      },
+    });
+    await tx.memoryWorkingSnapshotResolution.deleteMany({
+      where: { snapshotId: { in: snapshotIds } },
+    });
+    await tx.memoryWorkingSnapshotThread.deleteMany({ where: { snapshotId: { in: snapshotIds } } });
+    await tx.memoryWorkingSnapshotBoundary.deleteMany({
+      where: { snapshotId: { in: snapshotIds } },
+    });
+    await tx.aiJobInputMemory.deleteMany({ where: { aiJobId: { in: jobIds } } });
+    await tx.aiJobSessionScope.deleteMany({ where: { aiJobId: { in: jobIds } } });
+    await tx.memoryWorkingConsumption.deleteMany({ where: { projectId: fixture.projectId } });
+
+    await tx.memoryLongJobProjection.deleteMany({ where: { id: { in: longProjectionIds } } });
+    await tx.memoryP2JobProjection.deleteMany({ where: { aiJobId: { in: jobIds } } });
+    await tx.memoryLayerRevision.deleteMany({ where: { id: { in: layerRevisionIds } } });
+    await tx.memoryLayerIdentity.deleteMany({ where: { id: { in: layerIdentityIds } } });
+    await tx.memoryEvolutionCheckpoint.deleteMany({ where: { id: { in: checkpointIds } } });
+    await tx.memoryResolution.deleteMany({ where: { id: { in: resolutionIds } } });
+    await tx.memoryClaim.deleteMany({ where: { id: { in: claimIds } } });
+    await tx.memoryEvidenceAuthority.deleteMany({ where: { projectId: fixture.projectId } });
+    await tx.memoryResolutionAuthority.deleteMany({ where: { projectId: fixture.projectId } });
+    await tx.memoryWorkingSnapshot.deleteMany({ where: { id: { in: snapshotIds } } });
+    await tx.decisionTrace.deleteMany({ where: { id: { in: traceIds } } });
+
+    // This is intentionally before transcript/session deletion: the seeded transcript
+    // must not retain any AiJobInputSegment FK from this suite.
+    await tx.aiJobInputSegment.deleteMany({ where: { id: { in: inputSegmentIds } } });
+    await tx.aiJob.deleteMany({ where: { id: { in: jobIds } } });
+    await tx.memoryThreadRevision.deleteMany({ where: { sourceSessionId: { in: sessionIds } } });
+    await tx.memoryThreadRevision.deleteMany({ where: { threadId: { in: threadIds } } });
+    await tx.memoryThread.deleteMany({ where: { projectId: fixture.projectId } });
+    await tx.transcriptSegment.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await tx.speakerStream.deleteMany({ where: { sessionId: { in: sessionIds } } });
+    await tx.interviewSession.deleteMany({ where: { projectId: fixture.projectId } });
+    await tx.memoryRetentionRoot.deleteMany({ where: { projectId: fixture.projectId } });
+    await tx.elderProject.deleteMany({ where: { id: fixture.projectId } });
+    await tx.user.deleteMany({ where: { id: fixture.actorId } });
+  });
 }
