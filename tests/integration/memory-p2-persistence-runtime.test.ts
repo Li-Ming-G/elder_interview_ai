@@ -190,6 +190,28 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
           if (authority?.trace === null || authority === null) return authority;
           return {
             ...authority,
+            checkpoint:
+              authority.checkpoint === null
+                ? null
+                : {
+                    ...authority.checkpoint,
+                    deletionScopeDigest: authority.identity.deletionScopeDigest,
+                    p2PolicyRevision: authority.p2PolicyRevision,
+                    p2RetentionPolicyVersion: authority.p2RetentionPolicyVersion,
+                    projectId: authority.identity.projectId,
+                    sessionId: authority.identity.sessionId,
+                    sourceManifestHash: authority.identity.sourceManifestHash,
+                    status: 'committed',
+                  },
+            legacyNullResolutionCount: 0,
+            migrationStatus: 'completed',
+            referenceAuthorities: authority.referenceAuthorities.map((reference) => ({
+              ...reference,
+              projectId: authority.identity.projectId,
+              readability: 'active',
+              sessionId: authority.sourceSessionIds[0] ?? authority.identity.sessionId,
+            })),
+            retentionState: 'active',
             trace: {
               ...authority.trace,
               commitDigest: null,
