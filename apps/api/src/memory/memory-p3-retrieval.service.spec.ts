@@ -23,6 +23,7 @@ describe('MemoryP3RetrievalService', () => {
     ];
     const embed = vi.fn<EmbeddingProvider['embed']>().mockResolvedValue({
       dimensions: 2,
+      modelId: 'fake-v1',
       providerId: 'fake-provider',
       vector: [1, 0],
     });
@@ -95,9 +96,12 @@ describe('MemoryP3RetrievalService', () => {
   it('returns an empty candidate set when semantic scores miss the threshold and there are no graph seeds', async () => {
     const source = makeSource('unrelated', 'long', 'session-old', 'thread-other');
     const provider: EmbeddingProvider = {
-      embed: vi
-        .fn()
-        .mockResolvedValue({ dimensions: 2, providerId: 'fake-provider', vector: [1, 0] }),
+      embed: vi.fn().mockResolvedValue({
+        dimensions: 2,
+        modelId: 'fake-v1',
+        providerId: 'fake-provider',
+        vector: [1, 0],
+      }),
       providerId: 'fake-provider',
     };
     const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
@@ -121,8 +125,9 @@ describe('MemoryP3RetrievalService', () => {
   it('uses the supplied query vector and never turns Working into a candidate', async () => {
     const source = makeSource('readable', 'mid', SESSION_ID, 'thread-other');
     const embed = vi.fn();
-    const provider: EmbeddingProvider = {
+    const provider = {
       embed,
+      modelId: 'fake-v1',
       providerId: 'fake-provider',
     };
     const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
@@ -144,6 +149,81 @@ describe('MemoryP3RetrievalService', () => {
     expect(result.candidates).toHaveLength(1);
     expect(result.candidates[0]?.memoryId).toBe('readable');
     expect(result.candidates[0]).not.toHaveProperty('workingMemoryId');
+  });
+
+  it('filters supplied query vectors to the exact configured profile and version', async () => {
+    const source = makeSource('same-layer', 'mid', SESSION_ID, 'thread-other');
+    const provider = {
+      embed: vi.fn(),
+      modelId: 'version-a',
+      providerId: 'profile-a',
+    };
+    const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
+      listEmbeddings: vi.fn().mockResolvedValue([
+        {
+          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [0.8, 0.6]),
+          embeddingProfile: 'profile-a',
+          embeddingVersion: 'version-a',
+        },
+        {
+          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [1, 0]),
+          embeddingProfile: 'profile-a',
+          embeddingVersion: 'version-b',
+        },
+        {
+          ...makeEmbedding(source.layerIdentityId, source.layerRevisionId, [1, 0]),
+          embeddingProfile: 'profile-b',
+          embeddingVersion: 'version-a',
+        },
+      ]),
+      listGraphNeighbors: vi.fn().mockResolvedValue([]),
+    });
+
+    const result = await service.retrieve({
+      ...makeRequest(),
+      activeThreadId: null,
+      activeThreadRevision: null,
+      queryVector: [1, 0],
+      configuration: { ...makeRequest().configuration, embeddingThreshold: 0.5 },
+    });
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]?.embeddingScore).toBeCloseTo(0.8, 5);
+  });
+
+  it('fails closed when a generated query has no model version', async () => {
+    const source = makeSource('missing-model', 'mid', SESSION_ID, 'thread-other');
+    const provider: EmbeddingProvider = {
+      embed: vi.fn().mockResolvedValue({
+        dimensions: 2,
+        providerId: 'fake-provider',
+        vector: [1, 0],
+      }),
+      providerId: 'fake-provider',
+    };
+    const service = new MemoryP3RetrievalService(readerFor([source]), provider, {
+      listEmbeddings: vi.fn(),
+      listGraphNeighbors: vi.fn(),
+    });
+
+    await expect(service.retrieve(makeRequest())).rejects.toThrow(
+      'query embedding model id is required',
+    );
+  });
+
+  it('fails closed when a supplied query vector has no configured model version', async () => {
+    const provider: EmbeddingProvider = {
+      embed: vi.fn(),
+      providerId: 'fake-provider',
+    };
+    const service = new MemoryP3RetrievalService(readerFor([]), provider, {
+      listEmbeddings: vi.fn(),
+      listGraphNeighbors: vi.fn(),
+    });
+
+    await expect(service.retrieve({ ...makeRequest(), queryVector: [1, 0] })).rejects.toThrow(
+      'supplied query vector requires exact embedding profile and version',
+    );
   });
 });
 

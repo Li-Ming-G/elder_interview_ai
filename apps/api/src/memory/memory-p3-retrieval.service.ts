@@ -44,9 +44,13 @@ interface GraphQueueItem {
 }
 
 interface QueryEmbedding {
-  readonly modelId?: string;
+  readonly modelId: string;
   readonly providerId: string;
   readonly vector: readonly number[];
+}
+
+interface EmbeddingProviderWithModel extends EmbeddingProvider {
+  readonly modelId?: string;
 }
 
 /**
@@ -72,7 +76,10 @@ export class MemoryP3RetrievalService {
     const queryEmbedding =
       request.queryVector === undefined
         ? await this.embedQuery(request)
-        : { providerId: '', vector: validateVector(request.queryVector, 'query vector') };
+        : {
+            ...configuredEmbeddingIdentity(this.embeddingProvider),
+            vector: validateVector(request.queryVector, 'query vector'),
+          };
     const queryVector = queryEmbedding.vector;
     const resultRequest = request.queryVector === undefined ? { ...request, queryVector } : request;
     const embeddings = await this.persistence.listEmbeddings(request.projectId);
@@ -83,13 +90,7 @@ export class MemoryP3RetrievalService {
       const source = sourcesById.get(embedding.layerIdentityId);
       if (source === undefined || !isCurrentEmbedding(embedding, source, queryVector)) continue;
       if (
-        request.queryVector === undefined &&
-        embedding.embeddingProfile !== queryEmbedding.providerId
-      )
-        continue;
-      if (
-        request.queryVector === undefined &&
-        queryEmbedding.modelId !== undefined &&
+        embedding.embeddingProfile !== queryEmbedding.providerId ||
         embedding.embeddingVersion !== queryEmbedding.modelId
       )
         continue;
@@ -128,11 +129,11 @@ export class MemoryP3RetrievalService {
       throw new Error('query embedding vector length must equal dimensions');
     if (result.providerId.trim().length === 0)
       throw new Error('query embedding provider id is required');
-    if (result.modelId !== undefined && result.modelId.trim().length === 0)
-      throw new Error('query embedding model id must not be empty');
-    return result.modelId === undefined
-      ? { providerId: result.providerId, vector }
-      : { modelId: result.modelId, providerId: result.providerId, vector };
+    if (result.providerId !== this.embeddingProvider.providerId)
+      throw new Error('query embedding provider id does not match configured profile');
+    if (result.modelId === undefined || result.modelId.trim().length === 0)
+      throw new Error('query embedding model id is required');
+    return { modelId: result.modelId, providerId: result.providerId, vector };
   }
 
   private async expandGraph(
@@ -217,6 +218,16 @@ function assertRequest(request: MemoryP3RetrievalRequest): void {
   if (!Number.isSafeInteger(configuration.graphLimit) || configuration.graphLimit < 0)
     throw new Error('graph limit must be a non-negative safe integer');
   if (request.queryVector !== undefined) validateVector(request.queryVector, 'query vector');
+}
+
+function configuredEmbeddingIdentity(
+  provider: EmbeddingProvider,
+): Pick<QueryEmbedding, 'modelId' | 'providerId'> {
+  const providerId = provider.providerId.trim();
+  const modelId = (provider as EmbeddingProviderWithModel).modelId?.trim();
+  if (providerId.length === 0 || modelId === undefined || modelId.length === 0)
+    throw new Error('supplied query vector requires exact embedding profile and version');
+  return { modelId, providerId };
 }
 
 function buildQuerySignal(request: MemoryP3RetrievalRequest): string {
