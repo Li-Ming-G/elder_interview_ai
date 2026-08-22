@@ -4,6 +4,7 @@ import type { MemoryP2PersistenceReader } from './memory-p2-persistence.reader.j
 import {
   DeterministicFakeEmbeddingProvider,
   MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+  MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
 } from './memory-p3-embedding.provider.js';
 import { MemoryP3IndexService } from './memory-p3-index.service.js';
 import type { MemoryP3PersistenceRepository } from './memory-p3-persistence.repository.js';
@@ -51,8 +52,8 @@ describe('MemoryP3IndexService', () => {
     );
 
     const result = await service.index({
-      embeddingProfile: 'fake-profile',
-      embeddingVersion: 'fake-v1',
+      embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+      embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
       projectId: PROJECT_ID,
     });
 
@@ -61,17 +62,35 @@ describe('MemoryP3IndexService', () => {
     expect(upsertEmbedding).toHaveBeenCalledWith(
       expect.objectContaining({
         dimensions: 4,
-        embeddingProfile: 'fake-profile',
-        embeddingVersion: 'fake-v1',
+        embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+        embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
         inputDigest: source.contentDigest,
         layerRevisionId: source.layerRevisionId,
       }),
     );
+
+    const replay = await service.index({
+      embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+      embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
+      projectId: PROJECT_ID,
+    });
+    expect(replay.indexed[0]?.id).toBe(result.indexed[0]?.id);
+    expect(upsertEmbedding.mock.calls[1]?.[0]).toEqual(upsertEmbedding.mock.calls[0]?.[0]);
+    expect(upsertEmbedding).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+        embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
+      }),
+    );
   });
 
-  it('skips a source that changed revision or content before the derived write', async () => {
+  it.each([
+    ['revision', { layerRevisionId: 'new-revision', revisionNo: 2 }],
+    ['content', { contentDigest: 'c'.repeat(64) }],
+  ])('skips a source with stale %s before the derived write', async (_kind, change) => {
     const source = makeSource();
-    const current = { ...source, layerRevisionId: 'new-revision', revisionNo: 2 };
+    const current = { ...source, ...change };
     const sourceReader: MemoryP3SourceReaderPort = {
       read: vi.fn().mockResolvedValue([source]),
       readCurrentLayer: vi.fn().mockResolvedValue(current),
@@ -85,12 +104,51 @@ describe('MemoryP3IndexService', () => {
 
     await expect(
       service.index({
-        embeddingProfile: 'fake-profile',
-        embeddingVersion: 'fake-v1',
+        embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+        embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
         projectId: PROJECT_ID,
       }),
     ).resolves.toMatchObject({ indexed: [], skippedStale: 1 });
     expect(upsertEmbedding).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['mismatched profile', 'other-provider', MEMORY_P3_FAKE_EMBEDDING_MODEL_ID],
+    ['mismatched version', MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID, 'other-model'],
+  ])('rejects %s from the provider result', async (_kind, embeddingProfile, embeddingVersion) => {
+    const source = makeSource();
+    const service = new MemoryP3IndexService(
+      readerFor(source),
+      new DeterministicFakeEmbeddingProvider(4),
+      { upsertEmbedding: vi.fn() } as unknown as MemoryP3PersistenceRepository,
+    );
+
+    await expect(
+      service.index({ embeddingProfile, embeddingVersion, projectId: PROJECT_ID }),
+    ).rejects.toThrow(/does not match/);
+  });
+
+  it.each([undefined, ''])('rejects a missing or empty provider model id', async (modelId) => {
+    const source = makeSource();
+    const provider = {
+      embed: vi.fn().mockResolvedValue({
+        dimensions: 4,
+        modelId,
+        providerId: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+        vector: [0, 0, 0, 0],
+      }),
+    };
+    const service = new MemoryP3IndexService(readerFor(source), provider, {
+      upsertEmbedding: vi.fn(),
+    } as unknown as MemoryP3PersistenceRepository);
+
+    await expect(
+      service.index({
+        embeddingProfile: MEMORY_P3_FAKE_EMBEDDING_PROVIDER_ID,
+        embeddingVersion: MEMORY_P3_FAKE_EMBEDDING_MODEL_ID,
+        projectId: PROJECT_ID,
+      }),
+    ).rejects.toThrow('embedding model id is required');
   });
 });
 
@@ -179,6 +237,39 @@ describe('MemoryP3SourceReader', () => {
 
     expect(sources).toEqual([]);
   });
+
+  it('fails closed when resolution members contain an unvalidated extra claim', async () => {
+    const { prisma, layer } = sourceFixture({
+      members: [
+        { memberOrder: 0, memoryClaimId: 'claim-1' },
+        { memberOrder: 1, memoryClaimId: 'claim-X' },
+      ],
+    });
+    const reader = new MemoryP3SourceReader(prisma as never, p2ReaderFor(layer));
+
+    await expect(reader.read(PROJECT_ID)).resolves.toEqual([]);
+  });
+
+  it('uses the P2 layer claim order for semantic content', async () => {
+    const { prisma, layer } = sourceFixture({
+      claimIds: ['claim-2', 'claim-1'],
+      members: [
+        { memberOrder: 0, memoryClaimId: 'claim-2' },
+        { memberOrder: 1, memoryClaimId: 'claim-1' },
+      ],
+      claims: [
+        { canonicalKey: 'first', id: 'claim-1', valueJson: 'value-1', valueKind: 'exact' },
+        { canonicalKey: 'second', id: 'claim-2', valueJson: 'value-2', valueKind: 'exact' },
+      ],
+    });
+    const [source] = await new MemoryP3SourceReader(prisma as never, p2ReaderFor(layer)).read(
+      PROJECT_ID,
+    );
+
+    expect(source?.safeContent.indexOf('value-2')).toBeLessThan(
+      source?.safeContent.indexOf('value-1') ?? -1,
+    );
+  });
 });
 
 function readerFor(source: MemoryP3Source): MemoryP3SourceReaderPort {
@@ -203,4 +294,79 @@ function makeSource(): MemoryP3Source {
     semanticStatus: 'current',
     sourceLevel: 'mid',
   };
+}
+
+interface SourceFixtureClaim {
+  canonicalKey: string;
+  id: string;
+  valueJson: unknown;
+  valueKind: string;
+}
+
+interface SourceFixtureMember {
+  memberOrder: number;
+  memoryClaimId: string;
+}
+
+function sourceFixture(
+  options: {
+    claimIds?: readonly string[];
+    claims?: readonly SourceFixtureClaim[];
+    members?: readonly SourceFixtureMember[];
+  } = {},
+): { layer: Readonly<Record<string, unknown>>; prisma: Record<string, unknown> } {
+  const claimIds = options.claimIds ?? ['claim-1'];
+  const members = options.members ?? [{ memberOrder: 0, memoryClaimId: 'claim-1' }];
+  const claims = options.claims ?? [
+    { canonicalKey: 'birth-place', id: 'claim-1', valueJson: 'semantic value', valueKind: 'exact' },
+  ];
+  const layer = {
+    authorityId: '66666666-6666-4666-8666-666666666666',
+    claimIds,
+    identityId: IDENTITY_ID,
+    layer: 'mid',
+    memberManifestHash: 'a'.repeat(64),
+    resolutionId: 'resolution-1',
+    resolutionRevision: 2,
+    revisionId: 'revision-1',
+    revisionNo: 2,
+    semanticStatus: 'current',
+  } as const;
+  const prisma = {
+    memoryClaim: { findMany: vi.fn().mockResolvedValue(claims) },
+    memoryLayerIdentity: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: IDENTITY_ID,
+          originSessionId: '33333333-3333-4333-8333-333333333333',
+          originThreadId: '55555555-5555-4555-8555-555555555555',
+          projectId: PROJECT_ID,
+        },
+      ]),
+      findUnique: vi.fn(),
+    },
+    memoryResolution: {
+      findUnique: vi.fn().mockResolvedValue({
+        authorityId: layer.authorityId,
+        canonicalKey: 'birth-place',
+        memoryType: 'place',
+        p2Write: true,
+        projectId: PROJECT_ID,
+        resolutionKind: 'single',
+        resolutionRevision: 2,
+        resolvedValueJson: 'semantic value',
+        semanticKind: 'fact',
+        semanticStatus: 'current',
+        status: 'current',
+      }),
+    },
+    memoryResolutionMember: { findMany: vi.fn().mockResolvedValue(members) },
+  };
+  return { layer, prisma };
+}
+
+function p2ReaderFor(layer: Readonly<Record<string, unknown>>): MemoryP2PersistenceReader {
+  return {
+    readCurrentLayer: vi.fn().mockResolvedValue(layer),
+  } as unknown as MemoryP2PersistenceReader;
 }

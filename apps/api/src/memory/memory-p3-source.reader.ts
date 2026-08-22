@@ -117,12 +117,26 @@ export class MemoryP3SourceReader implements MemoryP3SourceReaderPort {
     const typedResolution = resolution as unknown as ResolutionRow;
     if (typedResolution.semanticKind === null) return null;
     const typedMembers = members as unknown as ResolutionMemberRow[];
+    const authoritativeClaimIds = [...layer.claimIds];
+    if (
+      authoritativeClaimIds.length === 0 ||
+      new Set(authoritativeClaimIds).size !== authoritativeClaimIds.length ||
+      typedMembers.length !== authoritativeClaimIds.length ||
+      typedMembers.some((member, index) => member.memoryClaimId !== authoritativeClaimIds[index])
+    )
+      return null;
     const claims = (await this.prisma.memoryClaim.findMany({
-      where: { id: { in: typedMembers.map((member) => member.memoryClaimId) } },
+      where: { id: { in: authoritativeClaimIds } },
     })) as ClaimRow[];
+    if (
+      claims.length !== authoritativeClaimIds.length ||
+      new Set(claims.map((claim) => claim.id)).size !== claims.length ||
+      claims.some((claim) => !authoritativeClaimIds.includes(claim.id))
+    )
+      return null;
     const claimsById = new Map(claims.map((claim) => [claim.id, claim]));
-    const semanticClaims: readonly unknown[] = typedMembers.map((member) => {
-      const claim = claimsById.get(member.memoryClaimId);
+    const semanticClaims: readonly unknown[] = authoritativeClaimIds.map((claimId) => {
+      const claim = claimsById.get(claimId);
       return claim === undefined
         ? null
         : {

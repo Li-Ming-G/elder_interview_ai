@@ -36,7 +36,7 @@ export class MemoryP3IndexService {
     let skippedStale = 0;
     for (const source of sources) {
       const embedding = await this.embeddingProvider.embed({ input: source.safeContent });
-      assertEmbeddingResult(embedding);
+      assertEmbeddingResult(embedding, request);
       const current = await this.sourceReader.readCurrentLayer(source.layerIdentityId);
       if (current === null || !sameCurrentContent(current, source)) {
         skippedStale += 1;
@@ -68,7 +68,10 @@ function assertIndexRequest(request: MemoryP3IndexRequest): void {
     throw new Error('embedding version is required');
 }
 
-function assertEmbeddingResult(result: Awaited<ReturnType<EmbeddingProvider['embed']>>): void {
+function assertEmbeddingResult(
+  result: Awaited<ReturnType<EmbeddingProvider['embed']>>,
+  request: MemoryP3IndexRequest,
+): void {
   if (!Number.isSafeInteger(result.dimensions) || result.dimensions < 1)
     throw new Error('embedding dimensions must be a positive safe integer');
   if (result.vector.length !== result.dimensions)
@@ -76,6 +79,12 @@ function assertEmbeddingResult(result: Awaited<ReturnType<EmbeddingProvider['emb
   if (result.vector.some((value) => !Number.isFinite(value)))
     throw new Error('embedding vector values must be finite');
   if (result.providerId.trim().length === 0) throw new Error('embedding provider id is required');
+  if (result.modelId === undefined || result.modelId.trim().length === 0)
+    throw new Error('embedding model id is required');
+  if (result.providerId !== request.embeddingProfile)
+    throw new Error('embedding provider id does not match profile');
+  if (result.modelId !== request.embeddingVersion)
+    throw new Error('embedding model id does not match version');
 }
 
 function sameCurrentContent(left: MemoryP3Source, right: MemoryP3Source): boolean {
