@@ -1,6 +1,6 @@
 # AI development role entry
 
-This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `DISPATCHER` or `IMPLEMENTATION_WORKER`. If neither role matches the assignment, stop and report `DISPATCH_ROLE_UNSUPPORTED`.
+This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `DISPATCHER` or `IMPLEMENTATION_WORKER`. If neither role matches the assignment, stop and report.
 
 ## DISPATCHER
 
@@ -12,7 +12,9 @@ Read only:
 4. `docs/agent/dispatcher/dispatcher-state.json` and `transition-contract.md`;
 5. the selected Task Card.
 
-The Dispatcher may mechanically select one `READY` task, verify dependencies, claim it once with the expected state revision, launch the Task Card's declared worker profile, and record the run/thread. Before `REVIEW`, it requires repository owner/name, PR number/URL, exact head and passing test/CI evidence bound to that head, then stops. It may apply only complete external evidence for `PASS`, `REQUEST_CHANGES`, `BLOCKED`, or `PRODUCT_AMBIGUITY`: reviewer identity, review URL/id, outcome and reviewed exact head. Every successful write increments the multi-task snapshot revision exactly once.
+Assume one Dispatcher and one sequential queue. The Dispatcher mechanically starts the first eligible `READY` task and launches the Task Card's worker profile. When the worker reports a PR number, store that number, set `REVIEW` and stop. The external Architect performs the actual PR review. On external `PASS`, mark current `DONE`, then mark only its predefined `next_task` `READY`; on `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
+
+The Dispatcher does not validate reviewer identity, review URL/id, GitHub review state, PR exact head or CI evidence. It has no revision, compare-and-swap or transactional/atomic queue semantics.
 
 The Dispatcher must not design or split tasks, change architecture or product behavior, edit an Accepted Contract, choose a deferred item, expand scope, infer an ambiguous transition, or approve a review gate.
 
@@ -38,7 +40,9 @@ The worker implements only the current card. It must not:
 - refactor unrelated modules;
 - claim `PASS`, `DONE`, or merge authority.
 
-For internal details that do not change product behavior or architecture, use the smallest implementation consistent with existing style. Product or architecture ambiguity means `STOP + REPORT`; set `BLOCKED` with the stable error code, without guessing.
+For internal details that do not change product behavior or architecture, use the smallest implementation consistent with existing style. Product or architecture ambiguity means `STOP + REPORT`; set `BLOCKED / PRODUCT_AMBIGUITY`, without guessing.
+
+For an ordinary Implementation Task, do not run iteration-coach and do not create an additional internal Reviewer by default. The external Architect's PR review is the default independent review. Upgrade only when the Product Owner or Architect explicitly requests it.
 
 ## Authority and conflict
 
@@ -50,7 +54,7 @@ Authority is role-scoped rather than a licence for one file to overwrite another
 4. Stable product/architecture specs (`00`–`10`) provide broader reference.
 5. Historical tasks, PRs, reviews and handoffs are evidence only.
 
-Any contradiction among levels 1–4 that cannot be resolved mechanically is `BLOCKED / DISPATCH_AUTHORITY_CONFLICT`. The worker and Dispatcher stop and report the exact files/identities; they do not choose the convenient interpretation.
+Any contradiction among levels 1–4 that cannot be resolved mechanically is `BLOCKED / PRODUCT_AMBIGUITY`. The worker and Dispatcher stop and report the exact files/identities; they do not choose the convenient interpretation.
 
 ## Non-negotiable repository safeguards
 
@@ -63,6 +67,6 @@ Any contradiction among levels 1–4 that cannot be resolved mechanically is `BL
 
 ## Review and governance cadence
 
-Normal work reaches `REVIEW` only with required exact-head tests and a real repository-bound PR, then stops for external review. The review gate is mandatory. `REQUEST_CHANGES` preserves the exact-head review history and returns the same task to the same bounded scope. Only exact-head external `PASS` can produce `DONE` and atomically unlock a predefined `next_task`.
+Normal work reaches `REVIEW` when the worker reports a PR number, then stops for external Architect review. `REQUEST_CHANGES` returns the same task to the same bounded scope. Only external Architect `PASS` can produce `DONE` and then unlock a predefined `next_task`.
 
 Do not create a per-task REV file, handoff file, traceability update, conflict-history update or ADR by default. Use Task Card + PR as the handoff. Update ADR only for a real architecture decision; maintain current open conflicts separately; batch traceability and historical indexes at stage end.

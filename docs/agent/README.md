@@ -6,8 +6,8 @@ The default path is deliberately small. Historical evidence remains traceable bu
 
 - [`../../AI-DEVELOPMENT-CURRENT.md`](../../AI-DEVELOPMENT-CURRENT.md): current phase, frozen decisions and stop conditions.
 - [`00-task-board.md`](00-task-board.md): compact human-readable task index.
-- [`dispatcher/dispatcher-state.json`](dispatcher/dispatcher-state.json): machine state authority.
-- [`dispatcher/README.md`](dispatcher/README.md): closed dispatcher contract and launch profile entry.
+- [`dispatcher/dispatcher-state.json`](dispatcher/dispatcher-state.json): single Dispatcher sequential queue.
+- [`dispatcher/README.md`](dispatcher/README.md): minimal transitions, launch profile and external Architect review entry.
 - [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md): current blocked Task Card.
 
 ## STABLE REFERENCE
@@ -26,6 +26,7 @@ The default path is deliberately small. Historical evidence remains traceable bu
 
 - Per transition: machine state, compact board and current summary when materially affected.
 - Per normal task: Task Card + GitHub PR are the handoff; no duplicate REV or handoff document is required.
+- Ordinary Implementation Task: no default iteration-coach or additional internal Reviewer; external Architect PR review is the default unless the Product Owner or Architect explicitly escalates.
 - Stage end: batch requirement traceability, resolved conflict history, review/handoff indexes and other historical summaries.
 - ADR: only when a real architecture decision is made.
 - Open conflict: keep a short current entry; archive the full history.

@@ -1,132 +1,35 @@
 {
   "$schema": "./dispatcher-state.schema.json",
-  "schema_version": "dispatcher-state-v2",
-  "state_revision": 2,
-  "current_task_id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
-  "tasks": [
+  "queue": [
     {
-      "task_id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
+      "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
       "status": "BLOCKED",
+      "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
+      "worker_profile": "luna-high",
       "depends_on": [
         "MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001@dbb0cc76f582997a6a647781007648c6937a8992",
         "MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001@717c5ca39e678c6f953d0430768ae715ef0feef2"
       ],
-      "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
-      "worker_profile": "luna-high",
-      "review_required": true,
-      "next_task": null,
-      "dispatch_run_id": null,
-      "worker_thread_id": null,
-      "pull_request": null,
-      "test_evidence": [],
-      "review_evidence": null,
-      "block_reason": {
-        "code": "GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED",
-        "message": "Four P2-C candidate heads exist, the old formal combination failed, and no accepted reconciliation pack selects an integrable exact head."
-      },
-      "evidence": [
-        {
-          "kind": "candidate_head",
-          "label": "database",
-          "identity": "87ee56c6ceb1aee7897d1d62a2b18703c304c2e3",
-          "disposition": "DO_NOT_INTEGRATE"
-        },
-        {
-          "kind": "candidate_head",
-          "label": "orchestration",
-          "identity": "97f647d607b020ef524014cfdab3e7b13eccd098",
-          "disposition": "DO_NOT_INTEGRATE"
-        },
-        {
-          "kind": "candidate_head",
-          "label": "trace",
-          "identity": "5ada42209e5ab245e1b799456694a1cac9ca7ab9",
-          "disposition": "DO_NOT_INTEGRATE"
-        },
-        {
-          "kind": "candidate_head",
-          "label": "integration_docs",
-          "identity": "419f7bfc447b4b605c87e6c173b09c304cba5a41",
-          "disposition": "DO_NOT_INTEGRATE"
-        },
-        {
-          "kind": "formal_review",
-          "label": "old_combination",
-          "identity": null,
-          "disposition": "FAIL_P0_0_P1_6_P2_1"
-        }
-      ]
+      "pr": null,
+      "next_task": null
     },
     {
-      "task_id": "MEMORY-T5-T8-P2-D-PROVIDER-001",
+      "id": "MEMORY-T5-T8-P2-D-PROVIDER-001",
       "status": "DEFERRED",
-      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
       "task_card": "docs/agent/dispatcher/task-card-template.md",
       "worker_profile": "luna-high",
-      "review_required": true,
-      "next_task": null,
-      "dispatch_run_id": null,
-      "worker_thread_id": null,
-      "pull_request": null,
-      "test_evidence": [],
-      "review_evidence": null,
-      "block_reason": {
-        "code": "DISPATCH_DEPENDENCY_NOT_DONE",
-        "message": "P2-D requires P2-C external PASS plus owner provider and data decisions."
-      },
-      "evidence": []
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": null,
+      "next_task": null
     },
     {
-      "task_id": "MEMORY-T9-T12-P3-P4-001",
+      "id": "MEMORY-T9-T12-P3-P4-001",
       "status": "DEFERRED",
-      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
       "task_card": "docs/agent/dispatcher/task-card-template.md",
       "worker_profile": "luna-high",
-      "review_required": true,
-      "next_task": null,
-      "dispatch_run_id": null,
-      "worker_thread_id": null,
-      "pull_request": null,
-      "test_evidence": [],
-      "review_evidence": null,
-      "block_reason": {
-        "code": "DISPATCH_DEPENDENCY_NOT_DONE",
-        "message": "P3/P4 requires a separately accepted Development Pack after P2-C reconciliation."
-      },
-      "evidence": []
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": null,
+      "next_task": null
     }
-  ],
-  "review_history": [
-    {
-      "task_id": "GOV-DISPATCHER-HANDOFF-001",
-      "pull_request": {
-        "owner": "Li-Ming-G",
-        "repo": "elder_interview_ai",
-        "number": 75,
-        "url": "https://github.com/Li-Ming-G/elder_interview_ai/pull/75",
-        "head_sha": "025d9db1dd2a01c08d8f554716acca305e40b001"
-      },
-      "test_evidence": [
-        {
-          "kind": "ci",
-          "name": "CI",
-          "status": "PASS",
-          "url_or_id": "https://github.com/Li-Ming-G/elder_interview_ai/actions/runs/32544880685",
-          "head_sha": "025d9db1dd2a01c08d8f554716acca305e40b001"
-        }
-      ],
-      "review_evidence": {
-        "reviewer_identity": "codex-task:01a01bbb-3fa0-70a2-8029-cf71fff2086d:independent-reviewer",
-        "review_url_or_id": "codex-thread:01a01bbb-3fa0-70a2-8029-cf71fff2086d:pr-75:025d9db1dd2a01c08d8f554716acca305e40b001",
-        "outcome": "REQUEST_CHANGES",
-        "reviewed_head_sha": "025d9db1dd2a01c08d8f554716acca305e40b001",
-        "findings": {
-          "p0": 0,
-          "p1": 3,
-          "p2": 0
-        }
-      }
-    }
-  ],
-  "updated_at": "2026-08-22T00:00:00+08:00"
+  ]
 }

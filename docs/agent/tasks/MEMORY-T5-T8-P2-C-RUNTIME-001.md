@@ -1,6 +1,8 @@
 # MEMORY-T5-T8-P2-C-RUNTIME-001
 
-Status: `BLOCKED / GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED`
+Status: `BLOCKED`
+
+Governance handoff reconciliation is still required before this task can return to `READY`.
 
 This card does not authorize implementation or integration. Multiple P2-C implementation candidates already exist, but no candidate is accepted as an integrable combined runtime.
 
@@ -18,7 +20,7 @@ This card does not authorize implementation or integration. Multiple P2-C implem
 
 ## Goal
 
-Obtain an external Architect/Reviewer reconciliation pack that selects a single valid P2-C base and explicitly disposes of every candidate and every `FAIL P0=0/P1=6/P2=1` finding before any worker is dispatched.
+Obtain an external Architect reconciliation pack that selects a single valid P2-C base and explicitly disposes of every candidate and every `FAIL P0=0/P1=6/P2=1` finding before any worker is dispatched.
 
 ## Scope
 
@@ -28,7 +30,7 @@ Current scope is governance stop and reconciliation only. Task Card controls thi
 
 Implementation Worker: none. Do not modify or integrate `apps/`, Prisma, migrations, repositories, runtime, packages, contracts or candidate branches under this blocked card.
 
-External Architect/Reviewer may issue a new Development Pack and replacement Task Card, then update machine state through the closed `BLOCKED -> READY` transition.
+External Architect may issue a new Development Pack and replacement Task Card; queue issuance may then replace this blocked entry with an authorized `READY` entry.
 
 ## Inputs
 
@@ -69,11 +71,10 @@ The four candidate heads in Inputs are rejected as an integration set and are st
 
 ## Required Behavior
 
-- Dispatcher reads current state and returns `STOP / GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED`.
-- Dispatcher treats the schema-managed v2 multi-task snapshot as the only machine authority. Every future resolution write must supply the expected state revision and increment it exactly once; stale or duplicate writes fail closed.
-- No Implementation Worker is launched and no dispatch run/thread is claimed.
+- Dispatcher reads the sequential queue, returns `TASK_BLOCKED` and stops.
+- No Implementation Worker is launched.
 - The external reconciliation must compare every proposed behavior/invariant to the exact accepted identities above.
-- Any Task Card/Accepted Contract contradiction becomes `BLOCKED / DISPATCH_AUTHORITY_CONFLICT`.
+- Any Task Card/Accepted Contract contradiction becomes `BLOCKED / PRODUCT_AMBIGUITY`.
 - A future runtime card must preserve `MemoryClaim`/`MemoryResolution` as semantic authority, transient proposal/plan, program-owned persistence/CAS/revision/evidence/transaction, P1 no-Long, and reference-only layer/Long/Trace semantics.
 
 ## Explicit Non-Goals
@@ -86,7 +87,7 @@ The four candidate heads in Inputs are rejected as an integration set and are st
 
 ## Tests
 
-Current blocked card has no implementation tests. Governance validation is limited to the shared v2 state/schema parse, deterministic CAS and exact-head review-gate dry-run, Markdown/link/format/diff checks and current-state `STOP` verification. Fake/example PRs, bare review outcomes, stale heads, missing tests and review bypass must fail closed. A replacement runtime card must explicitly name its targeted, PostgreSQL migration/integration, concurrency, fault-injection and exact-head gates; it may not inherit “tests passed” from a candidate.
+Current blocked card has no implementation tests. Governance validation is limited to minimal queue/schema parse, the A→B sequential smoke, Markdown/link/format/diff checks and current-state `TASK_BLOCKED` verification. A replacement runtime card must explicitly name its targeted, PostgreSQL migration/integration, concurrency and fault-injection tests; it may not inherit “tests passed” from a candidate.
 
 ## Completion Criteria
 
@@ -96,11 +97,11 @@ All must be externally supplied:
 2. Every old P0/P1/P2 finding is mapped to a closed requirement or retained blocker.
 3. Any needed contract correction is separately accepted before implementation.
 4. A replacement Task Card lists exact allowed files, behavior derived from exact Accepted Contracts, tests, review gate and predefined next task.
-5. Dispatcher state revision is advanced from `BLOCKED` to `READY` by an authorized external resolution using expected-revision CAS; a successful write increments the complete snapshot exactly once.
+5. Authorized queue issuance replaces this blocked entry with the reconciled `READY` Task Card.
 
 ## Review Gate
 
-External Architect/Reviewer and project owner. This worker, Dispatcher, local checks, synthetic Luna task and CI cannot produce `PASS`. Stop at `BLOCKED`; after a future real PR, stop again at `REVIEW`.
+External Architect and Product Owner. This worker, Dispatcher, local checks, synthetic Luna task and CI cannot produce `PASS`. Stop at `BLOCKED`; after a future worker reports a PR number, stop again at `REVIEW`. Do not add iteration-coach or another internal Reviewer unless the Product Owner or Architect explicitly requests it.
 
 ## Next Task
 

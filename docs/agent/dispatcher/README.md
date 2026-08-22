@@ -1,26 +1,34 @@
-# Dispatcher contract
+# Single Dispatcher contract
 
-This directory is the machine-governed entry for low-cost dispatch. The Dispatcher performs closed transitions only; it does not plan work.
+This directory implements a deliberately small governance path:
+
+`Single Dispatcher → Sequential Task Queue → Implementation Worker → External Architect PR Review`.
 
 ## Files
 
-- [`dispatcher-state.json`](dispatcher-state.json): schema-managed multi-task snapshot and permanent exact-head review history.
-- [`dispatcher-state.schema.json`](dispatcher-state.schema.json): closed state shape and status-dependent fields.
-- [`transition-contract.md`](transition-contract.md): allowed transitions, stop rules and stable error codes.
-- [`worker-profiles/luna-high.json`](worker-profiles/luna-high.json): required native Desktop worker profile.
-- [`luna-high-launch-contract.md`](luna-high-launch-contract.md): launch and evidence rules.
-- [`task-card-template.md`](task-card-template.md): mandatory Task Card structure.
-- [`fixtures/dispatcher-dry-run-v2.json`](fixtures/dispatcher-dry-run-v2.json): synthetic snapshot with the exact same state schema.
-- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): dependency-free deterministic validation.
+- [`dispatcher-state.json`](dispatcher-state.json): current sequential queue.
+- [`dispatcher-state.schema.json`](dispatcher-state.schema.json): minimal queue/task shape.
+- [`transition-contract.md`](transition-contract.md): closed transitions and five stable errors.
+- [`worker-profiles/luna-high.json`](worker-profiles/luna-high.json): native Desktop worker profile.
+- [`luna-high-launch-contract.md`](luna-high-launch-contract.md): launch and worker hand-back.
+- [`task-card-template.md`](task-card-template.md): mandatory bounded Task Card.
+- [`fixtures/sequential-queue-smoke.json`](fixtures/sequential-queue-smoke.json): two-task sequential smoke fixture.
+- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): A→B smoke validation.
 
 ## Mechanical algorithm
 
-1. Validate the complete multi-task snapshot against the JSON Schema. Every write supplies the expected `state_revision`; stale input is rejected and a successful write increments it exactly once.
-2. If status is `REVIEW`, `BLOCKED`, `DEFERRED` or `DONE`, return `STOP`.
-3. Select exactly one `READY` task whose dependencies are `DONE`; otherwise return a stable error and stop.
-4. Verify the Task Card exists, uses the fixed template, names exact Accepted Contract identities and declares a known worker profile.
-5. Claim exactly once from one READY snapshot and launch through the profile contract. A second claim or late completion loses the revision CAS.
-6. Before `REVIEW`, bind owner/repository, PR number, exact head and passing test/CI evidence to that head; at `REVIEW`, stop.
-7. Apply only complete external review evidence: reviewer identity, review URL/id, outcome and the same reviewed exact head. `PASS` atomically marks the current task `DONE` and unlocks only its predefined `next_task` in one revision; `REQUEST_CHANGES` resumes the same card; ambiguity or conflict blocks it.
+1. Read the queue in order and select the first eligible `READY` task.
+2. Read its Task Card, verify named dependencies and launch its declared worker profile.
+3. Set `IN_PROGRESS`.
+4. When the worker reports a PR number, store that number, set `REVIEW` and stop.
+5. The external Architect performs the actual PR review.
+6. On external `PASS`, set current `DONE`, then set only predefined `next_task` `READY`. On `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
+7. Worker failure, product/architecture ambiguity or another blocker sets `BLOCKED` and stops.
 
-The Markdown board is a compact index. `dispatcher-state.json` is the only machine state authority; fixtures do not define an alternative task shape. Fake/example PRs, bare outcomes, stale heads, missing tests and `review_required=false` all fail closed. A Task Card cannot override an Accepted Contract.
+The Dispatcher does not validate reviewer identity, review URLs, GitHub review objects, exact heads or CI evidence. It has no state revision, compare-and-swap or atomic snapshot requirement. A Task Card controls scope and entry; an exact Accepted Contract controls behavior and invariants.
+
+## Ordinary-task review policy
+
+For an ordinary Implementation Task, do not start iteration-coach or an additional internal Reviewer by default. The external Architect's PR review is the default independent review. Upgrade only when the Product Owner or Architect explicitly requires it.
+
+Use Task Card + PR as the normal handoff. Do not generate per-task REV, handoff, traceability, conflict-history or ADR files; batch stage records at stage end, except when a real architecture decision explicitly requires an ADR.

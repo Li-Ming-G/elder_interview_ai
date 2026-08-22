@@ -26,7 +26,7 @@ Current phase: `GOVERNANCE HANDOFF / NO P2-P4 BUSINESS DEVELOPMENT`.
 - P2-C has real candidate work; it is false to say implementation never started.
 - Candidate heads are database `87ee56c6ceb1aee7897d1d62a2b18703c304c2e3`, orchestration `97f647d607b020ef524014cfdab3e7b13eccd098`, trace `5ada42209e5ab245e1b799456694a1cac9ca7ab9`, and integration docs `419f7bfc447b4b605c87e6c173b09c304cba5a41`.
 - The formal old combination verdict is `FAIL P0=0/P1=6/P2=1`. None of those candidates may be integrated.
-- PR #75 governance review history is permanently retained: exact head `025d9db1dd2a01c08d8f554716acca305e40b001`, CI run `32544880685 SUCCESS`, external `REQUEST_CHANGES`, findings `P0=0/P1=3/P2=0`. The narrow governance correction is in progress on the same PR; that old exact-head verdict is not overwritten.
+- PR #75 history is permanently retained: exact head `025d9db1dd2a01c08d8f554716acca305e40b001`, CI run `32544880685 SUCCESS`, external `REQUEST_CHANGES`, findings `P0=0/P1=3/P2=0`. This is historical evidence, not an outstanding formal gate after the Product Owner's Dispatcher Simplification Correction.
 
 ## Frozen decisions
 
@@ -35,6 +35,8 @@ Current phase: `GOVERNANCE HANDOFF / NO P2-P4 BUSINESS DEVELOPMENT`.
 - P2 must remain semantic consolidation, not mechanical persistence alone; the program owns all durable state changes.
 - P1 does not retrieve Long memory. P3/P4 stay separate.
 - Review is external. CI, worker output and synthetic evidence do not equal `PASS`.
+- Governance route is frozen as `Single Dispatcher → Sequential Task Queue → External Architect PR Review`. Dispatcher stores only a worker-reported PR number; it does not use revision/CAS/atomic snapshot semantics or validate reviewer identity, review URL, GitHub review state, exact head or CI evidence.
+- Ordinary Implementation Tasks do not run iteration-coach or add an internal Reviewer by default. External Architect PR review is the default independent review; only the Product Owner or Architect may explicitly require escalation.
 
 ## Deferred decisions
 
@@ -43,8 +45,8 @@ Real LLM provider/model/region/secret and P1/P2/Director bindings; real embeddin
 ## Current states
 
 - `READY`: none.
-- `REVIEW`: PR #75 governance refactor received `REQUEST_CHANGES` at its prior exact head and remains at the external review gate while the narrow correction is updated; no business implementation is in review.
-- `BLOCKED`: `MEMORY-T5-T8-P2-C-RUNTIME-001` with `GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED`.
+- `REVIEW`: the simplified PR #75 governance route awaits external Architect review. The prior `025d9db` `REQUEST_CHANGES` remains history and is not the current gate; no business implementation is in review.
+- `BLOCKED`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; governance handoff reconciliation is still required.
 
 ## Worker prohibitions
 
@@ -56,4 +58,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-PR #75 must receive a new exact-head external review after its governance correction. Separately, the external Architect/Reviewer must reconcile the four P2-C candidates against the accepted A1/P2-B identities and the old FAIL findings, issue a new exact Development Pack/Task Card, and explicitly state which candidate work is discarded or rebased. Until then Dispatcher returns `STOP`.
+External Architect reviews the simplified PR #75. Separately, the external Architect must reconcile the four P2-C candidates against the accepted A1/P2-B identities and the old FAIL findings, issue a new exact Development Pack/Task Card, and explicitly state which candidate work is discarded or rebased. Until then Dispatcher returns `TASK_BLOCKED` for P2-C and stops.

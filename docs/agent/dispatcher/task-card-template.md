@@ -32,7 +32,7 @@ Optional, non-authoritative exact commits/paths. State whether read-only and whe
 
 ## Required Behavior
 
-Observable outcomes derived from the Accepted Contracts. If this section conflicts with an Accepted Contract, stop with `DISPATCH_AUTHORITY_CONFLICT`.
+Observable outcomes derived from the Accepted Contracts. If this section conflicts with an Accepted Contract, stop with `PRODUCT_AMBIGUITY`.
 
 ## Explicit Non-Goals
 
@@ -40,15 +40,15 @@ List adjacent work that must not be implemented.
 
 ## Tests
 
-Exact commands and evidence required before PR/REVIEW. Evidence must bind repository owner/name, PR number/URL, exact head and passing tests/CI to that head. State any intentionally excluded full-suite or real-provider tests.
+Exact commands the worker must run before reporting a PR number. State any intentionally excluded full-suite or real-provider tests.
 
 ## Completion Criteria
 
-Mechanical conditions for worker completion. Worker completion does not mean review acceptance.
+Mechanical conditions for worker completion, including the reported PR number. Worker completion does not mean review acceptance.
 
 ## Review Gate
 
-Named external reviewer class, required PR type, and explicit `STOP` at `REVIEW`. External evidence must include reviewer identity, review URL/id, outcome and the reviewed exact head. `review_required` is mandatory; only exact-head external `PASS` can close the gate.
+External Architect PR review and explicit `STOP` at `REVIEW`. The Dispatcher stores only the worker-reported PR number and does not verify the review. Only the external Architect's `PASS` can close the gate. Ordinary tasks do not add iteration-coach or another internal Reviewer unless the Product Owner or Architect explicitly requests it.
 
 ## Next Task
 

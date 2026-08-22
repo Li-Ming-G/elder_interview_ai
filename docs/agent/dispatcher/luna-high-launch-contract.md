@@ -9,9 +9,9 @@ model = gpt-5.6-luna
 thinking = high
 ```
 
-The created task receives the bounded Task Card verbatim and must remain sidebar-visible. Dispatcher claims with `expected_state_revision` and records the returned `worker_thread_id` plus its unique `dispatch_run_id` in the single successful revision. One READY snapshot may produce only one claim. Do not build a custom agent framework or silently substitute another model/effort.
+The created task receives the bounded Task Card verbatim and must remain sidebar-visible. The single Dispatcher starts the first eligible sequential queue item. Do not build a custom agent framework or silently substitute another model/effort.
 
-If Desktop rejects either argument, set `BLOCKED / DISPATCH_WORKER_LAUNCH_REJECTED`. If the returned task cannot expose or confirm the requested profile, set `BLOCKED / DISPATCH_WORKER_PROFILE_UNVERIFIED`.
+If Desktop rejects the launch or the worker cannot confirm the requested profile, set `BLOCKED / WORKER_FAILED`.
 
 ## Native capability evidence
 
@@ -25,7 +25,9 @@ This proves only native launch/profile acceptance and REVIEW-stop behavior. `SYN
 
 ## Completion hand-back
 
-Worker completion is a CAS write against its claimed revision and must echo the same task, dispatch run and worker thread. It must bind `Li-Ming-G/elder_interview_ai`, a real PR number/URL, the exact PR head and passing test/CI evidence for that exact head. A late completion, fake/example URL, synthetic PR, missing test, or mismatched head is rejected. The worker can enter `REVIEW` but cannot supply the external reviewer identity, review URL/id or exact-head outcome that closes the gate.
+The worker runs the tests named by its Task Card and reports a PR number. Dispatcher stores that number, sets `REVIEW` and stops. It does not validate the PR, reviewer, review URL, exact head or CI evidence; the external Architect owns the actual PR review and outcome.
+
+For an ordinary Implementation Task, do not add iteration-coach or another internal Reviewer by default. Upgrade only when the Product Owner or Architect explicitly requests it.
 
 ## Local CLI fact
 
