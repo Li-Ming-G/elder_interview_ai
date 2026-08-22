@@ -71,6 +71,17 @@ export class MemoryP3PersistenceRepository {
     return mapEmbedding(row);
   }
 
+  public async listEmbeddings(projectId: string): Promise<readonly MemoryP3EmbeddingRecord[]> {
+    const rows = await this.prisma.$queryRaw<RawEmbeddingRow[]>`
+      SELECT "id", "project_id", "layer_identity_id", "layer_revision_id",
+        "embedding_profile", "embedding_version", "dimensions", "input_digest", "vector", "created_at"
+      FROM "memory_embedding"
+      WHERE "project_id" = ${projectId}::uuid
+      ORDER BY "layer_identity_id", "layer_revision_id", "embedding_profile", "embedding_version", "id"
+    `;
+    return rows.map(mapEmbedding);
+  }
+
   public async createGraphRelation(
     input: MemoryP3GraphRelationInput,
   ): Promise<MemoryP3GraphRelationRecord> {
