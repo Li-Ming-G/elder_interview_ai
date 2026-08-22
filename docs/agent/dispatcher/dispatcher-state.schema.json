@@ -1,143 +1,269 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://elder-interview.local/contracts/dispatcher-state-v1.schema.json",
-  "title": "Dispatcher State V1",
+  "$id": "https://elder-interview.local/contracts/dispatcher-state-v2.schema.json",
+  "title": "Dispatcher State V2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "$schema",
     "schema_version",
-    "task_id",
-    "status",
-    "depends_on",
-    "task_card",
-    "worker_profile",
-    "review_required",
-    "next_task",
     "state_revision",
-    "dispatch_run_id",
-    "worker_thread_id",
-    "pr_url",
-    "review_outcome",
-    "block_reason",
-    "test_evidence",
-    "evidence",
+    "current_task_id",
+    "tasks",
+    "review_history",
     "updated_at"
   ],
   "properties": {
-    "$schema": { "const": "./dispatcher-state.schema.json" },
-    "schema_version": { "const": "dispatcher-state-v1" },
-    "task_id": { "$ref": "#/$defs/taskId" },
-    "status": {
-      "enum": ["READY", "IN_PROGRESS", "REVIEW", "BLOCKED", "DEFERRED", "DONE"]
+    "$schema": {
+      "enum": ["./dispatcher-state.schema.json", "../dispatcher-state.schema.json"]
     },
-    "depends_on": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": { "type": "string", "minLength": 1, "maxLength": 180 }
-    },
-    "task_card": {
-      "type": "string",
-      "pattern": "^docs/agent/tasks/[A-Za-z0-9._-]+\\.md$"
-    },
-    "worker_profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
-    "review_required": { "type": "boolean" },
-    "next_task": {
-      "oneOf": [{ "$ref": "#/$defs/taskId" }, { "type": "null" }]
-    },
+    "schema_version": { "const": "dispatcher-state-v2" },
     "state_revision": { "type": "integer", "minimum": 1 },
-    "dispatch_run_id": {
-      "oneOf": [{ "type": "string", "pattern": "^dispatch-[A-Za-z0-9._:-]{1,120}$" }, { "type": "null" }]
-    },
-    "worker_thread_id": {
-      "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 160 }, { "type": "null" }]
-    },
-    "pr_url": {
-      "oneOf": [{ "type": "string", "format": "uri", "pattern": "^https://" }, { "type": "null" }]
-    },
-    "review_outcome": {
-      "oneOf": [
-        {
-          "enum": [
-            "PENDING",
-            "PASS",
-            "REQUEST_CHANGES",
-            "BLOCKED",
-            "PRODUCT_AMBIGUITY"
-          ]
-        },
-        { "type": "null" }
-      ]
-    },
-    "block_reason": {
-      "oneOf": [{ "$ref": "#/$defs/blockReason" }, { "type": "null" }]
-    },
-    "test_evidence": {
+    "current_task_id": { "$ref": "#/$defs/taskId" },
+    "tasks": {
       "type": "array",
-      "uniqueItems": true,
-      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/task" }
     },
-    "evidence": {
+    "review_history": {
       "type": "array",
-      "items": { "$ref": "#/$defs/evidence" }
+      "items": { "$ref": "#/$defs/reviewHistory" }
     },
     "updated_at": { "type": "string", "format": "date-time" }
   },
-  "allOf": [
-    {
-      "if": { "properties": { "status": { "const": "READY" } } },
-      "then": {
-        "properties": {
-          "dispatch_run_id": { "type": "null" },
-          "worker_thread_id": { "type": "null" },
-          "pr_url": { "type": "null" },
-          "review_outcome": { "type": "null" },
-          "block_reason": { "type": "null" }
-        }
-      }
-    },
-    {
-      "if": { "properties": { "status": { "const": "IN_PROGRESS" } } },
-      "then": {
-        "properties": {
-          "dispatch_run_id": { "type": "string" },
-          "worker_thread_id": { "type": "string" },
-          "review_outcome": { "type": "null" },
-          "block_reason": { "type": "null" }
-        }
-      }
-    },
-    {
-      "if": { "properties": { "status": { "const": "REVIEW" } } },
-      "then": {
-        "properties": {
-          "dispatch_run_id": { "type": "string" },
-          "worker_thread_id": { "type": "string" },
-          "pr_url": { "type": "string" },
-          "review_outcome": { "const": "PENDING" },
-          "block_reason": { "type": "null" },
-          "test_evidence": { "minItems": 1 }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": { "status": { "enum": ["BLOCKED", "DEFERRED"] } }
-      },
-      "then": { "properties": { "block_reason": { "$ref": "#/$defs/blockReason" } } }
-    },
-    {
-      "if": {
-        "properties": {
-          "status": { "const": "DONE" },
-          "review_required": { "const": true }
-        }
-      },
-      "then": { "properties": { "review_outcome": { "const": "PASS" } } }
-    }
-  ],
   "$defs": {
     "taskId": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,119}$" },
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "status",
+        "depends_on",
+        "task_card",
+        "worker_profile",
+        "review_required",
+        "next_task",
+        "dispatch_run_id",
+        "worker_thread_id",
+        "pull_request",
+        "test_evidence",
+        "review_evidence",
+        "block_reason",
+        "evidence"
+      ],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/taskId" },
+        "status": {
+          "enum": ["READY", "IN_PROGRESS", "REVIEW", "BLOCKED", "DEFERRED", "DONE"]
+        },
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 180 }
+        },
+        "task_card": {
+          "type": "string",
+          "pattern": "^docs/agent/(tasks/[A-Za-z0-9._-]+\\.md|dispatcher/task-card-template\\.md)$"
+        },
+        "worker_profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "review_required": { "const": true },
+        "next_task": {
+          "oneOf": [{ "$ref": "#/$defs/taskId" }, { "type": "null" }]
+        },
+        "dispatch_run_id": {
+          "oneOf": [
+            { "type": "string", "pattern": "^dispatch-[A-Za-z0-9._:-]{1,120}$" },
+            { "type": "null" }
+          ]
+        },
+        "worker_thread_id": {
+          "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 160 }, { "type": "null" }]
+        },
+        "pull_request": {
+          "oneOf": [{ "$ref": "#/$defs/pullRequest" }, { "type": "null" }]
+        },
+        "test_evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/testEvidence" }
+        },
+        "review_evidence": {
+          "oneOf": [{ "$ref": "#/$defs/reviewEvidence" }, { "type": "null" }]
+        },
+        "block_reason": {
+          "oneOf": [{ "$ref": "#/$defs/blockReason" }, { "type": "null" }]
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "READY" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "dispatch_run_id": { "type": "null" },
+              "worker_thread_id": { "type": "null" },
+              "pull_request": { "type": "null" },
+              "test_evidence": { "maxItems": 0 },
+              "review_evidence": { "type": "null" },
+              "block_reason": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "IN_PROGRESS" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "dispatch_run_id": { "type": "string" },
+              "worker_thread_id": { "type": "string" },
+              "pull_request": { "type": "null" },
+              "test_evidence": { "maxItems": 0 },
+              "review_evidence": { "type": "null" },
+              "block_reason": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "REVIEW" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "dispatch_run_id": { "type": "string" },
+              "worker_thread_id": { "type": "string" },
+              "pull_request": { "$ref": "#/$defs/pullRequest" },
+              "test_evidence": { "minItems": 1 },
+              "review_evidence": { "type": "null" },
+              "block_reason": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "enum": ["BLOCKED", "DEFERRED"] } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "dispatch_run_id": { "type": "null" },
+              "worker_thread_id": { "type": "null" },
+              "pull_request": { "type": "null" },
+              "test_evidence": { "maxItems": 0 },
+              "review_evidence": { "type": "null" },
+              "block_reason": { "$ref": "#/$defs/blockReason" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "DONE" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "pull_request": { "$ref": "#/$defs/pullRequest" },
+              "test_evidence": { "minItems": 1 },
+              "review_evidence": {
+                "allOf": [
+                  { "$ref": "#/$defs/reviewEvidence" },
+                  { "properties": { "outcome": { "const": "PASS" } } }
+                ]
+              },
+              "block_reason": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "pullRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "repo", "number", "url", "head_sha"],
+      "properties": {
+        "owner": { "const": "Li-Ming-G" },
+        "repo": { "const": "elder_interview_ai" },
+        "number": { "type": "integer", "minimum": 1 },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/Li-Ming-G/elder_interview_ai/pull/[1-9][0-9]*$"
+        },
+        "head_sha": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "testEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "status", "url_or_id", "head_sha"],
+      "properties": {
+        "kind": { "enum": ["command", "ci"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "status": { "const": "PASS" },
+        "url_or_id": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "head_sha": { "$ref": "#/$defs/sha" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "ci" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "url_or_id": {
+                "pattern": "^https://github\\.com/Li-Ming-G/elder_interview_ai/actions/runs/[1-9][0-9]*$"
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "command" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "url_or_id": { "pattern": "^command:[A-Za-z0-9._:/ -]{1,450}$" }
+            }
+          }
+        }
+      ]
+    },
+    "reviewEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_identity", "review_url_or_id", "outcome", "reviewed_head_sha", "findings"],
+      "properties": {
+        "reviewer_identity": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "review_url_or_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^(https://github\\.com/Li-Ming-G/elder_interview_ai/pull/[1-9][0-9]*(#pullrequestreview-[1-9][0-9]*|/reviews/[1-9][0-9]*)?|codex-thread:[A-Za-z0-9._:-]{1,450})$"
+        },
+        "outcome": {
+          "enum": ["PASS", "REQUEST_CHANGES", "BLOCKED", "PRODUCT_AMBIGUITY"]
+        },
+        "reviewed_head_sha": { "$ref": "#/$defs/sha" },
+        "findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p0", "p1", "p2"],
+          "properties": {
+            "p0": { "type": "integer", "minimum": 0 },
+            "p1": { "type": "integer", "minimum": 0 },
+            "p2": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "reviewHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "pull_request", "test_evidence", "review_evidence"],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/taskId" },
+        "pull_request": { "$ref": "#/$defs/pullRequest" },
+        "test_evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/testEvidence" }
+        },
+        "review_evidence": { "$ref": "#/$defs/reviewEvidence" }
+      }
+    },
     "blockReason": {
       "type": "object",
       "additionalProperties": false,
@@ -156,7 +282,7 @@
         "label": { "type": "string", "minLength": 1, "maxLength": 80 },
         "identity": {
           "anyOf": [
-            { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            { "$ref": "#/$defs/sha" },
             { "type": "string", "minLength": 1, "maxLength": 180 },
             { "type": "null" }
           ]

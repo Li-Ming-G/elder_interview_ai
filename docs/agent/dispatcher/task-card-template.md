@@ -40,7 +40,7 @@ List adjacent work that must not be implemented.
 
 ## Tests
 
-Exact commands and evidence required before PR/REVIEW. State any intentionally excluded full-suite or real-provider tests.
+Exact commands and evidence required before PR/REVIEW. Evidence must bind repository owner/name, PR number/URL, exact head and passing tests/CI to that head. State any intentionally excluded full-suite or real-provider tests.
 
 ## Completion Criteria
 
@@ -48,7 +48,7 @@ Mechanical conditions for worker completion. Worker completion does not mean rev
 
 ## Review Gate
 
-Named external reviewer class, required PR type, and explicit `STOP` at `REVIEW`. Only external `PASS` can close the gate.
+Named external reviewer class, required PR type, and explicit `STOP` at `REVIEW`. External evidence must include reviewer identity, review URL/id, outcome and the reviewed exact head. `review_required` is mandatory; only exact-head external `PASS` can close the gate.
 
 ## Next Task
 

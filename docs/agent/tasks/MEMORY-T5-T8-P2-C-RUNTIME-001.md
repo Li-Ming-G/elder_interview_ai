@@ -70,6 +70,7 @@ The four candidate heads in Inputs are rejected as an integration set and are st
 ## Required Behavior
 
 - Dispatcher reads current state and returns `STOP / GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED`.
+- Dispatcher treats the schema-managed v2 multi-task snapshot as the only machine authority. Every future resolution write must supply the expected state revision and increment it exactly once; stale or duplicate writes fail closed.
 - No Implementation Worker is launched and no dispatch run/thread is claimed.
 - The external reconciliation must compare every proposed behavior/invariant to the exact accepted identities above.
 - Any Task Card/Accepted Contract contradiction becomes `BLOCKED / DISPATCH_AUTHORITY_CONFLICT`.
@@ -85,7 +86,7 @@ The four candidate heads in Inputs are rejected as an integration set and are st
 
 ## Tests
 
-Current blocked card has no implementation tests. Governance validation is limited to JSON/schema parse, deterministic dispatcher dry-run, Markdown/link/format/diff checks and current-state `STOP` verification. A replacement runtime card must explicitly name its targeted, PostgreSQL migration/integration, concurrency, fault-injection and exact-head gates; it may not inherit “tests passed” from a candidate.
+Current blocked card has no implementation tests. Governance validation is limited to the shared v2 state/schema parse, deterministic CAS and exact-head review-gate dry-run, Markdown/link/format/diff checks and current-state `STOP` verification. Fake/example PRs, bare review outcomes, stale heads, missing tests and review bypass must fail closed. A replacement runtime card must explicitly name its targeted, PostgreSQL migration/integration, concurrency, fault-injection and exact-head gates; it may not inherit “tests passed” from a candidate.
 
 ## Completion Criteria
 
@@ -95,7 +96,7 @@ All must be externally supplied:
 2. Every old P0/P1/P2 finding is mapped to a closed requirement or retained blocker.
 3. Any needed contract correction is separately accepted before implementation.
 4. A replacement Task Card lists exact allowed files, behavior derived from exact Accepted Contracts, tests, review gate and predefined next task.
-5. Dispatcher state revision is advanced from `BLOCKED` to `READY` by an authorized external resolution.
+5. Dispatcher state revision is advanced from `BLOCKED` to `READY` by an authorized external resolution using expected-revision CAS; a successful write increments the complete snapshot exactly once.
 
 ## Review Gate
 

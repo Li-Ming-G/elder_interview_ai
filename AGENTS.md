@@ -12,7 +12,7 @@ Read only:
 4. `docs/agent/dispatcher/dispatcher-state.json` and `transition-contract.md`;
 5. the selected Task Card.
 
-The Dispatcher may mechanically select one `READY` task, verify dependencies, claim it once, launch the Task Card's declared worker profile, record the run/thread, require test evidence and a non-synthetic PR before `REVIEW`, then stop. It may apply only an external `PASS`, `REQUEST_CHANGES`, `BLOCKED`, or `PRODUCT_AMBIGUITY` outcome.
+The Dispatcher may mechanically select one `READY` task, verify dependencies, claim it once with the expected state revision, launch the Task Card's declared worker profile, and record the run/thread. Before `REVIEW`, it requires repository owner/name, PR number/URL, exact head and passing test/CI evidence bound to that head, then stops. It may apply only complete external evidence for `PASS`, `REQUEST_CHANGES`, `BLOCKED`, or `PRODUCT_AMBIGUITY`: reviewer identity, review URL/id, outcome and reviewed exact head. Every successful write increments the multi-task snapshot revision exactly once.
 
 The Dispatcher must not design or split tasks, change architecture or product behavior, edit an Accepted Contract, choose a deferred item, expand scope, infer an ambiguous transition, or approve a review gate.
 
@@ -63,6 +63,6 @@ Any contradiction among levels 1–4 that cannot be resolved mechanically is `BL
 
 ## Review and governance cadence
 
-Normal work reaches `REVIEW` only with required tests and a real PR, then stops for external review. `REQUEST_CHANGES` returns the same task to the same bounded scope. Only external `PASS` can produce `DONE` and atomically unlock a predefined `next_task`.
+Normal work reaches `REVIEW` only with required exact-head tests and a real repository-bound PR, then stops for external review. The review gate is mandatory. `REQUEST_CHANGES` preserves the exact-head review history and returns the same task to the same bounded scope. Only exact-head external `PASS` can produce `DONE` and atomically unlock a predefined `next_task`.
 
 Do not create a per-task REV file, handoff file, traceability update, conflict-history update or ADR by default. Use Task Card + PR as the handoff. Update ADR only for a real architecture decision; maintain current open conflicts separately; batch traceability and historical indexes at stage end.
