@@ -2,9 +2,11 @@ import type { DecisionTraceStatus } from '../ai-runtime/decision-trace.service.j
 
 export const MEMORY_P2_SOURCE_CONTRACT_VERSION = 'memory-maintainer-v1.2' as const;
 
-export type MemoryP2TriggerKind = 'semantic_park' | 'capacity_checkpoint' | 'session_final_flush';
+export type MemoryP2MidTriggerKind =
+  'semantic_park' | 'capacity_checkpoint' | 'session_final_flush';
+export type MemoryP2TriggerKind = MemoryP2MidTriggerKind | 'long_session_end';
 
-export type MemoryP2JobKind = 'mid_online' | 'mid_final';
+export type MemoryP2JobKind = 'mid_online' | 'mid_final' | 'long_session_end';
 export type MemoryP2TerminalStatus = Extract<
   DecisionTraceStatus,
   'failed' | 'cancelled' | 'unavailable'
@@ -41,7 +43,7 @@ export interface MemoryP2RetryPredecessor {
 
 export interface MemoryP2TriggerRequest {
   finalTailManifestHash?: string;
-  kind: MemoryP2TriggerKind;
+  kind: MemoryP2MidTriggerKind;
   p1SourceContractVersion: typeof MEMORY_P2_SOURCE_CONTRACT_VERSION;
   p1TerminalJobId: string | null;
   policy: MemoryP2PolicyBinding;
@@ -56,12 +58,23 @@ export interface MemoryP2TriggerRequest {
   targetRevision: number;
 }
 
-export interface MemoryP2Trigger extends MemoryP2TriggerRequest {
+/** Internal wake created from a durable final-Mid candidate; it is not a P1 trigger. */
+export interface MemoryP2LongTriggerRequest extends Omit<
+  MemoryP2TriggerRequest,
+  'finalTailManifestHash' | 'kind'
+> {
+  kind: 'long_session_end';
+}
+
+export type MemoryP2AnyTriggerRequest = MemoryP2TriggerRequest | MemoryP2LongTriggerRequest;
+
+export type MemoryP2Trigger = MemoryP2AnyTriggerRequest & {
   attemptNo: number;
+  finalTailManifestHash?: string;
   jobKind: MemoryP2JobKind;
   requestIdentity: string;
   triggerIdentity: string;
-}
+};
 
 export interface MemoryP2SemanticClaim {
   claim_key: string;

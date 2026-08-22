@@ -33,6 +33,12 @@ import {
   type MemoryP2StaleRecoveryCandidate,
   type MemoryP2TraceSourceInput,
 } from './memory-p2-persistence.types.js';
+import type {
+  MemoryP2RecoveryAuthority,
+  MemoryP2RecoveryCasResult,
+  MemoryP2RecoveryCommand,
+  MemoryP2TraceReference,
+} from './memory-p2-observability.types.js';
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -42,366 +48,372 @@ export class MemoryP2PersistenceRepository {
 
   public async freezeCheckpoint(
     input: MemoryP2FreezeCheckpointInput,
+    transaction?: TransactionClient,
   ): Promise<MemoryP2FrozenCheckpoint> {
-    return this.prisma.$transaction(
-      async (tx) => {
-        await this.assertMigrationReady(tx);
-        this.assertLease(input.lease);
-        await this.lockScope(tx, input.projectId, input.sourceSessionId);
-        await tx.$queryRaw`SELECT "id" FROM "memory_working_snapshot" WHERE "id" = ${input.sourceWorkingSnapshotId}::uuid FOR SHARE`;
-        await tx.$queryRaw`SELECT "id" FROM "memory_thread_revision" WHERE "id" = ${input.sourceThreadRevisionId}::uuid FOR SHARE`;
-        for (const member of [...input.members].sort((left, right) =>
-          left.resolutionAuthorityId.localeCompare(right.resolutionAuthorityId),
-        )) {
-          await tx.$queryRaw`SELECT "id" FROM "memory_resolution" WHERE "id" = ${member.resolutionRowId}::uuid FOR SHARE`;
-        }
-        await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
+    const work = async (tx: TransactionClient): Promise<MemoryP2FrozenCheckpoint> => {
+      await this.assertMigrationReady(tx);
+      this.assertLease(input.lease);
+      await this.lockScope(tx, input.projectId, input.sourceSessionId);
+      await tx.$queryRaw`SELECT "id" FROM "memory_working_snapshot" WHERE "id" = ${input.sourceWorkingSnapshotId}::uuid FOR SHARE`;
+      await tx.$queryRaw`SELECT "id" FROM "memory_thread_revision" WHERE "id" = ${input.sourceThreadRevisionId}::uuid FOR SHARE`;
+      for (const member of [...input.members].sort((left, right) =>
+        left.resolutionAuthorityId.localeCompare(right.resolutionAuthorityId),
+      )) {
+        await tx.$queryRaw`SELECT "id" FROM "memory_resolution" WHERE "id" = ${member.resolutionRowId}::uuid FOR SHARE`;
+      }
+      await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
 
-        const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
-        const replay = await tx.memoryEvolutionCheckpoint.findUnique({
-          where: { p2ProducerJobId: input.aiJobId },
-        });
-        if (replay !== null) {
-          if (
-            replay.id !== input.checkpointId ||
-            replay.projectId !== input.projectId ||
-            replay.sourceSessionId !== input.sourceSessionId ||
-            replay.rootIdentity !== input.rootIdentity ||
-            replay.memberManifestHash !== input.memberManifestHash ||
-            replay.deletionScopeDigest !== input.deletionScopeDigest
-          )
-            throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
-          const trace = await tx.decisionTraceMemorySemantic.findUnique({
-            where: { aiJobId: input.aiJobId },
-          });
-          const projection = await tx.memoryP2JobProjection.findUnique({
-            where: { aiJobId: input.aiJobId },
-          });
-          if (
-            trace === null ||
-            projection === null ||
-            projection.recoveryLeaseOwner !== input.lease.owner ||
-            projection.recoveryLeaseEpoch !== input.lease.epoch ||
-            projection.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime()
-          )
-            throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
-          return { checkpointId: replay.id, replayed: true, traceId: trace.traceId };
-        }
+      const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
+      const replay = await tx.memoryEvolutionCheckpoint.findUnique({
+        where: { p2ProducerJobId: input.aiJobId },
+      });
+      if (replay !== null) {
         if (
-          job === null ||
-          job.projectId !== input.projectId ||
-          !['mid_online', 'mid_final'].includes(job.jobType) ||
-          job.status !== 'running' ||
-          job.triggerDedupeKey?.startsWith('memory-p2-v1:') !== true ||
-          job.policyRevision !== input.aiPolicyRevision ||
-          job.retentionPolicyVersion !== input.retentionPolicyVersion ||
-          job.retentionState !== 'active' ||
-          job.expiresAt.getTime() !== input.expiresAt.getTime() ||
-          input.sourceWorkingSnapshotContractVersion !== 'memory-maintainer-v1.2'
+          replay.id !== input.checkpointId ||
+          replay.projectId !== input.projectId ||
+          replay.sourceSessionId !== input.sourceSessionId ||
+          replay.rootIdentity !== input.rootIdentity ||
+          replay.memberManifestHash !== input.memberManifestHash ||
+          replay.deletionScopeDigest !== input.deletionScopeDigest
         )
-          throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
-        if (input.lease.expiresAt > input.expiresAt)
           throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
-
-        this.assertOrdered(input.members);
-        this.assertOrdered(input.sourceTraceReferences);
-        this.assertUnique(input.members.map((member) => member.resolutionAuthorityId));
-        this.assertUnique(input.members.map((member) => member.resolutionRowId));
-        this.assertUnique(
-          input.sourceTraceReferences.map((source) =>
-            [source.sourceKind, source.sourceId, source.sourceRevision].join(':'),
-          ),
-        );
-        if (
-          input.expectedMemberCount !== input.members.length ||
-          input.members.length === 0 ||
-          memoryP2CheckpointManifestHash(input.members) !== input.memberManifestHash
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
-        const sourceResolutionMembers = await tx.memoryResolutionMember.findMany({
-          where: {
-            memoryResolutionId: { in: input.members.map((member) => member.resolutionRowId) },
-          },
-        });
-        const sourceClaimCounts = new Map<string, number>();
-        for (const member of sourceResolutionMembers)
-          sourceClaimCounts.set(
-            member.memoryResolutionId,
-            (sourceClaimCounts.get(member.memoryResolutionId) ?? 0) + 1,
-          );
-        if (
-          input.members.some(
-            (member) => (sourceClaimCounts.get(member.resolutionRowId) ?? 0) !== member.claimCount,
-          )
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        const expectedJobType =
-          input.triggerKind === 'session_final_flush' ? 'mid_final' : 'mid_online';
-        if (job.jobType !== expectedJobType)
-          throw new MemoryP2PersistenceError('MEMORY_P2_INPUT_SCOPE_MISMATCH');
-
-        await tx.memoryEvolutionCheckpoint.create({
-          data: {
-            aiPolicyRevision: input.aiPolicyRevision,
-            currentExpectedCount: input.sourceCurrentExpectedCount,
-            currentManifestHash: input.sourceCurrentManifestHash,
-            deletionScopeDigest: input.deletionScopeDigest,
-            deletionScopePolicyRevision: input.deletionScopePolicyRevision,
-            evidenceManifestHash: input.evidenceManifestHash,
-            expectedMemberCount: input.expectedMemberCount,
-            id: input.checkpointId,
-            lifecycleStatus: 'frozen',
-            manifestAlgorithmVersion: MEMORY_P2_MANIFEST_ALGORITHM_VERSION,
-            memberManifestHash: input.memberManifestHash,
-            midExpectedCount: input.midExpectedCount,
-            midManifestHash: input.midManifestHash,
-            p2PolicyContractRevision: input.p2PolicyContractRevision,
-            p2ProducerJobId: input.aiJobId,
-            p2RetentionContractVersion: input.p2RetentionContractVersion,
-            projectId: input.projectId,
-            retentionPolicyVersion: input.retentionPolicyVersion,
-            rootIdentity: input.rootIdentity,
-            sourceBoundaryManifestHash: input.sourceBoundaryManifestHash,
-            sourceP1TerminalJobId: input.sourceP1TerminalJobId,
-            sourceP1TerminalOutcome: input.sourceP1TerminalOutcome,
-            sourceP1TerminalStatus: input.sourceP1TerminalStatus,
-            sourceResolutionManifestHash: input.sourceResolutionManifestHash,
-            sourceSessionId: input.sourceSessionId,
-            sourceSetKind: input.sourceSetKind,
-            sourceThreadId: input.sourceThreadId,
-            sourceThreadManifestHash: input.sourceThreadManifestHash,
-            sourceThreadRevision: input.sourceThreadRevision,
-            sourceThreadRevisionId: input.sourceThreadRevisionId,
-            sourceThreadStatus: input.sourceThreadStatus,
-            sourceSnapshotContractVersion: input.sourceWorkingSnapshotContractVersion,
-            sourceWorkingSnapshotId: input.sourceWorkingSnapshotId,
-            triggerIdentity: input.triggerIdentity,
-            triggerKind: input.triggerKind,
-          },
-        });
-        await tx.memoryEvolutionCheckpointMember.createMany({
-          data: input.members.map((member) => ({
-            boundaryStatus: member.boundaryStatus,
-            checkpointId: input.checkpointId,
-            claimCount: member.claimCount,
-            inputOrder: member.inputOrder,
-            membershipDigest: member.membershipDigest,
-            resolutionAuthorityId: member.resolutionAuthorityId,
-            resolutionRevision: member.resolutionRevision,
-            resolutionRowId: member.resolutionRowId,
-            semanticStatus: member.semanticStatus,
-          })),
-        });
-        await tx.memoryP2JobProjection.create({
-          data: {
-            aiJobId: input.aiJobId,
-            deletionScopeDigest: input.deletionScopeDigest,
-            deletionScopePolicyRevision: input.deletionScopePolicyRevision,
-            jobKind: job.jobType,
-            p2PolicyContractRevision: input.p2PolicyContractRevision,
-            p2PolicyRevision: input.p2PolicyRevision,
-            p2RetentionContractVersion: input.p2RetentionContractVersion,
-            p2RetentionPolicyVersion: input.p2RetentionPolicyVersion,
-            recoveryLeaseEpoch: input.lease.epoch,
-            recoveryLeaseExpiresAt: input.lease.expiresAt,
-            recoveryLeaseOwner: input.lease.owner,
-            sourceCheckpointId: input.checkpointId,
-            sourceP1TerminalJobId: input.sourceP1TerminalJobId,
-            sourceRevisionDigest: input.sourceRevisionDigest,
-            sourceThreadRevisionId: input.sourceThreadRevisionId,
-            sourceWorkingSnapshotId: input.sourceWorkingSnapshotId,
-            targetSlotDigest: input.targetSlotDigest,
-            triggerIdentityHash: input.triggerIdentityHash,
-          },
-        });
-        await tx.decisionTrace.create({
-          data: {
-            activeThreadId: input.sourceThreadId,
-            aiJobId: input.aiJobId,
-            contextRevision: 0,
-            decisionOutcome: 'unavailable',
-            directorInvoked: false,
-            expiresAt: input.expiresAt,
-            generationId: input.traceGenerationId,
-            id: input.traceId,
-            inputHash: job.inputHash,
-            memoryOutcome: 'unavailable',
-            ownerActorId: input.ownerActorId,
-            projectId: input.projectId,
-            requestId: input.traceRequestId,
-            sessionId: input.sourceSessionId,
-            stage: 'frozen',
-            stageTimingsJson: {},
-            startedAt: new Date(),
-            status: 'running',
-            traceKind: 'memory_layer_evolve',
-            triggerType: 'memory_layer_evolve',
-          },
-        });
-        await tx.decisionTraceMemorySemantic.create({
-          data: {
-            aiJobId: input.aiJobId,
-            deletionScopeDigest: input.deletionScopeDigest,
-            sourceManifestHash: input.sourceRevisionDigest,
-            traceId: input.traceId,
-          },
-        });
-        await tx.decisionTraceMemorySourceReference.createMany({
-          data: input.sourceTraceReferences.map((source) =>
-            this.traceSourceRow(input.traceId, source),
-          ),
-        });
-        await tx.memoryP2RetentionTarget.createMany({
-          data: [
-            this.retentionTarget(input.aiJobId, 'job', input.aiJobId, 0),
-            this.retentionTarget(input.aiJobId, 'trace', input.traceId, 1),
-            this.retentionTarget(input.aiJobId, 'checkpoint', input.checkpointId, 2),
-          ],
-        });
-        return { checkpointId: input.checkpointId, replayed: false, traceId: input.traceId };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
-  }
-
-  public async freezeLongJob(input: MemoryP2FreezeLongJobInput): Promise<MemoryP2FrozenCheckpoint> {
-    return this.prisma.$transaction(
-      async (tx) => {
-        await this.assertMigrationReady(tx);
-        this.assertLease(input.lease);
-        await this.lockScope(tx, input.projectId, input.sourceSessionId);
-        await tx.$queryRaw`SELECT "id" FROM "memory_evolution_checkpoint" WHERE "id" = ${input.sourceFinalMidCheckpointId}::uuid FOR SHARE`;
-        await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
-        const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
-        const checkpoint = await tx.memoryEvolutionCheckpoint.findUnique({
-          where: { id: input.sourceFinalMidCheckpointId },
-        });
-        const finalProjection =
-          checkpoint === null
-            ? null
-            : await tx.memoryP2JobProjection.findUnique({
-                where: { aiJobId: checkpoint.p2ProducerJobId },
-              });
-        const replay = await tx.memoryP2JobProjection.findUnique({
+        const trace = await tx.decisionTraceMemorySemantic.findUnique({
           where: { aiJobId: input.aiJobId },
         });
-        if (replay !== null) {
-          const semantic = await tx.decisionTraceMemorySemantic.findUnique({
-            where: { aiJobId: input.aiJobId },
-          });
-          if (
-            semantic === null ||
-            replay.sourceFinalMidCheckpointId !== input.sourceFinalMidCheckpointId ||
-            replay.sourceRevisionDigest !== input.sourceRevisionDigest ||
-            replay.deletionScopeDigest !== input.deletionScopeDigest ||
-            replay.recoveryLeaseOwner !== input.lease.owner ||
-            replay.recoveryLeaseEpoch !== input.lease.epoch ||
-            replay.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime()
-          )
-            throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
-          return {
-            checkpointId: input.sourceFinalMidCheckpointId,
-            replayed: true,
-            traceId: semantic.traceId,
-          };
-        }
+        const projection = await tx.memoryP2JobProjection.findUnique({
+          where: { aiJobId: input.aiJobId },
+        });
         if (
-          job === null ||
-          checkpoint === null ||
-          job.projectId !== input.projectId ||
-          job.jobType !== 'long_session_end' ||
-          job.status !== 'running' ||
-          job.triggerDedupeKey?.startsWith('memory-p2-v1:') !== true ||
-          job.retentionState !== 'active' ||
-          job.expiresAt.getTime() !== input.expiresAt.getTime() ||
-          checkpoint.projectId !== input.projectId ||
-          checkpoint.sourceSessionId !== input.sourceSessionId ||
-          checkpoint.lifecycleStatus !== 'committed' ||
-          checkpoint.sourceP1TerminalJobId !== input.sourceP1TerminalJobId ||
-          finalProjection === null ||
-          finalProjection.jobKind !== 'mid_final' ||
-          finalProjection.targetRevisionDigest !== input.sourceRevisionDigest
+          trace === null ||
+          projection === null ||
+          projection.recoveryLeaseOwner !== input.lease.owner ||
+          projection.recoveryLeaseEpoch !== input.lease.epoch ||
+          projection.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime()
         )
-          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        if (input.lease.expiresAt > input.expiresAt)
           throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
-        this.assertOrdered(input.sourceTraceReferences);
-        this.assertUnique(
-          input.sourceTraceReferences.map((source) =>
-            [source.sourceKind, source.sourceId, source.sourceRevision].join(':'),
-          ),
+        return { checkpointId: replay.id, replayed: true, traceId: trace.traceId };
+      }
+      if (
+        job === null ||
+        job.projectId !== input.projectId ||
+        !['mid_online', 'mid_final'].includes(job.jobType) ||
+        job.status !== 'running' ||
+        job.triggerDedupeKey?.startsWith('memory-p2-v1:') !== true ||
+        job.policyRevision !== input.aiPolicyRevision ||
+        job.retentionPolicyVersion !== input.retentionPolicyVersion ||
+        job.retentionState !== 'active' ||
+        job.expiresAt.getTime() !== input.expiresAt.getTime() ||
+        input.sourceWorkingSnapshotContractVersion !== 'memory-maintainer-v1.2'
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+      if (input.lease.expiresAt > input.expiresAt)
+        throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
+
+      this.assertOrdered(input.members);
+      this.assertOrdered(input.sourceTraceReferences);
+      this.assertUnique(input.members.map((member) => member.resolutionAuthorityId));
+      this.assertUnique(input.members.map((member) => member.resolutionRowId));
+      this.assertUnique(
+        input.sourceTraceReferences.map((source) =>
+          [source.sourceKind, source.sourceId, source.sourceRevision].join(':'),
+        ),
+      );
+      if (
+        input.expectedMemberCount !== input.members.length ||
+        input.members.length === 0 ||
+        memoryP2CheckpointManifestHash(input.members) !== input.memberManifestHash
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
+      const sourceResolutionMembers = await tx.memoryResolutionMember.findMany({
+        where: {
+          memoryResolutionId: { in: input.members.map((member) => member.resolutionRowId) },
+        },
+      });
+      const sourceClaimCounts = new Map<string, number>();
+      for (const member of sourceResolutionMembers)
+        sourceClaimCounts.set(
+          member.memoryResolutionId,
+          (sourceClaimCounts.get(member.memoryResolutionId) ?? 0) + 1,
         );
-        await tx.memoryP2JobProjection.create({
-          data: {
-            aiJobId: input.aiJobId,
-            deletionScopeDigest: input.deletionScopeDigest,
-            deletionScopePolicyRevision: input.deletionScopePolicyRevision,
-            jobKind: 'long_session_end',
-            p2PolicyContractRevision: input.p2PolicyContractRevision,
-            p2PolicyRevision: input.p2PolicyRevision,
-            p2RetentionContractVersion: input.p2RetentionContractVersion,
-            p2RetentionPolicyVersion: input.p2RetentionPolicyVersion,
-            recoveryLeaseEpoch: input.lease.epoch,
-            recoveryLeaseExpiresAt: input.lease.expiresAt,
-            recoveryLeaseOwner: input.lease.owner,
-            sourceCheckpointId: input.sourceFinalMidCheckpointId,
-            sourceFinalMidCheckpointId: input.sourceFinalMidCheckpointId,
-            sourceP1TerminalJobId: input.sourceP1TerminalJobId,
-            sourceRevisionDigest: input.sourceRevisionDigest,
-            targetSlotDigest: input.targetSlotDigest,
-            triggerIdentityHash: input.triggerIdentityHash,
-          },
+      if (
+        input.members.some(
+          (member) => (sourceClaimCounts.get(member.resolutionRowId) ?? 0) !== member.claimCount,
+        )
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+      const expectedJobType =
+        input.triggerKind === 'session_final_flush' ? 'mid_final' : 'mid_online';
+      if (job.jobType !== expectedJobType)
+        throw new MemoryP2PersistenceError('MEMORY_P2_INPUT_SCOPE_MISMATCH');
+
+      await tx.memoryEvolutionCheckpoint.create({
+        data: {
+          aiPolicyRevision: input.aiPolicyRevision,
+          currentExpectedCount: input.sourceCurrentExpectedCount,
+          currentManifestHash: input.sourceCurrentManifestHash,
+          deletionScopeDigest: input.deletionScopeDigest,
+          deletionScopePolicyRevision: input.deletionScopePolicyRevision,
+          evidenceManifestHash: input.evidenceManifestHash,
+          expectedMemberCount: input.expectedMemberCount,
+          id: input.checkpointId,
+          lifecycleStatus: 'frozen',
+          manifestAlgorithmVersion: MEMORY_P2_MANIFEST_ALGORITHM_VERSION,
+          memberManifestHash: input.memberManifestHash,
+          midExpectedCount: input.midExpectedCount,
+          midManifestHash: input.midManifestHash,
+          p2PolicyContractRevision: input.p2PolicyContractRevision,
+          p2ProducerJobId: input.aiJobId,
+          p2RetentionContractVersion: input.p2RetentionContractVersion,
+          projectId: input.projectId,
+          retentionPolicyVersion: input.retentionPolicyVersion,
+          rootIdentity: input.rootIdentity,
+          sourceBoundaryManifestHash: input.sourceBoundaryManifestHash,
+          sourceP1TerminalJobId: input.sourceP1TerminalJobId,
+          sourceP1TerminalOutcome: input.sourceP1TerminalOutcome,
+          sourceP1TerminalStatus: input.sourceP1TerminalStatus,
+          sourceResolutionManifestHash: input.sourceResolutionManifestHash,
+          sourceSessionId: input.sourceSessionId,
+          sourceSetKind: input.sourceSetKind,
+          sourceThreadId: input.sourceThreadId,
+          sourceThreadManifestHash: input.sourceThreadManifestHash,
+          sourceThreadRevision: input.sourceThreadRevision,
+          sourceThreadRevisionId: input.sourceThreadRevisionId,
+          sourceThreadStatus: input.sourceThreadStatus,
+          sourceSnapshotContractVersion: input.sourceWorkingSnapshotContractVersion,
+          sourceWorkingSnapshotId: input.sourceWorkingSnapshotId,
+          triggerIdentity: input.triggerIdentity,
+          triggerKind: input.triggerKind,
+        },
+      });
+      await tx.memoryEvolutionCheckpointMember.createMany({
+        data: input.members.map((member) => ({
+          boundaryStatus: member.boundaryStatus,
+          checkpointId: input.checkpointId,
+          claimCount: member.claimCount,
+          inputOrder: member.inputOrder,
+          membershipDigest: member.membershipDigest,
+          resolutionAuthorityId: member.resolutionAuthorityId,
+          resolutionRevision: member.resolutionRevision,
+          resolutionRowId: member.resolutionRowId,
+          semanticStatus: member.semanticStatus,
+        })),
+      });
+      await tx.memoryP2JobProjection.create({
+        data: {
+          aiJobId: input.aiJobId,
+          deletionScopeDigest: input.deletionScopeDigest,
+          deletionScopePolicyRevision: input.deletionScopePolicyRevision,
+          jobKind: job.jobType,
+          p2PolicyContractRevision: input.p2PolicyContractRevision,
+          p2PolicyRevision: input.p2PolicyRevision,
+          p2RetentionContractVersion: input.p2RetentionContractVersion,
+          p2RetentionPolicyVersion: input.p2RetentionPolicyVersion,
+          recoveryLeaseEpoch: input.lease.epoch,
+          recoveryLeaseExpiresAt: input.lease.expiresAt,
+          recoveryLeaseOwner: input.lease.owner,
+          sourceCheckpointId: input.checkpointId,
+          sourceP1TerminalJobId: input.sourceP1TerminalJobId,
+          sourceRevisionDigest: input.sourceRevisionDigest,
+          sourceThreadRevisionId: input.sourceThreadRevisionId,
+          sourceWorkingSnapshotId: input.sourceWorkingSnapshotId,
+          targetSlotDigest: input.targetSlotDigest,
+          triggerIdentityHash: input.triggerIdentityHash,
+        },
+      });
+      await tx.decisionTrace.create({
+        data: {
+          activeThreadId: input.sourceThreadId,
+          aiJobId: input.aiJobId,
+          contextRevision: 0,
+          decisionOutcome: 'unavailable',
+          directorInvoked: false,
+          expiresAt: input.expiresAt,
+          generationId: input.traceGenerationId,
+          id: input.traceId,
+          inputHash: job.inputHash,
+          memoryOutcome: 'unavailable',
+          ownerActorId: input.ownerActorId,
+          projectId: input.projectId,
+          requestId: input.traceRequestId,
+          sessionId: input.sourceSessionId,
+          stage: 'frozen',
+          stageTimingsJson: {},
+          startedAt: new Date(),
+          status: 'running',
+          traceKind: 'memory_layer_evolve',
+          triggerType: 'memory_layer_evolve',
+        },
+      });
+      await tx.decisionTraceMemorySemantic.create({
+        data: {
+          aiJobId: input.aiJobId,
+          deletionScopeDigest: input.deletionScopeDigest,
+          sourceManifestHash: input.sourceRevisionDigest,
+          traceId: input.traceId,
+        },
+      });
+      await tx.decisionTraceMemorySourceReference.createMany({
+        data: input.sourceTraceReferences.map((source) =>
+          this.traceSourceRow(input.traceId, source),
+        ),
+      });
+      await tx.memoryP2RetentionTarget.createMany({
+        data: [
+          this.retentionTarget(input.aiJobId, 'job', input.aiJobId, 0),
+          this.retentionTarget(input.aiJobId, 'trace', input.traceId, 1),
+          this.retentionTarget(input.aiJobId, 'checkpoint', input.checkpointId, 2),
+        ],
+      });
+      return { checkpointId: input.checkpointId, replayed: false, traceId: input.traceId };
+    };
+    if (transaction !== undefined) return work(transaction);
+    return this.prisma.$transaction(work, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
+  public async freezeLongJob(
+    input: MemoryP2FreezeLongJobInput,
+    transaction?: TransactionClient,
+  ): Promise<MemoryP2FrozenCheckpoint> {
+    const work = async (tx: TransactionClient): Promise<MemoryP2FrozenCheckpoint> => {
+      await this.assertMigrationReady(tx);
+      this.assertLease(input.lease);
+      await this.lockScope(tx, input.projectId, input.sourceSessionId);
+      await tx.$queryRaw`SELECT "id" FROM "memory_evolution_checkpoint" WHERE "id" = ${input.sourceFinalMidCheckpointId}::uuid FOR SHARE`;
+      await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
+      const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
+      const checkpoint = await tx.memoryEvolutionCheckpoint.findUnique({
+        where: { id: input.sourceFinalMidCheckpointId },
+      });
+      const finalProjection =
+        checkpoint === null
+          ? null
+          : await tx.memoryP2JobProjection.findUnique({
+              where: { aiJobId: checkpoint.p2ProducerJobId },
+            });
+      const replay = await tx.memoryP2JobProjection.findUnique({
+        where: { aiJobId: input.aiJobId },
+      });
+      if (replay !== null) {
+        const semantic = await tx.decisionTraceMemorySemantic.findUnique({
+          where: { aiJobId: input.aiJobId },
         });
-        await tx.decisionTrace.create({
-          data: {
-            aiJobId: input.aiJobId,
-            contextRevision: 0,
-            decisionOutcome: 'unavailable',
-            directorInvoked: false,
-            expiresAt: input.expiresAt,
-            generationId: input.traceGenerationId,
-            id: input.traceId,
-            inputHash: job.inputHash,
-            memoryOutcome: 'unavailable',
-            ownerActorId: input.ownerActorId,
-            projectId: input.projectId,
-            requestId: input.traceRequestId,
-            sessionId: input.sourceSessionId,
-            stage: 'frozen',
-            stageTimingsJson: {},
-            startedAt: new Date(),
-            status: 'running',
-            traceKind: 'memory_layer_evolve',
-            triggerType: 'memory_layer_evolve',
-          },
-        });
-        await tx.decisionTraceMemorySemantic.create({
-          data: {
-            aiJobId: input.aiJobId,
-            deletionScopeDigest: input.deletionScopeDigest,
-            sourceManifestHash: input.sourceRevisionDigest,
-            traceId: input.traceId,
-          },
-        });
-        await tx.decisionTraceMemorySourceReference.createMany({
-          data: input.sourceTraceReferences.map((source) =>
-            this.traceSourceRow(input.traceId, source),
-          ),
-        });
-        await tx.memoryP2RetentionTarget.createMany({
-          data: [
-            this.retentionTarget(input.aiJobId, 'job', input.aiJobId, 0),
-            this.retentionTarget(input.aiJobId, 'trace', input.traceId, 1),
-          ],
-        });
+        if (
+          semantic === null ||
+          replay.sourceFinalMidCheckpointId !== input.sourceFinalMidCheckpointId ||
+          replay.sourceRevisionDigest !== input.sourceRevisionDigest ||
+          replay.deletionScopeDigest !== input.deletionScopeDigest ||
+          replay.recoveryLeaseOwner !== input.lease.owner ||
+          replay.recoveryLeaseEpoch !== input.lease.epoch ||
+          replay.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime()
+        )
+          throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
         return {
           checkpointId: input.sourceFinalMidCheckpointId,
-          replayed: false,
-          traceId: input.traceId,
+          replayed: true,
+          traceId: semantic.traceId,
         };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+      }
+      if (
+        job === null ||
+        checkpoint === null ||
+        job.projectId !== input.projectId ||
+        job.jobType !== 'long_session_end' ||
+        job.status !== 'running' ||
+        job.triggerDedupeKey?.startsWith('memory-p2-v1:') !== true ||
+        job.retentionState !== 'active' ||
+        job.expiresAt.getTime() !== input.expiresAt.getTime() ||
+        checkpoint.projectId !== input.projectId ||
+        checkpoint.sourceSessionId !== input.sourceSessionId ||
+        checkpoint.lifecycleStatus !== 'committed' ||
+        checkpoint.sourceP1TerminalJobId !== input.sourceP1TerminalJobId ||
+        finalProjection === null ||
+        finalProjection.jobKind !== 'mid_final' ||
+        finalProjection.targetRevisionDigest !== input.sourceRevisionDigest
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+      if (input.lease.expiresAt > input.expiresAt)
+        throw new MemoryP2PersistenceError('MEMORY_P2_CHECKPOINT_INVALID');
+      this.assertOrdered(input.sourceTraceReferences);
+      this.assertUnique(
+        input.sourceTraceReferences.map((source) =>
+          [source.sourceKind, source.sourceId, source.sourceRevision].join(':'),
+        ),
+      );
+      await tx.memoryP2JobProjection.create({
+        data: {
+          aiJobId: input.aiJobId,
+          deletionScopeDigest: input.deletionScopeDigest,
+          deletionScopePolicyRevision: input.deletionScopePolicyRevision,
+          jobKind: 'long_session_end',
+          p2PolicyContractRevision: input.p2PolicyContractRevision,
+          p2PolicyRevision: input.p2PolicyRevision,
+          p2RetentionContractVersion: input.p2RetentionContractVersion,
+          p2RetentionPolicyVersion: input.p2RetentionPolicyVersion,
+          recoveryLeaseEpoch: input.lease.epoch,
+          recoveryLeaseExpiresAt: input.lease.expiresAt,
+          recoveryLeaseOwner: input.lease.owner,
+          sourceCheckpointId: input.sourceFinalMidCheckpointId,
+          sourceFinalMidCheckpointId: input.sourceFinalMidCheckpointId,
+          sourceP1TerminalJobId: input.sourceP1TerminalJobId,
+          sourceRevisionDigest: input.sourceRevisionDigest,
+          targetSlotDigest: input.targetSlotDigest,
+          triggerIdentityHash: input.triggerIdentityHash,
+        },
+      });
+      await tx.decisionTrace.create({
+        data: {
+          aiJobId: input.aiJobId,
+          contextRevision: 0,
+          decisionOutcome: 'unavailable',
+          directorInvoked: false,
+          expiresAt: input.expiresAt,
+          generationId: input.traceGenerationId,
+          id: input.traceId,
+          inputHash: job.inputHash,
+          memoryOutcome: 'unavailable',
+          ownerActorId: input.ownerActorId,
+          projectId: input.projectId,
+          requestId: input.traceRequestId,
+          sessionId: input.sourceSessionId,
+          stage: 'frozen',
+          stageTimingsJson: {},
+          startedAt: new Date(),
+          status: 'running',
+          traceKind: 'memory_layer_evolve',
+          triggerType: 'memory_layer_evolve',
+        },
+      });
+      await tx.decisionTraceMemorySemantic.create({
+        data: {
+          aiJobId: input.aiJobId,
+          deletionScopeDigest: input.deletionScopeDigest,
+          sourceManifestHash: input.sourceRevisionDigest,
+          traceId: input.traceId,
+        },
+      });
+      await tx.decisionTraceMemorySourceReference.createMany({
+        data: input.sourceTraceReferences.map((source) =>
+          this.traceSourceRow(input.traceId, source),
+        ),
+      });
+      await tx.memoryP2RetentionTarget.createMany({
+        data: [
+          this.retentionTarget(input.aiJobId, 'job', input.aiJobId, 0),
+          this.retentionTarget(input.aiJobId, 'trace', input.traceId, 1),
+        ],
+      });
+      return {
+        checkpointId: input.sourceFinalMidCheckpointId,
+        replayed: false,
+        traceId: input.traceId,
+      };
+    };
+    if (transaction !== undefined) return work(transaction);
+    return this.prisma.$transaction(work, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
   }
 
   public async commitLayerRevision(input: MemoryP2CommitInput): Promise<MemoryP2CommitResult> {
@@ -760,8 +772,9 @@ export class MemoryP2PersistenceRepository {
         where: { aiJobId: input.aiJobId },
       });
       if (job === null) throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+      const status = input.status ?? 'unavailable';
       if (job.status !== 'running') {
-        if (job.status === 'unavailable' && job.failureCode === input.errorCode) return;
+        if (job.status === status && job.failureCode === input.errorCode) return;
         throw new MemoryP2PersistenceError('MEMORY_P2_COMMIT_ALREADY_TERMINAL');
       }
       if (
@@ -773,7 +786,7 @@ export class MemoryP2PersistenceRepository {
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
       await tx.aiJob.update({
-        data: { completedAt: new Date(), failureCode: input.errorCode, status: 'unavailable' },
+        data: { completedAt: new Date(), failureCode: input.errorCode, status },
         where: { id: input.aiJobId },
       });
       await tx.memoryP2JobProjection.update({
@@ -789,9 +802,10 @@ export class MemoryP2PersistenceRepository {
           completedAt,
           durationMs: Math.max(0, completedAt.getTime() - traceParent.startedAt.getTime()),
           errorCode: input.errorCode,
-          memoryOutcome: 'unavailable',
+          memoryOutcome:
+            status === 'failed' ? 'failed' : status === 'cancelled' ? 'cancelled' : 'unavailable',
           stage: 'terminal',
-          status: 'unavailable',
+          status,
         },
         where: { id: input.traceId },
       });
@@ -829,6 +843,148 @@ export class MemoryP2PersistenceRepository {
       aiJobId: row.aiJobId,
       lease: { epoch: row.epoch, expiresAt: row.expiresAt, owner: row.owner },
     }));
+  }
+
+  public async scanCandidateJobIds(input: {
+    limit: number;
+    staleAtOrBefore: Date;
+  }): Promise<readonly string[]> {
+    return (await this.listStaleRecoveryCandidates(input.limit)).map((row) => row.aiJobId);
+  }
+
+  public async readRecoveryAuthority(jobId: string): Promise<MemoryP2RecoveryAuthority | null> {
+    const [job, projection, semantic, checkpoint] = await Promise.all([
+      this.prisma.aiJob.findUnique({ where: { id: jobId } }),
+      this.prisma.memoryP2JobProjection.findUnique({ where: { aiJobId: jobId } }),
+      this.prisma.decisionTraceMemorySemantic.findUnique({ where: { aiJobId: jobId } }),
+      this.prisma.memoryEvolutionCheckpoint.findFirst({ where: { p2ProducerJobId: jobId } }),
+    ]);
+    if (job === null || projection === null || semantic === null) return null;
+    const parent = await this.prisma.decisionTrace.findUnique({ where: { id: semantic.traceId } });
+    if (parent === null) return null;
+    const rows = await this.prisma.decisionTraceMemorySourceReference.findMany({
+      orderBy: { inputOrder: 'asc' },
+      where: { traceId: semantic.traceId },
+    });
+    const references = rows.map(p2TraceReferenceFromRow);
+    const sourceSessionIds = checkpoint === null ? [job.projectId] : [checkpoint.sourceSessionId];
+    const trace = {
+      commitDigest: semantic.commitDigest,
+      deletionScopeDigest: semantic.deletionScopeDigest,
+      errorCode: semanticErrorCode(parent.errorCode),
+      expiresAt: job.expiresAt,
+      memoryOutcome: parent.memoryOutcome as never,
+      p2PolicyRevision: projection.p2PolicyRevision,
+      p2RetentionPolicyVersion: projection.p2RetentionPolicyVersion,
+      planDigest: semantic.planDigest,
+      proposalDigest: semantic.proposalDigest,
+      references,
+      retentionState: job.retentionState as never,
+      sourceManifestHash: semantic.sourceManifestHash,
+      stage: parent.stage as never,
+      status: parent.status as never,
+      traceId: parent.id,
+    };
+    return {
+      attemptNo: job.attemptNo,
+      checkpoint:
+        checkpoint === null
+          ? null
+          : {
+              checkpointId: checkpoint.id,
+              deletionScopeDigest: checkpoint.deletionScopeDigest,
+              p2PolicyRevision: projection.p2PolicyRevision,
+              p2RetentionPolicyVersion: projection.p2RetentionPolicyVersion,
+              projectId: checkpoint.projectId,
+              sessionId: checkpoint.sourceSessionId,
+              sourceManifestHash: checkpoint.memberManifestHash,
+              status: checkpoint.lifecycleStatus as 'committed',
+            },
+      committed: null,
+      identity: {
+        aiJobId: job.id,
+        createdAt: job.createdAt,
+        deletionScopeDigest: projection.deletionScopeDigest,
+        expiresAt: job.expiresAt,
+        generationId: parent.generationId,
+        inputHash: job.inputHash,
+        ownerActorId: job.requestedBy,
+        projectId: job.projectId,
+        requestId: job.requestId,
+        sessionId: parent.sessionId,
+        sourceManifestHash: semantic.sourceManifestHash,
+        startedAt: parent.startedAt,
+        traceId: parent.id,
+      },
+      jobFailureCode: semanticErrorCode(job.failureCode),
+      jobMemoryOutcome: parent.memoryOutcome as never,
+      jobRevision: 0,
+      jobStatus: job.status as never,
+      leaseEpoch: projection.recoveryLeaseEpoch,
+      leaseExpiresAt: projection.recoveryLeaseExpiresAt,
+      leaseOwnerId: projection.recoveryLeaseOwner,
+      legacyNullResolutionCount: 0,
+      migrationStatus: 'completed',
+      p2PolicyRevision: projection.p2PolicyRevision,
+      p2RetentionPolicyVersion: projection.p2RetentionPolicyVersion,
+      referenceAuthorities: [],
+      references,
+      retentionState: job.retentionState as never,
+      sourceSessionIds,
+      sourceSessionManifestHash: manifestHash(sourceSessionIds),
+      targetLayer: projection.jobKind === 'long_session_end' ? 'long' : 'mid',
+      trace,
+    };
+  }
+
+  public async applyRecovery(command: MemoryP2RecoveryCommand): Promise<MemoryP2RecoveryCasResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const [job, projection, semantic] = await Promise.all([
+        tx.aiJob.findUnique({ where: { id: command.jobId } }),
+        tx.memoryP2JobProjection.findUnique({ where: { aiJobId: command.jobId } }),
+        tx.decisionTraceMemorySemantic.findUnique({ where: { aiJobId: command.jobId } }),
+      ]);
+      if (
+        job === null ||
+        projection === null ||
+        semantic === null ||
+        job.attemptNo !== command.expectedAttemptNo ||
+        !command.expectedJobStatuses.includes(job.status) ||
+        projection.recoveryLeaseEpoch !== command.expectedLeaseEpoch ||
+        projection.recoveryLeaseOwner !== command.expectedLeaseOwnerId
+      )
+        return { outcome: 'cas_lost' };
+      if (command.kind === 'terminalize_uncommitted')
+        await tx.aiJob.update({
+          data: {
+            completedAt: command.writeAt,
+            failureCode: command.errorCode,
+            status: command.terminalStatus,
+          },
+          where: { id: command.jobId },
+        });
+      await tx.decisionTrace.update({
+        data: {
+          completedAt: command.trace.parent.completedAt,
+          decisionOutcome: command.trace.parent.decisionOutcome,
+          durationMs: command.trace.parent.durationMs,
+          errorCode: command.trace.parent.errorCode,
+          memoryOutcome: command.trace.parent.memoryOutcome,
+          stage: command.trace.parent.stage,
+          status: command.trace.parent.status,
+        },
+        where: { id: semantic.traceId },
+      });
+      await tx.decisionTraceMemorySemantic.update({
+        data: {
+          commitDigest: command.trace.semantic.commitDigest,
+          planDigest: command.trace.semantic.planDigest,
+          proposalDigest: command.trace.semantic.proposalDigest,
+        },
+        where: { traceId: semantic.traceId },
+      });
+      return { outcome: 'applied' };
+    });
   }
 
   public async claimRecoveryLease(
@@ -1387,4 +1543,56 @@ export class MemoryP2PersistenceRepository {
   }): string {
     return `${row.id}:${row.transcriptSegmentId}:${String(row.textRevision)}:${String(row.speakerRoleRevision)}:${row.effectiveTextDigest}`;
   }
+}
+
+function semanticErrorCode(
+  value: string | null,
+): import('./memory-p2-observability.types.js').MemoryP2ErrorCode | null {
+  const values = new Set([
+    'P2_CAS_LOST',
+    'P2_DELETION_SCOPE_DRIFT',
+    'P2_MIGRATION_UNAVAILABLE',
+    'P2_POLICY_DRIFT',
+    'P2_PROVIDER_UNAVAILABLE',
+    'P2_RESTART_RECOVERY',
+    'P2_RETENTION_UNAVAILABLE',
+    'P2_SOURCE_DRIFT',
+    'P2_TARGET_DRIFT',
+    'P2_TERMINAL_UNAVAILABLE',
+    'P2_TRACE_UNAVAILABLE',
+  ]);
+  return value !== null && values.has(value)
+    ? (value as import('./memory-p2-observability.types.js').MemoryP2ErrorCode)
+    : null;
+}
+
+function p2TraceReferenceFromRow(row: {
+  sourceKind: string;
+  sourceCheckpointId: string | null;
+  sourceJobId: string | null;
+  aiJobInputSegmentId: string | null;
+  evidenceId: string | null;
+  resolutionAuthorityId: string | null;
+  sourceRevision: number;
+  membershipDigest: string;
+  deletionScopeDigest: string;
+  inputOrder: number;
+}): MemoryP2TraceReference {
+  const base = {
+    deletionScopeDigest: row.deletionScopeDigest,
+    inputOrder: row.inputOrder,
+    membershipDigest: row.membershipDigest,
+    sourceRevision: row.sourceRevision,
+  };
+  if (row.sourceKind === 'checkpoint' && row.sourceCheckpointId !== null)
+    return { ...base, sourceCheckpointId: row.sourceCheckpointId, sourceKind: 'checkpoint' };
+  if (row.sourceKind === 'job' && row.sourceJobId !== null)
+    return { ...base, sourceJobId: row.sourceJobId, sourceKind: 'job' };
+  if (row.sourceKind === 'input_segment' && row.aiJobInputSegmentId !== null)
+    return { ...base, aiJobInputSegmentId: row.aiJobInputSegmentId, sourceKind: 'input_segment' };
+  if (row.sourceKind === 'evidence' && row.evidenceId !== null)
+    return { ...base, evidenceId: row.evidenceId, sourceKind: 'evidence' };
+  if (row.sourceKind === 'resolution' && row.resolutionAuthorityId !== null)
+    return { ...base, resolutionAuthorityId: row.resolutionAuthorityId, sourceKind: 'resolution' };
+  throw new MemoryP2PersistenceError('MEMORY_P2_READ_UNAVAILABLE');
 }
