@@ -1,0 +1,30 @@
+{
+  "profile_version": "worker-profile-v1",
+  "worker_profile": "luna-high",
+  "transport": "codex-desktop-native-create_thread",
+  "launch_arguments": {
+    "model": "gpt-5.6-luna",
+    "thinking": "high"
+  },
+  "visibility": "sidebar-visible-task",
+  "launcher_role": "DISPATCHER",
+  "requires_task_card": true,
+  "forbid_custom_agent_framework": true,
+  "verification": {
+    "desktop_version": "26.818.3698.0",
+    "thread_id": "01a0271d-203a-7732-9e6d-425fddba21aa",
+    "accepted_by_desktop": true,
+    "projectless": true,
+    "repository_access": false,
+    "result": {
+      "worker_profile": "luna-high",
+      "work_result": "synthetic_noop",
+      "tests": "NOT_APPLICABLE",
+      "pr_url": "SYNTHETIC",
+      "next_state": "REVIEW",
+      "review_gate_action": "STOP"
+    },
+    "archived_after_completion": true,
+    "evidence_class": "SYNTHETIC_LAUNCH_CAPABILITY_ONLY"
+  }
+}

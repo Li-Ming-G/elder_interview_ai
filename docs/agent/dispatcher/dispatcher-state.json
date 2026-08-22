@@ -1,0 +1,57 @@
+{
+  "$schema": "./dispatcher-state.schema.json",
+  "schema_version": "dispatcher-state-v1",
+  "task_id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
+  "status": "BLOCKED",
+  "depends_on": [
+    "MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001@dbb0cc76f582997a6a647781007648c6937a8992",
+    "MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001@717c5ca39e678c6f953d0430768ae715ef0feef2"
+  ],
+  "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
+  "worker_profile": "luna-high",
+  "review_required": true,
+  "next_task": null,
+  "state_revision": 1,
+  "dispatch_run_id": null,
+  "worker_thread_id": null,
+  "pr_url": null,
+  "review_outcome": null,
+  "block_reason": {
+    "code": "GOVERNANCE_HANDOFF_RECONCILIATION_REQUIRED",
+    "message": "Four P2-C candidate heads exist, the old formal combination failed, and no accepted reconciliation pack selects an integrable exact head."
+  },
+  "test_evidence": [],
+  "evidence": [
+    {
+      "kind": "candidate_head",
+      "label": "database",
+      "identity": "87ee56c6ceb1aee7897d1d62a2b18703c304c2e3",
+      "disposition": "DO_NOT_INTEGRATE"
+    },
+    {
+      "kind": "candidate_head",
+      "label": "orchestration",
+      "identity": "97f647d607b020ef524014cfdab3e7b13eccd098",
+      "disposition": "DO_NOT_INTEGRATE"
+    },
+    {
+      "kind": "candidate_head",
+      "label": "trace",
+      "identity": "5ada42209e5ab245e1b799456694a1cac9ca7ab9",
+      "disposition": "DO_NOT_INTEGRATE"
+    },
+    {
+      "kind": "candidate_head",
+      "label": "integration_docs",
+      "identity": "419f7bfc447b4b605c87e6c173b09c304cba5a41",
+      "disposition": "DO_NOT_INTEGRATE"
+    },
+    {
+      "kind": "formal_review",
+      "label": "old_combination",
+      "identity": null,
+      "disposition": "FAIL_P0_0_P1_6_P2_1"
+    }
+  ],
+  "updated_at": "2026-08-22T00:00:00+08:00"
+}

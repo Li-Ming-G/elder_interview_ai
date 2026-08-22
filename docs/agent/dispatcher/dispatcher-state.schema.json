@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/dispatcher-state-v1.schema.json",
+  "title": "Dispatcher State V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "task_id",
+    "status",
+    "depends_on",
+    "task_card",
+    "worker_profile",
+    "review_required",
+    "next_task",
+    "state_revision",
+    "dispatch_run_id",
+    "worker_thread_id",
+    "pr_url",
+    "review_outcome",
+    "block_reason",
+    "test_evidence",
+    "evidence",
+    "updated_at"
+  ],
+  "properties": {
+    "$schema": { "const": "./dispatcher-state.schema.json" },
+    "schema_version": { "const": "dispatcher-state-v1" },
+    "task_id": { "$ref": "#/$defs/taskId" },
+    "status": {
+      "enum": ["READY", "IN_PROGRESS", "REVIEW", "BLOCKED", "DEFERRED", "DONE"]
+    },
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 180 }
+    },
+    "task_card": {
+      "type": "string",
+      "pattern": "^docs/agent/tasks/[A-Za-z0-9._-]+\\.md$"
+    },
+    "worker_profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "review_required": { "type": "boolean" },
+    "next_task": {
+      "oneOf": [{ "$ref": "#/$defs/taskId" }, { "type": "null" }]
+    },
+    "state_revision": { "type": "integer", "minimum": 1 },
+    "dispatch_run_id": {
+      "oneOf": [{ "type": "string", "pattern": "^dispatch-[A-Za-z0-9._:-]{1,120}$" }, { "type": "null" }]
+    },
+    "worker_thread_id": {
+      "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 160 }, { "type": "null" }]
+    },
+    "pr_url": {
+      "oneOf": [{ "type": "string", "format": "uri", "pattern": "^https://" }, { "type": "null" }]
+    },
+    "review_outcome": {
+      "oneOf": [
+        {
+          "enum": [
+            "PENDING",
+            "PASS",
+            "REQUEST_CHANGES",
+            "BLOCKED",
+            "PRODUCT_AMBIGUITY"
+          ]
+        },
+        { "type": "null" }
+      ]
+    },
+    "block_reason": {
+      "oneOf": [{ "$ref": "#/$defs/blockReason" }, { "type": "null" }]
+    },
+    "test_evidence": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "READY" } } },
+      "then": {
+        "properties": {
+          "dispatch_run_id": { "type": "null" },
+          "worker_thread_id": { "type": "null" },
+          "pr_url": { "type": "null" },
+          "review_outcome": { "type": "null" },
+          "block_reason": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "IN_PROGRESS" } } },
+      "then": {
+        "properties": {
+          "dispatch_run_id": { "type": "string" },
+          "worker_thread_id": { "type": "string" },
+          "review_outcome": { "type": "null" },
+          "block_reason": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "REVIEW" } } },
+      "then": {
+        "properties": {
+          "dispatch_run_id": { "type": "string" },
+          "worker_thread_id": { "type": "string" },
+          "pr_url": { "type": "string" },
+          "review_outcome": { "const": "PENDING" },
+          "block_reason": { "type": "null" },
+          "test_evidence": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["BLOCKED", "DEFERRED"] } }
+      },
+      "then": { "properties": { "block_reason": { "$ref": "#/$defs/blockReason" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "DONE" },
+          "review_required": { "const": true }
+        }
+      },
+      "then": { "properties": { "review_outcome": { "const": "PASS" } } }
+    }
+  ],
+  "$defs": {
+    "taskId": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,119}$" },
+    "blockReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,95}$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "identity", "disposition"],
+      "properties": {
+        "kind": { "enum": ["candidate_head", "formal_review", "launch_verification"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "identity": {
+          "anyOf": [
+            { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+            { "type": "string", "minLength": 1, "maxLength": 180 },
+            { "type": "null" }
+          ]
+        },
+        "disposition": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    }
+  }
+}
