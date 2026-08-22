@@ -1,90 +1,108 @@
 # MEMORY-T5-T8-P2-C-RUNTIME-001
 
-## 当前状态
+Status: `BLOCKED`
 
-- 状态：`REVIEW / CONTRACT-FIRST / IMPLEMENTATION NOT STARTED`。
-- 分支：`codex/memory-p2-c-runtime-001`；起点 `3369869`，包含侧栏可见任务窗口规则。
-- 映射：`T5-T8/P2`、`T18-T19/P6`、`T0/Foundation-Observability`；同时登记 `T0/Foundation-Observability` 对 typed trace、retention 与 evidence references 的要求。
-- 前置：A1 PR #71 accepted `dbb0cc76` / CI `32210618025` / owner PASS `P0=P1=P2=0`，merge/main `7d02fa65` / CI `32211560361`；P2-B PR #72 accepted `717c5ca` / CI `32245656541` / independent PASS，merge/main `8bbb2cc` / CI `32254759316`；PR #73 governance closeout merge/main `7e183217` / CI `32256919620`。
-- 当前交付仅为治理与正式契约前置；没有 Prisma、migration、repository、runtime 或 provider 实现，不宣称 PASS/DONE。
+Governance handoff reconciliation is still required before this task can return to `READY`.
 
-## 目标
+This card does not authorize implementation or integration. Multiple P2-C implementation candidates already exist, but no candidate is accepted as an integrable combined runtime.
 
-在已接收 P2-A/A1/P2-B contract-only 基线上，后续以一个 forward-only 实现切片交付：
+## Architecture Mapping (P1-P6/T0-T27)
 
-```text
-durable P1 source/checkpoint trigger
-  -> freeze reference-only source rows + running job/trace
-  -> provider-neutral SemanticProposal
-  -> Schema + pure semantic validation
-  -> in-memory ValidatedMemoryMutationPlan
-  -> MemoryModule authority re-read + CAS
-  -> atomic Claim/Resolution/Evidence + Mid/Long layer commit
-  -> terminal job + readable reference-only trace
-```
+| Mapping | Responsibility in this task | State |
+| --- | --- | --- |
+| T5–T8 / P2 | Working→Mid and session-end Mid/current→Long semantic consolidation runtime | `BLOCKED` pending reconciliation |
+| T18–T19 / P6 | Durable trigger, orchestration, retry/recovery/fence | Candidate exists; not accepted |
+| T0 / Foundation-Observability | Reference-only Decision Trace bindings | Candidate exists; not accepted |
+| T4 / P1 | Accepted current-session Working source | `UNCHANGED`; no Long retrieval |
+| T9–T12 / P3–P4 | Retrieval and Context V2/budget | `DEFERRED / OUT OF SCOPE` |
+| T13–T17 / P5 | Evidence drill-down/gate/correction | `OUT OF SCOPE` |
+| T20–T27 adjacent runtime/evaluation | Separate future cards | `OUT OF SCOPE` |
 
-LLM 只能提出 `SemanticProposal`。程序唯一拥有 Context 冻结、validation、plan、ID/revision 分配、CAS、source disposition、retention/deletion 判定、transaction 和 committed projection。`MemoryClaim/MemoryResolution` 继续是唯一 semantic authority；Proposal、Plan、checkpoint、layer、Long projection、Trace、log 和 provider receipt 不得成为第二语义事实源。
+## Goal
 
-## 实现范围
+Obtain an external Architect reconciliation pack that selects a single valid P2-C base and explicitly disposes of every candidate and every `FAIL P0=0/P1=6/P2=1` finding before any worker is dispatched.
 
-1. forward-only Prisma/SQL migration：扩展现有AiJob/AiJobCoordinator、MemoryClaim/Resolution/Evidence，新增P2 checkpoint、layer identity/revision/member、Long projection/source、AiJob一对一P2 projection、AiJob-owned typed retention target与semantic trace refs；旧migration字节、MemoryRetentionRoot ownership和RetentionState枚举不改，不建第二coordinator或retention root状态机。
-2. repository/readers：只读取完整 committed checkpoint/layer revision；count/order/manifest、authority revision、Boundary、policy、deletion、retention 或 evidence 任一不可证明时失败关闭。
-3. orchestration：现有AiJobCoordinator承接`semantic_park|capacity_checkpoint|session_final_flush` Mid路径，以及真实P1 final terminal后P2 final Mid、再到Long的固定顺序；post-session保持P1 final lane，notification只唤醒，startup/periodic scanner以持久事实恢复，P2不阻塞completed/opening。
-4. semantic bridge：临时构建 A1 Context，调用 provider-neutral proposal port，经正式 Schema/pure validator 生成非持久 plan；成功事务后才形成 committed projection。
-5. P6：stable trigger/request identity、single winner、failed/cancelled/unavailable retry predecessor、source/target/policy 漂移 rebase、crash/restart recovery、late-result fence 和 final-tail exactly-once。
-6. T0：running/terminal Decision Trace、typed checkpoint/layer/resolution/evidence refs、proposal/plan/commit digest；不保存 Context、Proposal/Plan payload、semantic value、Transcript、Prompt 或 provider payload。
-7. provider seam：`local|test` deterministic proposal fixture 与所有环境可用的 unavailable adapter；两者都走相同 Schema/validator/plan/CAS gate。staging/production 不得绑定 deterministic fake，未配置真实 P2 provider 时诚实终结为 unavailable。
+## Scope
 
-## 数据字段与不变量
+Current scope is governance stop and reconciliation only. Task Card controls this scope/entry gate; Accepted Contracts below control P2 behavior and invariants. A replacement runtime card is required after reconciliation.
 
-正式字段、约束和状态以 `04` §17 为准；runtime 协议以 `07` §23 为准；安全/保留以 `08` §25 为准；验收矩阵以 `09` §24 为准；实施门禁以 `10` §23 为准。
+## Allowed Files / Areas
 
-关键不变量：
+Implementation Worker: none. Do not modify or integrate `apps/`, Prisma, migrations, repositories, runtime, packages, contracts or candidate branches under this blocked card.
 
-- `memory_resolution.authority_id + resolution_revision` 表达 A1 stable authority CAS；历史 row `id` 仍是不可变 revision-row identity，禁止原地覆盖旧 Resolution。
-- checkpoint、member、layer identity、revision、revision member 和 Long source manifest 全部 append-only、count/order/hash 完整且同 scope。
-- Mid 不跨 session；Long 可跨 session 但不得跨 project，并且 source session set 必须等于完整 final Mid manifest 的实际集合。
-- active Boundary、human-confirmed target、非 active deletion/retention、source/target/policy/evidence drift 均产生零 semantic/layer committed 写入。
-- duplicate/concurrent/replay 只有一个 winner；retry 不复活旧 job；rebase 不重放 stale proposal；crash/restart 不留下可读半提交；late callback 因 job CAS 失败而零写入。
-- P1 final tail 只能进入一个 final Mid checkpoint；Long 只在 P1 final terminal 和 P2 final Mid succeeded 后触发一次。
+External Architect may issue a new Development Pack and replacement Task Card; queue issuance may then replace this blocked entry with an authorized `READY` entry.
 
-## P2-A/B 到当前数据库的兼容冻结
+## Inputs
 
-1. checkpoint不落歧义`source_p1_final_job_id`：durable使用真实P1 `source_p1_terminal_job_id`与独立`p2_producer_job_id`；P2-B把该source当`mid_final` job的validator行为不得照搬。
-2. online必须绑定Working snapshot+thread且P1 terminal为空；successful final必须绑定当前P1 v1.2 snapshot+thread+真实P1 terminal。历史v1.1 snapshot只读，新producer只允许v1.2。
-3. existing `AiJob.policyRevision/retentionPolicyVersion`与checkpoint snapshot保持Int；P2 string policy revision/version只进入`memory_p2_job_projection.p2_policy_revision/p2_retention_policy_version` VARCHAR。checkpoint仅保留独立contract identity，不提供第二policy source；三类值分别CAS/验证，禁止cast或替代。
-4. pending/running/failed/cancelled/unavailable不得预留final target revision/new identity ID；只有成功写回事务补齐nullable target provenance。final Mid prerequisite不可用时Long唯一terminal unavailable、零provider/target/projection。
-5. `MemoryClaim.claim_revision=1`映射immutable claim；`memory_evidence_authority.authority_revision=1`是唯一evidence revision owner；`MemoryClaimEvidence`/bridge只承担`(claim_id,evidence_id,authority_revision)` pair/parity，不得称为authority，text/speaker revision从冻结input segment校验。
-6. existing-slot新建Resolution row、复用stable authority ID、revision+1并`supersedes_resolution_id`指旧current row；禁止原地覆盖。
-7. typed FK、旧root单一状态机与fresh/upgrade/interrupted/repeat migration语义以`04` §17为唯一实现依据。
+- Repository baseline: `origin/main@04b3a70b4e7d4050ccc66d3a81b7a86e4250b714`; main CI `32337286827` was `SUCCESS`.
+- Database candidate: `87ee56c6ceb1aee7897d1d62a2b18703c304c2e3`.
+- Orchestration candidate: `97f647d607b020ef524014cfdab3e7b13eccd098`.
+- Trace candidate: `5ada42209e5ab245e1b799456694a1cac9ca7ab9`.
+- Integration docs candidate: `419f7bfc447b4b605c87e6c173b09c304cba5a41`.
+- Formal old combination verdict: `FAIL P0=0/P1=6/P2=1`.
 
-## 明确排除
+All four heads are inputs for external reconciliation only. They are not merge bases, Accepted Contracts or approved reference implementations.
 
-- P2-D 真实 provider/model/region/secret/真实数据、真实质量或费用验收；
-- P3、PostgreSQL `pgvector`、embedding、Graph runtime；
-- P4 Context budget、Director Context；
-- UI、记忆管理页、API 产品面扩展；
-- 修改 `apps/`、Prisma、migration、package 或 `.codex` 均不属于本次治理/契约前置提交。
+## Accepted Contracts — exact identities
 
-## P2-C contract repair round
+Behavior and invariants are controlled only by the following accepted scopes:
 
-本回合只修复 `memory-persistence-p2c-compatibility-v1.md` 与 `04/07/08/09/10` 的正式兼容映射，不改已接收 P2-B Schema/fixture/validator 字节，不修改 Prisma、migration、repository、runtime、package 或 `.codex`。
+1. P1 v1.2 runtime: exact accepted head `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66`, `memory-maintainer-v1.2`, accepted scope recorded by PR #70 / REV-062. P1 remains current-session only and may not consume Long.
+2. P2-A evolution contract: exact accepted head `042ec56f2b0362679bf240fcced95c61be77141f`, `memory-evolution-v1` plus reference-only trace v1.1 scope, accepted by PR #69 / REV-061. This is contract-only.
+3. P2-A1 semantic envelope: exact accepted head `dbb0cc76f582997a6a647781007648c6937a8992`, PR #71 / REV-063, contract-only. Exact machine artifacts:
+   - `docs/contracts/memory-semantic-context-v1.schema.json`;
+   - `docs/contracts/memory-semantic-proposal-v1.schema.json`;
+   - `docs/contracts/validated-memory-mutation-plan-v1.schema.json`;
+   - `docs/contracts/committed-semantic-projection-v1.schema.json`;
+   - `docs/contracts/memory-semantic-trace-v1.schema.json`;
+   - `docs/contracts/fixtures/memory-semantic-envelope-v1.fixtures.json`.
+4. P2-B persistence contract: exact accepted head `717c5ca39e678c6f953d0430768ae715ef0feef2`, PR #72 / REV-064, database-agnostic contract-only. Exact artifacts:
+   - `docs/contracts/memory-persistence-v1.schema.json`;
+   - `docs/contracts/memory-persistence-v1.md`;
+   - `docs/contracts/fixtures/memory-persistence-v1.fixtures.json`;
+   - `apps/api/src/memory/memory-persistence-contract.ts`;
+   - `apps/api/src/memory/memory-persistence-contract.spec.ts`.
 
-- retention root_kind 固定为 `checkpoint|layer_revision|job|trace`；Long projection 不是 root；live reference 全部 `RESTRICT`，唯一 `SET NULL` 仅 cleanup/audit pointer，不使用数据库 `CASCADE`；
-- stable resolution authority 使用可被 FK 引用的 registry，`origin_thread_id` 恢复 NOT NULL；Long 无法继承可证明 thread 时只能 unavailable；
-- 独立 `MemoryEvidenceAuthority` 承担可跨 claim 复用的 evidence identity，`MemoryClaimEvidence` 只承担 claim/evidence pair link；
-- durable checkpoint/job/Trace source refs 统一冻结 `deletion_scope_digest`；memory Trace 使用现有非空字段的 neutral sentinel；
-- 拆分 P1 terminal 与 P2 producer、明确非 success target NULL、Int/string policy 分列、migration fingerprint/cursor/interruption 语义与稳定 P2 error-code registry。
-- `memory-persistence-p2c-physical-fk-v1.json` 逐条冻结 physical FK、P2-B view boundary、retention root view 列映射以及当前 predecessor migration IDs/checksums、fingerprint、advisory lock、cursor 和 transaction/retry 规则。
-- Trace source reference 使用 typed nullable `source_checkpoint_id/source_job_id/ai_job_input_segment_id/evidence_id/resolution_authority_id` 与 source-kind/ exactly-one CHECK；`deletion_scope_digest` 仅是 non-null SHA-256 scalar/CAS fact，不是 FK。
-- 本轮 6de1d96 correction：`memory_resolution.authority_id` 物理 FK 对 legacy 保持 nullable，P2 新写入由 CHECK/trigger/reader gate 强制非空；P2-B string policy 只读取 projection 的 `p2_policy_revision`/`p2_retention_policy_version` VARCHAR，旧 AiJob Int 仅 legacy snapshot且禁止 cast；migration manifest 自校验恰好 26 条 checksum、upgrade expected_count=26，canonical predecessor fingerprint 固定为 `2b1a4ba4a0a20f2e986cec7de2c9863dd7a67673abb033406374517e4bafcea6`。
-- integration correction：Trace 五个 typed source FK 列全部物理 nullable，且不进入 `source_reference_non_null_columns`；source-kind CHECK + `num_nonnulls(...)=1` 才决定每行唯一 target。`trace_id/source_kind/source_revision/membership_digest/deletion_scope_digest/input_order` 保持非空，并由 machine positive/negative cases 防止误放宽。
-- pre-integration `c3eaa4ae…` REQUEST_CHANGES correction：source-kind 增加五值闭域 CHECK，Trace parent/child 逐列归位；Evidence revision owner 统一到 `memory_evidence_authority.authority_revision`；P2 string policy source 收敛为 projection-only，checkpoint只保留legacy Int snapshot与独立contract identity。该记录仅关闭三项P1候选修复，不构成PASS/DONE。
+The P2-C compatibility and physical-FK files found only in candidate heads are not accepted contracts. A filename, branch, local test or earlier contract PASS cannot extend these accepted scopes into runtime acceptance.
 
-该回合完成后仍需新的独立审查；不得把 docs-only 修复宣布为 P2-C implementation PASS/DONE。
+## Reference Implementations
 
-## 验收与审查
+The four candidate heads in Inputs are rejected as an integration set and are strictly read-only evidence for the external reconciliation. `DO_NOT_INTEGRATE` applies to each candidate separately and to any old combination.
 
-- 当前只执行 Markdown、链接、表格与 diff 检查；不运行远端 CI。
-- 后续 implementation exact head 必须通过 `09` §24 的 fresh/upgrade/repeat migration、PostgreSQL repository/integration、duplicate/concurrent/retry/rebase/crash/restart/late/final-tail/rollback、retention/deletion/trace/evidence 及 deterministic/unavailable 矩阵。
-- REV-065 是待审占位，不包含审查结论。执行窗口不得自行标记 PASS/DONE、merge 或启动 P2-D。
+## Required Behavior
+
+- Dispatcher reads the sequential queue, returns `TASK_BLOCKED` and stops.
+- No Implementation Worker is launched.
+- The external reconciliation must compare every proposed behavior/invariant to the exact accepted identities above.
+- Any Task Card/Accepted Contract contradiction becomes `BLOCKED / PRODUCT_AMBIGUITY`.
+- A future runtime card must preserve `MemoryClaim`/`MemoryResolution` as semantic authority, transient proposal/plan, program-owned persistence/CAS/revision/evidence/transaction, P1 no-Long, and reference-only layer/Long/Trace semantics.
+
+## Explicit Non-Goals
+
+- No P2-C code, database, migration, repository, orchestration or trace integration.
+- No P2-D provider/model/region/secret/data selection.
+- No P3/pgvector/embedding/Graph, P4 Context budget/Director, UI or API expansion.
+- No modification of Accepted Contract bytes or historical review evidence.
+- No real data, real provider call, public deployment or production claim.
+
+## Tests
+
+Current blocked card has no implementation tests. Governance validation is limited to minimal queue/schema parse, the A→B sequential smoke, Markdown/link/format/diff checks and current-state `TASK_BLOCKED` verification. A replacement runtime card must explicitly name its targeted, PostgreSQL migration/integration, concurrency and fault-injection tests; it may not inherit “tests passed” from a candidate.
+
+## Completion Criteria
+
+All must be externally supplied:
+
+1. A reconciliation decision names the exact accepted base and exact disposition of all four candidates.
+2. Every old P0/P1/P2 finding is mapped to a closed requirement or retained blocker.
+3. Any needed contract correction is separately accepted before implementation.
+4. A replacement Task Card lists exact allowed files, behavior derived from exact Accepted Contracts, tests, review gate and predefined next task.
+5. Authorized queue issuance replaces this blocked entry with the reconciled `READY` Task Card.
+
+## Review Gate
+
+External Architect and Product Owner. This worker, Dispatcher, local checks, synthetic Luna task and CI cannot produce `PASS`. Stop at `BLOCKED`; after a future worker reports a PR number, stop again at `REVIEW`. Do not add iteration-coach or another internal Reviewer unless the Product Owner or Architect explicitly requests it.
+
+## Next Task
+
+`null`. P2-D is not mechanically unlockable from this blocked card. A reconciled replacement card may predefine it only after owner provider/data gates are stated.

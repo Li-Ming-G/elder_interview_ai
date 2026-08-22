@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/single-dispatcher-queue.schema.json",
+  "title": "Single Dispatcher Sequential Task Queue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "queue"],
+  "properties": {
+    "$schema": {
+      "enum": ["./dispatcher-state.schema.json", "../dispatcher-state.schema.json"]
+    },
+    "queue": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/task" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{2,119}$"
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "task_card",
+        "worker_profile",
+        "depends_on",
+        "pr",
+        "next_task"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "status": {
+          "enum": ["READY", "IN_PROGRESS", "REVIEW", "BLOCKED", "DEFERRED", "DONE"]
+        },
+        "task_card": {
+          "type": "string",
+          "pattern": "^docs/agent/(tasks/[A-Za-z0-9._-]+\\.md|dispatcher/task-card-template\\.md)$"
+        },
+        "worker_profile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,63}$"
+        },
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 180 }
+        },
+        "pr": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        },
+        "next_task": {
+          "oneOf": [
+            { "$ref": "#/$defs/id" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["READY", "IN_PROGRESS", "BLOCKED", "DEFERRED"] }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "pr": { "type": "null" } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["REVIEW", "DONE"] }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "pr": { "type": "integer" } }
+          }
+        }
+      ]
+    }
+  }
+}

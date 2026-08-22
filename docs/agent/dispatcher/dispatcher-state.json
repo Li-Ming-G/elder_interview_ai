@@ -1,0 +1,35 @@
+{
+  "$schema": "./dispatcher-state.schema.json",
+  "queue": [
+    {
+      "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
+      "status": "BLOCKED",
+      "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001@dbb0cc76f582997a6a647781007648c6937a8992",
+        "MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001@717c5ca39e678c6f953d0430768ae715ef0feef2"
+      ],
+      "pr": null,
+      "next_task": null
+    },
+    {
+      "id": "MEMORY-T5-T8-P2-D-PROVIDER-001",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/dispatcher/task-card-template.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": null,
+      "next_task": null
+    },
+    {
+      "id": "MEMORY-T9-T12-P3-P4-001",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/dispatcher/task-card-template.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": null,
+      "next_task": null
+    }
+  ]
+}

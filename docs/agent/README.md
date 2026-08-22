@@ -1,31 +1,32 @@
-# 协作文档入口
+# AI development document index
 
-本目录保存项目推进所需的任务状态、需求追踪、冲突、架构决定、审查索引和交接索引。历史证据放在对应归档目录，不删除、不改写。
+The default path is deliberately small. Historical evidence remains traceable but is not worker context.
 
-## 当前工作先读
+## ACTIVE
 
-1. `00-task-board.md`：唯一的动态任务状态源。
-2. 当前任务卡：从任务板链接进入 `tasks/`。
-3. `01-requirement-traceability.md`：需求到任务和验证的高层映射。
-4. `02-open-conflicts.md`：当前 OPEN 冲突快速索引；再按编号查看 `02-conflict-log.md` 详情。
-5. `03-architecture-decisions.md`：涉及架构、数据或接口时读取相关 ADR。
-6. `04-review-report.md`：当前审查索引；历史正文见 `reviews/`。
-7. `05-handoff-log.md`：当前交接索引；历史正文见 `handoffs/`。
-8. `prompts/`：总控冻结的讨论或实现任务启动提示词；讨论只形成候选决定，实现只在门槛通过后启动，均不替代任务卡和正式规范。
+- [`../../AI-DEVELOPMENT-CURRENT.md`](../../AI-DEVELOPMENT-CURRENT.md): current phase, frozen decisions and stop conditions.
+- [`00-task-board.md`](00-task-board.md): compact human-readable task index.
+- [`dispatcher/dispatcher-state.json`](dispatcher/dispatcher-state.json): single Dispatcher sequential queue.
+- [`dispatcher/README.md`](dispatcher/README.md): minimal transitions, launch profile and external Architect review entry.
+- [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md): current blocked Task Card.
 
-## 文件职责
+## STABLE REFERENCE
 
-- 任务状态只写入 `00-task-board.md`，其他文件引用任务状态，不复制维护。
-- 审查结论以稳定的 `REV-ID` 和审查 head 为准。
-- 当前默认审查者是项目负责人：总控只核对交付材料是否齐全、整理审查包并登记项目负责人返回的 GitHub 手动审查结论。开发 Agent 请求“总控复核”不改变该职责；除非项目负责人当轮明确改派，否则不得由总控或其他 Agent 代替审查。
-- 交接只记录实际交接和当前接收对象；历史交接不作为当前状态源。
-- 冲突在正式决定后仍保留原记录，并在顶部索引标记 OPEN、RESOLVED 或 DEFERRED。
+- Root `00`–`10` formal product, architecture, data, API, AI, security and test specifications.
+- `docs/contracts/` Accepted Machine/Module Contracts. Exact accepted commit identity must be named by a Task Card; a filename alone is insufficient.
+- Formal prompts and question-bank assets explicitly named by a Task Card.
 
-## 归档约定
+## ARCHIVE
 
-- `reviews/`：历史审查正文。
-- `handoffs/`：历史交接正文。
-- `tasks/`：当前仍保留原路径，待引用检查工具就绪后再区分 active/archive。
-- `prompts/`：可复制到项目新任务对话的讨论/实现提示词；过期内容由总控更新。
+- [`archive/README.md`](archive/README.md): classification and snapshot index.
+- `tasks/`, `handoffs/`, `reviews/`, conflict history and governance records are historical by default and remain at their existing paths. Only a current Task Card can make a specific file active.
+- The governance handoff does not bulk-move historical files.
 
-本入口不替代根目录 `AGENTS.md` 及正式产品、技术规范；它只说明协作文档从哪里开始读。
+## Update cadence
+
+- Per transition: machine state, compact board and current summary when materially affected.
+- Per normal task: Task Card + GitHub PR are the handoff; no duplicate REV or handoff document is required.
+- Ordinary Implementation Task: no default iteration-coach or additional internal Reviewer; external Architect PR review is the default unless the Product Owner or Architect explicitly escalates.
+- Stage end: batch requirement traceability, resolved conflict history, review/handoff indexes and other historical summaries.
+- ADR: only when a real architecture decision is made.
+- Open conflict: keep a short current entry; archive the full history.

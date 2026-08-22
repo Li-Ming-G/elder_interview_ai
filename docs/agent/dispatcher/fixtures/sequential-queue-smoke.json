@@ -1,0 +1,23 @@
+{
+  "$schema": "../dispatcher-state.schema.json",
+  "queue": [
+    {
+      "id": "SYNTHETIC-A",
+      "status": "READY",
+      "task_card": "docs/agent/dispatcher/task-card-template.md",
+      "worker_profile": "luna-high",
+      "depends_on": [],
+      "pr": null,
+      "next_task": "SYNTHETIC-B"
+    },
+    {
+      "id": "SYNTHETIC-B",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/dispatcher/task-card-template.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["SYNTHETIC-A"],
+      "pr": null,
+      "next_task": null
+    }
+  ]
+}

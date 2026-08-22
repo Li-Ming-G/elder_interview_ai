@@ -1,72 +1,72 @@
-# Agent 协作规则
+# AI development role entry
 
-本项目为“AI 辅助长者访谈系统”MVP。
+This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `DISPATCHER` or `IMPLEMENTATION_WORKER`. If neither role matches the assignment, stop and report.
 
-## 一、开始工作前
+## DISPATCHER
 
-任何 Agent 在修改代码、数据库、接口、提示词、测试或项目文档前，必须依次完整读取：
+Read only:
 
-1. `AGENTS.md`
-2. `00-项目说明与执行入口.md`
-3. `01-产品需求文档.md`
-4. `02-项目开发规范.md`
-5. `docs/agent/README.md`
-6. `docs/agent/00-task-board.md`
+1. `AGENTS.md`;
+2. `AI-DEVELOPMENT-CURRENT.md`;
+3. `docs/agent/00-task-board.md`;
+4. `docs/agent/dispatcher/dispatcher-state.json` and `transition-contract.md`;
+5. the selected Task Card.
 
-随后根据任务类型继续读取：
+Assume one Dispatcher and one sequential queue. The Dispatcher mechanically starts the first eligible `READY` task and launches the Task Card's worker profile. When the worker reports a PR number, store that number, set `REVIEW` and stop. The external Architect performs the actual PR review. On external `PASS`, mark current `DONE`, then mark only its predefined `next_task` `READY`; on `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
 
-- 页面、流程、状态：`03-业务流程与交互规范.md`
-- 数据库、字段、关系、枚举：`04-数据模型规范.md`
-- REST、WebSocket、幂等、导出契约：`05-API与实时事件契约.md`
-- 录音、ASR、说话人：`06-实时音频与转录规范.md`
-- AI 记忆、追问和 Schema：`07-AI访谈引擎规范.md`
-- 授权、隐私、权限、删除：`08-安全隐私与数据治理.md`
-- 测试、验收、发布门禁：`09-测试与验收规范.md`
-- 任务分工、契约变更、交接规则：`10-研发协作与交接规范.md`
+The Dispatcher does not validate reviewer identity, review URL/id, GitHub review state, PR exact head or CI evidence. It has no revision, compare-and-swap or transactional/atomic queue semantics.
 
-接手别人做过的任务时，必须再读取 `docs/agent/05-handoff-log.md` 中与该任务相关的最新交接。
+The Dispatcher must not design or split tasks, change architecture or product behavior, edit an Accepted Contract, choose a deferred item, expand scope, infer an ambiguous transition, or approve a review gate.
 
-## 二、事实来源
+## IMPLEMENTATION_WORKER
 
-1. 当前阶段和执行范围以 `00` 为准。
-2. 产品目标与业务边界以 `01` 为准。
-3. 用户流程与状态流转以 `03` 为准。
-4. 全局技术基线以 `02` 为准。
-5. 专项实现契约以 `04` 至 `09` 为准。
-6. 当前任务状态以 `docs/agent/00-task-board.md` 为准。
-7. 机器可读契约只有在明确标记为“正式”后才可作为实现依据。
+Default reading is intentionally bounded:
 
-## 三、基本约束
+1. `AGENTS.md`;
+2. `AI-DEVELOPMENT-CURRENT.md`;
+3. the current Task Card;
+4. only the exact Accepted Contracts and small set of code files named by that card.
 
-1. 不得把后续规划偷偷实现进 MVP。
-2. 不得自行解释文档冲突，应登记到 `docs/agent/02-conflict-log.md`。
-3. 原始录音、原始转录、原始授权记录不得被覆盖。
-4. AI 失败不得影响录音，ASR 失败不得影响原始录音保存。
-5. 所有 AI 结论必须能追溯到原始转录片段。
-6. 接口、表结构、状态枚举或事件变更，必须先更新契约，再修改代码和测试。
-7. 不得提交真实密钥、真实访谈录音、真实转录或未脱敏个人信息。
-8. 不得修改不属于当前任务范围的模块，除非处理已登记并批准的公共契约变更。
-9. 对明确需要独立审查的任务，执行 Agent 不得代替项目负责人或独立审查 Agent 宣布任务通过。项目负责人通过 GitHub 审查时，必须记录仓库、分支、commit、PR/审查链接、结论和未解决意见。
-   当前项目默认由项目负责人在 GitHub 手动审查。开发 Agent 或其他 Agent 提出的“请总控复核”只代表请求整理并转交审查包，不能授权总控自行给出审查结论；只有项目负责人在当前任务中明确改派独立审查 Agent 时，才启动其他审查角色。
-10. 未完成适用验证的任务不得标记为 `DONE`。文档整理、格式修复、简单配置和局部低风险修改可由总控 Agent 自检关闭；涉及核心架构、关键业务规则、权限、安全、状态机、核心数据模型、跨模块契约、大规模合并或 MVP 发布时，必须由项目负责人或独立审查/验收 Agent 给出明确结论。
+Do not default-read `00`–`10`, history, reviews, handoffs, conflict logs, all task cards, or the full repository. A Task Card may explicitly add a narrow reference when needed.
 
-## 四、工作结束前
+The worker implements only the current card. It must not:
 
-必须完成：
+- alter P1–P6 responsibilities;
+- plan or unlock the next task;
+- modify an Accepted Contract;
+- expand scope or add product behavior;
+- add core infrastructure or an agent framework;
+- decide deferred provider/model/embedding/budget choices;
+- refactor unrelated modules;
+- claim `PASS`, `DONE`, or merge authority.
 
-- 更新 `docs/agent/00-task-board.md`；
-- 更新 `docs/agent/01-requirement-traceability.md` 中受影响条目；
-- 若出现新冲突，更新 `docs/agent/02-conflict-log.md`；
-- 若形成重要技术决定，更新 `docs/agent/03-architecture-decisions.md`；
-- 将实际改动和测试结果写入 `docs/agent/05-handoff-log.md`；
-- 提交前执行当前任务要求的测试。
+For internal details that do not change product behavior or architecture, use the smallest implementation consistent with existing style. Product or architecture ambiguity means `STOP + REPORT`; set `BLOCKED / PRODUCT_AMBIGUITY`, without guessing.
 
-## 五、禁止事项
+For an ordinary Implementation Task, do not run iteration-coach and do not create an additional internal Reviewer by default. The external Architect's PR review is the default independent review. Upgrade only when the Product Owner or Architect explicitly requests it.
 
-- 不读取正式依据就开始编码；
-- 为了通过测试修改测试目标；
-- 删除失败路径或降级逻辑来简化实现；
-- 用模型记忆替代业务数据库；
-- 将中间态转录写入长期记忆；
-- 在日志中输出完整转录、完整模型输入或供应商密钥；
-- 把占位契约当作正式契约使用。
+## Authority and conflict
+
+Authority is role-scoped rather than a licence for one file to overwrite another:
+
+1. Current Task Card controls task identity, goal, allowed scope/files, inputs, tests, completion and entry/exit gates.
+2. Exact Accepted Machine/Module Contracts control behavior, invariants, ownership and machine semantics. A Task Card never overrides an Accepted Contract.
+3. `AI-DEVELOPMENT-CURRENT.md` controls current phase, frozen decisions and active/deferred boundaries.
+4. Stable product/architecture specs (`00`–`10`) provide broader reference.
+5. Historical tasks, PRs, reviews and handoffs are evidence only.
+
+Any contradiction among levels 1–4 that cannot be resolved mechanically is `BLOCKED / PRODUCT_AMBIGUITY`. The worker and Dispatcher stop and report the exact files/identities; they do not choose the convenient interpretation.
+
+## Non-negotiable repository safeguards
+
+- Never overwrite original audio, transcript, speaker evidence or consent records.
+- AI failure must not stop recording; ASR failure must not damage original audio.
+- AI conclusions must trace to finalized transcript evidence.
+- Do not commit real secrets, real interview media/transcripts or unredacted personal data.
+- Do not treat candidate or placeholder contracts as Accepted Contracts.
+- Do not touch `.codex/iteration-learning.md`.
+
+## Review and governance cadence
+
+Normal work reaches `REVIEW` when the worker reports a PR number, then stops for external Architect review. `REQUEST_CHANGES` returns the same task to the same bounded scope. Only external Architect `PASS` can produce `DONE` and then unlock a predefined `next_task`.
+
+Do not create a per-task REV file, handoff file, traceability update, conflict-history update or ADR by default. Use Task Card + PR as the handoff. Update ADR only for a real architecture decision; maintain current open conflicts separately; batch traceability and historical indexes at stage end.
