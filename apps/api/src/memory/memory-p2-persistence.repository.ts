@@ -34,9 +34,11 @@ import {
   type MemoryP2TraceSourceInput,
 } from './memory-p2-persistence.types.js';
 import type {
+  MemoryP2CommittedAuthority,
   MemoryP2RecoveryAuthority,
   MemoryP2RecoveryCasResult,
   MemoryP2RecoveryCommand,
+  MemoryP2TraceReferenceAuthority,
   MemoryP2TraceReference,
 } from './memory-p2-observability.types.js';
 
@@ -44,6 +46,7 @@ type TransactionClient = Prisma.TransactionClient;
 
 @Injectable()
 export class MemoryP2PersistenceRepository {
+  public readonly transactionOwnership = 'existing_ai_job_coordinator' as const;
   public constructor(private readonly prisma: PrismaService) {}
 
   public async freezeCheckpoint(
@@ -416,328 +419,254 @@ export class MemoryP2PersistenceRepository {
     });
   }
 
-  public async commitLayerRevision(input: MemoryP2CommitInput): Promise<MemoryP2CommitResult> {
+  public async commitLayerRevision(
+    input: MemoryP2CommitInput,
+    transaction?: TransactionClient,
+    finalize = true,
+  ): Promise<MemoryP2CommitResult> {
     this.assertLease(input.lease);
-    return this.prisma.$transaction(
-      async (tx) => {
-        await this.assertMigrationReady(tx);
-        await this.lockScope(tx, input.projectId, input.sourceSessionId);
-        const checkpoint = await tx.memoryEvolutionCheckpoint.findUnique({
-          where: { id: input.checkpointId },
-        });
-        if (
-          checkpoint === null ||
-          checkpoint.projectId !== input.projectId ||
-          checkpoint.sourceSessionId !== input.sourceSessionId ||
-          !['frozen', 'committed'].includes(checkpoint.lifecycleStatus)
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        const checkpointMembers = await tx.memoryEvolutionCheckpointMember.findMany({
-          orderBy: { inputOrder: 'asc' },
-          where: { checkpointId: input.checkpointId },
-        });
-        if (
-          checkpointMembers.length !== checkpoint.expectedMemberCount ||
-          checkpointMembers.some((member, index) => member.inputOrder !== index) ||
-          memoryP2CheckpointManifestHash(checkpointMembers) !== checkpoint.memberManifestHash
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        await tx.$queryRaw`SELECT "id" FROM "memory_working_snapshot" WHERE "id" = ${checkpoint.sourceWorkingSnapshotId}::uuid FOR SHARE`;
-        await tx.$queryRaw`SELECT "id" FROM "memory_thread_revision" WHERE "id" = ${checkpoint.sourceThreadRevisionId}::uuid FOR SHARE`;
+    const work = async (tx: TransactionClient): Promise<MemoryP2CommitResult> => {
+      await this.assertMigrationReady(tx);
+      await this.lockScope(tx, input.projectId, input.sourceSessionId);
+      const checkpoint = await tx.memoryEvolutionCheckpoint.findUnique({
+        where: { id: input.checkpointId },
+      });
+      if (
+        checkpoint === null ||
+        checkpoint.projectId !== input.projectId ||
+        checkpoint.sourceSessionId !== input.sourceSessionId ||
+        !['frozen', 'committed'].includes(checkpoint.lifecycleStatus)
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+      const checkpointMembers = await tx.memoryEvolutionCheckpointMember.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { checkpointId: input.checkpointId },
+      });
+      if (
+        checkpointMembers.length !== checkpoint.expectedMemberCount ||
+        checkpointMembers.some((member, index) => member.inputOrder !== index) ||
+        memoryP2CheckpointManifestHash(checkpointMembers) !== checkpoint.memberManifestHash
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+      await tx.$queryRaw`SELECT "id" FROM "memory_working_snapshot" WHERE "id" = ${checkpoint.sourceWorkingSnapshotId}::uuid FOR SHARE`;
+      await tx.$queryRaw`SELECT "id" FROM "memory_thread_revision" WHERE "id" = ${checkpoint.sourceThreadRevisionId}::uuid FOR SHARE`;
 
-        await tx.$queryRaw`SELECT "authority_id" FROM "memory_resolution_authority" WHERE "project_id" = ${input.projectId}::uuid AND "semantic_kind" = ${input.target.semanticKind}::"MemorySemanticKind" AND "canonical_key" = ${input.target.canonicalKey} FOR UPDATE`;
-        await tx.$queryRaw`SELECT "id" FROM "memory_layer_identity" WHERE "identity_key_digest" = ${input.target.identityKeyDigest} FOR UPDATE`;
-        await tx.$queryRaw`SELECT revision."id" FROM "memory_layer_revision" revision JOIN "memory_layer_identity" identity ON identity."id" = revision."identity_id" WHERE identity."identity_key_digest" = ${input.target.identityKeyDigest} AND revision."lifecycle_status" = 'current' FOR UPDATE OF revision`;
-        await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT "authority_id" FROM "memory_resolution_authority" WHERE "project_id" = ${input.projectId}::uuid AND "semantic_kind" = ${input.target.semanticKind}::"MemorySemanticKind" AND "canonical_key" = ${input.target.canonicalKey} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "memory_layer_identity" WHERE "identity_key_digest" = ${input.target.identityKeyDigest} FOR UPDATE`;
+      await tx.$queryRaw`SELECT revision."id" FROM "memory_layer_revision" revision JOIN "memory_layer_identity" identity ON identity."id" = revision."identity_id" WHERE identity."identity_key_digest" = ${input.target.identityKeyDigest} AND revision."lifecycle_status" = 'current' FOR UPDATE OF revision`;
+      await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${input.aiJobId}::uuid FOR UPDATE`;
 
-        const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
-        const projection = await tx.memoryP2JobProjection.findUnique({
-          where: { aiJobId: input.aiJobId },
-        });
-        const trace = await tx.decisionTraceMemorySemantic.findUnique({
-          where: { traceId: input.traceId },
-        });
-        if (job?.status === 'succeeded') {
-          const replay = await this.replayCommittedLayerRevision(
-            tx,
-            input,
-            checkpoint,
-            projection,
-            trace,
-          );
-          if (replay !== null) return replay;
-          throw new MemoryP2PersistenceError('MEMORY_P2_COMMIT_ALREADY_TERMINAL');
-        }
-        if (
-          job === null ||
-          projection === null ||
-          trace === null ||
-          job.status !== 'running' ||
-          job.projectId !== input.projectId ||
-          projection.sourceCheckpointId !== input.checkpointId ||
-          trace.aiJobId !== input.aiJobId ||
-          projection.deletionScopeDigest !== trace.deletionScopeDigest ||
-          (job.jobType !== 'long_session_end' &&
-            projection.deletionScopeDigest !== checkpoint.deletionScopeDigest) ||
-          job.policyRevision !== checkpoint.aiPolicyRevision ||
-          job.retentionPolicyVersion !== checkpoint.retentionPolicyVersion ||
-          job.retentionState !== 'active' ||
-          job.expiresAt <= new Date() ||
-          projection.recoveryLeaseOwner !== input.lease.owner ||
-          projection.recoveryLeaseEpoch !== input.lease.epoch ||
-          projection.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime() ||
-          projection.recoveryLeaseExpiresAt <= new Date() ||
-          (job.jobType !== 'long_session_end' &&
-            projection.sourceRevisionDigest !== checkpoint.memberManifestHash)
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
-        if (
-          input.claims.length === 0 ||
-          input.target.layer !== (job.jobType === 'long_session_end' ? 'long' : 'mid')
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
-
-        const resolutionId = randomUUID();
-        const resolutionOutputId = randomUUID();
-        const layerRevisionId = randomUUID();
-
-        const authority = await this.resolveAuthority(tx, input);
-        const previousResolution = await tx.memoryResolution.findFirst({
-          where: { authorityId: authority.authorityId, status: 'current' },
-        });
-        if (
-          (previousResolution?.id ?? null) !== input.target.expectedCurrentResolutionId ||
-          (previousResolution?.resolutionRevision ?? 0) !== input.target.expectedCurrentRevision
-        )
-          throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
-        const resolutionRevision = input.target.expectedCurrentRevision + 1;
-        if (previousResolution !== null) {
-          const frozen = await tx.aiJobInputMemory.findFirst({
-            where: { aiJobId: input.aiJobId, memoryResolutionId: previousResolution.id },
-          });
-          if (
-            frozen === null ||
-            frozen.resolutionRevision !== previousResolution.resolutionRevision
-          )
-            throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-          await tx.memoryResolution.update({
-            data: { status: 'superseded' },
-            where: { id: previousResolution.id },
-          });
-        }
-
-        const claimRows = await this.createClaims(tx, input);
-        const targetRevisionDigest = memoryP2LayerMemberManifestHash(
-          claimRows.map((row, inputOrder) => ({
-            claimId: row.claimId,
-            evidenceMembershipDigest: row.evidenceManifestHash,
-            inputOrder,
-            role: row.claim.role,
-          })),
+      const job = await tx.aiJob.findUnique({ where: { id: input.aiJobId } });
+      const projection = await tx.memoryP2JobProjection.findUnique({
+        where: { aiJobId: input.aiJobId },
+      });
+      const trace = await tx.decisionTraceMemorySemantic.findUnique({
+        where: { traceId: input.traceId },
+      });
+      if (job?.status === 'succeeded') {
+        const replay = await this.replayCommittedLayerRevision(
+          tx,
+          input,
+          checkpoint,
+          projection,
+          trace,
         );
-        const resolutionSegmentInputs = [
-          ...new Map(
-            claimRows.flatMap(({ inputs }) => inputs).map((row) => [row.id, row]),
-          ).values(),
-        ].sort((left, right) => left.inputOrder - right.inputOrder);
-        const segmentEntries = resolutionSegmentInputs.map((row) => this.segmentManifestEntry(row));
-        const priorInput =
-          previousResolution === null
-            ? null
-            : await tx.aiJobInputMemory.findFirstOrThrow({
-                where: { aiJobId: input.aiJobId, memoryResolutionId: previousResolution.id },
-              });
-        const memoryEntries =
-          priorInput === null
-            ? []
-            : [
-                `${priorInput.id}:${priorInput.memoryResolutionId}:${String(priorInput.resolutionRevision)}`,
-              ];
-        await tx.aiDerivedOutput.create({
-          data: {
-            aiJobId: input.aiJobId,
-            businessOutputId: resolutionId,
-            expectedMemoryCount: memoryEntries.length,
-            expectedMemoryManifestHash: manifestHash(memoryEntries),
-            expectedQuestionCount: 0,
-            expectedQuestionManifestHash: EMPTY_MANIFEST_HASH,
-            expectedSegmentCount: segmentEntries.length,
-            expectedSegmentManifestHash: manifestHash(segmentEntries),
-            id: resolutionOutputId,
-            outputType: 'memory_resolution',
-            projectId: input.projectId,
-          },
+        if (replay !== null) return replay;
+        throw new MemoryP2PersistenceError('MEMORY_P2_COMMIT_ALREADY_TERMINAL');
+      }
+      if (
+        job === null ||
+        projection === null ||
+        trace === null ||
+        job.status !== 'running' ||
+        job.projectId !== input.projectId ||
+        projection.sourceCheckpointId !== input.checkpointId ||
+        trace.aiJobId !== input.aiJobId ||
+        projection.deletionScopeDigest !== trace.deletionScopeDigest ||
+        (job.jobType !== 'long_session_end' &&
+          projection.deletionScopeDigest !== checkpoint.deletionScopeDigest) ||
+        job.policyRevision !== checkpoint.aiPolicyRevision ||
+        job.retentionPolicyVersion !== checkpoint.retentionPolicyVersion ||
+        job.retentionState !== 'active' ||
+        job.expiresAt <= new Date() ||
+        projection.recoveryLeaseOwner !== input.lease.owner ||
+        projection.recoveryLeaseEpoch !== input.lease.epoch ||
+        projection.recoveryLeaseExpiresAt.getTime() !== input.lease.expiresAt.getTime() ||
+        projection.recoveryLeaseExpiresAt <= new Date() ||
+        (job.jobType !== 'long_session_end' &&
+          projection.sourceRevisionDigest !== checkpoint.memberManifestHash)
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+      if (
+        input.claims.length === 0 ||
+        input.target.layer !== (job.jobType === 'long_session_end' ? 'long' : 'mid')
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
+
+      const resolutionId = randomUUID();
+      const resolutionOutputId = randomUUID();
+      const layerRevisionId = randomUUID();
+
+      const authority = await this.resolveAuthority(tx, input);
+      const previousResolution = await tx.memoryResolution.findFirst({
+        where: { authorityId: authority.authorityId, status: 'current' },
+      });
+      if (
+        (previousResolution?.id ?? null) !== input.target.expectedCurrentResolutionId ||
+        (previousResolution?.resolutionRevision ?? 0) !== input.target.expectedCurrentRevision
+      )
+        throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
+      const resolutionRevision = input.target.expectedCurrentRevision + 1;
+      if (previousResolution !== null) {
+        const frozen = await tx.aiJobInputMemory.findFirst({
+          where: { aiJobId: input.aiJobId, memoryResolutionId: previousResolution.id },
         });
-        await tx.memoryResolution.create({
+        if (frozen === null || frozen.resolutionRevision !== previousResolution.resolutionRevision)
+          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+        await tx.memoryResolution.update({
+          data: { status: 'superseded' },
+          where: { id: previousResolution.id },
+        });
+      }
+
+      const claimRows = await this.createClaims(tx, input);
+      const targetRevisionDigest = memoryP2LayerMemberManifestHash(
+        claimRows.map((row, inputOrder) => ({
+          claimId: row.claimId,
+          evidenceMembershipDigest: row.evidenceManifestHash,
+          inputOrder,
+          role: row.claim.role,
+        })),
+      );
+      const resolutionSegmentInputs = [
+        ...new Map(claimRows.flatMap(({ inputs }) => inputs).map((row) => [row.id, row])).values(),
+      ].sort((left, right) => left.inputOrder - right.inputOrder);
+      const segmentEntries = resolutionSegmentInputs.map((row) => this.segmentManifestEntry(row));
+      const priorInput =
+        previousResolution === null
+          ? null
+          : await tx.aiJobInputMemory.findFirstOrThrow({
+              where: { aiJobId: input.aiJobId, memoryResolutionId: previousResolution.id },
+            });
+      const memoryEntries =
+        priorInput === null
+          ? []
+          : [
+              `${priorInput.id}:${priorInput.memoryResolutionId}:${String(priorInput.resolutionRevision)}`,
+            ];
+      await tx.aiDerivedOutput.create({
+        data: {
+          aiJobId: input.aiJobId,
+          businessOutputId: resolutionId,
+          expectedMemoryCount: memoryEntries.length,
+          expectedMemoryManifestHash: manifestHash(memoryEntries),
+          expectedQuestionCount: 0,
+          expectedQuestionManifestHash: EMPTY_MANIFEST_HASH,
+          expectedSegmentCount: segmentEntries.length,
+          expectedSegmentManifestHash: manifestHash(segmentEntries),
+          id: resolutionOutputId,
+          outputType: 'memory_resolution',
+          projectId: input.projectId,
+        },
+      });
+      await tx.memoryResolution.create({
+        data: {
+          aiDerivedOutputId: resolutionOutputId,
+          aiJobId: input.aiJobId,
+          authority: 'automatic',
+          authorityId: authority.authorityId,
+          canonicalKey: input.target.canonicalKey,
+          id: resolutionId,
+          layer: input.target.layer,
+          p2Write: true,
+          projectId: input.projectId,
+          provenanceState: 'active',
+          resolutionKind: input.target.resolutionKind,
+          resolutionRevision,
+          resolvedValueJson: input.target.resolvedValueJson,
+          semanticKind: input.target.semanticKind,
+          semanticStatus: input.target.semanticStatus,
+          sourceSessionId: input.sourceSessionId,
+          status: 'current',
+          supersedesResolutionId: previousResolution?.id ?? null,
+          threadId: checkpoint.sourceThreadId,
+        },
+      });
+      await tx.memoryResolutionMember.createMany({
+        data: claimRows.map(({ claimId }, memberOrder) => ({
+          id: randomUUID(),
+          memberOrder,
+          memoryClaimId: claimId,
+          memoryResolutionId: resolutionId,
+        })),
+      });
+      for (const [dependencyOrder, row] of resolutionSegmentInputs.entries()) {
+        await tx.aiOutputSegmentDependency.create({
           data: {
             aiDerivedOutputId: resolutionOutputId,
-            aiJobId: input.aiJobId,
-            authority: 'automatic',
-            authorityId: authority.authorityId,
-            canonicalKey: input.target.canonicalKey,
-            id: resolutionId,
-            layer: input.target.layer,
-            p2Write: true,
-            projectId: input.projectId,
-            provenanceState: 'active',
-            resolutionKind: input.target.resolutionKind,
-            resolutionRevision,
-            resolvedValueJson: input.target.resolvedValueJson,
-            semanticKind: input.target.semanticKind,
-            semanticStatus: input.target.semanticStatus,
-            sourceSessionId: input.sourceSessionId,
-            status: 'current',
-            supersedesResolutionId: previousResolution?.id ?? null,
-            threadId: checkpoint.sourceThreadId,
-          },
-        });
-        await tx.memoryResolutionMember.createMany({
-          data: claimRows.map(({ claimId }, memberOrder) => ({
+            aiJobInputSegmentId: row.id,
+            dependencyOrder,
             id: randomUUID(),
-            memberOrder,
-            memoryClaimId: claimId,
-            memoryResolutionId: resolutionId,
-          })),
+          },
         });
-        for (const [dependencyOrder, row] of resolutionSegmentInputs.entries()) {
-          await tx.aiOutputSegmentDependency.create({
-            data: {
-              aiDerivedOutputId: resolutionOutputId,
-              aiJobInputSegmentId: row.id,
-              dependencyOrder,
-              id: randomUUID(),
-            },
-          });
-        }
-        if (priorInput !== null) {
-          await tx.aiOutputMemoryDependency.create({
-            data: {
-              aiDerivedOutputId: resolutionOutputId,
-              aiJobInputMemoryId: priorInput.id,
-              dependencyOrder: 0,
-              id: randomUUID(),
-            },
-          });
-        }
+      }
+      if (priorInput !== null) {
+        await tx.aiOutputMemoryDependency.create({
+          data: {
+            aiDerivedOutputId: resolutionOutputId,
+            aiJobInputMemoryId: priorInput.id,
+            dependencyOrder: 0,
+            id: randomUUID(),
+          },
+        });
+      }
 
-        const identity = await this.resolveLayerIdentity(tx, input, authority.authorityId);
-        const predecessor = await tx.memoryLayerRevision.findFirst({
-          where: { identityId: identity.id, lifecycleStatus: 'current' },
+      const identity = await this.resolveLayerIdentity(tx, input, authority.authorityId);
+      const predecessor = await tx.memoryLayerRevision.findFirst({
+        where: { identityId: identity.id, lifecycleStatus: 'current' },
+      });
+      if (predecessor !== null) {
+        await tx.memoryLayerRevision.update({
+          data: { lifecycleStatus: 'superseded' },
+          where: { id: predecessor.id },
         });
-        if (predecessor !== null) {
-          await tx.memoryLayerRevision.update({
-            data: { lifecycleStatus: 'superseded' },
-            where: { id: predecessor.id },
-          });
-        }
-        const revisionNo = (predecessor?.revisionNo ?? 0) + 1;
-        await tx.memoryLayerRevision.create({
-          data: {
-            expectedMemberCount: claimRows.length,
-            id: layerRevisionId,
-            identityId: identity.id,
-            layer: input.target.layer,
-            lifecycleStatus: 'current',
-            manifestAlgorithmVersion: MEMORY_P2_MANIFEST_ALGORITHM_VERSION,
-            memberManifestHash: targetRevisionDigest,
-            predecessorRevisionId: predecessor?.id ?? null,
-            projectId: input.projectId,
-            resolutionAuthorityId: authority.authorityId,
-            resolutionRevision,
-            resolutionRowId: resolutionId,
-            revisionNo,
-            semanticStatus: input.target.semanticStatus,
-            sourceCheckpointId: input.checkpointId,
-            sourceJobId: input.aiJobId,
-            sourceSessionId: input.sourceSessionId,
-          },
-        });
-        await tx.memoryLayerRevisionMember.createMany({
-          data: claimRows.map(({ claim, claimId, evidenceManifestHash }, inputOrder) => ({
-            claimRevision: 1,
-            evidenceMembershipDigest: evidenceManifestHash,
-            inputOrder,
-            memoryClaimId: claimId,
-            revisionId: layerRevisionId,
-            role: claim.role,
-          })),
-        });
-        if (input.target.layer === 'long')
-          await this.createLongProjection(tx, input, layerRevisionId);
+      }
+      const revisionNo = (predecessor?.revisionNo ?? 0) + 1;
+      await tx.memoryLayerRevision.create({
+        data: {
+          expectedMemberCount: claimRows.length,
+          id: layerRevisionId,
+          identityId: identity.id,
+          layer: input.target.layer,
+          lifecycleStatus: 'current',
+          manifestAlgorithmVersion: MEMORY_P2_MANIFEST_ALGORITHM_VERSION,
+          memberManifestHash: targetRevisionDigest,
+          predecessorRevisionId: predecessor?.id ?? null,
+          projectId: input.projectId,
+          resolutionAuthorityId: authority.authorityId,
+          resolutionRevision,
+          resolutionRowId: resolutionId,
+          revisionNo,
+          semanticStatus: input.target.semanticStatus,
+          sourceCheckpointId: input.checkpointId,
+          sourceJobId: input.aiJobId,
+          sourceSessionId: input.sourceSessionId,
+        },
+      });
+      await tx.memoryLayerRevisionMember.createMany({
+        data: claimRows.map(({ claim, claimId, evidenceManifestHash }, inputOrder) => ({
+          claimRevision: 1,
+          evidenceMembershipDigest: evidenceManifestHash,
+          inputOrder,
+          memoryClaimId: claimId,
+          revisionId: layerRevisionId,
+          role: claim.role,
+        })),
+      });
+      if (input.target.layer === 'long')
+        await this.createLongProjection(tx, input, layerRevisionId);
 
-        if (checkpoint.lifecycleStatus === 'frozen') {
-          await tx.memoryEvolutionCheckpoint.update({
-            data: { committedAt: new Date(), lifecycleStatus: 'committed' },
-            where: { id: input.checkpointId },
-          });
-        }
-        await tx.aiJob.update({
-          data: { completedAt: new Date(), status: 'succeeded' },
-          where: { id: input.aiJobId },
-        });
-        await tx.memoryP2JobProjection.update({
-          data: {
-            targetLayerIdentityId: identity.id,
-            targetLayerRevisionId: layerRevisionId,
-            targetRevisionDigest,
-          },
-          where: { aiJobId: input.aiJobId },
-        });
-        const completedAt = new Date();
-        const traceParent = await tx.decisionTrace.findUniqueOrThrow({
-          where: { id: input.traceId },
-        });
-        await tx.decisionTrace.update({
-          data: {
-            completedAt,
-            durationMs: Math.max(0, completedAt.getTime() - traceParent.startedAt.getTime()),
-            memoryOutcome:
-              input.target.layer === 'long' ? 'long_committed' : 'checkpoint_committed',
-            stage: 'committed',
-            status: 'succeeded',
-          },
-          where: { id: input.traceId },
-        });
-        await tx.decisionTraceMemorySemantic.update({
-          data: {
-            commitDigest: input.commitDigest,
-            planDigest: input.planDigest,
-            proposalDigest: input.proposalDigest,
-            sourceManifestHash:
-              input.target.layer === 'long'
-                ? (input.longSourceManifestHash ?? projection.sourceRevisionDigest)
-                : projection.sourceRevisionDigest,
-          },
-          where: { traceId: input.traceId },
-        });
-        const sourceCount = await tx.decisionTraceMemorySourceReference.count({
-          where: { traceId: input.traceId },
-        });
-        const committedSources = [
-          ...claimRows.flatMap(({ evidences }) =>
-            evidences.map((evidence) => ({
-              deletionScopeDigest: projection.deletionScopeDigest,
-              inputOrder: 0,
-              membershipDigest: evidence.membershipDigest,
-              sourceId: evidence.evidenceId,
-              sourceKind: 'evidence' as const,
-              sourceRevision: evidence.authorityRevision,
-            })),
-          ),
-          {
-            deletionScopeDigest: projection.deletionScopeDigest,
-            inputOrder: 0,
-            membershipDigest: targetRevisionDigest,
-            sourceId: authority.authorityId,
-            sourceKind: 'resolution' as const,
-            sourceRevision: resolutionRevision,
-          },
-        ];
-        await tx.decisionTraceMemorySourceReference.createMany({
-          data: committedSources.map((source, offset) =>
-            this.traceSourceRow(input.traceId, { ...source, inputOrder: sourceCount + offset }),
-          ),
-        });
+      if (!finalize) {
         const retentionCount = await tx.memoryP2RetentionTarget.count({
           where: { aiJobId: input.aiJobId },
         });
@@ -759,6 +688,140 @@ export class MemoryP2PersistenceRepository {
           resolutionRevision,
           targetRevisionDigest,
         };
+      }
+      if (checkpoint.lifecycleStatus === 'frozen') {
+        await tx.memoryEvolutionCheckpoint.update({
+          data: { committedAt: new Date(), lifecycleStatus: 'committed' },
+          where: { id: input.checkpointId },
+        });
+      }
+      await tx.aiJob.update({
+        data: { completedAt: new Date(), status: 'succeeded' },
+        where: { id: input.aiJobId },
+      });
+      await tx.memoryP2JobProjection.update({
+        data: {
+          targetLayerIdentityId: identity.id,
+          targetLayerRevisionId: layerRevisionId,
+          targetRevisionDigest,
+        },
+        where: { aiJobId: input.aiJobId },
+      });
+      const completedAt = new Date();
+      const traceParent = await tx.decisionTrace.findUniqueOrThrow({
+        where: { id: input.traceId },
+      });
+      await tx.decisionTrace.update({
+        data: {
+          completedAt,
+          durationMs: Math.max(0, completedAt.getTime() - traceParent.startedAt.getTime()),
+          memoryOutcome: input.target.layer === 'long' ? 'long_committed' : 'checkpoint_committed',
+          stage: 'committed',
+          status: 'succeeded',
+        },
+        where: { id: input.traceId },
+      });
+      await tx.decisionTraceMemorySemantic.update({
+        data: {
+          commitDigest: input.commitDigest,
+          planDigest: input.planDigest,
+          proposalDigest: input.proposalDigest,
+          sourceManifestHash:
+            input.target.layer === 'long'
+              ? (input.longSourceManifestHash ?? projection.sourceRevisionDigest)
+              : projection.sourceRevisionDigest,
+        },
+        where: { traceId: input.traceId },
+      });
+      const sourceCount = await tx.decisionTraceMemorySourceReference.count({
+        where: { traceId: input.traceId },
+      });
+      const committedRevisions = await tx.memoryLayerRevision.findMany({
+        where: { sourceJobId: input.aiJobId },
+      });
+      const committedRevisionMembers = await tx.memoryLayerRevisionMember.findMany({
+        where: { revisionId: { in: committedRevisions.map((row) => row.id) } },
+      });
+      const committedEvidenceLinks = await tx.memoryClaimEvidence.findMany({
+        where: {
+          memoryClaimId: {
+            in: committedRevisionMembers.map((row) => row.memoryClaimId),
+          },
+        },
+      });
+      const committedEvidenceAuthorities = await tx.memoryEvidenceAuthority.findMany({
+        where: {
+          evidenceId: {
+            in: committedEvidenceLinks
+              .map((row) => row.evidenceId)
+              .filter((value): value is string => value !== null),
+          },
+        },
+      });
+      const evidenceById = new Map(
+        committedEvidenceAuthorities.map((row) => [row.evidenceId, row]),
+      );
+      const committedSources = [
+        ...[...evidenceById.values()].map((evidence) => ({
+          deletionScopeDigest: projection.deletionScopeDigest,
+          inputOrder: 0,
+          membershipDigest: evidence.membershipDigest,
+          sourceId: evidence.evidenceId,
+          sourceKind: 'evidence' as const,
+          sourceRevision: evidence.authorityRevision,
+        })),
+        ...committedRevisions.map((revision) => ({
+          deletionScopeDigest: projection.deletionScopeDigest,
+          inputOrder: 0,
+          membershipDigest: revision.memberManifestHash,
+          sourceId: revision.resolutionAuthorityId,
+          sourceKind: 'resolution' as const,
+          sourceRevision: revision.resolutionRevision,
+        })),
+      ];
+      await tx.decisionTraceMemorySourceReference.createMany({
+        data: committedSources.map((source, offset) =>
+          this.traceSourceRow(input.traceId, { ...source, inputOrder: sourceCount + offset }),
+        ),
+      });
+      const retentionCount = await tx.memoryP2RetentionTarget.count({
+        where: { aiJobId: input.aiJobId },
+      });
+      await tx.memoryP2RetentionTarget.create({
+        data: this.retentionTarget(
+          input.aiJobId,
+          'layer_revision',
+          layerRevisionId,
+          retentionCount,
+        ),
+      });
+      return {
+        authorityId: authority.authorityId,
+        checkpointId: input.checkpointId,
+        layerIdentityId: identity.id,
+        layerRevisionId,
+        memoryClaimIds: claimRows.map(({ claimId }) => claimId),
+        resolutionId,
+        resolutionRevision,
+        targetRevisionDigest,
+      };
+    };
+    if (transaction !== undefined) return work(transaction);
+    return this.prisma.$transaction(work, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
+  public async commitLayerRevisions(
+    inputs: readonly MemoryP2CommitInput[],
+  ): Promise<readonly MemoryP2CommitResult[]> {
+    if (inputs.length === 0) throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
+    return this.prisma.$transaction(
+      async (tx) => {
+        const results: MemoryP2CommitResult[] = [];
+        for (const [index, input] of inputs.entries())
+          results.push(await this.commitLayerRevision(input, tx, index === inputs.length - 1));
+        return results;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -814,6 +877,7 @@ export class MemoryP2PersistenceRepository {
 
   public async listStaleRecoveryCandidates(
     limit = 100,
+    staleAtOrBefore = new Date(),
   ): Promise<readonly MemoryP2StaleRecoveryCandidate[]> {
     if (!(await this.migrationReady())) return [];
     const boundedLimit = Math.max(1, Math.min(500, Math.trunc(limit)));
@@ -835,7 +899,7 @@ export class MemoryP2PersistenceRepository {
       WHERE job."status" = 'running'
         AND job."retention_state" = 'active'
         AND job."expires_at" > now()
-        AND projection."recovery_lease_expires_at" <= now()
+        AND projection."recovery_lease_expires_at" <= ${staleAtOrBefore}
       ORDER BY projection."recovery_lease_expires_at" ASC, projection."ai_job_id" ASC
       LIMIT ${boundedLimit}
     `;
@@ -849,7 +913,9 @@ export class MemoryP2PersistenceRepository {
     limit: number;
     staleAtOrBefore: Date;
   }): Promise<readonly string[]> {
-    return (await this.listStaleRecoveryCandidates(input.limit)).map((row) => row.aiJobId);
+    return (await this.listStaleRecoveryCandidates(input.limit, input.staleAtOrBefore)).map(
+      (row) => row.aiJobId,
+    );
   }
 
   public async readRecoveryAuthority(jobId: string): Promise<MemoryP2RecoveryAuthority | null> {
@@ -867,7 +933,70 @@ export class MemoryP2PersistenceRepository {
       where: { traceId: semantic.traceId },
     });
     const references = rows.map(p2TraceReferenceFromRow);
-    const sourceSessionIds = checkpoint === null ? [job.projectId] : [checkpoint.sourceSessionId];
+    const longProjection = await this.prisma.memoryLongJobProjection.findUnique({
+      where: { aiJobId: jobId },
+    });
+    const sourceSessionIds =
+      longProjection?.sourceSessionIds ?? (checkpoint === null ? [] : [checkpoint.sourceSessionId]);
+    if (sourceSessionIds.length === 0) return null;
+    const sourceSessionManifestHash =
+      longProjection?.sourceSessionSetHash ?? memoryP2SourceSessionSetHash(sourceSessionIds);
+    const referenceAuthorities = await this.readReferenceAuthorities(references);
+    const targetRevision =
+      projection.targetLayerRevisionId === null
+        ? null
+        : await this.prisma.memoryLayerRevision.findUnique({
+            where: { id: projection.targetLayerRevisionId },
+          });
+    const revisionMembers =
+      targetRevision === null
+        ? []
+        : await this.prisma.memoryLayerRevisionMember.findMany({
+            where: { revisionId: targetRevision.id },
+          });
+    const claimEvidence =
+      revisionMembers.length === 0
+        ? []
+        : await this.prisma.memoryClaimEvidence.findMany({
+            where: { memoryClaimId: { in: revisionMembers.map((row) => row.memoryClaimId) } },
+          });
+    const migration = await this.prisma.memoryP2MigrationManifest.findFirst({
+      orderBy: { startedAt: 'desc' },
+      where: {
+        predecessorFingerprint: MEMORY_P2_MIGRATION_PREDECESSOR_FINGERPRINT,
+        schemaVersion: MEMORY_P2_MIGRATION_SCHEMA_VERSION,
+      },
+    });
+    const legacyNullResolutionCount = await this.prisma.memoryResolution.count({
+      where: { aiJobId: jobId, authorityId: null },
+    });
+    const committed: MemoryP2CommittedAuthority | null =
+      targetRevision === null ||
+      projection.targetLayerIdentityId === null ||
+      projection.targetLayerRevisionId === null ||
+      projection.targetRevisionDigest === null ||
+      semantic.proposalDigest === null ||
+      semantic.planDigest === null ||
+      semantic.commitDigest === null
+        ? null
+        : {
+            commitDigest: semantic.commitDigest,
+            evidenceAuthorityIds: [
+              ...new Set(
+                claimEvidence
+                  .map((row) => row.evidenceId)
+                  .filter((value): value is string => value !== null),
+              ),
+            ],
+            planDigest: semantic.planDigest,
+            proposalDigest: semantic.proposalDigest,
+            resolutionAuthorityIds: [targetRevision.resolutionAuthorityId],
+            targetLayer: targetRevision.layer === 'long' ? 'long' : 'mid',
+            targetLayerIdentityId: projection.targetLayerIdentityId,
+            targetLayerRevisionId: projection.targetLayerRevisionId,
+            targetRevision: targetRevision.revisionNo,
+            targetRevisionDigest: projection.targetRevisionDigest,
+          };
     const trace = {
       commitDigest: semantic.commitDigest,
       deletionScopeDigest: semantic.deletionScopeDigest,
@@ -900,7 +1029,7 @@ export class MemoryP2PersistenceRepository {
               sourceManifestHash: checkpoint.memberManifestHash,
               status: checkpoint.lifecycleStatus as 'committed',
             },
-      committed: null,
+      committed,
       identity: {
         aiJobId: job.id,
         createdAt: job.createdAt,
@@ -918,20 +1047,20 @@ export class MemoryP2PersistenceRepository {
       },
       jobFailureCode: semanticErrorCode(job.failureCode),
       jobMemoryOutcome: parent.memoryOutcome as never,
-      jobRevision: 0,
+      jobRevision: projection.updatedAt.getTime(),
       jobStatus: job.status as never,
       leaseEpoch: projection.recoveryLeaseEpoch,
       leaseExpiresAt: projection.recoveryLeaseExpiresAt,
       leaseOwnerId: projection.recoveryLeaseOwner,
-      legacyNullResolutionCount: 0,
-      migrationStatus: 'completed',
+      legacyNullResolutionCount,
+      migrationStatus: recoveryMigrationStatus(migration?.status),
       p2PolicyRevision: projection.p2PolicyRevision,
       p2RetentionPolicyVersion: projection.p2RetentionPolicyVersion,
-      referenceAuthorities: [],
+      referenceAuthorities,
       references,
       retentionState: job.retentionState as never,
       sourceSessionIds,
-      sourceSessionManifestHash: manifestHash(sourceSessionIds),
+      sourceSessionManifestHash,
       targetLayer: projection.jobKind === 'long_session_end' ? 'long' : 'mid',
       trace,
     };
@@ -939,6 +1068,10 @@ export class MemoryP2PersistenceRepository {
 
   public async applyRecovery(command: MemoryP2RecoveryCommand): Promise<MemoryP2RecoveryCasResult> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "ai_job" WHERE "id" = ${command.jobId}::uuid FOR UPDATE`;
+      const authority = await this.readRecoveryAuthority(command.jobId);
+      if (authority === null || !recoveryCommandMatchesAuthority(command, authority))
+        return { outcome: 'cas_lost' };
       const [job, projection, semantic] = await Promise.all([
         tx.aiJob.findUnique({ where: { id: command.jobId } }),
         tx.memoryP2JobProjection.findUnique({ where: { aiJobId: command.jobId } }),
@@ -954,11 +1087,11 @@ export class MemoryP2PersistenceRepository {
         projection.recoveryLeaseOwner !== command.expectedLeaseOwnerId
       )
         return { outcome: 'cas_lost' };
-      if (command.kind === 'terminalize_uncommitted')
+      if (command.kind === 'terminalize_uncommitted' || command.kind === 'preserve_committed')
         await tx.aiJob.update({
           data: {
             completedAt: command.writeAt,
-            failureCode: command.errorCode,
+            failureCode: command.kind === 'preserve_committed' ? null : command.errorCode,
             status: command.terminalStatus,
           },
           where: { id: command.jobId },
@@ -1534,6 +1667,103 @@ export class MemoryP2PersistenceRepository {
     });
   }
 
+  private async readReferenceAuthorities(
+    references: readonly MemoryP2TraceReference[],
+  ): Promise<readonly MemoryP2TraceReferenceAuthority[]> {
+    const authorities: MemoryP2TraceReferenceAuthority[] = [];
+    for (const reference of references) {
+      const targetId = p2TraceReferenceTarget(reference);
+      const base = {
+        deletionScopeDigest: reference.deletionScopeDigest,
+        membershipDigest: reference.membershipDigest,
+        sourceKind: reference.sourceKind,
+        sourceRevision: reference.sourceRevision,
+        targetId,
+      } as const;
+      if (reference.sourceKind === 'checkpoint') {
+        const row = await this.prisma.memoryEvolutionCheckpoint.findUnique({
+          where: { id: targetId },
+        });
+        if (row === null) return [];
+        authorities.push({
+          ...base,
+          membershipDigest: row.memberManifestHash,
+          projectId: row.projectId,
+          readability: checkpointReadability(row.lifecycleStatus),
+          sessionId: row.sourceSessionId,
+          sourceRevision: 1,
+        });
+        continue;
+      }
+      if (reference.sourceKind === 'job') {
+        const row = await this.prisma.aiJob.findUnique({ where: { id: targetId } });
+        if (row === null) return [];
+        const session = await this.prisma.aiJobSessionScope.findFirst({
+          orderBy: { inputOrder: 'asc' },
+          where: { aiJobId: row.id },
+        });
+        if (session === null) return [];
+        authorities.push({
+          ...base,
+          membershipDigest: row.inputHash,
+          projectId: row.projectId,
+          readability:
+            row.retentionState === 'active' && row.expiresAt > new Date() ? 'active' : 'expired',
+          sessionId: session.sessionId,
+          sourceRevision: 1,
+        });
+        continue;
+      }
+      if (reference.sourceKind === 'input_segment') {
+        const row = await this.prisma.aiJobInputSegment.findUnique({ where: { id: targetId } });
+        if (row === null) return [];
+        const job = await this.prisma.aiJob.findUnique({ where: { id: row.aiJobId } });
+        if (job === null) return [];
+        authorities.push({
+          ...base,
+          membershipDigest: row.effectiveTextDigest,
+          projectId: job.projectId,
+          readability:
+            job.retentionState === 'active' && job.expiresAt > new Date() ? 'active' : 'expired',
+          sessionId: row.sessionId,
+          sourceRevision: row.textRevision,
+        });
+        continue;
+      }
+      if (reference.sourceKind === 'evidence') {
+        const row = await this.prisma.memoryEvidenceAuthority.findUnique({
+          where: { evidenceId: targetId },
+        });
+        if (row === null) return [];
+        authorities.push({
+          ...base,
+          membershipDigest: row.membershipDigest,
+          projectId: row.projectId,
+          readability: 'active',
+          sessionId: row.sessionId,
+          sourceRevision: row.authorityRevision,
+        });
+        continue;
+      }
+      const row = await this.prisma.memoryResolutionAuthority.findUnique({
+        where: { authorityId: targetId },
+      });
+      if (row === null) return [];
+      const member = await this.prisma.memoryEvolutionCheckpointMember.findFirst({
+        orderBy: { inputOrder: 'asc' },
+        where: { resolutionAuthorityId: row.authorityId },
+      });
+      authorities.push({
+        ...base,
+        membershipDigest: member?.membershipDigest ?? reference.membershipDigest,
+        projectId: row.projectId,
+        readability: 'active',
+        sessionId: row.originSessionId,
+      });
+    }
+    return authorities;
+  }
+
   private segmentManifestEntry(row: {
     effectiveTextDigest: string;
     id: string;
@@ -1595,4 +1825,82 @@ function p2TraceReferenceFromRow(row: {
   if (row.sourceKind === 'resolution' && row.resolutionAuthorityId !== null)
     return { ...base, resolutionAuthorityId: row.resolutionAuthorityId, sourceKind: 'resolution' };
   throw new MemoryP2PersistenceError('MEMORY_P2_READ_UNAVAILABLE');
+}
+
+function p2TraceReferenceTarget(reference: MemoryP2TraceReference): string {
+  switch (reference.sourceKind) {
+    case 'checkpoint':
+      return reference.sourceCheckpointId;
+    case 'job':
+      return reference.sourceJobId;
+    case 'input_segment':
+      return reference.aiJobInputSegmentId;
+    case 'evidence':
+      return reference.evidenceId;
+    case 'resolution':
+      return reference.resolutionAuthorityId;
+  }
+}
+
+function checkpointReadability(status: string): MemoryP2TraceReferenceAuthority['readability'] {
+  if (status === 'committed' || status === 'frozen') return 'active';
+  if (status === 'hidden') return 'hidden';
+  if (status === 'deleted') return 'deleted';
+  if (status === 'expired') return 'expired';
+  if (status === 'cleanup_failed') return 'cleanup_failed';
+  return 'missing';
+}
+
+function recoveryMigrationStatus(
+  status: string | undefined,
+): MemoryP2RecoveryAuthority['migrationStatus'] {
+  if (
+    status === 'ready' ||
+    status === 'completed' ||
+    status === 'upgrading' ||
+    status === 'interrupted'
+  )
+    return status;
+  return 'unavailable';
+}
+
+function recoveryCommandMatchesAuthority(
+  command: MemoryP2RecoveryCommand,
+  authority: MemoryP2RecoveryAuthority,
+): boolean {
+  const traceStatus = authority.trace?.status ?? 'missing';
+  const committed = authority.committed;
+  return (
+    authority.identity.aiJobId === command.jobId &&
+    authority.attemptNo === command.expectedAttemptNo &&
+    command.expectedJobStatuses.includes(authority.jobStatus) &&
+    authority.jobRevision === command.expectedJobRevision &&
+    authority.leaseOwnerId === command.expectedLeaseOwnerId &&
+    authority.leaseEpoch === command.expectedLeaseEpoch &&
+    sameDate(authority.leaseExpiresAt, command.expectedLeaseExpiresAt) &&
+    command.expectedTraceStatuses.includes(traceStatus) &&
+    (authority.checkpoint?.checkpointId ?? null) === command.expectedCheckpointId &&
+    authority.identity.sourceManifestHash === command.expectedSourceManifestHash &&
+    authority.targetLayer === command.expectedTargetLayer &&
+    sameStrings(authority.sourceSessionIds, command.expectedSourceSessionIds) &&
+    authority.sourceSessionManifestHash === command.expectedSourceSessionManifestHash &&
+    authority.identity.deletionScopeDigest === command.expectedDeletionScopeDigest &&
+    authority.p2PolicyRevision === command.expectedP2PolicyRevision &&
+    authority.p2RetentionPolicyVersion === command.expectedP2RetentionPolicyVersion &&
+    sameDate(authority.identity.expiresAt, command.expectedRetentionExpiresAt) &&
+    (committed?.targetLayerRevisionId ?? null) === command.expectedTargetLayerRevisionId &&
+    (committed?.targetRevision ?? null) === command.expectedTargetRevision &&
+    (committed?.targetRevisionDigest ?? null) === command.expectedTargetRevisionDigest &&
+    (committed?.commitDigest ?? null) === command.expectedCommitDigest
+  );
+}
+
+function sameDate(actual: Date | null, expected: Date | null): boolean {
+  return actual?.getTime() === expected?.getTime();
+}
+
+function sameStrings(actual: readonly string[], expected: readonly string[]): boolean {
+  return (
+    actual.length === expected.length && actual.every((value, index) => value === expected[index])
+  );
 }
