@@ -184,6 +184,9 @@ enum FinalizationTranscriptStatus {
 enum AiJobType {
   memory_extract
   working_memory_maintain
+  mid_online
+  mid_final
+  long_session_end
   question_generate
   actual_question_reconcile
   session_note
@@ -197,6 +200,7 @@ enum AiJobStatus {
   succeeded
   failed
   cancelled
+  unavailable
 }
 
 enum AiDerivedOutputType {
@@ -960,6 +964,7 @@ model MemoryClaim {
   provenanceState       MemoryProvenanceState? @map("provenance_state")
   sourceSessionId       String?                @map("source_session_id") @db.Uuid
   threadId              String?                @map("thread_id") @db.Uuid
+  claimRevision         Int                    @default(1) @map("claim_revision")
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([projectId, memoryType, canonicalKey])
@@ -971,6 +976,8 @@ model MemoryClaimEvidence {
   memoryClaimId       String   @map("memory_claim_id") @db.Uuid
   aiJobInputSegmentId String   @map("ai_job_input_segment_id") @db.Uuid
   transcriptSegmentId String   @map("transcript_segment_id") @db.Uuid
+  evidenceId          String?  @map("evidence_id") @db.Uuid
+  authorityRevision   Int?     @map("authority_revision")
   evidenceOrder       Int      @map("evidence_order")
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -993,6 +1000,8 @@ model MemoryResolution {
   authority              MemoryAuthority
   status                 MemoryResolutionStatus @default(current)
   supersedesResolutionId String?                @map("supersedes_resolution_id") @db.Uuid
+  authorityId            String?                @map("authority_id") @db.Uuid
+  p2Write                Boolean                @default(false) @map("p2_write")
   semanticKind           MemorySemanticKind?    @map("semantic_kind")
   layer                  MemoryLayer?
   semanticStatus         MemorySemanticStatus?  @map("semantic_status")
@@ -1001,6 +1010,7 @@ model MemoryResolution {
   threadId               String?                @map("thread_id") @db.Uuid
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  @@unique([authorityId, resolutionRevision])
   @@index([projectId, status])
   @@map("memory_resolution")
 }
@@ -1179,6 +1189,311 @@ model MemoryWorkingConsumption {
 
   @@index([projectId, sessionId])
   @@map("memory_working_consumption")
+}
+
+// P2-C persistence rows are reference-only. MemoryClaim and MemoryResolution remain
+// the sole owners of semantic values; the tables below only freeze authority IDs,
+// revisions, manifests, lifecycle facts, and typed provenance.
+model MemoryResolutionAuthority {
+  authorityId     String             @id @map("authority_id") @db.Uuid
+  projectId       String             @map("project_id") @db.Uuid
+  semanticKind    MemorySemanticKind @map("semantic_kind")
+  canonicalKey    String             @map("canonical_key") @db.VarChar(240)
+  originSessionId String             @map("origin_session_id") @db.Uuid
+  originThreadId  String             @map("origin_thread_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([projectId, semanticKind, canonicalKey])
+  @@index([originSessionId, originThreadId])
+  @@map("memory_resolution_authority")
+}
+
+model MemoryEvidenceAuthority {
+  evidenceId             String   @id @map("evidence_id") @db.Uuid
+  projectId              String   @map("project_id") @db.Uuid
+  sessionId              String   @map("session_id") @db.Uuid
+  sourceKind             String   @map("source_kind") @db.VarChar(32)
+  sourceId               String   @map("source_id") @db.Uuid
+  authorityRevision      Int      @default(1) @map("authority_revision")
+  membershipDigest       String   @map("membership_digest") @db.Char(64)
+  transcriptTextRevision Int      @map("transcript_text_revision")
+  speakerRoleRevision    Int      @map("speaker_role_revision")
+  effectiveTextDigest    String   @map("effective_text_digest") @db.Char(64)
+  inputOrder             Int      @map("input_order")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([evidenceId, authorityRevision])
+  @@unique([projectId, sessionId, sourceKind, sourceId, authorityRevision])
+  @@index([sourceId])
+  @@map("memory_evidence_authority")
+}
+
+model MemoryEvidenceBridge {
+  id                  String   @id @default(uuid()) @db.Uuid
+  claimId             String   @map("claim_id") @db.Uuid
+  evidenceId          String   @map("evidence_id") @db.Uuid
+  authorityRevision   Int      @map("authority_revision")
+  aiJobInputSegmentId String   @map("ai_job_input_segment_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([claimId, evidenceId, authorityRevision])
+  @@unique([claimId, aiJobInputSegmentId])
+  @@index([evidenceId, authorityRevision])
+  @@map("memory_evidence_bridge")
+}
+
+model MemoryEvolutionCheckpoint {
+  id                            String    @id @default(uuid()) @db.Uuid
+  rootIdentity                  String    @unique @map("root_identity") @db.Char(64)
+  projectId                     String    @map("project_id") @db.Uuid
+  sourceSessionId               String    @map("source_session_id") @db.Uuid
+  triggerKind                   String    @map("trigger_kind") @db.VarChar(40)
+  triggerIdentity               String    @unique @map("trigger_identity") @db.VarChar(160)
+  p2ProducerJobId               String    @unique @map("p2_producer_job_id") @db.Uuid
+  aiPolicyRevision              Int       @map("ai_policy_revision")
+  retentionPolicyVersion        Int       @map("retention_policy_version")
+  p2PolicyContractRevision      String    @map("p2_policy_contract_revision") @db.VarChar(80)
+  p2RetentionContractVersion    String    @map("p2_retention_contract_version") @db.VarChar(80)
+  deletionScopeDigest           String    @map("deletion_scope_digest") @db.Char(64)
+  deletionScopePolicyRevision   Int       @map("deletion_scope_policy_revision")
+  sourceWorkingSnapshotId       String    @map("source_working_snapshot_id") @db.Uuid
+  sourceSnapshotContractVersion String    @map("source_working_snapshot_contract_version") @db.VarChar(80)
+  sourceResolutionManifestHash  String    @map("source_resolution_manifest_hash") @db.Char(64)
+  sourceThreadManifestHash      String    @map("source_thread_manifest_hash") @db.Char(64)
+  sourceBoundaryManifestHash    String    @map("source_boundary_manifest_hash") @db.Char(64)
+  sourceThreadId                String    @map("source_thread_id") @db.Uuid
+  sourceThreadRevisionId        String    @map("source_thread_revision_id") @db.Uuid
+  sourceThreadRevision          Int       @map("source_thread_revision")
+  sourceThreadStatus            String    @map("source_thread_status") @db.VarChar(24)
+  sourceP1TerminalJobId         String?   @map("source_p1_terminal_job_id") @db.Uuid
+  sourceP1TerminalStatus        String?   @map("source_p1_terminal_status") @db.VarChar(24)
+  sourceP1TerminalOutcome       String?   @map("source_p1_terminal_outcome") @db.VarChar(80)
+  sourceSetKind                 String    @map("source_set_kind") @db.VarChar(40)
+  midExpectedCount              Int       @default(0) @map("mid_expected_count")
+  midManifestHash               String?   @map("mid_manifest_hash") @db.Char(64)
+  currentExpectedCount          Int       @default(0) @map("current_expected_count")
+  currentManifestHash           String?   @map("current_manifest_hash") @db.Char(64)
+  expectedMemberCount           Int       @map("expected_member_count")
+  memberManifestHash            String    @map("member_manifest_hash") @db.Char(64)
+  evidenceManifestHash          String    @map("evidence_manifest_hash") @db.Char(64)
+  manifestAlgorithmVersion      String    @map("manifest_algorithm_version") @db.VarChar(80)
+  lifecycleStatus               String    @map("lifecycle_status") @db.VarChar(24)
+  committedAt                   DateTime? @map("committed_at") @db.Timestamptz(3)
+  createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([projectId, sourceSessionId, createdAt(sort: Desc)])
+  @@index([lifecycleStatus])
+  @@map("memory_evolution_checkpoint")
+}
+
+model MemoryEvolutionCheckpointMember {
+  id                    String               @id @default(uuid()) @db.Uuid
+  checkpointId          String               @map("checkpoint_id") @db.Uuid
+  resolutionRowId       String               @map("resolution_row_id") @db.Uuid
+  resolutionAuthorityId String               @map("resolution_authority_id") @db.Uuid
+  resolutionRevision    Int                  @map("resolution_revision")
+  semanticStatus        MemorySemanticStatus @map("semantic_status")
+  claimCount            Int                  @map("claim_count")
+  boundaryStatus        String               @map("boundary_status") @db.VarChar(24)
+  membershipDigest      String               @map("membership_digest") @db.Char(64)
+  inputOrder            Int                  @map("input_order")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([checkpointId, resolutionAuthorityId])
+  @@unique([checkpointId, inputOrder])
+  @@index([resolutionRowId])
+  @@map("memory_evolution_checkpoint_member")
+}
+
+model MemoryLayerIdentity {
+  id                          String   @id @default(uuid()) @db.Uuid
+  projectId                   String   @map("project_id") @db.Uuid
+  originSessionId             String   @map("origin_session_id") @db.Uuid
+  originThreadId              String   @map("origin_thread_id") @db.Uuid
+  originResolutionAuthorityId String   @map("origin_resolution_authority_id") @db.Uuid
+  identityKeyDigest           String   @unique @map("identity_key_digest") @db.Char(64)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([projectId, originSessionId, originThreadId, originResolutionAuthorityId])
+  @@map("memory_layer_identity")
+}
+
+model MemoryLayerRevision {
+  id                       String               @id @default(uuid()) @db.Uuid
+  identityId               String               @map("identity_id") @db.Uuid
+  layer                    MemoryLayer
+  revisionNo               Int                  @map("revision_no")
+  lifecycleStatus          String               @map("lifecycle_status") @db.VarChar(24)
+  projectId                String               @map("project_id") @db.Uuid
+  sourceSessionId          String               @map("source_session_id") @db.Uuid
+  sourceCheckpointId       String               @map("source_checkpoint_id") @db.Uuid
+  sourceJobId              String               @map("source_job_id") @db.Uuid
+  resolutionRowId          String               @map("resolution_row_id") @db.Uuid
+  resolutionAuthorityId    String               @map("resolution_authority_id") @db.Uuid
+  resolutionRevision       Int                  @map("resolution_revision")
+  semanticStatus           MemorySemanticStatus @map("semantic_status")
+  predecessorRevisionId    String?              @map("predecessor_revision_id") @db.Uuid
+  expectedMemberCount      Int                  @map("expected_member_count")
+  memberManifestHash       String               @map("member_manifest_hash") @db.Char(64)
+  manifestAlgorithmVersion String               @map("manifest_algorithm_version") @db.VarChar(80)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([identityId, revisionNo])
+  @@unique([predecessorRevisionId])
+  @@index([projectId, sourceSessionId, layer, lifecycleStatus])
+  @@index([resolutionAuthorityId, resolutionRevision])
+  @@map("memory_layer_revision")
+}
+
+model MemoryLayerRevisionMember {
+  id                       String   @id @default(uuid()) @db.Uuid
+  revisionId               String   @map("revision_id") @db.Uuid
+  memoryClaimId            String   @map("memory_claim_id") @db.Uuid
+  claimRevision            Int      @map("claim_revision")
+  role                     String   @db.VarChar(24)
+  inputOrder               Int      @map("input_order")
+  evidenceMembershipDigest String   @map("evidence_membership_digest") @db.Char(64)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([revisionId, memoryClaimId])
+  @@unique([revisionId, inputOrder])
+  @@map("memory_layer_revision_member")
+}
+
+model MemoryLongJobProjection {
+  id                      String   @id @default(uuid()) @db.Uuid
+  aiJobId                 String   @unique @map("ai_job_id") @db.Uuid
+  targetLayerRevisionId   String   @unique @map("target_layer_revision_id") @db.Uuid
+  sourceFinalCheckpointId String   @map("source_final_checkpoint_id") @db.Uuid
+  sourceMidManifestHash   String   @map("source_mid_manifest_hash") @db.Char(64)
+  sourceSessionIds        String[] @map("source_session_ids") @db.Uuid
+  sourceSessionSetHash    String   @map("source_session_set_hash") @db.Char(64)
+  deletionScopeDigest     String   @map("deletion_scope_digest") @db.Char(64)
+  expectedSourceCount     Int      @map("expected_source_count")
+  sourceManifestHash      String   @map("source_manifest_hash") @db.Char(64)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("memory_long_job_projection")
+}
+
+model MemoryLongJobProjectionSource {
+  id                  String   @id @default(uuid()) @db.Uuid
+  projectionId        String   @map("projection_id") @db.Uuid
+  sourceSessionId     String   @map("source_session_id") @db.Uuid
+  sourceMidRevisionId String   @map("source_mid_revision_id") @db.Uuid
+  membershipDigest    String   @map("membership_digest") @db.Char(64)
+  inputOrder          Int      @map("input_order")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([projectionId, sourceSessionId, sourceMidRevisionId])
+  @@unique([projectionId, inputOrder])
+  @@map("memory_long_job_projection_source")
+}
+
+model MemoryP2JobProjection {
+  aiJobId                     String   @id @map("ai_job_id") @db.Uuid
+  jobKind                     String   @map("job_kind") @db.VarChar(32)
+  triggerIdentityHash         String   @map("trigger_identity_hash") @db.Char(64)
+  sourceCheckpointId          String?  @map("source_checkpoint_id") @db.Uuid
+  sourceFinalMidCheckpointId  String?  @map("source_final_mid_checkpoint_id") @db.Uuid
+  sourceP1TerminalJobId       String?  @map("source_p1_terminal_job_id") @db.Uuid
+  sourceWorkingSnapshotId     String?  @map("source_working_snapshot_id") @db.Uuid
+  sourceThreadRevisionId      String?  @map("source_thread_revision_id") @db.Uuid
+  sourceRevisionDigest        String   @map("source_revision_digest") @db.Char(64)
+  deletionScopeDigest         String   @map("deletion_scope_digest") @db.Char(64)
+  deletionScopePolicyRevision Int      @map("deletion_scope_policy_revision")
+  p2PolicyRevision            String   @map("p2_policy_revision") @db.VarChar(80)
+  p2RetentionPolicyVersion    String   @map("p2_retention_policy_version") @db.VarChar(80)
+  p2PolicyContractRevision    String   @map("p2_policy_contract_revision") @db.VarChar(80)
+  p2RetentionContractVersion  String   @map("p2_retention_contract_version") @db.VarChar(80)
+  targetSlotDigest            String   @map("target_slot_digest") @db.Char(64)
+  targetLayerIdentityId       String?  @map("target_layer_identity_id") @db.Uuid
+  targetLayerRevisionId       String?  @map("target_layer_revision_id") @db.Uuid
+  targetRevisionDigest        String?  @map("target_revision_digest") @db.Char(64)
+  terminalErrorCode           String?  @map("terminal_error_code") @db.VarChar(80)
+  recoveryLeaseOwner          String   @map("recovery_lease_owner") @db.VarChar(120)
+  recoveryLeaseEpoch          Int      @map("recovery_lease_epoch")
+  recoveryLeaseExpiresAt      DateTime @map("recovery_lease_expires_at") @db.Timestamptz(3)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([jobKind, triggerIdentityHash], map: "memory_p2_job_projection_trigger_idx")
+  @@index([sourceCheckpointId], map: "memory_p2_job_projection_checkpoint_idx")
+  @@index([sourceFinalMidCheckpointId], map: "memory_p2_job_projection_final_mid_idx")
+  @@index([recoveryLeaseExpiresAt], map: "memory_p2_job_projection_recovery_lease_idx")
+  @@map("memory_p2_job_projection")
+}
+
+model DecisionTraceMemorySemantic {
+  traceId             String   @id @map("trace_id") @db.Uuid
+  aiJobId             String   @unique @map("ai_job_id") @db.Uuid
+  deletionScopeDigest String   @map("deletion_scope_digest") @db.Char(64)
+  sourceManifestHash  String   @map("source_manifest_hash") @db.Char(64)
+  proposalDigest      String?  @map("proposal_digest") @db.Char(64)
+  planDigest          String?  @map("plan_digest") @db.Char(64)
+  commitDigest        String?  @map("commit_digest") @db.Char(64)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([deletionScopeDigest])
+  @@map("decision_trace_memory_semantic")
+}
+
+model DecisionTraceMemorySourceReference {
+  id                    String   @id @default(uuid()) @db.Uuid
+  traceId               String   @map("trace_id") @db.Uuid
+  sourceKind            String   @map("source_kind") @db.VarChar(24)
+  sourceId              String?  @map("source_id") @db.Uuid
+  sourceRevision        Int      @map("source_revision")
+  membershipDigest      String   @map("membership_digest") @db.Char(64)
+  deletionScopeDigest   String   @map("deletion_scope_digest") @db.Char(64)
+  inputOrder            Int      @map("input_order")
+  sourceCheckpointId    String?  @map("source_checkpoint_id") @db.Uuid
+  sourceJobId           String?  @map("source_job_id") @db.Uuid
+  aiJobInputSegmentId   String?  @map("ai_job_input_segment_id") @db.Uuid
+  evidenceId            String?  @map("evidence_id") @db.Uuid
+  resolutionAuthorityId String?  @map("resolution_authority_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([traceId, inputOrder])
+  @@index([traceId, sourceKind])
+  @@map("decision_trace_memory_source_reference")
+}
+
+model MemoryP2RetentionTarget {
+  id              String   @id @default(uuid()) @db.Uuid
+  aiJobId         String   @map("ai_job_id") @db.Uuid
+  targetKind      String   @map("target_kind") @db.VarChar(24)
+  targetId        String   @map("target_id") @db.Uuid
+  checkpointId    String?  @map("checkpoint_id") @db.Uuid
+  layerRevisionId String?  @map("layer_revision_id") @db.Uuid
+  jobTargetId     String?  @map("job_target_id") @db.Uuid
+  traceId         String?  @map("trace_id") @db.Uuid
+  cleanupJobId    String?  @map("cleanup_job_id") @db.Uuid
+  inputOrder      Int      @map("input_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([aiJobId, targetKind, targetId])
+  @@unique([aiJobId, inputOrder])
+  @@map("memory_p2_retention_target")
+}
+
+model MemoryP2MigrationManifest {
+  manifestId             String    @id @default(uuid()) @map("manifest_id") @db.Uuid
+  schemaVersion          String    @map("schema_version") @db.VarChar(80)
+  sourceVersion          String    @map("source_version") @db.VarChar(80)
+  targetVersion          String    @map("target_version") @db.VarChar(80)
+  mode                   String    @db.VarChar(16)
+  status                 String    @db.VarChar(24)
+  predecessorFingerprint String    @map("predecessor_fingerprint") @db.Char(64)
+  expectedMigrationCount Int       @map("expected_migration_count")
+  lastResolutionId       String?   @map("last_resolution_id") @db.Uuid
+  errorCode              String?   @map("error_code") @db.VarChar(80)
+  startedAt              DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  completedAt            DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  @@unique([schemaVersion, sourceVersion, targetVersion, mode, predecessorFingerprint])
+  @@index([status])
+  @@map("memory_p2_migration_manifest")
 }
 
 model QuestionBankRelease {
@@ -1674,39 +1989,41 @@ model SessionFinalizationChunk {
 }
 
 model DecisionTrace {
-  id                           String                              @id @default(uuid()) @db.Uuid
-  projectId                    String                              @map("project_id") @db.Uuid
-  sessionId                    String                              @map("session_id") @db.Uuid
-  ownerActorId                 String                              @map("owner_actor_id") @db.Uuid
-  requestId                    String                              @unique @map("request_id") @db.Uuid
-  generationId                 String                              @unique @map("generation_id") @db.Uuid
-  aiJobId                      String?                             @map("ai_job_id") @db.Uuid
-  attemptId                    String?                             @unique @map("attempt_id") @db.Uuid
-  triggerType                  String                              @map("trigger_type") @db.VarChar(32)
-  decisionOutcome              String                              @map("decision_outcome") @db.VarChar(32)
-  directorInvoked              Boolean                             @map("director_invoked")
-  status                       String                              @db.VarChar(24)
-  stage                        String?                             @db.VarChar(40)
-  gateReason                   String?                             @map("gate_reason") @db.VarChar(80)
-  publicationOutcome           String?                             @map("publication_outcome") @db.VarChar(40)
-  errorCode                    String?                             @map("error_code") @db.VarChar(80)
-  startedAt                    DateTime                            @map("started_at") @db.Timestamptz(3)
-  createdAt                    DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
-  completedAt                  DateTime?                           @map("completed_at") @db.Timestamptz(3)
-  durationMs                   Int?                                @map("duration_ms")
-  contextRevision              Int                                 @map("context_revision")
-  workingRevision              Int?                                @map("working_revision")
-  activeThreadId               String?                             @map("active_thread_id") @db.Uuid
-  inputHash                    String                              @map("input_hash") @db.Char(64)
-  contextDigest                String?                             @map("context_digest") @db.Char(64)
-  stageTimingsJson             Json                                @map("stage_timings_json") @db.JsonB
-  retentionState               RetentionState                      @default(active) @map("retention_state")
-  expiresAt                    DateTime                            @map("expires_at") @db.Timestamptz(3)
-  retentionHiddenAt            DateTime?                           @map("retention_hidden_at") @db.Timestamptz(3)
-  retentionCleanupRequestId    String?                             @map("retention_cleanup_request_id") @db.Uuid
-  retentionCleanupAttemptCount Int                                 @default(0) @map("retention_cleanup_attempt_count")
-  retentionCleanupStartedAt    DateTime?                           @map("retention_cleanup_started_at") @db.Timestamptz(3)
-  retentionCleanupErrorCode    String?                             @map("retention_cleanup_error_code") @db.VarChar(80)
+  id                           String                                 @id @default(uuid()) @db.Uuid
+  projectId                    String                                 @map("project_id") @db.Uuid
+  sessionId                    String                                 @map("session_id") @db.Uuid
+  ownerActorId                 String                                 @map("owner_actor_id") @db.Uuid
+  requestId                    String                                 @unique @map("request_id") @db.Uuid
+  generationId                 String                                 @unique @map("generation_id") @db.Uuid
+  aiJobId                      String?                                @map("ai_job_id") @db.Uuid
+  attemptId                    String?                                @unique @map("attempt_id") @db.Uuid
+  triggerType                  String                                 @map("trigger_type") @db.VarChar(32)
+  traceKind                    String                                 @default("question_orchestration") @map("trace_kind") @db.VarChar(32)
+  memoryOutcome                String?                                @map("memory_outcome") @db.VarChar(32)
+  decisionOutcome              String                                 @map("decision_outcome") @db.VarChar(32)
+  directorInvoked              Boolean                                @map("director_invoked")
+  status                       String                                 @db.VarChar(24)
+  stage                        String?                                @db.VarChar(40)
+  gateReason                   String?                                @map("gate_reason") @db.VarChar(80)
+  publicationOutcome           String?                                @map("publication_outcome") @db.VarChar(40)
+  errorCode                    String?                                @map("error_code") @db.VarChar(80)
+  startedAt                    DateTime                               @map("started_at") @db.Timestamptz(3)
+  createdAt                    DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt                  DateTime?                              @map("completed_at") @db.Timestamptz(3)
+  durationMs                   Int?                                   @map("duration_ms")
+  contextRevision              Int                                    @map("context_revision")
+  workingRevision              Int?                                   @map("working_revision")
+  activeThreadId               String?                                @map("active_thread_id") @db.Uuid
+  inputHash                    String                                 @map("input_hash") @db.Char(64)
+  contextDigest                String?                                @map("context_digest") @db.Char(64)
+  stageTimingsJson             Json                                   @map("stage_timings_json") @db.JsonB
+  retentionState               RetentionState                         @default(active) @map("retention_state")
+  expiresAt                    DateTime                               @map("expires_at") @db.Timestamptz(3)
+  retentionHiddenAt            DateTime?                              @map("retention_hidden_at") @db.Timestamptz(3)
+  retentionCleanupRequestId    String?                                @map("retention_cleanup_request_id") @db.Uuid
+  retentionCleanupAttemptCount Int                                    @default(0) @map("retention_cleanup_attempt_count")
+  retentionCleanupStartedAt    DateTime?                              @map("retention_cleanup_started_at") @db.Timestamptz(3)
+  retentionCleanupErrorCode    String?                                @map("retention_cleanup_error_code") @db.VarChar(80)
   transcriptMemberships        DecisionTraceTranscriptMembership[]
   memoryMemberships            DecisionTraceMemoryMembership[]
   p3Candidates                 DecisionTraceP3Candidate[]
@@ -1720,19 +2037,19 @@ model DecisionTrace {
 }
 
 model DecisionTraceMemoryTriggerObservation {
-  id                           String                                         @id @default(uuid()) @db.Uuid
-  traceId                      String                                         @unique(map: "decision_trace_memory_trigger_observation_trace_key") @map("trace_id") @db.Uuid
-  aiJobId                      String                                         @unique(map: "decision_trace_memory_trigger_observation_job_key") @map("ai_job_id") @db.Uuid
-  observationVersion           String                                         @map("observation_version") @db.VarChar(48)
-  usefulCharacterPolicyVersion String                                         @map("useful_character_policy_version") @db.VarChar(64)
-  triggerIdentity              String                                         @map("trigger_identity") @db.VarChar(160)
-  triggerKind                  String                                         @map("trigger_kind") @db.VarChar(32)
-  selectedNewSegmentCount      Int                                            @map("selected_new_segment_count")
-  cumulativeUsefulCharacters   Int                                            @map("cumulative_useful_characters")
-  minimumUsefulCharacters      Int                                            @map("minimum_useful_characters")
-  selectedNewManifestHash      String                                         @map("selected_new_manifest_hash") @db.Char(64)
-  createdAt                    DateTime                                       @default(now()) @map("created_at") @db.Timestamptz(3)
-  trace                        DecisionTrace                                  @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  id                           String                                        @id @default(uuid()) @db.Uuid
+  traceId                      String                                        @unique(map: "decision_trace_memory_trigger_observation_trace_key") @map("trace_id") @db.Uuid
+  aiJobId                      String                                        @unique(map: "decision_trace_memory_trigger_observation_job_key") @map("ai_job_id") @db.Uuid
+  observationVersion           String                                        @map("observation_version") @db.VarChar(48)
+  usefulCharacterPolicyVersion String                                        @map("useful_character_policy_version") @db.VarChar(64)
+  triggerIdentity              String                                        @map("trigger_identity") @db.VarChar(160)
+  triggerKind                  String                                        @map("trigger_kind") @db.VarChar(32)
+  selectedNewSegmentCount      Int                                           @map("selected_new_segment_count")
+  cumulativeUsefulCharacters   Int                                           @map("cumulative_useful_characters")
+  minimumUsefulCharacters      Int                                           @map("minimum_useful_characters")
+  selectedNewManifestHash      String                                        @map("selected_new_manifest_hash") @db.Char(64)
+  createdAt                    DateTime                                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  trace                        DecisionTrace                                 @relation(fields: [traceId], references: [id], onDelete: Cascade)
   selectedNewMemberships       DecisionTraceMemoryTriggerSegmentMembership[]
 
   @@index([triggerIdentity], map: "decision_trace_memory_trigger_observation_identity_idx")
