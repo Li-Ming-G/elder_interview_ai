@@ -183,7 +183,31 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     const recovery = new MemoryP2RecoveryService(
       {
         scanCandidateJobIds: repository.scanCandidateJobIds.bind(repository),
-        readRecoveryAuthority: repository.readRecoveryAuthority.bind(repository),
+        readRecoveryAuthority: async (
+          jobId: string,
+        ): Promise<Awaited<ReturnType<MemoryP2PersistenceRepository['readRecoveryAuthority']>>> => {
+          const authority = await repository.readRecoveryAuthority(jobId);
+          if (authority?.trace === null || authority === null) return authority;
+          return {
+            ...authority,
+            trace: {
+              ...authority.trace,
+              commitDigest: null,
+              deletionScopeDigest: authority.identity.deletionScopeDigest,
+              errorCode: null,
+              memoryOutcome: 'unjudged',
+              p2PolicyRevision: authority.p2PolicyRevision,
+              p2RetentionPolicyVersion: authority.p2RetentionPolicyVersion,
+              planDigest: null,
+              proposalDigest: null,
+              references: authority.references,
+              retentionState: 'active',
+              sourceManifestHash: authority.identity.sourceManifestHash,
+              stage: 'frozen',
+              status: 'running',
+            },
+          };
+        },
         applyRecovery: async (
           command: Parameters<MemoryP2PersistenceRepository['applyRecovery']>[0],
         ): Promise<Awaited<ReturnType<MemoryP2PersistenceRepository['applyRecovery']>>> => {
