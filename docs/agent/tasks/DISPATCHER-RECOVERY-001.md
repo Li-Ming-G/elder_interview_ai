@@ -1,6 +1,6 @@
 # DISPATCHER-RECOVERY-001
 
-Status: `REVIEW`
+Status: `DONE`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
@@ -64,11 +64,11 @@ The dry-run covers stale merged projections, invented IDs, null PR binding, stal
 
 ## Completion Criteria
 
-All dry-run cases and format checks pass; the P4 queue has the temporary governance gate `P4C-02 → DISPATCHER-RECOVERY-001 → P4C-03`; one PR is opened with `ARCHITECT_REVIEW_CONTEXT_V1`; the worker stops at `REVIEW` and does not dispatch P4C-03.
+Accepted on PR #90. Canonical PASS was issued on the repaired exact head; the PR was merged and main verification completed before P4C-03 was dispatched.
 
 ## Review Gate
 
-External Architect PR review; stop at `REVIEW`. Include `ARCHITECT_REVIEW_CONTEXT_V1` in the PR body. This worker does not claim review acceptance.
+Closed: external Architect `PASS`, merge and main verification complete.
 
 ## Next Task
 
