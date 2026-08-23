@@ -11,7 +11,9 @@ import {
 } from '../../apps/api/src/ai-runtime/ai-policy.service.js';
 import {
   deletionScopeAuthorityDigest,
+  DeletionScopeReader,
   LocalTestDeletionScopeFixtureReader,
+  type DeletionScopeSnapshot,
 } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { canonicalDigest } from '../../apps/api/src/memory/memory-persistence-contract.js';
 import {
@@ -61,6 +63,7 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
   let prisma: PrismaService;
   let repository: MemoryP2PersistenceRepository;
   let reader: MemoryP2PersistenceReader;
+  let deletionScopes: LocalTestDeletionScopeFixtureReader;
   let fixture: Awaited<ReturnType<typeof seedFixture>>;
   const integrationFixtures: Array<Awaited<ReturnType<typeof seedFixture>>> = [];
 
@@ -77,7 +80,8 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
       }),
     );
     await prisma.$connect();
-    repository = new MemoryP2PersistenceRepository(prisma);
+    deletionScopes = new LocalTestDeletionScopeFixtureReader();
+    repository = new MemoryP2PersistenceRepository(prisma, deletionScopes);
     reader = new MemoryP2PersistenceReader(prisma);
     fixture = await seedFixture(prisma);
   });
@@ -258,6 +262,41 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     expect(await prisma.memoryP2RetentionTarget.count({ where: { aiJobId: frozen.aiJobId } })).toBe(
       4,
     );
+  });
+
+  it('rejects a stale deletion-scope digest before semantic mutation', async () => {
+    const frozen = freezeInput(fixture, await createP2Job(prisma, fixture, 'stale-deletion'));
+    await repository.freezeCheckpoint(frozen);
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    deletionScopes.setFenceRevision(2);
+    try {
+      await expect(
+        repository.commitLayerRevision(commitInput(fixture, frozen)),
+      ).rejects.toMatchObject({
+        code: 'MEMORY_P2_JOB_NOT_RUNNING',
+      });
+      expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
+    } finally {
+      deletionScopes.setFenceRevision(1);
+    }
+  });
+
+  it('rejects deletion-scope drift between the authoritative rereads', async () => {
+    const raceFixture = await seedFixture(prisma, { suffix: '-deletion-race' });
+    integrationFixtures.push(raceFixture);
+    const frozen = freezeInput(
+      raceFixture,
+      await createP2Job(prisma, raceFixture, 'deletion-race'),
+    );
+    await repository.freezeCheckpoint(frozen);
+    const racingReader = new RacyDeletionScopeReader();
+    const racingRepository = new MemoryP2PersistenceRepository(prisma, racingReader);
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    await expect(
+      racingRepository.commitLayerRevision(commitInput(raceFixture, frozen)),
+    ).rejects.toMatchObject({ code: 'MEMORY_P2_JOB_NOT_RUNNING' });
+    expect(racingReader.calls).toBe(2);
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
   });
 
   it('rolls back every semantic and projection write on target CAS mismatch', async () => {
@@ -687,7 +726,7 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
       },
     });
     const longTraceId = randomUUID();
-    const longScopeDigest = sha256(`scope:${longJob.id}`);
+    const longScopeDigest = deletionScopeAuthorityDigest(fixture.projectId, [fixture.sessionId], 1);
     const checkpointCount = await prisma.memoryEvolutionCheckpoint.count();
     const longLease = leaseFor(longJob.id);
     const longFreezeInput = {
@@ -1136,7 +1175,11 @@ function freezeInput(
   };
   const checkpointId = randomUUID();
   const traceId = randomUUID();
-  const deletionScopeDigest = sha256(`scope:${job.id}`);
+  const deletionScopeDigest = deletionScopeAuthorityDigest(
+    fixture.projectId,
+    [fixture.sessionId],
+    1,
+  );
   const memberManifestHash = memoryP2CheckpointManifestHash([member]);
   return {
     aiJobId: job.id,
@@ -1636,6 +1679,18 @@ class ManualClock {
 
   public advance(milliseconds: number): void {
     this.current = new Date(this.current.getTime() + milliseconds);
+  }
+}
+
+class RacyDeletionScopeReader extends DeletionScopeReader {
+  public calls = 0;
+
+  public override assertNoActiveScope(
+    ..._args: [string, readonly string[]]
+  ): Promise<DeletionScopeSnapshot> {
+    void _args;
+    this.calls += 1;
+    return Promise.resolve({ fenceRevision: this.calls === 1 ? 1 : 2 });
   }
 }
 

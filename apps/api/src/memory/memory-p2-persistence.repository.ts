@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
 import {
   EMPTY_MANIFEST_HASH,
@@ -54,6 +54,11 @@ import {
   type MemoryGateEvidenceReference,
 } from './memory-gate-correction.service.js';
 import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
+import {
+  deletionScopeAuthorityDigest,
+  DeletionScopeReader,
+  UnavailableDeletionScopeReader,
+} from '../ai-runtime/deletion-scope.reader.js';
 
 type TransactionClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaService | TransactionClient;
@@ -69,7 +74,14 @@ function resolutionValueKind(value: MemoryResolutionKind): 'exact' | 'range' | '
 export class MemoryP2PersistenceRepository {
   public readonly transactionOwnership = 'existing_ai_job_coordinator' as const;
   private readonly gate = new MemoryGateCorrectionService();
-  public constructor(private readonly prisma: PrismaService) {}
+  private readonly deletionScopes: DeletionScopeReader;
+
+  public constructor(
+    private readonly prisma: PrismaService,
+    @Optional() deletionScopes?: DeletionScopeReader,
+  ) {
+    this.deletionScopes = deletionScopes ?? new UnavailableDeletionScopeReader();
+  }
 
   public async freezeCheckpoint(
     input: MemoryP2FreezeCheckpointInput,
@@ -520,6 +532,12 @@ export class MemoryP2PersistenceRepository {
           projection.sourceRevisionDigest !== checkpoint.memberManifestHash)
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+      const deletionScopeDigest = await this.assertAuthoritativeDeletionScope(
+        input,
+        checkpoint.deletionScopeDigest,
+        projection.deletionScopeDigest,
+        trace.deletionScopeDigest,
+      );
       if (
         input.claims.length === 0 ||
         input.target.layer !== (job.jobType === 'long_session_end' ? 'long' : 'mid')
@@ -541,9 +559,15 @@ export class MemoryP2PersistenceRepository {
       await this.assertGateForCommit(
         tx,
         input,
-        input.deletionScopeDigest,
+        deletionScopeDigest,
         checkpoint.evidenceManifestHash,
         previousResolution,
+      );
+      await this.assertAuthoritativeDeletionScope(
+        input,
+        checkpoint.deletionScopeDigest,
+        projection.deletionScopeDigest,
+        trace.deletionScopeDigest,
       );
       const resolutionRevision = input.target.expectedCurrentRevision + 1;
       if (previousResolution !== null) {
@@ -1613,7 +1637,6 @@ export class MemoryP2PersistenceRepository {
         )
         .map(({ transcriptSegmentId }) => transcriptSegmentId),
     );
-    const deletionEligible = /^[0-9a-f]{64}$/u.test(deletionScopeDigest);
     const evidenceById = new Map<string, MemoryGateEvidenceReference>();
     const evidenceIdentityByInputSegmentId = new Map<string, string>();
     for (const claim of input.claims) {
@@ -1669,7 +1692,7 @@ export class MemoryP2PersistenceRepository {
             transcript.correctedText ?? transcript.originalText,
             acceptedFactSourceIds.has(evidence.sourceId),
           ),
-          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, deletionEligible),
+          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, true),
           projectId: input.projectId,
           sessionId: frozen.sessionId,
           sourceId: evidence.sourceId,
@@ -1745,6 +1768,28 @@ export class MemoryP2PersistenceRepository {
     });
     if (decision.mutation.action === 'none')
       throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+  }
+
+  private async assertAuthoritativeDeletionScope(
+    input: MemoryP2CommitInput,
+    ...expectedDigests: Array<string | null | undefined>
+  ): Promise<string> {
+    let snapshot: Awaited<ReturnType<DeletionScopeReader['assertNoActiveScope']>>;
+    try {
+      snapshot = await this.deletionScopes.assertNoActiveScope(input.projectId, [
+        input.sourceSessionId,
+      ]);
+    } catch {
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+    }
+    const digest = deletionScopeAuthorityDigest(
+      input.projectId,
+      [input.sourceSessionId],
+      snapshot.fenceRevision,
+    );
+    if (expectedDigests.some((expected) => expected !== digest))
+      throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+    return digest;
   }
 
   private async createClaims(

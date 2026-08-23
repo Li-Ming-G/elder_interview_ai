@@ -278,8 +278,11 @@ export function evaluateMemoryGate(
       return rejected(authorityKind, 'STALE_EVIDENCE');
     if (evidence.eligibility.authorization !== 'authorized')
       return rejected(authorityKind, 'EVIDENCE_NOT_ELIGIBLE');
-    if (evidence.eligibility.deletion === 'deleted')
-      return rejected(authorityKind, 'DELETED_EVIDENCE');
+    if (evidence.eligibility.deletion !== 'not-deleted')
+      return rejected(
+        authorityKind,
+        evidence.eligibility.deletion === 'deleted' ? 'DELETED_EVIDENCE' : 'EVIDENCE_NOT_ELIGIBLE',
+      );
     if (evidence.eligibility.retention !== 'eligible')
       return rejected(authorityKind, 'RETENTION_INELIGIBLE');
     if (evidence.trustedRole !== 'elder') return rejected(authorityKind, 'EVIDENCE_NOT_ELIGIBLE');

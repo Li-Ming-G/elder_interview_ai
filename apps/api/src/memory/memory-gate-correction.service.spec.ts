@@ -121,6 +121,27 @@ describe('Memory Gate/Correction V1 runtime evaluator', () => {
         snapshot,
       ),
     ).toMatchObject({ decisionStatus: 'rejected', reasonCode: 'RETENTION_INELIGIBLE' });
+    expect(
+      evaluateMemoryGate(
+        candidate({
+          evidence: [
+            {
+              ...evidence('explicit_fact_statement'),
+              eligibility: {
+                authorization: 'authorized',
+                deletion: 'unknown',
+                retention: 'eligible',
+              },
+            },
+          ],
+        }),
+        snapshot,
+      ),
+    ).toMatchObject({
+      decisionStatus: 'rejected',
+      reasonCode: 'EVIDENCE_NOT_ELIGIBLE',
+      mutation: { action: 'none' },
+    });
   });
 
   it('does not promote ordinary story context or ordinary boundary text', () => {
