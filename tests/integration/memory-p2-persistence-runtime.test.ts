@@ -282,7 +282,7 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
   });
 
   it('rejects deletion-scope drift between the authoritative rereads', async () => {
-    const raceFixture = await seedFixture(prisma, { suffix: '-deletion-race' });
+    const raceFixture = await seedFixture(prisma);
     integrationFixtures.push(raceFixture);
     const frozen = freezeInput(
       raceFixture,
