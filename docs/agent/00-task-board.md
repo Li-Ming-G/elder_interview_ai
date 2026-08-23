@@ -9,7 +9,7 @@
 | `MEMORY-T5-T8-P2-C-RUNTIME-001` | `DONE` | A1 `dbb0cc76f582997a6a647781007648c6937a8992`; P2-B `717c5ca39e678c6f953d0430768ae715ef0feef2` | [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) | `luna-high` | `80` | `null` |
 | `MEMORY-T5-T8-P2-D-PROVIDER-001` | `DEFERRED` | P2-C complete plus owner provider/data decisions | not issued | `luna-high` | `null` | `null` |
 | `P3-RETRIEVAL-V1` | `DONE` | P3 contract/substrate/indexing/retrieval/integration; final main merge `18c4320f417fbfa90e41924ac7b049ea72b82379` | accepted P3R-01 → P3R-05 sequence | `luna-high` | `86` | `P4G-00-STATE-SYNC` |
-| `P4G-00-STATE-SYNC` | `IN_PROGRESS` | P2-C and P3 accepted facts; baseline `18c4320f417fbfa90e41924ac7b049ea72b82379` | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `null` | `P4C-01` |
+| `P4G-00-STATE-SYNC` | `REVIEW` | P2-C and P3 accepted facts; baseline `18c4320f417fbfa90e41924ac7b049ea72b82379` | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `87` | `P4C-01` |
 | `P4C-01` | `DEFERRED` | P4G-00 external `PASS`; P3 complete | [`tasks/P4C-01.md`](tasks/P4C-01.md) | `luna-high` | `null` | `P4C-02` |
 | `P4C-02` | `DEFERRED` | P4C-01 external `PASS` | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `null` | `P4C-03` |
 | `P4C-03` | `DEFERRED` | P4C-02 external `PASS` | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `null` | `P4C-04` |

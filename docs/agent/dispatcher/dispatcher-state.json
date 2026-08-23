@@ -33,11 +33,11 @@
     },
     {
       "id": "P4G-00-STATE-SYNC",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/P4G-00-STATE-SYNC.md",
       "worker_profile": "luna-high",
       "depends_on": ["P3-RETRIEVAL-V1@18c4320f417fbfa90e41924ac7b049ea72b82379"],
-      "pr": null,
+      "pr": 87,
       "next_task": "P4C-01"
     },
     {
