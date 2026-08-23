@@ -132,11 +132,11 @@
     },
     {
       "id": "DISPATCHER-RECOVERY-001",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/DISPATCHER-RECOVERY-001.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-02"],
-      "pr": null,
+      "pr": 90,
       "next_task": "P4C-03"
     },
     {

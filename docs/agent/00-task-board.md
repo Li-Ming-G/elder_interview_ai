@@ -21,7 +21,7 @@
 | `P4G-00-STATE-SYNC` | `DONE` | P3R-05 merged; main includes `63f6dfe6a4a5290f0a1a5d89484594a0cbc5d0fa` | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `#87` | `P4C-01-CONTRACT` |
 | `P4C-01-CONTRACT` | `DONE` | P4G-00 merged and verified on refreshed main | [`tasks/P4C-01-CONTRACT.md`](tasks/P4C-01-CONTRACT.md) | `luna-high` | `#88` | `P4C-02` |
 | `P4C-02` | `DONE` | P4C-01 | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `#89` | `DISPATCHER-RECOVERY-001` |
-| `DISPATCHER-RECOVERY-001` | `IN_PROGRESS` | P4C-02 | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `null` | `P4C-03` |
+| `DISPATCHER-RECOVERY-001` | `REVIEW` | P4C-02 | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `#90` | `P4C-03` |
 | `P4C-03` | `DEFERRED` | DISPATCHER-RECOVERY-001 | [`tasks/P4C-03-BUDGET-FREEZE.md`](tasks/P4C-03-BUDGET-FREEZE.md) | `luna-high` | `null` | `P4C-04-INTEGRATION` |
 | `P4C-04-INTEGRATION` | `DEFERRED` | P4C-03 | [`tasks/P4C-04-INTEGRATION.md`](tasks/P4C-04-INTEGRATION.md) | `luna-high` | `null` | `null` |
 | `P5E-01-CONTRACT` | `DEFERRED` | P4C-04-INTEGRATION | [`tasks/P5E-01-CONTRACT.md`](tasks/P5E-01-CONTRACT.md) | `luna-high` | `null` | `P5E-02-EVIDENCE-READERS` |

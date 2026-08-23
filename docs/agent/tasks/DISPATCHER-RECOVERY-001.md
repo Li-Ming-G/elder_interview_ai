@@ -1,6 +1,6 @@
 # DISPATCHER-RECOVERY-001
 
-Status: `IN_PROGRESS`
+Status: `REVIEW`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
