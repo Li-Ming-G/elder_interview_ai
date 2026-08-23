@@ -1526,34 +1526,21 @@ export class MemoryP2PersistenceRepository {
       status: 'current' | 'pending_review' | 'superseded';
     } | null,
   ): Promise<void> {
-    const [job, project, consent, assignment, inputs, transcripts, authorities] = await Promise.all(
-      [
-        tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
-        tx.elderProject.findUnique({ where: { id: input.projectId } }),
-        tx.consentRecord.findFirst({
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          where: { consentType: 'recording_transcription_ai', projectId: input.projectId },
-        }),
-        tx.projectAssignment.findFirst({
-          where: { projectId: input.projectId, revokedAt: null },
-        }),
-        tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
-        tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
-        tx.memoryEvidenceAuthority.findMany({
-          where: { projectId: input.projectId, sessionId: input.sourceSessionId },
-        }),
-      ],
-    );
+    const [job, project, inputs, transcripts, authorities] = await Promise.all([
+      tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
+      tx.elderProject.findUnique({ where: { id: input.projectId } }),
+      tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
+      tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
+      tx.memoryEvidenceAuthority.findMany({
+        where: { projectId: input.projectId, sessionId: input.sourceSessionId },
+      }),
+    ]);
     const policyAuthorized =
       job !== null &&
       project !== null &&
       job.projectId === input.projectId &&
       project.deletedAt === null &&
       !['restricted', 'deleted'].includes(project.status) &&
-      assignment !== null &&
-      assignment.userId === job.requestedBy &&
-      consent?.status === 'valid' &&
-      consent.revokedAt === null &&
       job.policyRevision === project.aiPolicyRevision;
     const retentionEligible =
       job !== null &&

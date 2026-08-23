@@ -1049,6 +1049,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       });
       if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
       await this.assertContextAuthorityCurrent(tx, job, context);
+      await this.assertOperationTargetsCurrent(tx, job, output.operations);
       const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
       this.assertGateForOperations(job, context, output.operations, gateAuthority);
       this.assertGateForBoundaries(output, gateAuthority);
@@ -1103,6 +1104,35 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         current.status !== boundary.status
       )
         throw new Error('MEMORY_BOUNDARY_CONTEXT_DRIFT');
+    }
+  }
+
+  private async assertOperationTargetsCurrent(
+    tx: Prisma.TransactionClient,
+    job: FrozenAiJob,
+    operations: readonly MemoryMaintainerOperationV12[],
+  ): Promise<void> {
+    for (const operation of operations) {
+      if (operation.kind === 'DUPLICATE' || operation.target_resolution_id === null) continue;
+      const state = operation.proposed_state;
+      const target = await tx.memoryResolution.findUnique({
+        where: { id: operation.target_resolution_id },
+      });
+      if (
+        state === null ||
+        target === null ||
+        target.projectId !== job.projectId ||
+        target.status !== 'current' ||
+        target.layer !== 'working' ||
+        target.provenanceState !== 'active' ||
+        target.authority === 'human_confirmed' ||
+        target.canonicalKey !== state.canonical_key ||
+        target.semanticKind !== state.semantic_kind ||
+        target.threadId !== operation.anchor_thread_id ||
+        target.resolutionRevision !== operation.expected_resolution_revision ||
+        !job.memories.some(({ resolutionId }) => resolutionId === target.id)
+      )
+        throw new Error('MEMORY_TARGET_CAS_FAILED');
     }
   }
 
