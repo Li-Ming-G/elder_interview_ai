@@ -1353,7 +1353,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         )
           throw new Error('MEMORY_TARGET_CAS_FAILED');
       }
-      const evidence = operation.evidence_segment_ids.map((segmentId) => {
+      const evidence = gatedOperation.evidence_segment_ids.map((segmentId) => {
         const reference = authority.evidenceBySegmentId.get(segmentId);
         if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
         return reference;

@@ -1684,6 +1684,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
+    await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, 'delete-provenance');
     const resolution = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'delete-provenance', projectId, status: 'current' },
     });

@@ -1428,7 +1428,15 @@ async function prepareRuntimeFixture(
   prisma: PrismaService,
   fixture: Awaited<ReturnType<typeof seedFixture>>,
 ): Promise<void> {
-  const inputSegmentId = randomUUID();
+  const existingInput = await prisma.aiJobInputSegment.findUnique({
+    where: {
+      aiJobId_transcriptSegmentId: {
+        aiJobId: fixture.p1JobId,
+        transcriptSegmentId: fixture.segmentId,
+      },
+    },
+  });
+  const inputSegmentId = existingInput?.id ?? randomUUID();
   const inputMemoryId = randomUUID();
   const outputId = randomUUID();
   const segmentManifestHash = manifestHash([
@@ -1465,30 +1473,32 @@ async function prepareRuntimeFixture(
       speakerRoleRevision: 1,
     },
   });
-  await prisma.aiJobInputSegment.create({
-    data: {
-      aiJobId: fixture.p1JobId,
-      contentKind: 'conversation',
-      effectiveTextDigest: fixture.segmentDigest,
-      id: inputSegmentId,
-      inputOrder: 0,
-      roleAuthority: 'user_confirmed',
-      sessionId: fixture.sessionId,
-      speakerRoleRevision: 1,
-      textRevision: 0,
-      transcriptSegmentId: fixture.segmentId,
-      trustedEffectiveRole: 'elder',
-    },
-  });
-  await prisma.memoryClaimEvidence.create({
-    data: {
-      aiJobInputSegmentId: inputSegmentId,
-      evidenceOrder: 0,
-      id: randomUUID(),
-      memoryClaimId: fixture.sourceClaimId,
-      transcriptSegmentId: fixture.segmentId,
-    },
-  });
+  if (existingInput === null) {
+    await prisma.aiJobInputSegment.create({
+      data: {
+        aiJobId: fixture.p1JobId,
+        contentKind: 'conversation',
+        effectiveTextDigest: fixture.segmentDigest,
+        id: inputSegmentId,
+        inputOrder: 0,
+        roleAuthority: 'user_confirmed',
+        sessionId: fixture.sessionId,
+        speakerRoleRevision: 1,
+        textRevision: 0,
+        transcriptSegmentId: fixture.segmentId,
+        trustedEffectiveRole: 'elder',
+      },
+    });
+    await prisma.memoryClaimEvidence.create({
+      data: {
+        aiJobInputSegmentId: inputSegmentId,
+        evidenceOrder: 0,
+        id: randomUUID(),
+        memoryClaimId: fixture.sourceClaimId,
+        transcriptSegmentId: fixture.segmentId,
+      },
+    });
+  }
   await prisma.aiJobInputMemory.create({
     data: {
       aiJobId: fixture.p1JobId,
