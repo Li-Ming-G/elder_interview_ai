@@ -1,0 +1,722 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/memory-gate-correction-v1.schema.json",
+  "title": "Memory Gate/Correction V1",
+  "$comment": "Provider-neutral T16-T17 candidate gate and non-destructive correction plan. No runtime writer or second semantic authority.",
+  "oneOf": [
+    { "$ref": "#/$defs/gateRequest" },
+    { "$ref": "#/$defs/gateDecision" }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authoritySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_contract",
+        "project_id",
+        "current_session_id",
+        "source_session_ids",
+        "evidence_manifest_digest",
+        "deletion_scope_digest",
+        "policy_revision",
+        "snapshot_revision"
+      ],
+      "properties": {
+        "authority_contract": { "const": "memory-claim-resolution-v1" },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "current_session_id": { "$ref": "#/$defs/uuid" },
+        "source_session_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "evidence_manifest_digest": { "$ref": "#/$defs/digest" },
+        "deletion_scope_digest": { "$ref": "#/$defs/digest" },
+        "policy_revision": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "snapshot_revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "source_kind",
+        "source_id",
+        "authority_revision",
+        "project_id",
+        "session_id",
+        "trusted_role",
+        "content_kind",
+        "text_revision",
+        "speaker_role_revision",
+        "effective_text_digest",
+        "evidence_role",
+        "eligibility"
+      ],
+      "properties": {
+        "evidence_id": { "$ref": "#/$defs/uuid" },
+        "source_kind": { "const": "transcript_segment" },
+        "source_id": { "$ref": "#/$defs/uuid" },
+        "authority_revision": { "type": "integer", "minimum": 1 },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "trusted_role": { "enum": ["elder", "interviewer"] },
+        "content_kind": { "const": "conversation_final" },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "$ref": "#/$defs/digest" },
+        "evidence_role": {
+          "enum": [
+            "explicit_fact_statement",
+            "elder_story_context",
+            "boundary_activation_intent",
+            "boundary_withdrawal_or_contradiction",
+            "interviewer_suggestion",
+            "model_inference",
+            "unknown"
+          ]
+        },
+        "eligibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authorization", "retention", "deletion"],
+          "properties": {
+            "authorization": { "enum": ["authorized", "denied", "unknown"] },
+            "retention": { "enum": ["eligible", "ineligible", "unknown"] },
+            "deletion": { "enum": ["not-deleted", "deleted", "unknown"] }
+          }
+        }
+      }
+    },
+    "memoryTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_type",
+        "authority_id",
+        "revision_id",
+        "revision_no",
+        "resolution_status",
+        "semantic_status"
+      ],
+      "properties": {
+        "target_type": { "const": "memory_resolution" },
+        "authority_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
+        "resolution_status": { "enum": ["current", "superseded"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] }
+      }
+    },
+    "boundaryTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_type", "boundary_id", "revision_id", "revision_no", "status"],
+      "properties": {
+        "target_type": { "const": "boundary_revision" },
+        "boundary_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["active", "revoked", "superseded"] }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "claim_key", "evidence_ids"],
+      "properties": {
+        "claim_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }] },
+        "claim_key": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    },
+    "semanticState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "semantic_kind",
+        "canonical_key",
+        "value_kind",
+        "value",
+        "resolution_kind",
+        "semantic_status",
+        "review_required",
+        "claims"
+      ],
+      "properties": {
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "value_kind": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["exact", "range", "unknown"] }
+          ]
+        },
+        "value": true,
+        "resolution_kind": { "enum": ["single", "range", "unknown", "conflict_set"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "review_required": { "type": "boolean" },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/claim" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "semantic_status": { "const": "disputed" } },
+            "required": ["semantic_status"]
+          },
+          "then": {
+            "properties": {
+              "value_kind": { "type": "null" },
+              "value": { "type": "null" },
+              "resolution_kind": { "const": "conflict_set" },
+              "review_required": { "const": true },
+              "claims": { "minItems": 2 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "semantic_status": { "const": "uncertain" } },
+            "required": ["semantic_status"]
+          },
+          "then": {
+            "properties": {
+              "resolution_kind": { "enum": ["single", "range", "unknown"] },
+              "value_kind": { "enum": ["exact", "range", "unknown"] },
+              "review_required": { "const": true }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "semantic_status": { "const": "current" } },
+            "required": ["semantic_status"]
+          },
+          "then": {
+            "properties": {
+              "resolution_kind": { "enum": ["single", "range", "unknown"] },
+              "value_kind": { "enum": ["exact", "range", "unknown"] },
+              "review_required": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "boundaryState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "abstract_scope", "status", "review_required"],
+      "properties": {
+        "code": { "const": "elder_explicit_boundary" },
+        "abstract_scope": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "status": { "enum": ["active", "revoked", "superseded"] },
+        "review_required": { "type": "boolean" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "proposal_source",
+        "candidate_kind",
+        "operation",
+        "target",
+        "expected_revision",
+        "proposed_state",
+        "evidence",
+        "evidence_manifest_digest"
+      ],
+      "properties": {
+        "candidate_id": { "$ref": "#/$defs/uuid" },
+        "proposal_source": { "const": "llm_proposal" },
+        "candidate_kind": { "enum": ["episode", "fact", "boundary"] },
+        "operation": {
+          "enum": ["create", "correct", "mark_uncertain", "mark_disputed", "activate", "revoke", "supersede"]
+        },
+        "target": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/memoryTarget" },
+            { "$ref": "#/$defs/boundaryTarget" }
+          ]
+        },
+        "expected_revision": {
+          "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }]
+        },
+        "proposed_state": {
+          "oneOf": [
+            { "$ref": "#/$defs/semanticState" },
+            { "$ref": "#/$defs/boundaryState" }
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/evidenceReference" }
+        },
+        "evidence_manifest_digest": { "$ref": "#/$defs/digest" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "candidate_kind": { "enum": ["episode", "fact"] } },
+            "required": ["candidate_kind"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/semanticState" },
+                  { "properties": { "semantic_kind": { "enum": ["episode", "fact"] } } }
+                ]
+              },
+              "operation": { "enum": ["create", "correct", "mark_uncertain", "mark_disputed"] },
+              "target": {
+                "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/memoryTarget" }]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "candidate_kind": { "const": "episode" } },
+            "required": ["candidate_kind"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "properties": { "semantic_kind": { "const": "episode" } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "candidate_kind": { "const": "fact" } },
+            "required": ["candidate_kind"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "properties": { "semantic_kind": { "const": "fact" } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "candidate_kind": { "const": "boundary" } },
+            "required": ["candidate_kind"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": { "$ref": "#/$defs/boundaryState" },
+              "operation": { "enum": ["activate", "revoke", "supersede"] },
+              "target": {
+                "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/boundaryTarget" }]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "enum": ["create", "activate"] } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "target": { "type": "null" },
+              "expected_revision": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "enum": ["correct", "mark_uncertain", "mark_disputed", "revoke", "supersede"] } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "target": { "type": "object" },
+              "expected_revision": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "const": "mark_uncertain" } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/semanticState" },
+                  { "properties": { "semantic_status": { "const": "uncertain" } } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "const": "mark_disputed" } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/semanticState" },
+                  { "properties": { "semantic_status": { "const": "disputed" } } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "const": "activate" } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/boundaryState" },
+                  { "properties": { "status": { "const": "active" } } }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operation": { "enum": ["revoke", "supersede"] } },
+            "required": ["operation"]
+          },
+          "then": {
+            "properties": {
+              "proposed_state": {
+                "allOf": [
+                  { "$ref": "#/$defs/boundaryState" },
+                  { "properties": { "status": { "enum": ["revoked", "superseded"] } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mutationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "authority_kind",
+        "new_revision_id",
+        "new_revision_no",
+        "predecessor_revision_id",
+        "predecessor_preserved",
+        "evidence_preserved",
+        "source_preserved"
+      ],
+      "properties": {
+        "action": { "enum": ["none", "create_authority_revision", "append_memory_revision", "append_boundary_revision"] },
+        "authority_kind": { "enum": ["memory_resolution", "boundary_revision"] },
+        "new_revision_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }] },
+        "new_revision_no": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }] },
+        "predecessor_revision_id": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }] },
+        "predecessor_preserved": { "type": "boolean" },
+        "evidence_preserved": { "type": "boolean" },
+        "source_preserved": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "none" } }, "required": ["action"] },
+          "then": {
+            "properties": {
+              "authority_kind": { "enum": ["memory_resolution", "boundary_revision"] },
+              "new_revision_id": { "type": "null" },
+              "new_revision_no": { "type": "null" },
+              "predecessor_revision_id": { "type": "null" },
+              "predecessor_preserved": { "const": true },
+              "evidence_preserved": { "const": true },
+              "source_preserved": { "const": true }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "action": { "not": { "const": "none" } } }, "required": ["action"] },
+          "then": {
+            "properties": {
+              "new_revision_id": { "$ref": "#/$defs/uuid" },
+              "new_revision_no": { "type": "integer", "minimum": 1 },
+              "predecessor_preserved": { "const": true },
+              "evidence_preserved": { "const": true },
+              "source_preserved": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_status", "reason_code", "fail_closed", "mutation"],
+      "properties": {
+        "decision_status": { "enum": ["accepted", "rejected", "review_required"] },
+        "reason_code": {
+          "enum": [
+            "EXPLICIT_ELDER_EVIDENCE",
+            "EXPLICIT_BOUNDARY_INTENT",
+            "EXPLICIT_BOUNDARY_WITHDRAWAL",
+            "EXPLICIT_BOUNDARY_SUPERSESSION",
+            "APPENDED_CORRECTION",
+            "ELIGIBLE_EVIDENCE_WITH_CONFLICT",
+            "EVIDENCE_MISSING",
+            "FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED",
+            "BOUNDARY_EXPLICIT_INTENT_REQUIRED",
+            "BOUNDARY_WITHDRAWAL_REQUIRED",
+            "BOUNDARY_HUMAN_AUTHORIZATION_REQUIRED",
+            "EVIDENCE_NOT_ELIGIBLE",
+            "STALE_EVIDENCE",
+            "DELETED_EVIDENCE",
+            "RETENTION_INELIGIBLE",
+            "UNKNOWN_AUTHORITY",
+            "ILLEGAL_TRANSITION",
+            "REVISION_MISMATCH",
+            "AMBIGUOUS_CORRECTION",
+            "PROPOSAL_ONLY",
+            "CONFLICT_REQUIRES_REVIEW"
+          ]
+        },
+        "fail_closed": { "type": "boolean" },
+        "mutation": { "$ref": "#/$defs/mutationPlan" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "decision_status": { "const": "accepted" } },
+            "required": ["decision_status"]
+          },
+          "then": { "properties": { "fail_closed": { "const": false } } }
+        },
+        {
+          "if": {
+            "properties": { "decision_status": { "enum": ["rejected", "review_required"] } },
+            "required": ["decision_status"]
+          },
+          "then": { "properties": { "fail_closed": { "const": true } } }
+        },
+        {
+          "if": {
+            "properties": { "decision_status": { "const": "rejected" } },
+            "required": ["decision_status"]
+          },
+          "then": { "properties": { "mutation": { "properties": { "action": { "const": "none" } } } } }
+        },
+        {
+          "if": {
+            "properties": { "decision_status": { "const": "accepted" } },
+            "required": ["decision_status"]
+          },
+          "then": { "properties": { "mutation": { "properties": { "action": { "not": { "const": "none" } } } } } }
+        }
+      ]
+    },
+    "gateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "message_type", "request_id", "authority_snapshot", "candidate"],
+      "properties": {
+        "contract_version": { "const": "p5-memory-gate-correction-v1" },
+        "message_type": { "const": "gate_request" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "authority_snapshot": { "$ref": "#/$defs/authoritySnapshot" },
+        "candidate": { "$ref": "#/$defs/candidate" }
+      }
+    },
+    "gateDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "message_type", "request_id", "authority_snapshot", "candidate", "decision"],
+      "properties": {
+        "contract_version": { "const": "p5-memory-gate-correction-v1" },
+        "message_type": { "const": "gate_decision" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "authority_snapshot": { "$ref": "#/$defs/authoritySnapshot" },
+        "candidate": { "$ref": "#/$defs/candidate" },
+        "decision": { "$ref": "#/$defs/decision" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "proposal_source": { "const": "llm_proposal" },
+                  "candidate_kind": { "const": "boundary" },
+                  "operation": { "enum": ["revoke", "supersede"] }
+                },
+                "required": ["proposal_source", "candidate_kind", "operation"]
+              }
+            },
+            "required": ["candidate"]
+          },
+          "then": {
+            "properties": {
+              "decision": {
+                "properties": {
+                  "decision_status": { "enum": ["rejected", "review_required"] },
+                  "fail_closed": { "const": true },
+                  "mutation": { "properties": { "action": { "const": "none" } } }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "properties": { "decision_status": { "const": "accepted" } },
+                "required": ["decision_status"]
+              }
+            },
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "evidence": {
+                    "items": {
+                      "properties": {
+                        "eligibility": {
+                          "properties": {
+                            "authorization": { "const": "authorized" },
+                            "retention": { "const": "eligible" },
+                            "deletion": { "const": "not-deleted" }
+                          },
+                          "required": ["authorization", "retention", "deletion"]
+                        }
+                      },
+                      "required": ["eligibility"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "candidate": {
+                "properties": { "candidate_kind": { "const": "fact" } },
+                "required": ["candidate_kind"]
+              },
+              "decision": {
+                "properties": { "decision_status": { "const": "accepted" } },
+                "required": ["decision_status"]
+              }
+            },
+            "required": ["candidate", "decision"]
+          },
+          "then": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "evidence": {
+                    "contains": {
+                      "properties": {
+                        "trusted_role": { "const": "elder" },
+                        "evidence_role": { "const": "explicit_fact_statement" },
+                        "eligibility": {
+                          "properties": {
+                            "authorization": { "const": "authorized" },
+                            "retention": { "const": "eligible" },
+                            "deletion": { "const": "not-deleted" }
+                          },
+                          "required": ["authorization", "retention", "deletion"]
+                        }
+                      },
+                      "required": ["trusted_role", "evidence_role", "eligibility"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "candidate_kind": { "const": "boundary" },
+                  "operation": { "const": "activate" }
+                },
+                "required": ["candidate_kind", "operation"]
+              },
+              "decision": {
+                "properties": { "decision_status": { "const": "accepted" } },
+                "required": ["decision_status"]
+              }
+            },
+            "required": ["candidate", "decision"]
+          },
+          "then": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "evidence": {
+                    "contains": {
+                      "properties": {
+                        "trusted_role": { "const": "elder" },
+                        "evidence_role": { "const": "boundary_activation_intent" },
+                        "eligibility": {
+                          "properties": {
+                            "authorization": { "const": "authorized" },
+                            "retention": { "const": "eligible" },
+                            "deletion": { "const": "not-deleted" }
+                          },
+                          "required": ["authorization", "retention", "deletion"]
+                        }
+                      },
+                      "required": ["trusted_role", "evidence_role", "eligibility"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
