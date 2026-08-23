@@ -147,13 +147,13 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     private readonly jobs: AiJobCoordinatorService,
     private readonly provider: MemoryMaintainerProvider,
     private readonly validator: MemoryMaintainerV12Validator,
-    private readonly gate: MemoryGateCorrectionService,
     private readonly traces: DecisionTraceService,
     private readonly realtime: RealtimeRuntimeService,
     private readonly clock: MemoryMaintainerClock,
     private readonly failpoint: MemoryMaintainerFailpoint,
     @Inject(MEMORY_MAINTAINER_RUNTIME_CONFIG)
     private readonly config: MemoryMaintainerRuntimeConfig,
+    private readonly gate: MemoryGateCorrectionService = new MemoryGateCorrectionService(),
   ) {}
 
   public isEnabled(): boolean {
