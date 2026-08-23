@@ -28,16 +28,23 @@ export class PrismaEvidenceDrilldownReader extends EvidenceDrilldownReader {
     memoryId: string,
     projectId: string,
   ): Promise<EvidenceMemoryRecord | null> {
-    const [resolution, revision] = await Promise.all([
-      this.prisma.memoryResolution.findUnique({ where: { id: memoryId } }),
-      this.prisma.memoryLayerRevision.findFirst({
-        orderBy: { revisionNo: 'desc' },
-        where: { lifecycleStatus: 'current', projectId, resolutionRowId: memoryId },
-      }),
-    ]);
+    const identity = await this.prisma.memoryLayerIdentity.findUnique({ where: { id: memoryId } });
+    if (identity === null || identity.projectId !== projectId) return null;
+    const revision = await this.prisma.memoryLayerRevision.findFirst({
+      orderBy: { revisionNo: 'desc' },
+      where: { identityId: identity.id, lifecycleStatus: 'current', projectId },
+    });
+    const resolution =
+      revision === null
+        ? null
+        : await this.prisma.memoryResolution.findUnique({
+            where: { id: revision.resolutionRowId },
+          });
     if (
       resolution === null ||
       revision === null ||
+      revision.identityId !== identity.id ||
+      revision.projectId !== projectId ||
       resolution.projectId !== projectId ||
       resolution.status !== 'current' ||
       !resolution.p2Write ||
@@ -128,7 +135,7 @@ export class PrismaEvidenceDrilldownReader extends EvidenceDrilldownReader {
     if (unique.size === 0) return null;
     return {
       memory: {
-        memory_id: resolution.id,
+        memory_id: identity.id,
         membership_digest: revision.memberManifestHash,
         resolution_authority_id: revision.resolutionAuthorityId,
         revision_id: revision.id,

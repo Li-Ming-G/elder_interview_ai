@@ -424,17 +424,43 @@ function toFailure(error: unknown): EvidenceFailure {
 }
 
 function memoryMember(p4: P4ContextV2, memoryId: string): EvidenceMemoryReference | null {
-  const members = [...p4.active_memory.items, ...p4.resumed_memory.items, ...p4.memory_candidates];
-  const member = members.find((item) => item.memory_id === memoryId);
+  const candidate = p4.memory_candidates.find((item) => item.memory_id === memoryId);
+  if (candidate !== undefined) {
+    const entry = p4.membership.sections
+      .find((section) => section.section === 'memory_candidates')
+      ?.entries.find(
+        (membershipEntry) =>
+          membershipEntry.source_type === 'memory_candidate' &&
+          membershipEntry.source_id === memoryId,
+      );
+    if (
+      entry === undefined ||
+      entry.source_revision === null ||
+      (candidate.revision_no !== undefined && candidate.revision_no !== entry.source_revision)
+    )
+      return null;
+    return {
+      memory_id: candidate.memory_id,
+      membership_digest: entry.membership_digest,
+      resolution_authority_id: candidate.resolution_authority_id,
+      revision_id: candidate.revision_id,
+      revision_no: entry.source_revision,
+      semantic_kind: candidate.semantic_kind,
+      semantic_status: candidate.semantic_status,
+      source_level: candidate.source_level,
+    };
+  }
+  const member = [...p4.active_memory.items, ...p4.resumed_memory.items].find(
+    (item) => item.memory_id === memoryId,
+  );
   return member === undefined
     ? null
     : {
         memory_id: member.memory_id,
-        membership_digest:
-          'membership_digest' in member ? member.membership_digest : p4.membership_digest,
+        membership_digest: member.membership_digest,
         resolution_authority_id: member.resolution_authority_id,
         revision_id: member.revision_id,
-        revision_no: member.revision_no ?? 1,
+        revision_no: member.revision_no,
         semantic_kind: member.semantic_kind,
         semantic_status: member.semantic_status,
         source_level: member.source_level,

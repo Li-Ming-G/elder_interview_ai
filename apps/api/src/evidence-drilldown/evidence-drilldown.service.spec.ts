@@ -25,8 +25,10 @@ const UUID = {
   session: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   thread: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   memory: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+  candidateMemory: '12121212-1212-4121-8121-121212121212',
   authority: '11111111-1111-4111-8111-111111111111',
   revision: '22222222-2222-4222-8222-222222222222',
+  candidateRevision: '13131313-1313-4131-8131-131313131313',
   segment1: '33333333-3333-4333-8333-333333333333',
   segment2: '44444444-4444-4444-8444-444444444444',
   segment3: '55555555-5555-4555-8555-555555555555',
@@ -95,6 +97,23 @@ describe('EvidenceDrilldownService', () => {
     expect(hit?.neighboring_context.before).not.toContainEqual(
       expect.objectContaining({ segment_id: UUID.segment3 }),
     );
+  });
+
+  it('uses the exact frozen candidate membership digest and revision', async () => {
+    const fixture = createFixture(true, false, true);
+    const result = await fixture.service.getMemoryEvidence(
+      fixture.memoryRequest(),
+      fixture.runtime,
+    );
+
+    expect(result).toMatchObject({ message_type: 'result' });
+    if (result.message_type !== 'result' || result.result.result_type !== 'memory_evidence') return;
+    expect(result.result.memory).toMatchObject({
+      membership_digest: 'c'.repeat(64),
+      memory_id: UUID.candidateMemory,
+      revision_no: 5,
+    });
+    expect(result.result.memory.membership_digest).not.toBe(fixture.p4Context.membership_digest);
   });
 
   it('searches only frozen transcript members and orders matches deterministically', async () => {
@@ -244,10 +263,19 @@ class FixtureReader extends EvidenceDrilldownReader {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function createFixture(eligible = true, outsideMemory = false) {
-  const p4Context = createP4Context();
-  const memory = p4Context.active_memory.items[0];
+function createFixture(eligible = true, outsideMemory = false, candidateMemory = false) {
+  const p4Context = createP4Context(candidateMemory);
+  const memory = candidateMemory
+    ? p4Context.memory_candidates[0]
+    : p4Context.active_memory.items[0];
   if (memory === undefined) throw new Error('memory fixture missing');
+  const membershipDigest =
+    'membership_digest' in memory
+      ? memory.membership_digest
+      : p4Context.membership.sections
+          .find((section) => section.section === 'memory_candidates')
+          ?.entries.find((entry) => entry.source_id === memory.memory_id)?.membership_digest;
+  if (membershipDigest === undefined) throw new Error('memory membership fixture missing');
   const transcriptRows = [
     transcript(UUID.segment1, 0, 'Before detail.'),
     transcript(UUID.segment2, 100, 'Harbor evidence from elder.', 'elder'),
@@ -264,7 +292,7 @@ function createFixture(eligible = true, outsideMemory = false) {
     {
       memory: {
         memory_id: memory.memory_id,
-        membership_digest: memory.membership_digest,
+        membership_digest: membershipDigest,
         resolution_authority_id: memory.resolution_authority_id,
         revision_id: memory.revision_id,
         revision_no: memory.revision_no,
@@ -354,7 +382,7 @@ function createFixture(eligible = true, outsideMemory = false) {
   };
 }
 
-function createP4Context(): P4ContextV2 {
+function createP4Context(candidateMemory = false): P4ContextV2 {
   const segment = (
     id: string,
     startMs: number,
@@ -414,7 +442,28 @@ function createP4Context(): P4ContextV2 {
     current_presentation: null,
     displayed: [],
     interview_state: { goal: 'synthetic', journey_reason_codes: [], journey_stage: 'story_depth' },
-    memory_candidates: [],
+    memory_candidates: candidateMemory
+      ? [
+          member(
+            {
+              embedding_score: null,
+              graph_distance: null,
+              memory_id: UUID.candidateMemory,
+              rank: 0,
+              retrieval_sources: ['graph'],
+              revision_id: UUID.candidateRevision,
+              revision_no: 5,
+              safe_content: 'synthetic candidate memory',
+              semantic_kind: 'episode',
+              semantic_status: 'current',
+              source_level: 'mid',
+              resolution_authority_id: UUID.authority,
+            },
+            0,
+            'c'.repeat(64),
+          ),
+        ]
+      : [],
     policy_revision: 'synthetic-policy-v1',
     question_bank: [],
     recent_transcript: [
