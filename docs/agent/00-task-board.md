@@ -1,6 +1,6 @@
 # 当前任务索引
 
-本文件是供人快速查看的机械索引；canonical queue topology 来自本文件与正式 Task Card，`dispatcher/dispatcher-state.json` 是可重建的 last-known projection，不是唯一运行真相。GitHub durable PR/head/verdict/merge/CI facts 可以纠正 stale projection。治理模型是单 Dispatcher 顺序队列，外部 Architect 负责 PR Review。旧大看板的全部条目保存在 [`archive-task-board-snapshot-2026-08-22.md`](archive-task-board-snapshot-2026-08-22.md)，历史 task、handoff 与 review 保持原路径。
+本文件是供人快速查看的机械索引；canonical queue topology 来自本文件与正式 Task Card，`dispatcher/dispatcher-state.json` 是可重建的 last-known projection，不是唯一运行真相。GitHub durable PR/head/verdict/merge/CI facts 可以纠正 stale projection。治理模型是单 Dispatcher 顺序队列，外部 Architect 负责 PR Review。
 
 状态只允许：`READY`、`IN_PROGRESS`、`REVIEW`、`BLOCKED`、`DEFERRED`、`DONE`。
 
@@ -8,30 +8,43 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | `MEMORY-T5-T8-P2-C-RUNTIME-001` | `DONE` | A1 `dbb0cc76f582997a6a647781007648c6937a8992`; P2-B `717c5ca39e678c6f953d0430768ae715ef0feef2` | [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) | `luna-high` | `80` | `null` |
 | `MEMORY-T5-T8-P2-D-PROVIDER-001` | `DEFERRED` | P2-C complete plus owner provider/data decisions | not issued | `luna-high` | `null` | `null` |
-| `P3-RETRIEVAL-V1` | `DONE` | P3 contract/substrate/indexing/retrieval/integration; final main merge `18c4320f417fbfa90e41924ac7b049ea72b82379` | accepted P3R-01 → P3R-05 sequence | `luna-high` | `86` | `P4G-00-STATE-SYNC` |
+| `P3-RETRIEVAL-V1` | `DONE` | P3 accepted sequence; final main `18c4320f417fbfa90e41924ac7b049ea72b82379` | accepted P3R-01 → P3R-05 sequence | `luna-high` | `86` | `P4G-00-STATE-SYNC` |
 | `P4G-00-STATE-SYNC` | `DONE` | P3 accepted and merged | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `87` | `P4C-01` |
 | `P4C-01` | `DONE` | P4G-00 merged and verified | [`tasks/P4C-01.md`](tasks/P4C-01.md) | `luna-high` | `88` | `P4C-02` |
 | `P4C-02` | `DONE` | P4C-01 merged and verified | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `89` | `DISPATCHER-RECOVERY-001` |
-| `DISPATCHER-RECOVERY-001` | `REVIEW` | P4C-02 merged and verified | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `90` | `P4C-03` |
-| `P4C-03` | `DEFERRED` | DISPATCHER-RECOVERY-001 external `PASS`, merge, and main verification | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `null` | `P4C-04` |
-| `P4C-04` | `DEFERRED` | P4C-03 external `PASS` | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `null` | `null` |
+| `DISPATCHER-RECOVERY-001` | `DONE` | P4C-02 merged and verified | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `90` | `P4C-03` |
+| `P4C-03` | `DONE` | Dispatcher Recovery accepted/merged/main-verified | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `91` | `P4C-04` |
+| `P4C-04` | `DONE` | P4C-03 accepted/merged/main-verified | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `92` | `P5E-01` |
+| `P5E-01` | `READY` | P4C-04 accepted/merged/main-verified | [`tasks/P5E-01.md`](tasks/P5E-01.md) | `luna-high` | `null` | `P5E-02` |
+| `P5E-02` | `DEFERRED` | P5E-01 external PASS + merge + main verification | [`tasks/P5E-02.md`](tasks/P5E-02.md) | `luna-high` | `null` | `P5E-03` |
+| `P5E-03` | `DEFERRED` | P5E-02 external PASS + merge + main verification | [`tasks/P5E-03.md`](tasks/P5E-03.md) | `luna-high` | `null` | `P5C-01` |
+| `P5C-01` | `DEFERRED` | P5E-03 external PASS + merge + main verification | [`tasks/P5C-01.md`](tasks/P5C-01.md) | `luna-high` | `null` | `P5C-02` |
+| `P5C-02` | `DEFERRED` | P5C-01 external PASS + merge + main verification | [`tasks/P5C-02.md`](tasks/P5C-02.md) | `luna-high` | `null` | `null` |
 
-## Current stop
+## Current phase
 
-P2-C is complete on main through the accepted PR #76–#81 sequence, with completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`. P3 is complete through PR #82–#86, with final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`. The canonical P2/P3 queue identities and bindings remain unchanged.
+P4 / T11–T12 is closed. Durable GitHub facts record PR #87–#92 merged; P4C-03 final accepted head was `655f08cb72561ad6930b7acb662a12deaac6e87f` and P4C-04 final accepted head was `ec7660e05690618780ac00af053a6610666d02d7`, with final P4 consumer merge `8b1195d185bc07622c446bdd9023ab1cf6a6fcb0`.
 
-GitHub durable facts recover `P4G-00-STATE-SYNC` as `DONE / PR #87`, `P4C-01` as `DONE / PR #88`, and `P4C-02` as `DONE / PR #89`. `DISPATCHER-RECOVERY-001` is the current `REVIEW / PR #90` governance gate. `P4C-03` and `P4C-04` remain the existing canonical deferred successors; P4C-03 was not dispatched.
+The active development stage is P5 / T13–T17:
 
-## Recently accepted dependencies
+`P5E-01 → P5E-02 → P5E-03 → P5C-01 → P5C-02`.
 
-- P2-A1 semantic envelope: `DONE / PASS / CONTRACT ONLY`, exact head `dbb0cc76f582997a6a647781007648c6937a8992`.
-- P2-B persistence contract: `DONE / PASS / CONTRACT ONLY`, exact head `717c5ca39e678c6f953d0430768ae715ef0feef2`.
-- P2-C runtime: `DONE`, completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`.
-- P3 retrieval: `DONE`, final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`.
+Only `P5E-01` is READY. Dispatcher may unlock exactly one predefined successor only after current external Architect PASS, merge, successful main verification and refreshed-main reconciliation.
+
+## P5 stage intent
+
+- P5E-01: freeze provider-neutral Evidence Drill-down V1 contract.
+- P5E-02: implement bounded read-only `get_memory_evidence` and limited `search_transcript` tools.
+- P5E-03: integrate zero-or-one evidence round at the Director boundary; tool failure is SYSTEM_ERROR and no loop is permitted.
+- P5C-01: freeze Episode/Fact/Boundary gate and non-destructive correction contract.
+- P5C-02: implement the accepted gate/correction behavior on existing MemoryClaim/MemoryResolution authority.
+
+Real provider/model/tokenizer/embedding choices, P4 production numeric budget, P2-D, T25 prompt activation, real data and public deployment remain deferred.
 
 ## Maintenance
 
-- Update this index only when machine state changes.
-- A normal worker hands off through its Task Card and GitHub PR; it does not create duplicate REV or handoff files.
-- An ordinary Implementation Task does not start iteration-coach or an additional internal Reviewer; external Architect PR review is the default unless the Product Owner or Architect explicitly escalates.
-- Requirement traceability, conflict history and other stage records are synchronized in one batch at stage end.
+- GitHub durable facts override stale projection/status fields.
+- Update current-state files mechanically after accepted stage transitions; do not rewrite archives.
+- A normal Worker hands off through Task Card + PR and stops at REVIEW.
+- Ordinary Implementation Tasks use external Architect review by default; no internal Reviewer/iteration-coach unless explicitly escalated.
+- Dispatcher never creates Task Cards or invents next tasks.
