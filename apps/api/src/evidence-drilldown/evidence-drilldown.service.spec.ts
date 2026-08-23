@@ -30,6 +30,7 @@ const UUID = {
   segment1: '33333333-3333-4333-8333-333333333333',
   segment2: '44444444-4444-4444-8444-444444444444',
   segment3: '55555555-5555-4555-8555-555555555555',
+  segment4: '88888888-8888-4888-8888-888888888888',
 };
 
 describe('EvidenceDrilldownService', () => {
@@ -81,6 +82,22 @@ describe('EvidenceDrilldownService', () => {
       return;
     expect(result.result.matches.map((match) => match.source.segment_id)).toEqual([UUID.segment2]);
     expect(result.result.matches[0]?.match_rank).toBe(0);
+  });
+
+  it('searches the frozen authorized sessions beyond the recent transcript slice', async () => {
+    const fixture = createFixture();
+    const result = await fixture.service.searchTranscript(
+      fixture.searchRequest({ request: { query: 'older' } }),
+      fixture.runtime,
+    );
+
+    expect(result).toMatchObject({ message_type: 'result' });
+    if (result.message_type !== 'result' || result.result.result_type !== 'transcript_search')
+      return;
+    expect(result.result.matches.map((match) => match.source.segment_id)).toEqual([UUID.segment4]);
+    expect(result.result.matches[0]?.neighboring_context.before.at(-1)?.segment_id).toBe(
+      UUID.segment3,
+    );
   });
 
   it('rejects cross-scope sessions, source drift, retention failure and malformed queries', async () => {
@@ -188,10 +205,12 @@ class FixtureReader extends EvidenceDrilldownReader {
   public override readTranscript(
     _projectId: string,
     _sessionIds: readonly string[],
-    segmentIds: readonly string[],
+    segmentIds: readonly string[] | null,
   ): Promise<readonly EvidenceTranscriptRecord[]> {
     return Promise.resolve(
-      this.transcriptRows.filter((row) => segmentIds.includes(row.segment_id)),
+      segmentIds === null
+        ? this.transcriptRows
+        : this.transcriptRows.filter((row) => segmentIds.includes(row.segment_id)),
     );
   }
 }
@@ -205,6 +224,7 @@ function createFixture(eligible = true) {
     transcript(UUID.segment1, 0, 'Before detail.'),
     transcript(UUID.segment2, 100, 'Harbor evidence from elder.', 'elder'),
     transcript(UUID.segment3, 200, 'After detail.', 'interviewer'),
+    transcript(UUID.segment4, 300, 'Older authorized detail.', 'elder'),
   ];
   const reader = new FixtureReader(
     {
@@ -229,7 +249,6 @@ function createFixture(eligible = true) {
           source_id: UUID.segment2,
           speaker_role_revision: 1,
           text_revision: 1,
-          transcript_revision: 1,
         },
       ],
     },
@@ -239,6 +258,7 @@ function createFixture(eligible = true) {
     assertAllowed: () =>
       Promise.resolve({
         blockedCanonicalKeys: [],
+        deletionFenceRevision: 7,
         policyRevision: 7,
         retentionPolicyVersion: 3,
       }),
@@ -396,7 +416,6 @@ function transcript(
     start_ms: startMs,
     text,
     text_revision: 1,
-    transcript_revision: 1,
     trusted_role: trustedRole,
   };
 }

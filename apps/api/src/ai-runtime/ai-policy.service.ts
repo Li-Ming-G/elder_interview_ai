@@ -5,11 +5,13 @@ import type { Prisma } from '../generated/prisma/client.js';
 import {
   BoundaryPolicyReader,
   type BoundaryPolicySnapshot,
+  AiPolicyUnavailableError,
   DeletionScopeReader,
 } from './deletion-scope.reader.js';
 
 export interface AiPolicySnapshot {
   blockedCanonicalKeys: readonly string[];
+  deletionFenceRevision: number;
   policyRevision: number;
   retentionPolicyVersion: number;
 }
@@ -79,9 +81,13 @@ export class AiPolicyService {
         message: 'AI use is blocked',
       });
     }
-    await this.deletionScopes.assertNoActiveScope(projectId, sessionIds);
+    const deletion = await this.deletionScopes.assertNoActiveScope(projectId, sessionIds);
+    if (!Number.isInteger(deletion.fenceRevision) || deletion.fenceRevision < 0) {
+      throw new AiPolicyUnavailableError();
+    }
     return {
       blockedCanonicalKeys: boundary.blockedCanonicalKeys,
+      deletionFenceRevision: deletion.fenceRevision,
       policyRevision: project.aiPolicyRevision,
       retentionPolicyVersion: project.aiRetentionPolicyVersion,
     };

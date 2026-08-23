@@ -14,7 +14,7 @@ export abstract class EvidenceDrilldownReader {
   public abstract readTranscript(
     projectId: string,
     sessionIds: readonly string[],
-    segmentIds: readonly string[],
+    segmentIds: readonly string[] | null,
   ): Promise<readonly EvidenceTranscriptRecord[]>;
 }
 
@@ -123,7 +123,6 @@ export class PrismaEvidenceDrilldownReader extends EvidenceDrilldownReader {
         source_id: authority.sourceId,
         speaker_role_revision: authority.speakerRoleRevision,
         text_revision: authority.transcriptTextRevision,
-        transcript_revision: authority.transcriptTextRevision,
       });
     }
     if (unique.size === 0) return null;
@@ -147,14 +146,16 @@ export class PrismaEvidenceDrilldownReader extends EvidenceDrilldownReader {
   public override async readTranscript(
     projectId: string,
     sessionIds: readonly string[],
-    segmentIds: readonly string[],
+    segmentIds: readonly string[] | null,
   ): Promise<readonly EvidenceTranscriptRecord[]> {
-    if (segmentIds.length === 0) return [];
+    if (segmentIds !== null && segmentIds.length === 0) return [];
     const rows = await this.prisma.transcriptSegment.findMany({
       where: {
-        id: { in: [...segmentIds] },
+        ...(segmentIds === null ? {} : { id: { in: [...segmentIds] } }),
+        contentKind: 'conversation',
         session: { projectId, id: { in: [...sessionIds] } },
       },
+      orderBy: [{ startMs: 'asc' }, { id: 'asc' }],
     });
     return rows.map((segment) => {
       const projection = projectTrustedSpeakerRole(segment);
@@ -169,7 +170,6 @@ export class PrismaEvidenceDrilldownReader extends EvidenceDrilldownReader {
         start_ms: segment.startMs,
         text,
         text_revision: segment.textRevision,
-        transcript_revision: segment.textRevision,
         trusted_role: projection.trustedEffectiveSpeakerRole,
       };
     });

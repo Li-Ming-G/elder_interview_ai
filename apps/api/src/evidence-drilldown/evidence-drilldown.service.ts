@@ -80,8 +80,7 @@ export class EvidenceDrilldownService {
           source.session_id !== entry.session_id ||
           source.text_revision !== entry.text_revision ||
           source.speaker_role_revision !== entry.speaker_role_revision ||
-          source.effective_text_digest !== entry.effective_text_digest ||
-          source.transcript_revision !== entry.transcript_revision
+          source.effective_text_digest !== entry.effective_text_digest
         )
           throw new EvidenceFailure('STALE_SOURCE', 'source_fence');
         return { neighboring_context: neighbors(source, transcript), source };
@@ -107,7 +106,7 @@ export class EvidenceDrilldownService {
   ): Promise<EvidenceResultEnvelope | EvidenceErrorEnvelope> {
     return this.execute('search_transcript', request, runtime, async (envelope, p4, policy) => {
       const payload = envelope.request as { query: string };
-      const frozenIds = p4.recent_transcript.map((segment) => segment.segment_id);
+      const frozenIds = null;
       const transcript = await this.readAndValidateTranscript(
         envelope.scope.project_id,
         envelope.scope.authorized_session_ids,
@@ -198,12 +197,12 @@ export class EvidenceDrilldownService {
   private async readAndValidateTranscript(
     projectId: string,
     sessionIds: readonly string[],
-    segmentIds: readonly string[],
+    segmentIds: readonly string[] | null,
     p4: P4ContextV2,
     policy: AiPolicySnapshot,
   ): Promise<readonly EvidenceTranscriptSegment[]> {
     const rows = await this.reader.readTranscript(projectId, sessionIds, segmentIds);
-    if (rows.length !== new Set(segmentIds).size)
+    if (segmentIds !== null && rows.length !== new Set(segmentIds).size)
       throw new EvidenceFailure('DELETED_SOURCE', 'source_fence');
     const frozenById = new Map(
       p4.recent_transcript.map((segment) => [segment.segment_id, segment]),
@@ -465,7 +464,6 @@ function toTranscriptSegment(
     start_ms: row.start_ms,
     text: row.text,
     text_revision: row.text_revision,
-    transcript_revision: row.transcript_revision,
     trusted_role: row.trusted_role as 'elder' | 'interviewer',
   };
 }
@@ -473,7 +471,7 @@ function toTranscriptSegment(
 function sourceFence(policy: AiPolicySnapshot): EvidenceSourceFence {
   return {
     authorization: { scope: EVIDENCE_SCOPE_TYPE, status: 'authorized' },
-    deletion: { fence_revision: policy.policyRevision, status: 'not-deleted' },
+    deletion: { fence_revision: policy.deletionFenceRevision, status: 'not-deleted' },
     retention: { policy_revision: String(policy.retentionPolicyVersion), status: 'eligible' },
   };
 }

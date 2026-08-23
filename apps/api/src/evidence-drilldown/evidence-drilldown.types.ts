@@ -70,7 +70,6 @@ export interface EvidenceTranscriptSegment {
   text: string;
   trusted_role: 'elder' | 'interviewer';
   content_kind: 'conversation_final';
-  transcript_revision: number;
   text_revision: number;
   speaker_role_revision: number;
   effective_text_digest: string;
@@ -153,7 +152,6 @@ export interface EvidenceMemoryRecord {
     session_id: string;
     source_id: string;
     membership_digest: string;
-    transcript_revision: number;
     text_revision: number;
     speaker_role_revision: number;
     effective_text_digest: string;
@@ -168,7 +166,6 @@ export interface EvidenceTranscriptRecord {
   text: string;
   trusted_role: 'elder' | 'interviewer' | 'unknown';
   content_kind: 'conversation' | 'speaker_calibration';
-  transcript_revision: number;
   text_revision: number;
   speaker_role_revision: number;
   effective_text_digest: string;
