@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
-import { EMPTY_MANIFEST_HASH, manifestHash } from '../ai-runtime/ai-provenance.js';
+import {
+  EMPTY_MANIFEST_HASH,
+  effectiveTextDigest,
+  manifestHash,
+} from '../ai-runtime/ai-provenance.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   MemoryResolutionKind,
@@ -43,10 +47,13 @@ import type {
   MemoryP2TraceReference,
 } from './memory-p2-observability.types.js';
 import {
+  classifyMemoryGateEvidenceRole,
+  memoryGateEligibility,
   MemoryGateCorrectionService,
   type MemoryGateCandidate,
   type MemoryGateEvidenceReference,
 } from './memory-gate-correction.service.js';
+import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
 
 type TransactionClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaService | TransactionClient;
@@ -531,7 +538,13 @@ export class MemoryP2PersistenceRepository {
         (previousResolution?.resolutionRevision ?? 0) !== input.target.expectedCurrentRevision
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
-      this.assertGateForCommit(input, checkpoint.deletionScopeDigest, previousResolution);
+      await this.assertGateForCommit(
+        tx,
+        input,
+        checkpoint.deletionScopeDigest,
+        checkpoint.evidenceManifestHash,
+        previousResolution,
+      );
       const resolutionRevision = input.target.expectedCurrentRevision + 1;
       if (previousResolution !== null) {
         const frozen = await tx.aiJobInputMemory.findFirst({
@@ -1500,9 +1513,11 @@ export class MemoryP2PersistenceRepository {
     });
   }
 
-  private assertGateForCommit(
+  private async assertGateForCommit(
+    tx: TransactionClient,
     input: MemoryP2CommitInput,
     deletionScopeDigest: string,
+    evidenceManifestDigest: string,
     previousResolution: {
       id: string;
       resolutionRevision: number;
@@ -1510,32 +1525,170 @@ export class MemoryP2PersistenceRepository {
       semanticStatus: 'current' | 'uncertain' | 'disputed' | null;
       status: 'current' | 'pending_review' | 'superseded';
     } | null,
-  ): void {
+  ): Promise<void> {
+    const [job, project, consent, assignment, inputs, transcripts, authorities] = await Promise.all(
+      [
+        tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
+        tx.elderProject.findUnique({ where: { id: input.projectId } }),
+        tx.consentRecord.findFirst({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          where: { consentType: 'recording_transcription_ai', projectId: input.projectId },
+        }),
+        tx.projectAssignment.findFirst({
+          where: { projectId: input.projectId, revokedAt: null },
+        }),
+        tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
+        tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
+        tx.memoryEvidenceAuthority.findMany({
+          where: { projectId: input.projectId, sessionId: input.sourceSessionId },
+        }),
+      ],
+    );
+    const policyAuthorized =
+      job !== null &&
+      project !== null &&
+      job.projectId === input.projectId &&
+      project.deletedAt === null &&
+      !['restricted', 'deleted'].includes(project.status) &&
+      assignment !== null &&
+      assignment.userId === job.requestedBy &&
+      consent?.status === 'valid' &&
+      consent.revokedAt === null &&
+      job.policyRevision === project.aiPolicyRevision;
+    const retentionEligible =
+      job !== null &&
+      project !== null &&
+      job.retentionState === 'active' &&
+      job.expiresAt > new Date() &&
+      job.retentionPolicyVersion === project.aiRetentionPolicyVersion;
+    if (
+      job === null ||
+      project === null ||
+      job.projectId !== input.projectId ||
+      !(['mid_online', 'mid_final', 'long_session_end'] as string[]).includes(job.jobType) ||
+      !policyAuthorized ||
+      !retentionEligible
+    )
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+
+    const inputById = new Map(inputs.map((row) => [row.id, row]));
+    const transcriptById = new Map(transcripts.map((row) => [row.id, row]));
+    const authorityBySourceId = new Map<string, (typeof authorities)[number]>();
+    for (const row of authorities) {
+      const current = authorityBySourceId.get(row.sourceId);
+      if (current === undefined || row.authorityRevision > current.authorityRevision)
+        authorityBySourceId.set(row.sourceId, row);
+    }
+    const authorityBySourceRevision = new Map(
+      authorities.map((row) => [`${row.sourceId}:${String(row.authorityRevision)}`, row]),
+    );
+    const acceptedFactClaimEvidence = await tx.memoryClaimEvidence.findMany({
+      select: { memoryClaimId: true, transcriptSegmentId: true },
+      where: { transcriptSegmentId: { in: [...transcriptById.keys()] } },
+    });
+    const acceptedClaimIds = acceptedFactClaimEvidence.map(({ memoryClaimId }) => memoryClaimId);
+    const acceptedClaims = await tx.memoryClaim.findMany({
+      select: { id: true },
+      where: {
+        id: { in: acceptedClaimIds },
+        projectId: input.projectId,
+        provenanceState: 'active',
+        semanticKind: 'fact',
+      },
+    });
+    const acceptedClaimIdSet = new Set(acceptedClaims.map(({ id }) => id));
+    const acceptedMembers = await tx.memoryResolutionMember.findMany({
+      select: { memoryClaimId: true, memoryResolutionId: true },
+      where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
+    });
+    const acceptedResolutionIds = acceptedMembers.map(
+      ({ memoryResolutionId }) => memoryResolutionId,
+    );
+    const acceptedResolutions = await tx.memoryResolution.findMany({
+      select: { id: true },
+      where: {
+        id: { in: acceptedResolutionIds },
+        projectId: input.projectId,
+        semanticKind: 'fact',
+        status: 'current',
+      },
+    });
+    const acceptedResolutionIdSet = new Set(acceptedResolutions.map(({ id }) => id));
+    const acceptedFactSourceIds = new Set(
+      acceptedFactClaimEvidence
+        .filter(({ memoryClaimId }) => acceptedClaimIdSet.has(memoryClaimId))
+        .filter(({ memoryClaimId }) =>
+          acceptedMembers.some(
+            (member) =>
+              member.memoryClaimId === memoryClaimId &&
+              acceptedResolutionIdSet.has(member.memoryResolutionId),
+          ),
+        )
+        .map(({ transcriptSegmentId }) => transcriptSegmentId),
+    );
     const evidenceById = new Map<string, MemoryGateEvidenceReference>();
+    const evidenceIdentityByInputSegmentId = new Map<string, string>();
     for (const claim of input.claims) {
       for (const evidence of claim.evidences) {
-        const evidenceId = evidence.expectedEvidenceId ?? evidence.sourceId;
+        const frozen = inputById.get(evidence.inputSegmentId);
+        const transcript =
+          frozen === undefined ? undefined : transcriptById.get(frozen.transcriptSegmentId);
+        const sourceAuthority = authorityBySourceId.get(evidence.sourceId);
+        const authority = authorityBySourceRevision.get(
+          `${evidence.sourceId}:${String(evidence.authorityRevision)}`,
+        );
+        if (
+          frozen === undefined ||
+          transcript === undefined ||
+          frozen.sessionId !== input.sourceSessionId ||
+          frozen.transcriptSegmentId !== evidence.sourceId ||
+          frozen.textRevision !== evidence.textRevision ||
+          frozen.speakerRoleRevision !== evidence.speakerRoleRevision ||
+          frozen.effectiveTextDigest !== evidence.effectiveTextDigest ||
+          frozen.trustedEffectiveRole !==
+            projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole ||
+          (frozen.trustedEffectiveRole !== 'elder' &&
+            frozen.trustedEffectiveRole !== 'interviewer') ||
+          frozen.contentKind !== 'conversation' ||
+          transcript.textRevision !== frozen.textRevision ||
+          transcript.speakerRoleRevision !== frozen.speakerRoleRevision ||
+          effectiveTextDigest(transcript.correctedText ?? transcript.originalText) !==
+            frozen.effectiveTextDigest
+        )
+          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+        if (
+          (authority === undefined && evidence.expectedEvidenceId !== null) ||
+          (sourceAuthority !== undefined && authority === undefined) ||
+          (authority !== undefined &&
+            ((authority.evidenceId !== evidence.expectedEvidenceId &&
+              evidence.expectedEvidenceId !== null) ||
+              authority.authorityRevision !== evidence.authorityRevision ||
+              authority.sourceId !== evidence.sourceId ||
+              authority.transcriptTextRevision !== evidence.textRevision ||
+              authority.speakerRoleRevision !== evidence.speakerRoleRevision ||
+              authority.effectiveTextDigest !== evidence.effectiveTextDigest))
+        )
+          throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
+        const evidenceId = authority?.evidenceId ?? evidence.inputSegmentId;
+        evidenceIdentityByInputSegmentId.set(evidence.inputSegmentId, evidenceId);
         evidenceById.set(evidenceId, {
-          authorityRevision: evidence.authorityRevision,
+          authorityRevision: authority?.authorityRevision ?? evidence.authorityRevision,
           contentKind: 'conversation_final',
           effectiveTextDigest: evidence.effectiveTextDigest,
           evidenceId,
-          evidenceRole:
-            input.target.semanticKind === 'fact'
-              ? 'explicit_fact_statement'
-              : 'elder_story_context',
-          eligibility: {
-            authorization: 'authorized',
-            deletion: 'not-deleted',
-            retention: 'eligible',
-          },
+          evidenceRole: classifyMemoryGateEvidenceRole(
+            frozen.trustedEffectiveRole,
+            transcript.correctedText ?? transcript.originalText,
+            acceptedFactSourceIds.has(evidence.sourceId),
+          ),
+          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible),
           projectId: input.projectId,
-          sessionId: input.sourceSessionId,
+          sessionId: frozen.sessionId,
           sourceId: evidence.sourceId,
           sourceKind: 'transcript_segment',
-          speakerRoleRevision: evidence.speakerRoleRevision,
-          textRevision: evidence.textRevision,
-          trustedRole: 'elder',
+          speakerRoleRevision: frozen.speakerRoleRevision,
+          textRevision: frozen.textRevision,
+          trustedRole: frozen.trustedEffectiveRole,
         });
       }
     }
@@ -1571,9 +1724,12 @@ export class MemoryP2PersistenceRepository {
         claims: input.claims.map((claim) => ({
           claimId: null,
           claimKey: claim.canonicalKey,
-          evidenceIds: claim.evidences.map(
-            (evidence) => evidence.expectedEvidenceId ?? evidence.sourceId,
-          ),
+          evidenceIds: claim.evidences.map((evidence) => {
+            const evidenceId = evidenceIdentityByInputSegmentId.get(evidence.inputSegmentId);
+            if (evidenceId === undefined)
+              throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+            return evidenceId;
+          }),
         })),
         resolutionKind:
           input.target.resolutionKind === 'review_required'
@@ -1587,14 +1743,14 @@ export class MemoryP2PersistenceRepository {
           semanticStatus === 'disputed' ? null : resolutionValueKind(input.target.resolutionKind),
       },
       evidence,
-      evidenceManifestDigest: input.sourceSessionId,
+      evidenceManifestDigest,
     };
     const decision = this.gate.evaluate(candidate, {
       authorityContract: 'memory-claim-resolution-v1',
       currentSessionId: input.sourceSessionId,
       deletionScopeDigest,
-      evidenceManifestDigest: input.sourceSessionId,
-      policyRevision: input.projectId,
+      evidenceManifestDigest,
+      policyRevision: String(job.policyRevision),
       projectId: input.projectId,
       snapshotRevision: 1,
       sourceSessionIds: [input.sourceSessionId],

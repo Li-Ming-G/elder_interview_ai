@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyMemoryGateEvidenceRole,
   evaluateMemoryGate,
   type MemoryGateCandidate,
   type MemoryGateEvidenceReference,
@@ -68,6 +69,105 @@ describe('Memory Gate/Correction V1 runtime evaluator', () => {
     expect(evaluateMemoryGate(inferred, snapshot)).toMatchObject({
       decisionStatus: 'rejected',
       reasonCode: 'FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED',
+      mutation: { action: 'none' },
+    });
+
+    expect(
+      evaluateMemoryGate(
+        candidate({
+          evidence: [{ ...evidence('explicit_fact_statement'), trustedRole: 'interviewer' }],
+        }),
+        snapshot,
+      ),
+    ).toMatchObject({
+      decisionStatus: 'rejected',
+      reasonCode: 'EVIDENCE_NOT_ELIGIBLE',
+      mutation: { action: 'none' },
+    });
+  });
+
+  it('rejects deleted and retention-ineligible evidence before mutation', () => {
+    expect(
+      evaluateMemoryGate(
+        candidate({
+          evidence: [
+            {
+              ...evidence('explicit_fact_statement'),
+              eligibility: {
+                authorization: 'authorized',
+                deletion: 'deleted',
+                retention: 'eligible',
+              },
+            },
+          ],
+        }),
+        snapshot,
+      ),
+    ).toMatchObject({ decisionStatus: 'rejected', reasonCode: 'DELETED_EVIDENCE' });
+    expect(
+      evaluateMemoryGate(
+        candidate({
+          evidence: [
+            {
+              ...evidence('explicit_fact_statement'),
+              eligibility: {
+                authorization: 'authorized',
+                deletion: 'not-deleted',
+                retention: 'ineligible',
+              },
+            },
+          ],
+        }),
+        snapshot,
+      ),
+    ).toMatchObject({ decisionStatus: 'rejected', reasonCode: 'RETENTION_INELIGIBLE' });
+  });
+
+  it('does not promote ordinary story context or ordinary boundary text', () => {
+    expect(classifyMemoryGateEvidenceRole('elder', '我小时候住在上海')).toBe('elder_story_context');
+    expect(classifyMemoryGateEvidenceRole('interviewer', '工作记忆[fact:birth.place]=上海')).toBe(
+      'interviewer_suggestion',
+    );
+    expect(classifyMemoryGateEvidenceRole('elder', '访谈边界=家庭关系')).toBe(
+      'boundary_activation_intent',
+    );
+    expect(classifyMemoryGateEvidenceRole('elder', '请继续讲学校的故事')).toBe(
+      'elder_story_context',
+    );
+
+    expect(
+      evaluateMemoryGate(candidate({ evidence: [evidence('elder_story_context')] }), snapshot),
+    ).toMatchObject({
+      decisionStatus: 'rejected',
+      reasonCode: 'FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED',
+    });
+    expect(
+      evaluateMemoryGate(
+        candidate({
+          candidateKind: 'boundary',
+          operation: 'activate',
+          proposedState: {
+            abstractScope: 'ordinary text',
+            code: 'elder_explicit_boundary',
+            reviewRequired: false,
+            status: 'active',
+          },
+          evidence: [evidence('elder_story_context')],
+        }),
+        snapshot,
+      ),
+    ).toMatchObject({
+      decisionStatus: 'rejected',
+      reasonCode: 'BOUNDARY_EXPLICIT_INTENT_REQUIRED',
+    });
+  });
+
+  it('rejects a candidate whose manifest is not the accepted snapshot manifest', () => {
+    expect(
+      evaluateMemoryGate(candidate({ evidenceManifestDigest: 'different-manifest' }), snapshot),
+    ).toMatchObject({
+      decisionStatus: 'rejected',
+      reasonCode: 'AUTHORITY_SNAPSHOT_MISMATCH',
       mutation: { action: 'none' },
     });
   });

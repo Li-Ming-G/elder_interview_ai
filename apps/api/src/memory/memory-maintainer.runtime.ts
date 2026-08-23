@@ -42,6 +42,8 @@ import {
 } from './memory-maintainer.provider.js';
 import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
 import {
+  classifyMemoryGateEvidenceRole,
+  memoryGateEligibility,
   MemoryGateCorrectionService,
   type MemoryGateAuthoritySnapshot,
   type MemoryGateCandidate,
@@ -134,6 +136,11 @@ interface PreparedAttempt {
   currentResolutionIds: string[];
   prior: AiJob | null;
   triggerIdentity: string;
+}
+
+interface MemoryGateRuntimeAuthority {
+  evidenceBySegmentId: ReadonlyMap<string, MemoryGateEvidenceReference>;
+  snapshot: MemoryGateAuthoritySnapshot;
 }
 
 @Injectable()
@@ -1042,8 +1049,9 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       });
       if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
       await this.assertContextAuthorityCurrent(tx, job, context);
-      this.assertGateForOperations(job, context, output.operations);
-      this.assertGateForBoundaries(job, output);
+      const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
+      this.assertGateForOperations(job, context, output.operations, gateAuthority);
+      this.assertGateForBoundaries(output, gateAuthority);
       await this.applyOperations(tx, job, batch, context, output.operations);
       await this.failpoint.hit('after_operations');
       await this.applyBoundaries(tx, job, batch, output);
@@ -1273,19 +1281,18 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     job: FrozenAiJob,
     context: MemoryMaintainerContextV12,
     operations: readonly MemoryMaintainerOperationV12[],
+    authority: MemoryGateRuntimeAuthority,
   ): void {
     const inputBySegment = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
     for (const operation of operations) {
       if (operation.kind === 'DUPLICATE') continue;
       const state = operation.proposed_state;
       if (state === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
-      const evidence = operation.evidence_segment_ids.map((segmentId) =>
-        this.gateEvidence(
-          job,
-          inputBySegment.get(segmentId),
-          state.semantic_kind === 'fact' ? 'fact' : false,
-        ),
-      );
+      const evidence = operation.evidence_segment_ids.map((segmentId) => {
+        const reference = authority.evidenceBySegmentId.get(segmentId);
+        if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+        return reference;
+      });
       const targetMemory =
         operation.target_resolution_id === null
           ? null
@@ -1317,23 +1324,24 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
                 targetType: 'memory_resolution',
               },
         expectedRevision: operation.expected_resolution_revision,
-        proposedState: this.gateSemanticState(state, inputBySegment),
+        proposedState: this.gateSemanticState(state, inputBySegment, authority),
         evidence,
-        evidenceManifestDigest: job.inputHash,
+        evidenceManifestDigest: authority.snapshot.evidenceManifestDigest,
       };
-      this.gate.assertWritable(candidate, this.gateSnapshot(job));
+      this.gate.assertWritable(candidate, authority.snapshot);
     }
   }
 
-  private assertGateForBoundaries(job: FrozenAiJob, output: MemoryMaintainerOutputV12): void {
+  private assertGateForBoundaries(
+    output: MemoryMaintainerOutputV12,
+    authority: MemoryGateRuntimeAuthority,
+  ): void {
     for (const boundary of output.boundary_candidates) {
-      const evidence = boundary.evidence_segment_ids.map((segmentId) =>
-        this.gateEvidence(
-          job,
-          job.segments.find((segment) => segment.segmentId === segmentId),
-          true,
-        ),
-      );
+      const evidence = boundary.evidence_segment_ids.map((segmentId) => {
+        const reference = authority.evidenceBySegmentId.get(segmentId);
+        if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+        return reference;
+      });
       const candidate: MemoryGateCandidate = {
         candidateId: boundary.candidate_id,
         proposalSource: 'llm_proposal',
@@ -1348,15 +1356,16 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           status: 'active',
         },
         evidence,
-        evidenceManifestDigest: job.inputHash,
+        evidenceManifestDigest: authority.snapshot.evidenceManifestDigest,
       };
-      this.gate.assertWritable(candidate, this.gateSnapshot(job));
+      this.gate.assertWritable(candidate, authority.snapshot);
     }
   }
 
   private gateSemanticState(
     state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
     inputBySegment: ReadonlyMap<string, FrozenAiJob['segments'][number]>,
+    authority: MemoryGateRuntimeAuthority,
   ): MemoryGateSemanticState {
     return {
       canonicalKey: state.canonical_key,
@@ -1366,7 +1375,9 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         evidenceIds: claim.evidence_segment_ids.map((segmentId) => {
           const segment = inputBySegment.get(segmentId);
           if (segment === undefined) throw new Error('MEMORY_GATE_EVIDENCE_OUTSIDE_INPUT');
-          return this.gateEvidenceId(segment);
+          const evidence = authority.evidenceBySegmentId.get(segmentId);
+          if (evidence === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+          return evidence.evidenceId;
         }),
       })),
       resolutionKind: state.resolution_kind,
@@ -1378,57 +1389,144 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private gateSnapshot(job: FrozenAiJob): MemoryGateAuthoritySnapshot {
-    return {
-      authorityContract: 'memory-claim-resolution-v1' as const,
-      currentSessionId: job.sessionIds[0] ?? '',
-      deletionScopeDigest: job.inputHash,
-      evidenceManifestDigest: job.inputHash,
-      policyRevision: String(job.policyRevision),
-      projectId: job.projectId,
-      snapshotRevision: 1,
-      sourceSessionIds: job.sessionIds,
-    };
-  }
-
-  private gateEvidence(
+  private async readGateRuntimeAuthority(
+    tx: Prisma.TransactionClient,
     job: FrozenAiJob,
-    segment: FrozenAiJob['segments'][number] | undefined,
-    mode: boolean | 'fact' = false,
-  ): MemoryGateEvidenceReference {
+  ): Promise<MemoryGateRuntimeAuthority> {
+    const [storedJob, project, consent, assignment, scopes, inputs] = await Promise.all([
+      tx.aiJob.findUnique({ where: { id: job.id } }),
+      tx.elderProject.findUnique({ where: { id: job.projectId } }),
+      tx.consentRecord.findFirst({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        where: { consentType: 'recording_transcription_ai', projectId: job.projectId },
+      }),
+      tx.projectAssignment.findFirst({
+        where: { projectId: job.projectId, revokedAt: null, userId: job.requestedBy },
+      }),
+      tx.aiJobSessionScope.findMany({ orderBy: { inputOrder: 'asc' }, where: { aiJobId: job.id } }),
+      tx.aiJobInputSegment.findMany({ orderBy: { inputOrder: 'asc' }, where: { aiJobId: job.id } }),
+    ]);
+    const policyAuthorized =
+      storedJob !== null &&
+      project !== null &&
+      storedJob.projectId === job.projectId &&
+      storedJob.inputHash === job.inputHash &&
+      storedJob.policyRevision === job.policyRevision &&
+      storedJob.retentionPolicyVersion === job.retentionPolicyVersion &&
+      storedJob.requestedBy === job.requestedBy &&
+      project.aiPolicyRevision === storedJob.policyRevision &&
+      project.aiRetentionPolicyVersion === storedJob.retentionPolicyVersion &&
+      project.deletedAt === null &&
+      !['restricted', 'deleted'].includes(project.status) &&
+      assignment !== null &&
+      consent?.status === 'valid' &&
+      consent.revokedAt === null;
+    const retentionEligible =
+      storedJob !== null &&
+      storedJob.retentionState === 'active' &&
+      storedJob.expiresAt > new Date();
     if (
-      segment === undefined ||
-      segment.textRevision === undefined ||
-      segment.speakerRoleRevision === undefined ||
-      segment.effectiveTextDigest === undefined
+      storedJob === null ||
+      project === null ||
+      storedJob.projectId !== job.projectId ||
+      storedJob.inputHash !== job.inputHash ||
+      storedJob.policyRevision !== job.policyRevision ||
+      storedJob.retentionPolicyVersion !== job.retentionPolicyVersion ||
+      storedJob.requestedBy !== job.requestedBy ||
+      project.aiPolicyRevision !== storedJob.policyRevision ||
+      project.aiRetentionPolicyVersion !== storedJob.retentionPolicyVersion ||
+      !policyAuthorized ||
+      scopes.map(({ sessionId }) => sessionId).join('|') !== job.sessionIds.join('|')
     )
-      throw new Error('MEMORY_GATE_STALE_EVIDENCE');
-    return {
-      authorityRevision: 1,
-      contentKind: 'conversation_final',
-      effectiveTextDigest: segment.effectiveTextDigest,
-      evidenceId: this.gateEvidenceId(segment),
-      evidenceRole:
-        mode === 'fact'
-          ? 'explicit_fact_statement'
-          : mode
-            ? isExplicitBoundaryIntent(segment.text)
-              ? 'boundary_activation_intent'
-              : 'elder_story_context'
-            : 'elder_story_context',
-      eligibility: { authorization: 'authorized', deletion: 'not-deleted', retention: 'eligible' },
-      projectId: job.projectId,
-      sessionId: segment.sessionId,
-      sourceId: segment.segmentId,
-      sourceKind: 'transcript_segment',
-      speakerRoleRevision: segment.speakerRoleRevision,
-      textRevision: segment.textRevision,
-      trustedRole: segment.trustedRole,
-    };
-  }
+      throw new Error('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
 
-  private gateEvidenceId(segment: FrozenAiJob['segments'][number]): string {
-    return sha256(`memory-evidence:${segment.inputSegmentId}:${segment.segmentId}`);
+    const inputById = new Map(inputs.map((input) => [input.id, input]));
+    const transcriptIds = inputs.map(({ transcriptSegmentId }) => transcriptSegmentId);
+    const transcripts = await tx.transcriptSegment.findMany({
+      where: { id: { in: transcriptIds } },
+    });
+    const transcriptById = new Map(transcripts.map((segment) => [segment.id, segment]));
+    const authorityRows = await tx.memoryEvidenceAuthority.findMany({
+      where: {
+        projectId: job.projectId,
+        sourceId: { in: transcriptIds },
+        sourceKind: 'transcript_segment',
+      },
+    });
+    const authorityBySourceId = new Map<string, (typeof authorityRows)[number]>();
+    for (const row of authorityRows) {
+      const current = authorityBySourceId.get(row.sourceId);
+      if (current === undefined || row.authorityRevision > current.authorityRevision)
+        authorityBySourceId.set(row.sourceId, row);
+    }
+    const evidenceBySegmentId = new Map<string, MemoryGateEvidenceReference>();
+    for (const frozen of job.segments) {
+      const input = inputById.get(frozen.inputSegmentId);
+      const transcript =
+        input === undefined ? undefined : transcriptById.get(input.transcriptSegmentId);
+      if (
+        input === undefined ||
+        transcript === undefined ||
+        input.sessionId !== frozen.sessionId ||
+        input.transcriptSegmentId !== frozen.segmentId ||
+        input.textRevision !== frozen.textRevision ||
+        input.speakerRoleRevision !== frozen.speakerRoleRevision ||
+        input.effectiveTextDigest !== frozen.effectiveTextDigest ||
+        input.trustedEffectiveRole !== frozen.trustedRole ||
+        input.contentKind !== 'conversation' ||
+        transcript.textRevision !== input.textRevision ||
+        transcript.speakerRoleRevision !== input.speakerRoleRevision ||
+        projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole !==
+          input.trustedEffectiveRole ||
+        effectiveTextDigest(transcript.correctedText ?? transcript.originalText) !==
+          input.effectiveTextDigest
+      )
+        throw new Error('MEMORY_GATE_STALE_EVIDENCE');
+      const authorityRow = authorityBySourceId.get(frozen.segmentId);
+      if (
+        authorityRow !== undefined &&
+        (authorityRow.projectId !== job.projectId ||
+          authorityRow.sessionId !== frozen.sessionId ||
+          authorityRow.authorityRevision < 1 ||
+          authorityRow.sourceKind !== 'transcript_segment' ||
+          authorityRow.transcriptTextRevision !== input.textRevision ||
+          authorityRow.speakerRoleRevision !== input.speakerRoleRevision ||
+          authorityRow.effectiveTextDigest !== input.effectiveTextDigest)
+      )
+        throw new Error('MEMORY_GATE_STALE_EVIDENCE');
+      const evidenceId = authorityRow?.evidenceId ?? frozen.inputSegmentId;
+      evidenceBySegmentId.set(frozen.segmentId, {
+        authorityRevision: authorityRow?.authorityRevision ?? 1,
+        contentKind: 'conversation_final',
+        effectiveTextDigest: input.effectiveTextDigest,
+        evidenceId,
+        evidenceRole: classifyMemoryGateEvidenceRole(
+          input.trustedEffectiveRole,
+          transcript.correctedText ?? transcript.originalText,
+        ),
+        eligibility: memoryGateEligibility(policyAuthorized, retentionEligible),
+        projectId: job.projectId,
+        sessionId: input.sessionId,
+        sourceId: input.transcriptSegmentId,
+        sourceKind: 'transcript_segment',
+        speakerRoleRevision: input.speakerRoleRevision,
+        textRevision: input.textRevision,
+        trustedRole: input.trustedEffectiveRole,
+      });
+    }
+    return {
+      evidenceBySegmentId,
+      snapshot: {
+        authorityContract: 'memory-claim-resolution-v1',
+        currentSessionId: job.sessionIds[0] ?? '',
+        deletionScopeDigest: storedJob.inputHash,
+        evidenceManifestDigest: storedJob.inputHash,
+        policyRevision: String(storedJob.policyRevision),
+        projectId: storedJob.projectId,
+        snapshotRevision: 1,
+        sourceSessionIds: job.sessionIds,
+      },
+    };
   }
 
   private async resolveThread(
@@ -1769,12 +1867,6 @@ function stableUuid(value: string): string {
   hex[12] = '4';
   hex[16] = '8';
   return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex.slice(12, 16).join('')}-${hex.slice(16, 20).join('')}-${hex.slice(20).join('')}`;
-}
-
-function isExplicitBoundaryIntent(text: string): boolean {
-  return /^(?:访谈边界\s*=\s*.+|(?:不要|不想|别再|不愿意|不希望)\s*(?:再)?(?:问|聊|谈)?\s*.+)$/u.test(
-    text.trim(),
-  );
 }
 
 function memoryTriggerSegmentObservation(

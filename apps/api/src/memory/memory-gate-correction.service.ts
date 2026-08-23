@@ -56,6 +56,35 @@ export interface MemoryGateEvidenceReference {
   };
 }
 
+/**
+ * Reads the already accepted producer/source markers. A semantic kind is not
+ * an evidence classification, and ordinary transcript prose is never promoted
+ * to an explicit Fact or Boundary intent.
+ */
+export function classifyMemoryGateEvidenceRole(
+  trustedRole: MemoryGateEvidenceReference['trustedRole'],
+  text: string,
+  acceptedFactAuthority = false,
+): MemoryGateEvidenceReference['evidenceRole'] {
+  if (trustedRole !== 'elder') return 'interviewer_suggestion';
+  const source = text.trim();
+  if (acceptedFactAuthority || source.startsWith('工作记忆[fact:'))
+    return 'explicit_fact_statement';
+  if (source.startsWith('访谈边界=')) return 'boundary_activation_intent';
+  return 'elder_story_context';
+}
+
+export function memoryGateEligibility(
+  policyAuthorized: boolean,
+  retentionEligible: boolean,
+): MemoryGateEvidenceReference['eligibility'] {
+  return {
+    authorization: policyAuthorized ? 'authorized' : 'unknown',
+    deletion: policyAuthorized ? 'not-deleted' : 'unknown',
+    retention: retentionEligible ? 'eligible' : 'ineligible',
+  };
+}
+
 export interface MemoryGateAuthoritySnapshot {
   authorityContract: 'memory-claim-resolution-v1';
   projectId: string;
@@ -232,7 +261,10 @@ export function evaluateMemoryGate(
     return rejected(authorityKind, 'AUTHORITY_SNAPSHOT_MISMATCH');
 
   if (candidate.evidence.length === 0) return rejected(authorityKind, 'EVIDENCE_MISSING');
-  if (candidate.evidenceManifestDigest.length === 0)
+  if (
+    candidate.evidenceManifestDigest.length === 0 ||
+    candidate.evidenceManifestDigest !== snapshot.evidenceManifestDigest
+  )
     return rejected(authorityKind, 'AUTHORITY_SNAPSHOT_MISMATCH');
 
   for (const evidence of candidate.evidence) {
