@@ -144,4 +144,75 @@ describe('Memory Gate/Correction V1 contract', () => {
       expect(mutation.action, fixture.name).toBe('none');
     }
   });
+
+  it('rejects accepted mutation without explicit elder evidence or eligible sources', async () => {
+    const schema = (await readJson(
+      'docs/contracts/memory-gate-correction-v1.schema.json',
+    )) as object;
+    const fixtures = (await readJson(
+      'docs/contracts/fixtures/memory-gate-correction-v1/fixtures.json',
+    )) as FixtureDocument;
+    const validate = compileSchema(schema);
+    const factFixture = fixtures.valid.find(
+      (fixture) => fixture.name === 'explicit elder Fact accepted',
+    );
+    const boundaryFixture = fixtures.valid.find(
+      (fixture) => fixture.name === 'active Boundary requires explicit elder intent',
+    );
+
+    const factWithInference = structuredClone(factFixture?.message) as Record<string, unknown>;
+    const factInferenceEvidence = (
+      (factWithInference.candidate as Record<string, unknown>).evidence as Array<
+        Record<string, unknown>
+      >
+    )[0];
+    factInferenceEvidence.evidence_role = 'model_inference';
+    expect(validate(factWithInference), 'accepted Fact with model inference only').toBe(false);
+
+    const factWithInterviewerSuggestion = structuredClone(factFixture?.message) as Record<
+      string,
+      unknown
+    >;
+    const interviewerEvidence = (
+      (factWithInterviewerSuggestion.candidate as Record<string, unknown>).evidence as Array<
+        Record<string, unknown>
+      >
+    )[0];
+    interviewerEvidence.trusted_role = 'interviewer';
+    interviewerEvidence.evidence_role = 'interviewer_suggestion';
+    expect(
+      validate(factWithInterviewerSuggestion),
+      'accepted Fact with interviewer evidence only',
+    ).toBe(false);
+
+    const boundaryWithoutIntent = structuredClone(boundaryFixture?.message) as Record<
+      string,
+      unknown
+    >;
+    const boundaryEvidence = (
+      (boundaryWithoutIntent.candidate as Record<string, unknown>).evidence as Array<
+        Record<string, unknown>
+      >
+    )[0];
+    boundaryEvidence.evidence_role = 'elder_story_context';
+    expect(validate(boundaryWithoutIntent), 'accepted Boundary without activation intent').toBe(
+      false,
+    );
+
+    const eligibilityCases: Array<[string, string]> = [
+      ['authorization', 'denied'],
+      ['deletion', 'deleted'],
+      ['retention', 'ineligible'],
+    ];
+    for (const [field, value] of eligibilityCases) {
+      const ineligibleSource = structuredClone(factFixture?.message) as Record<string, unknown>;
+      const evidence = (
+        (ineligibleSource.candidate as Record<string, unknown>).evidence as Array<
+          Record<string, unknown>
+        >
+      )[0];
+      (evidence.eligibility as Record<string, unknown>)[field] = value;
+      expect(validate(ineligibleSource), `accepted mutation with ${field} evidence`).toBe(false);
+    }
+  });
 });

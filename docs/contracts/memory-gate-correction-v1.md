@@ -42,6 +42,8 @@ Evidence references are typed `transcript_segment` authorities, not copied bodie
 
 Fact acceptance has the strongest explicitness rule: at least one eligible `elder` reference with `evidence_role=explicit_fact_statement` is required. Interviewer suggestions, implication, model inference, unknown evidence, or an elder story context without an explicit fact statement cannot be promoted to a current Fact. An inferred-only Fact is rejected with `FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED`.
 
+The machine gate makes these predicates structural for `accepted` decisions: every evidence reference must be `authorization=authorized`, `retention=eligible`, and `deletion=not-deleted`; an accepted Fact must contain an eligible elder `explicit_fact_statement`; and an accepted Boundary activation must contain an eligible elder `boundary_activation_intent`. A decision that fails any of these predicates cannot validate as an accepted mutation.
+
 Episode may summarize an experienced elder story with eligible evidence and may remain `uncertain`; it must not manufacture explicit Fact fields or turn an interviewer suggestion into Fact evidence.
 
 Boundary activation requires eligible elder evidence with `evidence_role=boundary_activation_intent`. Boundary revocation or supersession requires eligible elder evidence with `evidence_role=boundary_withdrawal_or_contradiction`, but an `llm_proposal` cannot use that evidence to authorize the durable transition. Silence, non-repetition, or absence of later evidence is never a withdrawal. A Boundary is never invented from model inference or interviewer suggestion.
