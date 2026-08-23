@@ -48,6 +48,24 @@ describe('Memory Gate/Correction V1 contract', () => {
     for (const fixture of fixtures.invalid) {
       expect(validate(fixture.message), fixture.name).toBe(false);
     }
+
+    const reviewFixture = fixtures.valid.find(
+      (fixture) => fixture.name === 'LLM-proposed Boundary withdrawal requires human authorization',
+    );
+    expect(reviewFixture).toBeDefined();
+    const unsafe = structuredClone(reviewFixture?.message) as Record<string, unknown>;
+    const unsafeDecision = unsafe.decision as Record<string, unknown>;
+    const unsafeMutation = unsafeDecision.mutation as Record<string, unknown>;
+    unsafeDecision.decision_status = 'accepted';
+    unsafeDecision.reason_code = 'EXPLICIT_BOUNDARY_WITHDRAWAL';
+    unsafeDecision.fail_closed = false;
+    unsafeMutation.action = 'append_boundary_revision';
+    unsafeMutation.new_revision_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    unsafeMutation.new_revision_no = 2;
+    unsafeMutation.predecessor_revision_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    expect(validate(unsafe), 'LLM Boundary withdrawal append mutation must be rejected').toBe(
+      false,
+    );
   });
 
   it('keeps accepted corrections append-only and all unsafe outcomes fail closed', async () => {
@@ -98,5 +116,32 @@ describe('Memory Gate/Correction V1 contract', () => {
     );
     expect(factDecision?.expected?.reason_code).toBe('FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED');
     expect(boundaryDecision?.expected?.reason_code).toBe('BOUNDARY_WITHDRAWAL_REQUIRED');
+  });
+
+  it('never lets an LLM-proposed Boundary withdrawal or supersession authorize mutation', async () => {
+    const fixtures = (await readJson(
+      'docs/contracts/fixtures/memory-gate-correction-v1/fixtures.json',
+    )) as FixtureDocument;
+
+    for (const fixture of fixtures.valid) {
+      const message = fixture.message;
+      if (message.message_type !== 'gate_decision') continue;
+      const candidate = message.candidate as Record<string, unknown>;
+      if (
+        candidate.candidate_kind !== 'boundary' ||
+        !['revoke', 'supersede'].includes(String(candidate.operation))
+      ) {
+        continue;
+      }
+
+      const decision = message.decision as Record<string, unknown>;
+      const mutation = decision.mutation as Record<string, unknown>;
+      expect(['rejected', 'review_required'], fixture.name).toContain(decision.decision_status);
+      if (decision.decision_status === 'review_required') {
+        expect(decision.reason_code, fixture.name).toBe('BOUNDARY_HUMAN_AUTHORIZATION_REQUIRED');
+      }
+      expect(decision.fail_closed, fixture.name).toBe(true);
+      expect(mutation.action, fixture.name).toBe('none');
+    }
   });
 });

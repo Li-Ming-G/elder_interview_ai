@@ -501,6 +501,7 @@
             "FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED",
             "BOUNDARY_EXPLICIT_INTENT_REQUIRED",
             "BOUNDARY_WITHDRAWAL_REQUIRED",
+            "BOUNDARY_HUMAN_AUTHORIZATION_REQUIRED",
             "EVIDENCE_NOT_ELIGIBLE",
             "STALE_EVIDENCE",
             "DELETED_EVIDENCE",
@@ -540,7 +541,7 @@
         },
         {
           "if": {
-            "properties": { "decision_status": { "enum": ["accepted", "review_required"] } },
+            "properties": { "decision_status": { "const": "accepted" } },
             "required": ["decision_status"]
           },
           "then": { "properties": { "mutation": { "properties": { "action": { "not": { "const": "none" } } } } } }
@@ -570,7 +571,35 @@
         "authority_snapshot": { "$ref": "#/$defs/authoritySnapshot" },
         "candidate": { "$ref": "#/$defs/candidate" },
         "decision": { "$ref": "#/$defs/decision" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "candidate": {
+                "properties": {
+                  "proposal_source": { "const": "llm_proposal" },
+                  "candidate_kind": { "const": "boundary" },
+                  "operation": { "enum": ["revoke", "supersede"] }
+                },
+                "required": ["proposal_source", "candidate_kind", "operation"]
+              }
+            },
+            "required": ["candidate"]
+          },
+          "then": {
+            "properties": {
+              "decision": {
+                "properties": {
+                  "decision_status": { "enum": ["rejected", "review_required"] },
+                  "fail_closed": { "const": true },
+                  "mutation": { "properties": { "action": { "const": "none" } } }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

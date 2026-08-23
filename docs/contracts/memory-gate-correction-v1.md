@@ -19,7 +19,7 @@ The machine surface has two closed envelope variants:
 | Message | Meaning |
 | --- | --- |
 | `gate_request` | A provider/producer proposal plus the frozen authority snapshot. It has no write permission. |
-| `gate_decision` | The deterministic program decision and, only for an accepted or review-required transition, a typed append-only mutation plan. |
+| `gate_decision` | The deterministic program decision and, only when a transition is authorized, a typed append-only mutation plan. A review-required decision may intentionally have no mutation plan. |
 
 `candidate_kind=episode|fact` uses the existing P1/P2 semantic vocabulary. `candidate_kind=boundary` uses the independent Boundary vocabulary. The candidate declares `proposal_source=llm_proposal`; this identifies an input proposal, not an authority or writer.
 
@@ -29,8 +29,10 @@ The candidate operations are deliberately closed:
 - `correct` appends a new MemoryResolution revision for an existing authority;
 - `mark_uncertain` and `mark_disputed` append a non-current semantic resolution that preserves conflicting or insufficient evidence;
 - `activate` creates an explicit active Boundary;
-- `revoke` appends a revoked Boundary successor and supersedes the prior active revision;
-- `supersede` appends an explicit Boundary successor and supersedes its predecessor.
+- `revoke` appends a revoked Boundary successor and supersedes the prior active revision only from an already accepted human-authorized Boundary input;
+- `supersede` appends an explicit Boundary successor and supersedes its predecessor only from an already accepted human-authorized Boundary input.
+
+This contract does not define a new human authority or input model. Its candidate source is `llm_proposal`, so an otherwise eligible LLM-proposed Boundary `revoke` or `supersede` is `review_required` with `mutation.action=none`; if another gate fails it is rejected with the same empty mutation. It can request human review but cannot authorize durable removal or replacement.
 
 Creation/activation has no target. Correction and status changes require the target authority, target revision, expected revision, and observed lifecycle/status. A target that is already superseded, has an unknown authority, or does not match the expected revision is not silently repaired.
 
@@ -42,7 +44,7 @@ Fact acceptance has the strongest explicitness rule: at least one eligible `elde
 
 Episode may summarize an experienced elder story with eligible evidence and may remain `uncertain`; it must not manufacture explicit Fact fields or turn an interviewer suggestion into Fact evidence.
 
-Boundary activation requires eligible elder evidence with `evidence_role=boundary_activation_intent`. Boundary revocation or supersession requires eligible elder evidence with `evidence_role=boundary_withdrawal_or_contradiction`. Silence, non-repetition, or absence of later evidence is never a withdrawal. A Boundary is never invented from model inference or interviewer suggestion.
+Boundary activation requires eligible elder evidence with `evidence_role=boundary_activation_intent`. Boundary revocation or supersession requires eligible elder evidence with `evidence_role=boundary_withdrawal_or_contradiction`, but an `llm_proposal` cannot use that evidence to authorize the durable transition. Silence, non-repetition, or absence of later evidence is never a withdrawal. A Boundary is never invented from model inference or interviewer suggestion.
 
 ## 4. Status and transition rules
 
@@ -57,7 +59,7 @@ The contract preserves the accepted P1/P2 split rather than introducing a second
 
 `disputed` uses the accepted P1/P2 `conflict_set` shape: null value, null value kind, at least two claims, and `review_required=true`. Conflicting eligible evidence is never silently collapsed into a current single value. The deterministic gate appends an uncertain/disputed resolution or returns `review_required` according to the candidate’s declared state; it never accepts a current Fact on unresolved conflict.
 
-Boundary status remains the accepted independent surface: `active`, `revoked`, or `superseded`. A withdrawal creates a new `revoked` Boundary successor and marks the prior active revision `superseded`; the prior evidence and revision remain addressable. Explicit replacement follows the same append-only pattern with a successor and predecessor supersession.
+Boundary status remains the accepted independent surface: `active`, `revoked`, or `superseded`. A human-authorized withdrawal creates a new `revoked` Boundary successor and marks the prior active revision `superseded`; the prior evidence and revision remain addressable. An LLM-proposed withdrawal or replacement remains review-only and creates no successor. Explicit human-authorized replacement follows the same append-only pattern with a successor and predecessor supersession.
 
 ## 5. Non-destructive correction
 
@@ -69,11 +71,11 @@ An accepted correction is an append-only plan against `MemoryClaim`/`MemoryResol
 4. it carries forward or adds typed evidence references without rewriting original audio, transcript, or prior evidence;
 5. it writes only through the existing program-owned authority transaction/CAS boundary when a later runtime task is implemented.
 
-The schema’s mutation plan is a description of this safe append-only operation, not a durable write. Rejected and ambiguous decisions have `mutation.action=none`. A stale/deleted/missing/retention-ineligible source, unknown target, illegal transition, revision mismatch, or ambiguous correction is `fail_closed=true` and cannot produce a mutation plan.
+The schema’s mutation plan is a description of this safe append-only operation, not a durable write. Rejected, ambiguous, and LLM-proposed Boundary withdrawal/supersession decisions have `mutation.action=none`. A stale/deleted/missing/retention-ineligible source, unknown target, illegal transition, revision mismatch, or ambiguous correction is `fail_closed=true` and cannot produce a mutation plan.
 
 ## 6. Error and review behavior
 
-Gate errors are closed by `reason_code`: `EVIDENCE_MISSING`, `FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED`, `BOUNDARY_EXPLICIT_INTENT_REQUIRED`, `BOUNDARY_WITHDRAWAL_REQUIRED`, `EVIDENCE_NOT_ELIGIBLE`, `STALE_EVIDENCE`, `DELETED_EVIDENCE`, `RETENTION_INELIGIBLE`, `UNKNOWN_AUTHORITY`, `ILLEGAL_TRANSITION`, `REVISION_MISMATCH`, and `AMBIGUOUS_CORRECTION`, among others listed in the schema.
+Gate errors are closed by `reason_code`: `EVIDENCE_MISSING`, `FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED`, `BOUNDARY_EXPLICIT_INTENT_REQUIRED`, `BOUNDARY_WITHDRAWAL_REQUIRED`, `BOUNDARY_HUMAN_AUTHORIZATION_REQUIRED`, `EVIDENCE_NOT_ELIGIBLE`, `STALE_EVIDENCE`, `DELETED_EVIDENCE`, `RETENTION_INELIGIBLE`, `UNKNOWN_AUTHORITY`, `ILLEGAL_TRANSITION`, `REVISION_MISMATCH`, and `AMBIGUOUS_CORRECTION`, among others listed in the schema.
 
 Every rejected or review-required decision is fail closed. `review_required` is not `CURRENT`, is not a fallback write, and does not authorize the provider to mutate state. Provider/model/prompt errors are not assigned semantic meaning by this contract.
 
