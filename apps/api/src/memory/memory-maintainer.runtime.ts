@@ -1049,7 +1049,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       });
       if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
       await this.assertContextAuthorityCurrent(tx, job, context);
-      await this.assertOperationTargetsCurrent(tx, job, output.operations);
       const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
       this.assertGateForOperations(job, context, output.operations, gateAuthority);
       this.assertGateForBoundaries(output, gateAuthority);
@@ -1104,35 +1103,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         current.status !== boundary.status
       )
         throw new Error('MEMORY_BOUNDARY_CONTEXT_DRIFT');
-    }
-  }
-
-  private async assertOperationTargetsCurrent(
-    tx: Prisma.TransactionClient,
-    job: FrozenAiJob,
-    operations: readonly MemoryMaintainerOperationV12[],
-  ): Promise<void> {
-    for (const operation of operations) {
-      if (operation.kind === 'DUPLICATE' || operation.target_resolution_id === null) continue;
-      const state = operation.proposed_state;
-      const target = await tx.memoryResolution.findUnique({
-        where: { id: operation.target_resolution_id },
-      });
-      if (
-        state === null ||
-        target === null ||
-        target.projectId !== job.projectId ||
-        target.status !== 'current' ||
-        target.layer !== 'working' ||
-        target.provenanceState !== 'active' ||
-        target.authority === 'human_confirmed' ||
-        target.canonicalKey !== state.canonical_key ||
-        target.semanticKind !== state.semantic_kind ||
-        target.threadId !== operation.anchor_thread_id ||
-        target.resolutionRevision !== operation.expected_resolution_revision ||
-        !job.memories.some(({ resolutionId }) => resolutionId === target.id)
-      )
-        throw new Error('MEMORY_TARGET_CAS_FAILED');
     }
   }
 
@@ -1318,6 +1288,19 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       if (operation.kind === 'DUPLICATE') continue;
       const state = operation.proposed_state;
       if (state === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
+      if (operation.target_resolution_id !== null) {
+        const target = context.current_working_memory.find(
+          ({ resolution_id }) => resolution_id === operation.target_resolution_id,
+        );
+        if (
+          target === undefined ||
+          target.canonical_key !== state.canonical_key ||
+          target.semantic_kind !== state.semantic_kind ||
+          target.thread_id !== operation.anchor_thread_id ||
+          target.revision !== operation.expected_resolution_revision
+        )
+          throw new Error('MEMORY_TARGET_CAS_FAILED');
+      }
       const evidence = operation.evidence_segment_ids.map((segmentId) => {
         const reference = authority.evidenceBySegmentId.get(segmentId);
         if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
