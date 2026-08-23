@@ -1581,25 +1581,13 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       },
     });
     for (const [evidenceOrder, item] of evidence.entries()) {
-      const authority = await this.ensureEvidenceAuthority(tx, job, item);
       await tx.memoryClaimEvidence.create({
         data: {
           aiJobInputSegmentId: item.inputSegmentId,
-          authorityRevision: authority.authorityRevision,
           evidenceOrder,
-          evidenceId: authority.evidenceId,
           id: randomUUID(),
           memoryClaimId: claimId,
           transcriptSegmentId: item.segmentId,
-        },
-      });
-      await tx.memoryEvidenceBridge.create({
-        data: {
-          aiJobInputSegmentId: item.inputSegmentId,
-          authorityRevision: authority.authorityRevision,
-          claimId,
-          evidenceId: authority.evidenceId,
-          id: randomUUID(),
         },
       });
       await tx.aiOutputSegmentDependency.create({
@@ -1612,58 +1600,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       });
     }
     return claimId;
-  }
-
-  private async ensureEvidenceAuthority(
-    tx: Prisma.TransactionClient,
-    job: FrozenAiJob,
-    item: FrozenAiJob['segments'][number],
-  ): Promise<{ authorityRevision: number; evidenceId: string }> {
-    if (
-      item.textRevision === undefined ||
-      item.speakerRoleRevision === undefined ||
-      item.effectiveTextDigest === undefined
-    )
-      throw new Error('MEMORY_GATE_STALE_EVIDENCE');
-    const existing = await tx.memoryEvidenceAuthority.findUnique({
-      where: {
-        projectId_sessionId_sourceKind_sourceId_authorityRevision: {
-          authorityRevision: 1,
-          projectId: job.projectId,
-          sessionId: item.sessionId,
-          sourceId: item.segmentId,
-          sourceKind: 'transcript_segment',
-        },
-      },
-    });
-    if (existing !== null) {
-      if (
-        existing.transcriptTextRevision !== item.textRevision ||
-        existing.speakerRoleRevision !== item.speakerRoleRevision ||
-        existing.effectiveTextDigest !== item.effectiveTextDigest
-      )
-        throw new Error('MEMORY_GATE_STALE_EVIDENCE');
-      return { authorityRevision: existing.authorityRevision, evidenceId: existing.evidenceId };
-    }
-    const evidenceId = randomUUID();
-    await tx.memoryEvidenceAuthority.create({
-      data: {
-        authorityRevision: 1,
-        effectiveTextDigest: item.effectiveTextDigest,
-        evidenceId,
-        inputOrder: 0,
-        membershipDigest: sha256(
-          canonicalJson([job.id, item.inputSegmentId, item.segmentId, item.textRevision]),
-        ),
-        projectId: job.projectId,
-        sessionId: item.sessionId,
-        sourceId: item.segmentId,
-        sourceKind: 'transcript_segment',
-        speakerRoleRevision: item.speakerRoleRevision,
-        transcriptTextRevision: item.textRevision,
-      },
-    });
-    return { authorityRevision: 1, evidenceId };
   }
 
   private async applyBoundaries(
