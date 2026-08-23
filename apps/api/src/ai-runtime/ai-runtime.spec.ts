@@ -22,7 +22,9 @@ describe('DEV-006 provenance and fail-closed runtime ports', () => {
       new UnavailableDeletionScopeReader().assertNoActiveScope('p', []),
     ).rejects.toBeInstanceOf(AiPolicyUnavailableError);
     const fixture = new LocalTestDeletionScopeFixtureReader();
-    await expect(fixture.assertNoActiveScope('p', ['s'])).resolves.toBeUndefined();
+    await expect(fixture.assertNoActiveScope('p', ['s'])).resolves.toEqual({ fenceRevision: 1 });
+    fixture.setFenceRevision(9);
+    await expect(fixture.assertNoActiveScope('p', ['s'])).resolves.toEqual({ fenceRevision: 9 });
     fixture.blockSession('s');
     await expect(fixture.assertNoActiveScope('p', ['s'])).rejects.toThrow('AI_POLICY_UNAVAILABLE');
   });

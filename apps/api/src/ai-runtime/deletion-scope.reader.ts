@@ -15,11 +15,15 @@ export class AiDeletionActiveFixtureError extends AiPolicyUnavailableError {
   }
 }
 
+export interface DeletionScopeSnapshot {
+  fenceRevision: number;
+}
+
 export abstract class DeletionScopeReader {
   public abstract assertNoActiveScope(
     projectId: string,
     sessionIds: readonly string[],
-  ): Promise<void>;
+  ): Promise<DeletionScopeSnapshot>;
 }
 
 /** Production binding until DEV-008 provides the authoritative deletion producer. */
@@ -38,6 +42,14 @@ export class UnavailableDeletionScopeReader extends DeletionScopeReader {
 export class LocalTestDeletionScopeFixtureReader extends DeletionScopeReader {
   private readonly blockedProjects = new Set<string>();
   private readonly blockedSessions = new Set<string>();
+  private fenceRevision = 1;
+
+  public setFenceRevision(fenceRevision: number): void {
+    if (!Number.isInteger(fenceRevision) || fenceRevision < 0) {
+      throw new Error('invalid deletion fixture fence revision');
+    }
+    this.fenceRevision = fenceRevision;
+  }
 
   public blockProject(projectId: string): void {
     this.blockedProjects.add(projectId);
@@ -55,14 +67,14 @@ export class LocalTestDeletionScopeFixtureReader extends DeletionScopeReader {
   public override assertNoActiveScope(
     projectId: string,
     sessionIds: readonly string[],
-  ): Promise<void> {
+  ): Promise<DeletionScopeSnapshot> {
     if (
       this.blockedProjects.has(projectId) ||
       sessionIds.some((sessionId) => this.blockedSessions.has(sessionId))
     ) {
       return Promise.reject(new AiDeletionActiveFixtureError());
     }
-    return Promise.resolve();
+    return Promise.resolve({ fenceRevision: this.fenceRevision });
   }
 }
 

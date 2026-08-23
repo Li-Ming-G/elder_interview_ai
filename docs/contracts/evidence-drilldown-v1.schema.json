@@ -243,7 +243,7 @@
     "transcriptSegment": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["segment_id", "project_id", "session_id", "start_ms", "text", "trusted_role", "content_kind", "transcript_revision", "text_revision", "speaker_role_revision", "effective_text_digest", "source_fence"],
+      "required": ["segment_id", "project_id", "session_id", "start_ms", "text", "trusted_role", "content_kind", "text_revision", "speaker_role_revision", "effective_text_digest", "source_fence"],
       "properties": {
         "segment_id": { "$ref": "#/$defs/uuid" },
         "project_id": { "$ref": "#/$defs/uuid" },
@@ -252,7 +252,6 @@
         "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
         "trusted_role": { "enum": ["elder", "interviewer"] },
         "content_kind": { "const": "conversation_final" },
-        "transcript_revision": { "type": "integer", "minimum": 1 },
         "text_revision": { "type": "integer", "minimum": 0 },
         "speaker_role_revision": { "type": "integer", "minimum": 0 },
         "effective_text_digest": { "$ref": "#/$defs/digest" },

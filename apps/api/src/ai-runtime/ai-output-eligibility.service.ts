@@ -223,6 +223,43 @@ export class AiOutputEligibilityService {
     }
   }
 
+  public async isMemoryIdentityEligible(
+    actorId: string,
+    projectId: string,
+    identityId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<boolean> {
+    try {
+      const identity = await db.memoryLayerIdentity.findUnique({ where: { id: identityId } });
+      if (identity === null || identity.projectId !== projectId) return false;
+      const revision = await db.memoryLayerRevision.findFirst({
+        orderBy: { revisionNo: 'desc' },
+        where: { identityId: identity.id, lifecycleStatus: 'current', projectId },
+      });
+      if (
+        revision === null ||
+        revision.identityId !== identity.id ||
+        revision.projectId !== projectId ||
+        revision.layer === 'working'
+      )
+        return false;
+      const resolution = await db.memoryResolution.findUnique({
+        where: { id: revision.resolutionRowId },
+      });
+      if (
+        resolution === null ||
+        resolution.projectId !== projectId ||
+        resolution.authorityId !== revision.resolutionAuthorityId ||
+        resolution.resolutionRevision !== revision.resolutionRevision ||
+        resolution.semanticStatus !== revision.semanticStatus
+      )
+        return false;
+      return await this.isMemoryResolutionEligible(actorId, projectId, resolution.id, db);
+    } catch {
+      return false;
+    }
+  }
+
   public async isActualQuestionEligible(
     actorId: string,
     projectId: string,

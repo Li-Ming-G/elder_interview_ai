@@ -93,7 +93,6 @@
                 "text": "Synthetic elder evidence about the harbor.",
                 "trusted_role": "elder",
                 "content_kind": "conversation_final",
-                "transcript_revision": 3,
                 "text_revision": 1,
                 "speaker_role_revision": 1,
                 "effective_text_digest": "3333333333333333333333333333333333333333333333333333333333333333",
@@ -114,7 +113,6 @@
                     "text": "Synthetic neighboring detail.",
                     "trusted_role": "interviewer",
                     "content_kind": "conversation_final",
-                    "transcript_revision": 3,
                     "text_revision": 1,
                     "speaker_role_revision": 1,
                     "effective_text_digest": "4444444444444444444444444444444444444444444444444444444444444444",
@@ -362,7 +360,6 @@
                 "text": "synthetic",
                 "trusted_role": "elder",
                 "content_kind": "conversation_final",
-                "transcript_revision": 1,
                 "text_revision": 1,
                 "speaker_role_revision": 1,
                 "effective_text_digest": "3333333333333333333333333333333333333333333333333333333333333333"

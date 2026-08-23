@@ -4,6 +4,8 @@ Status: `FORMAL CONTRACT / REVIEW CANDIDATE`.
 
 This document and [`evidence-drilldown-v1.schema.json`](evidence-drilldown-v1.schema.json) define the provider-neutral, read-only machine surface for one bounded evidence round. They do not implement a tool runtime, Director wiring, prompt behavior, or a provider/model binding.
 
+Correction authorized by the Product Owner and Architect in the P5E-02 review of PR #94: the P5E-01 contract is corrected to remove `transcript_revision`. Transcript source drift is proved by `text_revision + speaker_role_revision + effective_text_digest`; this correction adds no revision axis, database column, or migration.
+
 ## 1. Authority and scope
 
 `MemoryClaim` / `MemoryResolution` remain the only semantic value authority. P3 candidates and P4 membership are references and authorization inputs; this contract does not create a second memory authority and does not return a new memory value.
@@ -28,7 +30,7 @@ The JSON Schema has exactly three envelope variants:
 | `result` | `search_transcript` | deterministic matches or explicit `no_match` |
 | `error` | either operation | safe error code and diagnostics only |
 
-All envelopes are closed (`additionalProperties: false`). Bodies are limited to the declared request/result fields. Memory evidence includes the stable memory/reference identifiers, source level and semantic status, but not an alternate semantic value. Transcript evidence includes the segment text required for the listener to inspect the source, plus its segment/session identity, transcript/text/speaker revisions, effective text digest, and source fences.
+All envelopes are closed (`additionalProperties: false`). Bodies are limited to the declared request/result fields. Memory evidence includes the stable memory/reference identifiers, source level and semantic status, but not an alternate semantic value. Transcript evidence includes the segment text required for the listener to inspect the source, plus its segment/session identity, text/speaker revisions, effective text digest, and source fences.
 
 Neighboring context is finalized conversation text only and is bounded to at most two preceding and two following segments per returned hit. Each neighboring segment carries the same source identity, revision, digest, and authorization/retention/deletion fences as the matched segment.
 
