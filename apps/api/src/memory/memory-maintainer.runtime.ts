@@ -1426,8 +1426,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       deletion.fenceRevision !== job.deletionFenceRevision ||
       deletionScopeAuthorityDigest(job.projectId, job.sessionIds, deletion.fenceRevision) !==
         job.deletionScopeDigest;
-    if (deletionDrifted)
-      throw new Error('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
+    if (deletionDrifted) throw new Error('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
     const [storedJob, project, consent, assignment, scopes, inputs] = await Promise.all([
       tx.aiJob.findUnique({ where: { id: job.id } }),
       tx.elderProject.findUnique({ where: { id: job.projectId } }),
