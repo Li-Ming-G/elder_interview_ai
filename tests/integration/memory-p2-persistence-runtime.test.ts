@@ -9,7 +9,10 @@ import {
   AiPolicyService,
   LocalTestBoundaryPolicyFixtureReader,
 } from '../../apps/api/src/ai-runtime/ai-policy.service.js';
-import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import {
+  deletionScopeAuthorityDigest,
+  LocalTestDeletionScopeFixtureReader,
+} from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { canonicalDigest } from '../../apps/api/src/memory/memory-persistence-contract.js';
 import {
   EMPTY_MANIFEST_HASH,
@@ -1252,6 +1255,7 @@ function commitInput(
     checkpointId: frozen.checkpointId,
     claims: [claim],
     commitDigest: sha256(`commit:${frozen.aiJobId}`),
+    deletionScopeDigest: frozen.deletionScopeDigest,
     longSourceMidManifestHash: null,
     longSourceManifestHash: null,
     longSources: [],
@@ -1581,7 +1585,7 @@ function runtimeTriggerRequest(
     p1TerminalJobId: kind === 'session_final_flush' ? fixture.p1JobId : null,
     policy: {
       aiPolicyRevision: 1,
-      deletionScopeDigest: sha256(`p2-runtime-scope:${fixture.projectId}`),
+      deletionScopeDigest: deletionScopeAuthorityDigest(fixture.projectId, [fixture.sessionId], 1),
       p2PolicyRevision: 'memory-p2-policy-v1',
       p2RetentionPolicyVersion: 'memory-p2-retention-v1',
       retentionPolicyVersion: 1,

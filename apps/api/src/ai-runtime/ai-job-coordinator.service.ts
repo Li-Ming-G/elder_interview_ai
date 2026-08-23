@@ -469,11 +469,6 @@ export class AiJobCoordinatorService {
         canonicalJson({
           actualQuestions: frozenActualQuestions,
           actorId: request.actorId,
-          deletionScopeDigest: deletionScopeAuthorityDigest(
-            request.projectId,
-            sessionIds,
-            policy.deletionFenceRevision,
-          ),
           jobType: request.jobType,
           memories: frozenMemories.map(({ resolutionId, resolutionRevision }) => ({
             resolutionId,
