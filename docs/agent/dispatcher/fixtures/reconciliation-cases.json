@@ -1,0 +1,47 @@
+{
+  "canonicalQueue": [
+    { "id": "P4C-01", "task_card": "docs/agent/tasks/P4C-01.md", "depends_on": [], "next_task": "P4C-02" },
+    { "id": "P4C-02", "task_card": "docs/agent/tasks/P4C-02.md", "depends_on": ["P4C-01"], "next_task": "DISPATCHER-RECOVERY-001" },
+    { "id": "DISPATCHER-RECOVERY-001", "task_card": "docs/agent/tasks/DISPATCHER-RECOVERY-001.md", "depends_on": ["P4C-02"], "next_task": "P4C-03" },
+    { "id": "P4C-03", "task_card": "docs/agent/tasks/P4C-03.md", "depends_on": ["DISPATCHER-RECOVERY-001"], "next_task": "P4C-04" },
+    { "id": "P4C-04", "task_card": "docs/agent/tasks/P4C-04.md", "depends_on": ["P4C-03"], "next_task": null }
+  ],
+  "cases": {
+    "A_stale_local_status": {
+      "local": { "activeTaskId": "P4C-01", "tasks": { "P4C-01": { "status": "DEFERRED", "pr": null } } },
+      "github": { "prs": [{ "number": 88, "title": "[P4C-01-CONTRACT] Freeze InterviewDirectorContextV2", "body": "Canonical task P4C-01\ndocs/agent/tasks/P4C-01.md", "head": { "ref": "codex/p4c-01-contract", "sha": "c6a1dc420058af981df6464aaaa1f71ee89dd146" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [] }], "main": { "status": "success", "verifiedTaskId": "P4C-01", "sha": "3786b49e741abbbf7746783ff9af0e6bb883505e" } }
+    },
+    "B_invented_task_id": {
+      "local": { "activeTaskId": "P4C-02-ASSEMBLY", "tasks": { "P4C-02-ASSEMBLY": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02-POLICY] Define Context V2 priority budget policy", "body": "P4C-02\ndocs/agent/tasks/P4C-02.md", "head": { "ref": "codex/p4c-02-policy", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [] }], "main": { "status": "success", "verifiedTaskId": "P4C-02", "sha": "12a9d5855c91f2baa30ee38a155110e9d508dcdb" } }
+    },
+    "C_null_pr": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02-POLICY] Define Context V2 priority budget policy", "body": "P4C-02\ndocs/agent/tasks/P4C-02.md", "head": { "ref": "codex/p4c-02-policy", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [] }], "main": { "status": "success", "verifiedTaskId": "P4C-02", "sha": "12a9d5855c91f2baa30ee38a155110e9d508dcdb" } }
+    },
+    "D_old_head_verdict": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [{ "topLevel": true, "createdAt": "2026-08-20T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "status": "pending" } }
+    },
+    "E_current_head_request_changes": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 190 } } },
+      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [{ "topLevel": true, "createdAt": "2026-08-21T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nVERDICT: REQUEST_CHANGES\nP0: 0\nP1: 1\nP2: 0" }] }], "main": { "status": "pending" } }
+    },
+    "F_current_head_pass": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 190 } } },
+      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "freshRead": true, "main": { "status": "pending" } }
+    },
+    "G_ambiguous_pr": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [{ "number": 191, "title": "[P4C-02] repair A", "body": "P4C-02", "head": { "ref": "codex/repair-a", "sha": "1111111111111111111111111111111111111111" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [] }, { "number": 192, "title": "[P4C-02] repair B", "body": "P4C-02", "head": { "ref": "codex/repair-b", "sha": "2222222222222222222222222222222222222222" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [] }], "main": { "status": "pending" } }
+    },
+    "H_ci_pending": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 89 } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02-POLICY] Define Context V2 priority budget policy", "body": "P4C-02", "head": { "ref": "codex/p4c-02-policy", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "status": "pending", "verifiedTaskId": "P4C-02" } }
+    },
+    "I_merged_successful_main": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 89 }, "DISPATCHER-RECOVERY-001": { "status": "DEFERRED", "pr": null }, "P4C-03": { "status": "DEFERRED", "pr": null } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02-POLICY] Define Context V2 priority budget policy", "body": "P4C-02", "head": { "ref": "codex/p4c-02-policy", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "status": "success", "verifiedTaskId": "P4C-02", "sha": "12a9d5855c91f2baa30ee38a155110e9d508dcdb" } }
+    }
+  }
+}

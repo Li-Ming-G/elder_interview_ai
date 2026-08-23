@@ -33,7 +33,7 @@
     },
     {
       "id": "P4G-00-STATE-SYNC",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P4G-00-STATE-SYNC.md",
       "worker_profile": "luna-high",
       "depends_on": ["P3-RETRIEVAL-V1@18c4320f417fbfa90e41924ac7b049ea72b82379"],
@@ -42,20 +42,29 @@
     },
     {
       "id": "P4C-01",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P4C-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4G-00-STATE-SYNC"],
-      "pr": null,
+      "pr": 88,
       "next_task": "P4C-02"
     },
     {
       "id": "P4C-02",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P4C-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-01"],
-      "pr": null,
+      "pr": 89,
+      "next_task": "DISPATCHER-RECOVERY-001"
+    },
+    {
+      "id": "DISPATCHER-RECOVERY-001",
+      "status": "REVIEW",
+      "task_card": "docs/agent/tasks/DISPATCHER-RECOVERY-001.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4C-02"],
+      "pr": 90,
       "next_task": "P4C-03"
     },
     {
@@ -63,7 +72,7 @@
       "status": "DEFERRED",
       "task_card": "docs/agent/tasks/P4C-03.md",
       "worker_profile": "luna-high",
-      "depends_on": ["P4C-02"],
+      "depends_on": ["DISPATCHER-RECOVERY-001"],
       "pr": null,
       "next_task": "P4C-04"
     },

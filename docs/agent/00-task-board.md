@@ -1,6 +1,6 @@
 # 当前任务索引
 
-本文件是供人快速查看的机械索引；机器状态唯一来源是 [`dispatcher/dispatcher-state.json`](dispatcher/dispatcher-state.json)。治理模型是单 Dispatcher 顺序队列，外部 Architect 负责 PR Review。旧大看板的全部条目保存在 [`archive-task-board-snapshot-2026-08-22.md`](archive-task-board-snapshot-2026-08-22.md)，历史 task、handoff 与 review 保持原路径。
+本文件是供人快速查看的机械索引；canonical queue topology 来自本文件与正式 Task Card，`dispatcher/dispatcher-state.json` 是可重建的 last-known projection，不是唯一运行真相。GitHub durable PR/head/verdict/merge/CI facts 可以纠正 stale projection。治理模型是单 Dispatcher 顺序队列，外部 Architect 负责 PR Review。旧大看板的全部条目保存在 [`archive-task-board-snapshot-2026-08-22.md`](archive-task-board-snapshot-2026-08-22.md)，历史 task、handoff 与 review 保持原路径。
 
 状态只允许：`READY`、`IN_PROGRESS`、`REVIEW`、`BLOCKED`、`DEFERRED`、`DONE`。
 
@@ -9,17 +9,18 @@
 | `MEMORY-T5-T8-P2-C-RUNTIME-001` | `DONE` | A1 `dbb0cc76f582997a6a647781007648c6937a8992`; P2-B `717c5ca39e678c6f953d0430768ae715ef0feef2` | [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) | `luna-high` | `80` | `null` |
 | `MEMORY-T5-T8-P2-D-PROVIDER-001` | `DEFERRED` | P2-C complete plus owner provider/data decisions | not issued | `luna-high` | `null` | `null` |
 | `P3-RETRIEVAL-V1` | `DONE` | P3 contract/substrate/indexing/retrieval/integration; final main merge `18c4320f417fbfa90e41924ac7b049ea72b82379` | accepted P3R-01 → P3R-05 sequence | `luna-high` | `86` | `P4G-00-STATE-SYNC` |
-| `P4G-00-STATE-SYNC` | `REVIEW` | P2-C and P3 accepted facts; baseline `18c4320f417fbfa90e41924ac7b049ea72b82379` | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `87` | `P4C-01` |
-| `P4C-01` | `DEFERRED` | P4G-00 external `PASS`; P3 complete | [`tasks/P4C-01.md`](tasks/P4C-01.md) | `luna-high` | `null` | `P4C-02` |
-| `P4C-02` | `DEFERRED` | P4C-01 external `PASS` | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `null` | `P4C-03` |
-| `P4C-03` | `DEFERRED` | P4C-02 external `PASS` | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `null` | `P4C-04` |
+| `P4G-00-STATE-SYNC` | `DONE` | P3 accepted and merged | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `87` | `P4C-01` |
+| `P4C-01` | `DONE` | P4G-00 merged and verified | [`tasks/P4C-01.md`](tasks/P4C-01.md) | `luna-high` | `88` | `P4C-02` |
+| `P4C-02` | `DONE` | P4C-01 merged and verified | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `89` | `DISPATCHER-RECOVERY-001` |
+| `DISPATCHER-RECOVERY-001` | `REVIEW` | P4C-02 merged and verified | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `90` | `P4C-03` |
+| `P4C-03` | `DEFERRED` | DISPATCHER-RECOVERY-001 external `PASS`, merge, and main verification | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `null` | `P4C-04` |
 | `P4C-04` | `DEFERRED` | P4C-03 external `PASS` | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `null` | `null` |
 
 ## Current stop
 
-P2-C is complete on main through the accepted PR #76–#81 sequence, with completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`. P3 is complete through PR #82–#86, with final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`. The old combined `MEMORY-T9-T12-P3-P4-001` placeholder is retired and replaced by the P4 governance gate plus the four-card sequential P4C queue.
+P2-C is complete on main through the accepted PR #76–#81 sequence, with completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`. P3 is complete through PR #82–#86, with final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`. The canonical P2/P3 queue identities and bindings remain unchanged.
 
-`P4G-00-STATE-SYNC` is the current `REVIEW` gate. No successor is `READY` until its external Architect `PASS`; then and only then Dispatcher marks `P4C-01` `READY` and leaves P4C-02 through P4C-04 deferred.
+GitHub durable facts recover `P4G-00-STATE-SYNC` as `DONE / PR #87`, `P4C-01` as `DONE / PR #88`, and `P4C-02` as `DONE / PR #89`. `DISPATCHER-RECOVERY-001` is the current `REVIEW / PR #90` governance gate. `P4C-03` and `P4C-04` remain the existing canonical deferred successors; P4C-03 was not dispatched.
 
 ## Recently accepted dependencies
 
