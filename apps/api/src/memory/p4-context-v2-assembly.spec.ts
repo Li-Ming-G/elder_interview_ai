@@ -244,6 +244,25 @@ describe('P4 Context V2 deterministic assembly boundary', () => {
         .map(({ source_revision }) => source_revision),
     ).toEqual([1, 2]);
   });
+
+  it('clips every lower-priority class after a high-priority entry cannot fit', () => {
+    const context = assembleP4ContextV2(syntheticInput());
+    const plan = selectP4ContextV2(context, selectionConfiguration(3, { [UUID.segment]: 2 }));
+
+    expect(plan.selected.map(({ section }) => section)).toEqual(['boundaries', 'interview_state']);
+    expect(plan.clipped.map(({ section }) => section)).toEqual([
+      'recent_transcript',
+      'working_memory',
+      'active_memory',
+      'memory_candidates',
+      'actual_asked',
+      'displayed',
+      'current_presentation',
+      'question_bank',
+    ]);
+    expect(plan.clipped.some(({ source_id }) => source_id === UUID.working)).toBe(true);
+    expect(plan.clipped.some(({ source_id }) => source_id === UUID.snapshot)).toBe(true);
+  });
 });
 
 const UUID = {
@@ -448,7 +467,10 @@ function requiredValue<T>(value: T | undefined): T {
   return value;
 }
 
-function selectionConfiguration(capacity_units: number): P4SelectionConfiguration {
+function selectionConfiguration(
+  capacity_units: number,
+  costOverrides: Readonly<Record<string, number>> = {},
+): P4SelectionConfiguration {
   return {
     config_ref: 'synthetic://p4/budget/profile-1',
     policy_version: 'p4-priority-budget-v1',
@@ -465,6 +487,7 @@ function selectionConfiguration(capacity_units: number): P4SelectionConfiguratio
       [UUID.question]: 1,
       [UUID.snapshot]: 1,
       [UUID.bank]: 1,
+      ...costOverrides,
     },
   };
 }

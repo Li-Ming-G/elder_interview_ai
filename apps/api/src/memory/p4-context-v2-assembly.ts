@@ -530,6 +530,7 @@ export function selectP4ContextV2(
   let remaining = configuration.capacity_units;
   const selected: P4SelectionReference[] = [];
   const clipped: P4SelectionReference[] = [];
+  let lowerPriorityClipped = false;
   for (const priorityClass of ['protected', 'high', 'normal', 'optional'] as const) {
     let classClipped = false;
     for (const candidate of costs.filter(
@@ -540,7 +541,7 @@ export function selectP4ContextV2(
         remaining -= candidate.cost;
         continue;
       }
-      if (classClipped || candidate.cost > remaining) {
+      if (lowerPriorityClipped || classClipped || candidate.cost > remaining) {
         classClipped = true;
         clipped.push(candidate.reference);
         continue;
@@ -548,6 +549,7 @@ export function selectP4ContextV2(
       selected.push(candidate.reference);
       remaining -= candidate.cost;
     }
+    if (priorityClass !== 'optional' && classClipped) lowerPriorityClipped = true;
   }
 
   const plan: P4SelectionPlan = {
