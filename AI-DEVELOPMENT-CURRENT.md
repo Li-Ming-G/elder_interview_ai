@@ -9,8 +9,8 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | Layer | Frozen responsibility | Current truth |
 | --- | --- | --- |
 | P1 | Current-session Working Memory only; no Long retrieval | v1.2 runtime accepted at `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66` |
-| P2 | LLM semantic consolidation Working→Mid and session-end Mid/current→Long; program owns persistence/CAS/revision/evidence/transaction | A1 and P2-B contracts accepted; P2-C candidates exist but are blocked and not accepted |
-| P3 | PostgreSQL + pgvector retrieval, provider-neutral embeddings, minimal continuation/branch/related graph | Not started; embedding model deferred |
+| P2 | LLM semantic consolidation Working→Mid and session-end Mid/current→Long; program owns persistence/CAS/revision/evidence/transaction | P2-C complete on main through PR #80 (`b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`), with runtime binding PR #81 (`279fe3d142bd87fc0ab215994ad8ab5dc6a2ee4a`) |
+| P3 | PostgreSQL + pgvector retrieval, provider-neutral embeddings, minimal continuation/branch/related graph | Complete on main; final P3 merge is PR #86 at `18c4320f417fbfa90e41924ac7b049ea72b82379`; real embedding model remains deferred |
 | P4 | Programmatic Context V2, priority, configurable budget and frozen membership/digest | Not started; numeric budget deferred |
 | P5 | Evidence drill-down/gate/correction with bounded tools and preserved history | Memory System V1 slice not started |
 | P6 | Director/runtime orchestration, fences, deadlines and evaluation feedback | T0/P1 seams accepted; P2 orchestration not accepted |
@@ -19,13 +19,11 @@ Foundation/Observability T0 reference-only Decision Trace is accepted at `40cc61
 
 ## Current phase and real progress
 
-Current phase: `GOVERNANCE HANDOFF / NO P2-P4 BUSINESS DEVELOPMENT`.
+Current phase: `P4 GOVERNANCE HANDOFF / NO P4 BUSINESS IMPLEMENTATION`.
 
 - Accepted: T0 trace, P1 v1.2 runtime, P2-A/A1 semantic envelope and P2-B database-agnostic persistence contract.
-- Not accepted: any combined P2-C runtime.
-- P2-C has real candidate work; it is false to say implementation never started.
-- Candidate heads are database `87ee56c6ceb1aee7897d1d62a2b18703c304c2e3`, orchestration `97f647d607b020ef524014cfdab3e7b13eccd098`, trace `5ada42209e5ab245e1b799456694a1cac9ca7ab9`, and integration docs `419f7bfc447b4b605c87e6c173b09c304cba5a41`.
-- The formal old combination verdict is `FAIL P0=0/P1=6/P2=1`. None of those candidates may be integrated.
+- Accepted: P2-C runtime is complete on main through the accepted PR #76–#81 sequence; the completion merge is PR #80 at `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`.
+- Accepted: P3 retrieval is complete through PR #82–#86; the final P3 merge to main is PR #86 at `18c4320f417fbfa90e41924ac7b049ea72b82379`.
 - PR #75 history is permanently retained: exact head `025d9db1dd2a01c08d8f554716acca305e40b001`, CI run `32544880685 SUCCESS`, external `REQUEST_CHANGES`, findings `P0=0/P1=3/P2=0`. This is historical evidence, not an outstanding formal gate after the Product Owner's Dispatcher Simplification Correction.
 
 ## Frozen decisions
@@ -40,17 +38,17 @@ Current phase: `GOVERNANCE HANDOFF / NO P2-P4 BUSINESS DEVELOPMENT`.
 
 ## Deferred decisions
 
-Real LLM provider/model/region/secret and P1/P2/Director bindings; real embedding model; P4 numeric budget; P2-D; P3/P4 implementation; real-data, formal-consent, public-deployment and production gates.
+Real LLM provider/model/region/secret, tokenizer and P1/P2/Director bindings; real embedding model; P4 numeric budget; P2-D; real-data, formal-consent, public-deployment and production gates.
 
 ## Current states
 
-- `READY`: none.
-- `REVIEW`: the simplified PR #75 governance route awaits external Architect review. The prior `025d9db` `REQUEST_CHANGES` remains history and is not the current gate; no business implementation is in review.
-- `BLOCKED`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; governance handoff reconciliation is still required.
+- `READY`: none while P4G-00 is awaiting external Architect review. After external `PASS`, only `P4C-01` may become `READY`.
+- `REVIEW`: P4G-00 state synchronization is the current governance gate; no P4 business implementation is in review.
+- `DEFERRED`: P2-D and the P4C-02 → P4C-04 successors until their predefined predecessor passes review.
 
 ## Worker prohibitions
 
-Do not integrate candidate heads, continue P2-C, start P2-D/P3/P4, change P1–P6 ownership, alter Accepted Contracts, choose deferred providers/models/budgets, add an agent framework, use real data, or claim review acceptance.
+Do not start P2-D or P4 implementation, choose deferred providers/models/tokenizers/embeddings/budgets, change P1–P6 ownership, alter Accepted Contracts, add an agent framework, use real data, or claim review acceptance.
 
 ## Authority order
 
@@ -58,4 +56,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-External Architect reviews the simplified PR #75. Separately, the external Architect must reconcile the four P2-C candidates against the accepted A1/P2-B identities and the old FAIL findings, issue a new exact Development Pack/Task Card, and explicitly state which candidate work is discarded or rebased. Until then Dispatcher returns `TASK_BLOCKED` for P2-C and stops.
+External Architect reviews P4G-00. Only after its `PASS` may Dispatcher unlock `P4C-01`; the P4C queue is `P4C-01 → P4C-02 → P4C-03 → P4C-04`. P2-D and real provider/model/tokenizer/embedding choices remain deferred.
