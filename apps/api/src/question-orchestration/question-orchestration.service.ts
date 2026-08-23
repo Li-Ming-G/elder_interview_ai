@@ -55,7 +55,10 @@ import {
   QuestionDirectorContract,
 } from './question-director-contract.js';
 import { QuestionDirector } from './question-director.js';
-import { runQuestionDirectorEvidenceRound } from './question-director-evidence-round.js';
+import {
+  runQuestionDirectorEvidenceRound,
+  type QuestionDirectorEvidenceRoundState,
+} from './question-director-evidence-round.js';
 import {
   assembleP4DirectorContextV2,
   buildP4ActualQuestionInputs,
@@ -608,6 +611,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       const context = prepared.context;
       const job = prepared.job;
       const p4 = prepared.p4Context;
+      const evidenceRoundState: QuestionDirectorEvidenceRoundState = {
+        evidenceRoundCount: 0,
+      };
       const output =
         await this.coordinator.callProviderWithSameInputRetry<InterviewDirectorOutputV1>(
           job,
@@ -644,6 +650,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
               parseOutput: (value) => this.contract.parseOutput(value, context),
               prompt: this.contract.prompt,
               requestId: prepared.requestId,
+              roundState: evidenceRoundState,
               scopeSessionIds: job.sessionIds,
             }),
           (value) => value as InterviewDirectorOutputV1,

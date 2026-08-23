@@ -39,9 +39,16 @@ export interface QuestionDirectorEvidenceRoundInput {
   p4Context: P4ContextV2;
   prompt: QuestionDirectorRequest['prompt'];
   requestId: string;
+  roundState?: QuestionDirectorEvidenceRoundState;
   scopeSessionIds: readonly string[];
   parseOutput(value: unknown): InterviewDirectorOutputV1;
   onEvidenceCall(call: QuestionDirectorEvidenceCall): Promise<void>;
+}
+
+export interface QuestionDirectorEvidenceRoundState {
+  evidenceRoundCount: number;
+  requestDigest?: string;
+  result?: EvidenceResultEnvelope | EvidenceErrorEnvelope;
 }
 
 export interface QuestionDirectorEvidenceCall {
@@ -57,7 +64,7 @@ export interface QuestionDirectorEvidenceCall {
 export async function runQuestionDirectorEvidenceRound(
   input: QuestionDirectorEvidenceRoundInput,
 ): Promise<InterviewDirectorOutputV1> {
-  const consumeEvidenceRound = createEvidenceRoundGuard();
+  const roundState = input.roundState ?? { evidenceRoundCount: 0 };
   const first = await input.director.generate({
     context: input.context,
     prompt: input.prompt,
@@ -65,37 +72,54 @@ export async function runQuestionDirectorEvidenceRound(
   const request = asEvidenceRequest(first);
   if (request === null) return input.parseOutput(first);
 
-  consumeEvidenceRound();
   const envelope = buildEvidenceRequest(input, request);
-  const started = Date.now();
-  const result =
-    request.evidence.operation === 'get_memory_evidence'
-      ? await input.evidence.getMemoryEvidence(envelope, {
-          actorId: input.actorId,
-          p4Context: input.p4Context,
-        })
-      : await input.evidence.searchTranscript(envelope, {
-          actorId: input.actorId,
-          p4Context: input.p4Context,
-        });
-  const durationMs = Math.max(0, Date.now() - started);
-  const call = evidenceCall(envelope, result, durationMs);
-  if (call.status === 'MALFORMED_RESULT') {
+  const requestDigest = sha256(canonicalJson(envelope));
+  let result: EvidenceResultEnvelope | EvidenceErrorEnvelope;
+  if (roundState.evidenceRoundCount > 0) {
+    if (roundState.requestDigest !== requestDigest || roundState.result === undefined) {
+      throw new Error('EVIDENCE_ROUND_ALREADY_USED');
+    }
+    result = roundState.result;
+  } else {
+    roundState.evidenceRoundCount = 1;
+    const started = Date.now();
+    result =
+      request.evidence.operation === 'get_memory_evidence'
+        ? await input.evidence.getMemoryEvidence(envelope, {
+            actorId: input.actorId,
+            p4Context: input.p4Context,
+          })
+        : await input.evidence.searchTranscript(envelope, {
+            actorId: input.actorId,
+            p4Context: input.p4Context,
+          });
+    roundState.requestDigest = requestDigest;
+    roundState.result = result;
+    const durationMs = Math.max(0, Date.now() - started);
+    const call = evidenceCall(envelope, result, durationMs);
+    if (call.status === 'MALFORMED_RESULT') {
+      await input.onEvidenceCall(call);
+      throw new Error('EVIDENCE_MALFORMED_RESULT');
+    }
+    if (result.message_type === 'error') {
+      assertEvidenceEnvelopeMatches(envelope, result);
+      await input.onEvidenceCall(call);
+      throw new Error(`EVIDENCE_${result.error.error_code}`);
+    }
+    try {
+      assertEvidenceEnvelopeMatches(envelope, result);
+    } catch (error) {
+      await input.onEvidenceCall({ ...call, resultDigest: null, status: 'MALFORMED_RESULT' });
+      throw error;
+    }
     await input.onEvidenceCall(call);
-    throw new Error('EVIDENCE_MALFORMED_RESULT');
   }
+
   if (result.message_type === 'error') {
     assertEvidenceEnvelopeMatches(envelope, result);
-    await input.onEvidenceCall(call);
     throw new Error(`EVIDENCE_${result.error.error_code}`);
   }
-  try {
-    assertEvidenceEnvelopeMatches(envelope, result);
-  } catch (error) {
-    await input.onEvidenceCall({ ...call, resultDigest: null, status: 'MALFORMED_RESULT' });
-    throw error;
-  }
-  await input.onEvidenceCall(call);
+  assertEvidenceEnvelopeMatches(envelope, result);
 
   const final = await input.director.generate({
     context: input.context,
@@ -138,15 +162,6 @@ function asEvidenceRequest(value: unknown): QuestionDirectorEvidenceRequest | nu
     throw new Error('EVIDENCE_MALFORMED_REQUEST');
   }
   return value as QuestionDirectorEvidenceRequest;
-}
-
-function createEvidenceRoundGuard(): () => number {
-  let evidenceRoundCount = 0;
-  return () => {
-    if (evidenceRoundCount >= 1) throw new Error('EVIDENCE_ROUND_ALREADY_USED');
-    evidenceRoundCount += 1;
-    return evidenceRoundCount;
-  };
 }
 
 function buildEvidenceRequest(

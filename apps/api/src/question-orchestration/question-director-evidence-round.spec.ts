@@ -9,6 +9,7 @@ import { QuestionDirector, type QuestionDirectorRequest } from './question-direc
 import {
   runQuestionDirectorEvidenceRound,
   type QuestionDirectorEvidenceCall,
+  type QuestionDirectorEvidenceRoundState,
 } from './question-director-evidence-round.js';
 import {
   EVIDENCE_CONTRACT_VERSION,
@@ -110,6 +111,27 @@ describe('QuestionDirector evidence round', () => {
     await expect(run(director, evidence)).rejects.toThrow('EVIDENCE_MALFORMED_RESULT');
     expect(director.calls).toHaveLength(1);
   });
+
+  it('does not execute a second evidence tool across a same-generation retry', async () => {
+    const request = {
+      decision: 'request_evidence' as const,
+      evidence: { operation: 'search_transcript' as const, request: { query: 'harbor' } },
+    };
+    const evidence = evidenceDouble();
+    const roundState: QuestionDirectorEvidenceRoundState = { evidenceRoundCount: 0 };
+    const firstAttempt = new ScriptedDirector([request, new Error('FINAL_ATTEMPT_FAILED')]);
+
+    await expect(run(firstAttempt, evidence, [], roundState)).rejects.toThrow(
+      'FINAL_ATTEMPT_FAILED',
+    );
+
+    const retry = new ScriptedDirector([request, { decision: 'continue_listening' }]);
+    await expect(run(retry, evidence, [], roundState)).resolves.toMatchObject({
+      decision: 'continue_listening',
+    });
+    expect(evidence.searchTranscript).toHaveBeenCalledTimes(1);
+    expect(retry.calls).toHaveLength(2);
+  });
 });
 
 class ScriptedDirector extends QuestionDirector {
@@ -124,6 +146,7 @@ class ScriptedDirector extends QuestionDirector {
     this.calls.push(request);
     const output = this.outputs[this.index++];
     if (output === undefined) throw new Error('SCRIPT_EXHAUSTED');
+    if (output instanceof Error) throw output;
     return Promise.resolve(output);
   }
 }
@@ -132,6 +155,7 @@ function run(
   director: QuestionDirector,
   evidence: ReturnType<typeof evidenceDouble>,
   calls: QuestionDirectorEvidenceCall[] = [],
+  roundState?: QuestionDirectorEvidenceRoundState,
 ): Promise<InterviewDirectorOutputV1> {
   const p4Context = assembleP4DirectorContextV2({
     actualAsked: [],
@@ -171,6 +195,7 @@ function run(
     parseOutput: (value) => value as InterviewDirectorOutputV1,
     prompt: { system: 'test', task: 'test' },
     requestId: ids.actor,
+    roundState,
     scopeSessionIds: [ids.session],
   });
 }
