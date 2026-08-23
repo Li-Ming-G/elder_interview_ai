@@ -11,6 +11,16 @@ durable facts override stale local projection: matching PR, current head,
 top-level verdict, merge state, and CI. `dispatcher-state.json` is therefore a
 reconstructable projection plus canonical topology, not the only runtime truth.
 
+**Remote-main refresh is mandatory before canonical queue reads.** At the start
+of every bounded pulse, first run a safe `git fetch origin main`. Canonical queue
+and Task Card reads must come from freshly fetched `origin/main` (or from a
+local `main` that has just been proven equal to `origin/main`). A stale local
+checkout/worktree is never evidence that no READY task or predefined successor
+exists. The Dispatcher may inspect canonical files directly from `origin/main`
+without mutating the working tree. If a local main/worktree must be synchronized
+for dispatch, use only a safe fast-forward after checking repository identity and
+working-tree safety; never force-reset or overwrite unknown changes.
+
 At the start of every bounded pulse, validate the active local ID against the
 canonical queue. An invalid ID such as `P4C-02-ASSEMBLY` is never used as a
 GitHub search key or dispatch target. Search all canonical IDs using combined
@@ -46,7 +56,7 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 ## Stop rules
 
 - Stop at `REVIEW`, `BLOCKED`, `DEFERRED` and `DONE`.
-- If no eligible `READY` task exists, stop.
+- If no eligible `READY` task exists on freshly fetched `origin/main`, stop.
 - A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch.
 - Synthetic launch evidence proves only that the worker profile can be launched.
 - `PASS` alone does not unlock a downstream task. The current PR must first be merged into `main`; refresh and verify the accepted task on main, then mark `DONE` and unlock only predefined `next_task`.
@@ -58,9 +68,10 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 ## Reconciliation and safety gates
 
 - Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required.
+- The first external action of every pulse is a safe `git fetch origin main`; only after that may the Dispatcher determine canonical queue/task-card state.
 - Before any side effect, persist the state transition successfully, then perform the external action. In particular, persist `READY → IN_PROGRESS` before launching a Worker.
 - `IN_PROGRESS` is the default wait state only when no durable GitHub fact can advance it. A stale status or missing local PR cannot deny a matching GitHub PR.
-- Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, current queue, and actual main SHA/CI must be read at the gate.
+- Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.
 - If local `pr` is null or status is stale, fresh-query `Li-Ming-G/elder_interview_ai` across open and merged PRs. Use combined canonical Task Card, title/body, branch, predecessor/`next_task`, and phase evidence; no one marker is mandatory. Zero candidates is a no-op; one clear candidate is persisted and reconciled; equal candidates are `PRODUCT_AMBIGUITY`.
 - Open + current-head `REQUEST_CHANGES` is same canonical task `IN_PROGRESS`; open + no current-head verdict is `REVIEW`; open + current-head `PASS` requires a fresh exact-head recheck before merge. Merged PRs skip merge and continue through main verification.
 - Formal REVIEW requires `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` and is not a verdict.
@@ -68,7 +79,7 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 - Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are wait/no-op conditions retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`, main SHA, and CI run recorded.
 - Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / TASK_BLOCKED` with reason `LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
 - More than one active task or READY task is `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`; Dispatcher never chooses between contradictory queue entries.
-- A pulse advances at most one safe stage and never dispatches P4C-03 as a side effect of this recovery task.
+- A pulse advances at most one safe stage.
 
 ## Permanent stage-end state synchronization
 
