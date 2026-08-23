@@ -1,0 +1,141 @@
+{
+  "fixture_version": "p4-priority-budget-policy-fixtures-v1",
+  "contract": "interview-director-context-v2-priority-budget",
+  "status": "synthetic-only",
+  "policy": {
+    "policy_schema_version": "p4-priority-budget-policy-v1",
+    "policy_version": "p4-priority-budget-v1",
+    "source_contract": "p4-context-freeze-v1",
+    "required_sections": [
+      "interview_state",
+      "working_memory",
+      "active_memory",
+      "resumed_memory",
+      "recent_transcript",
+      "memory_candidates",
+      "boundaries",
+      "actual_asked",
+      "displayed",
+      "question_bank",
+      "current_presentation"
+    ],
+    "priority_classes": {
+      "protected": ["interview_state", "boundaries"],
+      "high": [
+        "working_memory",
+        "active_memory",
+        "resumed_memory",
+        "actual_asked",
+        "displayed",
+        "current_presentation"
+      ],
+      "normal": ["recent_transcript", "memory_candidates"],
+      "optional": ["question_bank"]
+    },
+    "ordering": {
+      "class_order": ["protected", "high", "normal", "optional"],
+      "section_order_source": "p4-context-freeze-v1.freeze.required_sections",
+      "entry_tie_breakers": ["input_order", "source_id_lexicographic", "revision_ascending"],
+      "equal_key_behavior": "fail_closed_duplicate_order_key"
+    },
+    "configuration": {
+      "config_ref": "synthetic://p4/budget/profile-1",
+      "policy_version": "p4-priority-budget-v1",
+      "capacity_profile_ref": "synthetic://p4/budget/capacity-1",
+      "entry_cost_profile_ref": "synthetic://p4/budget/costs-1",
+      "config_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "resolution": "injected-before-selection",
+      "production_numeric_budget": "deferred"
+    },
+    "fail_closed": {
+      "protected_entries_must_fit": true,
+      "missing_configuration": true,
+      "configuration_mismatch": true,
+      "membership_mismatch": true,
+      "equal_order_keys": true,
+      "partial_protected_selection": true,
+      "fallback": "no_plan_and_no_v1_fallback"
+    }
+  },
+  "valid": [
+    {
+      "case_id": "protected-state-and-boundary-survive-lower-class-clipping",
+      "input": {
+        "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "entries": [
+          { "section": "interview_state", "source_type": "interview_state", "source_id": "state:story_depth", "source_revision": null, "input_order": 0, "priority_class": "protected" },
+          { "section": "boundaries", "source_type": "boundary_control", "source_id": "boundary:do-not-ask", "source_revision": 2, "input_order": 0, "priority_class": "protected" },
+          { "section": "working_memory", "source_type": "working_memory", "source_id": "working:1", "source_revision": 3, "input_order": 0, "priority_class": "high" },
+          { "section": "question_bank", "source_type": "question_bank_item", "source_id": "bank:1", "source_revision": null, "input_order": 0, "priority_class": "optional" },
+          { "section": "question_bank", "source_type": "question_bank_item", "source_id": "bank:2", "source_revision": null, "input_order": 1, "priority_class": "optional" }
+        ],
+        "synthetic_resolved_capacity": { "protected": 2, "high": 1, "normal": 0, "optional": 1 }
+      },
+      "expected": {
+        "plan_status": "selected",
+        "selected_source_ids": ["state:story_depth", "boundary:do-not-ask", "working:1", "bank:1"],
+        "clipped_source_ids": ["bank:2"],
+        "membership_digest_unchanged": true,
+        "protected_entries_complete": true
+      }
+    },
+    {
+      "case_id": "entry-order-uses-p4-tie-breakers",
+      "input": {
+        "membership_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "entries": [
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:b", "source_revision": 1, "input_order": 0, "priority_class": "normal" },
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 1, "input_order": 0, "priority_class": "normal" },
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 2, "input_order": 0, "priority_class": "normal" }
+        ],
+        "synthetic_resolved_capacity": { "protected": 0, "high": 0, "normal": 3, "optional": 0 }
+      },
+      "expected": {
+        "plan_status": "selected",
+        "ordered_source_ids": ["segment:a", "segment:a", "segment:b"],
+        "ordered_revisions": [1, 2, 1],
+        "ordering": ["input_order", "source_id_lexicographic", "revision_ascending"]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "case_id": "missing-injected-configuration",
+      "input": { "config_ref": null },
+      "expected": { "plan_status": "fail_closed", "reason": "missing_configuration" }
+    },
+    {
+      "case_id": "policy-version-mismatch",
+      "input": { "config_ref": "synthetic://p4/budget/profile-1", "policy_version": "p4-priority-budget-v0" },
+      "expected": { "plan_status": "fail_closed", "reason": "configuration_mismatch" }
+    },
+    {
+      "case_id": "partial-protected-selection",
+      "input": {
+        "membership_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "selected_source_ids": ["state:story_depth"],
+        "protected_source_ids": ["state:story_depth", "boundary:do-not-ask"]
+      },
+      "expected": { "plan_status": "fail_closed", "reason": "partial_protected_selection" }
+    },
+    {
+      "case_id": "selection-rewrites-frozen-membership",
+      "input": {
+        "membership_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "selected_source_ids": ["state:story_depth", "boundary:do-not-ask"],
+        "result_membership_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": { "plan_status": "fail_closed", "reason": "membership_mismatch" }
+    },
+    {
+      "case_id": "equal-order-keys-do-not-use-hidden-tie-breaker",
+      "input": {
+        "entries": [
+          { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "candidate:1", "source_revision": 4, "input_order": 0 },
+          { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "candidate:1", "source_revision": 4, "input_order": 0 }
+        ]
+      },
+      "expected": { "plan_status": "fail_closed", "reason": "equal_order_keys" }
+    }
+  ]
+}
