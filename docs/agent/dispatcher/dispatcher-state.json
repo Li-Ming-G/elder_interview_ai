@@ -60,7 +60,7 @@
     },
     {
       "id": "DISPATCHER-RECOVERY-001",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/DISPATCHER-RECOVERY-001.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-02"],
@@ -69,19 +69,64 @@
     },
     {
       "id": "P4C-03",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P4C-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["DISPATCHER-RECOVERY-001"],
-      "pr": null,
+      "pr": 91,
       "next_task": "P4C-04"
     },
     {
       "id": "P4C-04",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P4C-04.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-03"],
+      "pr": 92,
+      "next_task": "P5E-01"
+    },
+    {
+      "id": "P5E-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/P5E-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4C-04"],
+      "pr": null,
+      "next_task": "P5E-02"
+    },
+    {
+      "id": "P5E-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P5E-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P5E-01"],
+      "pr": null,
+      "next_task": "P5E-03"
+    },
+    {
+      "id": "P5E-03",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P5E-03.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P5E-02"],
+      "pr": null,
+      "next_task": "P5C-01"
+    },
+    {
+      "id": "P5C-01",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P5C-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P5E-03"],
+      "pr": null,
+      "next_task": "P5C-02"
+    },
+    {
+      "id": "P5C-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P5C-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P5C-01"],
       "pr": null,
       "next_task": null
     }
