@@ -45,32 +45,26 @@
     },
     "recent_transcript": {
       "type": "array",
-      "maxItems": 40,
       "items": { "$ref": "#/$defs/transcriptSegment" }
     },
     "memory_candidates": {
       "type": "array",
-      "maxItems": 40,
       "items": { "$ref": "#/$defs/p3Candidate" }
     },
     "boundaries": {
       "type": "array",
-      "maxItems": 20,
       "items": { "$ref": "#/$defs/controlBoundary" }
     },
     "actual_asked": {
       "type": "array",
-      "maxItems": 40,
       "items": { "$ref": "#/$defs/actualQuestion" }
     },
     "displayed": {
       "type": "array",
-      "maxItems": 40,
       "items": { "$ref": "#/$defs/displayedQuestion" }
     },
     "question_bank": {
       "type": "array",
-      "maxItems": 30,
       "items": { "$ref": "#/$defs/questionBankReference" }
     },
     "current_presentation": {
@@ -105,7 +99,7 @@
           "type": "array",
           "maxItems": 12,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+          "items": { "type": "string", "minLength": 1 }
         },
         "goal": { "type": "string", "minLength": 1, "maxLength": 300 }
       }
@@ -146,7 +140,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/uuid" },
         "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
-        "memory_type": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "memory_type": { "type": "string", "minLength": 1 },
         "value": {},
         "value_kind": { "enum": ["exact", "range", "unknown"] },
         "layer": { "const": "working" },
@@ -156,7 +150,6 @@
         "evidence": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 40,
           "items": { "$ref": "#/$defs/evidenceReference" }
         }
       }
@@ -167,11 +160,7 @@
       "required": ["source", "items"],
       "properties": {
         "source": { "const": "p1-working-direct" },
-        "items": {
-          "type": "array",
-          "maxItems": 40,
-          "items": { "$ref": "#/$defs/workingMemoryItem" }
-        }
+        "items": { "type": "array", "items": { "$ref": "#/$defs/workingMemoryItem" } }
       }
     },
     "threadMemoryItem": {
@@ -197,7 +186,7 @@
         "source_level": { "enum": ["mid", "long"] },
         "semantic_kind": { "enum": ["episode", "fact"] },
         "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
-        "safe_content": { "type": "string", "minLength": 1, "maxLength": 12000 },
+        "safe_content": { "type": "string", "minLength": 1 },
         "membership_digest": { "$ref": "#/$defs/digest" },
         "input_order": { "type": "integer", "minimum": 0 }
       }
@@ -213,7 +202,6 @@
         "source_session_id": { "type": ["string", "null"], "format": "uuid" },
         "items": {
           "type": "array",
-          "maxItems": 40,
           "items": { "$ref": "#/$defs/threadMemoryItem" }
         }
       },
@@ -306,7 +294,7 @@
         "source_level": { "enum": ["mid", "long"] },
         "semantic_kind": { "enum": ["episode", "fact"] },
         "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
-        "safe_content": { "type": "string", "minLength": 1, "maxLength": 12000 },
+        "safe_content": { "type": "string", "minLength": 1 },
         "retrieval_sources": {
           "type": "array",
           "minItems": 1,
@@ -379,7 +367,7 @@
         "question_text": { "type": "string", "minLength": 1, "maxLength": 300 },
         "purpose": { "type": "string", "minLength": 1, "maxLength": 40 },
         "sensitivity": { "enum": ["low", "medium", "high"] },
-        "bank_version": { "type": "string", "minLength": 1, "maxLength": 80 }
+        "bank_version": { "type": "string", "minLength": 1 }
       }
     },
     "presentation": {
@@ -398,8 +386,8 @@
       "$comment": "Opaque seam only. P4C-01 does not define priority, clipping, or numeric budget behavior.",
       "required": ["config_ref", "policy_version"],
       "properties": {
-        "config_ref": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 }
+        "config_ref": { "type": "string", "minLength": 1 },
+        "policy_version": { "type": "string", "minLength": 1 }
       }
     },
     "v1Compatibility": {
@@ -486,8 +474,8 @@
             }
           }
         },
-        "budget_config_ref": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "policy_revision": { "type": "string", "minLength": 1, "maxLength": 80 }
+        "budget_config_ref": { "type": "string", "minLength": 1 },
+        "policy_revision": { "type": "string", "minLength": 1 }
       }
     },
     "membershipEntry": {
@@ -503,9 +491,9 @@
         "input_order"
       ],
       "properties": {
-        "section": { "type": "string", "minLength": 1, "maxLength": 40 },
-        "source_type": { "type": "string", "minLength": 1, "maxLength": 40 },
-        "source_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "section": { "type": "string", "minLength": 1 },
+        "source_type": { "type": "string", "minLength": 1 },
+        "source_id": { "type": "string", "minLength": 1 },
         "source_revision": { "type": ["integer", "null"], "minimum": 0 },
         "content_digest": { "$ref": "#/$defs/digest" },
         "membership_digest": { "$ref": "#/$defs/digest" },

@@ -38,6 +38,8 @@ P4C-01 freezes only the inputs needed to reproduce membership ordering. The requ
 
 `budget.config_ref` and `budget.policy_version` are opaque references only. P4C-01 does not define numeric limits, priority classes, overflow behavior, clipping order, or a fallback policy. Those decisions remain outside this contract and may be defined by the successor policy task without changing the source-complete membership rules here.
 
+V2 adds no cardinality or content-length capacity cap. The remaining numeric bounds in the schema are copied only from an upstream source contract: the accepted V1 context shape for journey/text/boundary/question-bank fields, and the accepted P2 semantic canonical-key bound. The source-owned evidence/retrieval minimums and exact 11-section manifest cardinality are structural invariants, not P4 capacity policy. In particular, P4 does not cap recent transcript, memory candidates, Working/thread-memory members, actual asked, displayed questions, or question-bank members, and it does not cap P3 `safe_content`.
+
 ## 4. Freeze, ordering and digests
 
 The freeze metadata must capture:
