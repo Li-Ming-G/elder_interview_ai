@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/interview-director-context-v2-priority-budget.schema.json",
+  "title": "InterviewDirectorContextV2 P4C-02 Priority and Budget Policy",
+  "$comment": "Policy-only artifact. P4C-01 remains authority for source-complete membership and digests; no production numeric budget is selected here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policy_schema_version",
+    "policy_version",
+    "source_contract",
+    "required_sections",
+    "priority_classes",
+    "ordering",
+    "configuration",
+    "fail_closed"
+  ],
+  "properties": {
+    "policy_schema_version": { "const": "p4-priority-budget-policy-v1" },
+    "policy_version": { "const": "p4-priority-budget-v1" },
+    "source_contract": { "const": "p4-context-freeze-v1" },
+    "required_sections": {
+      "type": "array",
+      "const": [
+        "interview_state",
+        "working_memory",
+        "active_memory",
+        "resumed_memory",
+        "recent_transcript",
+        "memory_candidates",
+        "boundaries",
+        "actual_asked",
+        "displayed",
+        "question_bank",
+        "current_presentation"
+      ]
+    },
+    "priority_classes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protected", "high", "normal", "optional"],
+      "properties": {
+        "protected": {
+          "type": "array",
+          "const": ["boundaries", "interview_state"]
+        },
+        "high": {
+          "type": "array",
+          "const": ["recent_transcript"]
+        },
+        "normal": {
+          "type": "array",
+          "const": ["working_memory", "active_memory", "resumed_memory", "memory_candidates"]
+        },
+        "optional": {
+          "type": "array",
+          "const": ["actual_asked", "displayed", "current_presentation", "question_bank"]
+        }
+      }
+    },
+    "ordering": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class_order", "section_order", "section_order_source", "entry_tie_breakers", "equal_key_behavior"],
+      "properties": {
+        "class_order": {
+          "type": "array",
+          "const": ["protected", "high", "normal", "optional"]
+        },
+        "section_order": {
+          "type": "array",
+          "const": [
+            "boundaries",
+            "interview_state",
+            "recent_transcript",
+            "working_memory",
+            "active_memory",
+            "resumed_memory",
+            "memory_candidates",
+            "actual_asked",
+            "displayed",
+            "current_presentation",
+            "question_bank"
+          ]
+        },
+        "section_order_source": {
+          "const": "p4-priority-budget-v1.selection_section_order"
+        },
+        "entry_tie_breakers": {
+          "type": "array",
+          "const": ["input_order", "source_id_lexicographic", "revision_ascending"]
+        },
+        "equal_key_behavior": {
+          "const": "fail_closed_duplicate_order_key"
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_ref",
+        "policy_version",
+        "capacity_profile_ref",
+        "entry_cost_profile_ref",
+        "resolution",
+        "production_numeric_budget"
+      ],
+      "properties": {
+        "config_ref": { "type": "string", "minLength": 1 },
+        "policy_version": { "const": "p4-priority-budget-v1" },
+        "capacity_profile_ref": { "type": "string", "minLength": 1 },
+        "entry_cost_profile_ref": { "type": "string", "minLength": 1 },
+        "config_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "resolution": { "const": "injected-before-selection" },
+        "production_numeric_budget": { "const": "deferred" }
+      }
+    },
+    "fail_closed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protected_entries_must_fit",
+        "missing_configuration",
+        "configuration_mismatch",
+        "membership_mismatch",
+        "equal_order_keys",
+        "partial_protected_selection",
+        "fallback"
+      ],
+      "properties": {
+        "protected_entries_must_fit": { "const": true },
+        "missing_configuration": { "const": true },
+        "configuration_mismatch": { "const": true },
+        "membership_mismatch": { "const": true },
+        "equal_order_keys": { "const": true },
+        "partial_protected_selection": { "const": true },
+        "fallback": { "const": "no_plan_and_no_v1_fallback" }
+      }
+    }
+  }
+}
