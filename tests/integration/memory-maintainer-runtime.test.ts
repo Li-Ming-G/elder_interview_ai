@@ -382,13 +382,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       profileConfig.enabled = false;
     }
 
-    await addSegment(
-      seeded.sessionId,
-      seeded.streamId,
-      1,
-      '工作记忆[fact:tag.optional]=标签只作元数据',
-      'elder',
-    );
+    await addSegment(seeded.sessionId, seeded.streamId, 1, '标签只作元数据', 'elder');
     await createRuntime(new TagChangeProvider()).requestFinalFlush(seeded.sessionId);
     const current = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'tag.optional', projectId, status: 'current' },
@@ -994,13 +988,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       'RELATED',
       'RESUME',
     ].entries()) {
-      await addSegment(
-        seeded.sessionId,
-        seeded.streamId,
-        index + 1,
-        `工作记忆[fact:event:matrix-${operation.toLowerCase()}]=矩阵:${operation}`,
-        'elder',
-      );
+      await addSegment(seeded.sessionId, seeded.streamId, index + 1, `矩阵:${operation}`, 'elder');
       await runtime.requestFinalFlush(seeded.sessionId);
     }
     expect(
@@ -2226,7 +2214,7 @@ class MatrixProvider extends MemoryMaintainerProvider {
       .reverse()
       .find(({ membership_kind }) => membership_kind === 'new');
     if (segment === undefined) throw new Error('MATRIX_NEW_SEGMENT_REQUIRED');
-    const kind = (segment.text.split('=').at(-1) ?? segment.text).replace('矩阵:', '') as
+    const kind = segment.text.replace('矩阵:', '') as
       'DUPLICATE' | 'SUPPLEMENT' | 'UNCERTAIN' | 'BRANCH' | 'RELATED' | 'RESUME';
     const targetKey = kind === 'RESUME' ? 'matrix.related' : 'matrix.base';
     const target = context.current_working_memory.find(

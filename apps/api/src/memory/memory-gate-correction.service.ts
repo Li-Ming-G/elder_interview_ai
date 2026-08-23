@@ -63,15 +63,14 @@ export interface MemoryGateEvidenceReference {
  */
 export function classifyMemoryGateEvidenceRole(
   trustedRole: MemoryGateEvidenceReference['trustedRole'],
-  text: string,
+  _text: string,
   acceptedFactAuthority = false,
   acceptedBoundaryIntent = false,
 ): MemoryGateEvidenceReference['evidenceRole'] {
+  void _text;
   if (trustedRole !== 'elder') return 'interviewer_suggestion';
-  if (acceptedFactAuthority || text.trim().startsWith('工作记忆[fact:'))
-    return 'explicit_fact_statement';
+  if (acceptedFactAuthority) return 'explicit_fact_statement';
   if (acceptedBoundaryIntent) return 'boundary_activation_intent';
-  void text;
   return 'elder_story_context';
 }
 
