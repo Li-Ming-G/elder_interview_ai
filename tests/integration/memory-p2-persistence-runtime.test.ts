@@ -871,7 +871,7 @@ async function seedFixture(
   const retentionRootId = randomUUID();
   const p1JobId = randomUUID();
   const snapshotId = randomUUID();
-  const text = `虚构的校园记忆证据${suffix}`;
+  const text = `工作记忆[fact:source-school${suffix}]=虚构的校园记忆证据${suffix}`;
   if (options === undefined)
     await prisma.user.create({
       data: {
