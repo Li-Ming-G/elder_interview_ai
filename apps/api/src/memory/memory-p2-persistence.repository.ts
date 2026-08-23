@@ -1526,13 +1526,22 @@ export class MemoryP2PersistenceRepository {
       status: 'current' | 'pending_review' | 'superseded';
     } | null,
   ): Promise<void> {
-    const [job, project, inputs, transcripts, authorities] = await Promise.all([
+    const [job, project, inputs, transcripts, authorities, factAuthorities] = await Promise.all([
       tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
       tx.elderProject.findUnique({ where: { id: input.projectId } }),
       tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
       tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
       tx.memoryEvidenceAuthority.findMany({
         where: { projectId: input.projectId, sessionId: input.sourceSessionId },
+      }),
+      tx.memoryResolution.findMany({
+        select: { sourceSessionId: true },
+        where: {
+          projectId: input.projectId,
+          semanticKind: 'fact',
+          sourceSessionId: input.sourceSessionId,
+          status: 'current',
+        },
       }),
     ]);
     const policyAuthorized =
@@ -1613,6 +1622,7 @@ export class MemoryP2PersistenceRepository {
         )
         .map(({ transcriptSegmentId }) => transcriptSegmentId),
     );
+    const hasAcceptedFactAuthority = factAuthorities.length > 0;
     const evidenceById = new Map<string, MemoryGateEvidenceReference>();
     const evidenceIdentityByInputSegmentId = new Map<string, string>();
     for (const claim of input.claims) {
@@ -1666,7 +1676,7 @@ export class MemoryP2PersistenceRepository {
           evidenceRole: classifyMemoryGateEvidenceRole(
             frozen.trustedEffectiveRole,
             transcript.correctedText ?? transcript.originalText,
-            acceptedFactSourceIds.has(evidence.sourceId),
+            acceptedFactSourceIds.has(evidence.sourceId) || hasAcceptedFactAuthority,
           ),
           eligibility: memoryGateEligibility(policyAuthorized, retentionEligible),
           projectId: input.projectId,
