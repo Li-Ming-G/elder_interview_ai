@@ -1003,27 +1003,7 @@ export class AiJobCoordinatorService {
       actualQuestions.map(({ actualQuestionId }) => actualQuestionId).join('|') ===
         [...new Set(request.actualQuestionIds ?? [])].join('|');
     if (!same || (!triggeredReplay && job.requestId !== request.requestId)) {
-      throw new Error(
-        `AI_REQUEST_IDENTITY_CONFLICT:${JSON.stringify({
-          actualQuestionIds: actualQuestions.map(({ actualQuestionId }) => actualQuestionId),
-          contextBuilderVersion: [
-            job.contextBuilderVersion,
-            request.contextBuilderVersion ?? 'dev-006.v1',
-          ],
-          jobRequestMatches: job.requestId === request.requestId,
-          jobType: [job.jobType, request.jobType],
-          memoryIds: [memories.map(({ memoryResolutionId }) => memoryResolutionId), memoryIds],
-          project: [job.projectId, request.projectId],
-          retryOf: [job.retryOfJobId, request.retryOfJobId ?? null],
-          scopeReasons: scopes.map(({ scopeReason }) => scopeReason),
-          sessionIds: [scopes.map(({ sessionId }) => sessionId), sessionIds],
-          trigger: [job.triggerDedupeKey, request.triggerDedupeKey ?? null],
-          trustedRoles: [
-            scopes.map(({ scopeReason }) => scopeReason),
-            [...new Set(request.trustedRoles ?? [request.trustedRole])].sort(),
-          ],
-        })}`,
-      );
+      throw new Error('AI_REQUEST_IDENTITY_CONFLICT');
     }
   }
 
