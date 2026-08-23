@@ -505,6 +505,7 @@ export class MemoryP2PersistenceRepository {
         projection.sourceCheckpointId !== input.checkpointId ||
         trace.aiJobId !== input.aiJobId ||
         projection.deletionScopeDigest !== trace.deletionScopeDigest ||
+        input.deletionScopeDigest !== checkpoint.deletionScopeDigest ||
         (job.jobType !== 'long_session_end' &&
           projection.deletionScopeDigest !== checkpoint.deletionScopeDigest) ||
         job.policyRevision !== checkpoint.aiPolicyRevision ||
@@ -524,7 +525,6 @@ export class MemoryP2PersistenceRepository {
         input.target.layer !== (job.jobType === 'long_session_end' ? 'long' : 'mid')
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
-
       const resolutionId = randomUUID();
       const resolutionOutputId = randomUUID();
       const layerRevisionId = randomUUID();
@@ -541,7 +541,7 @@ export class MemoryP2PersistenceRepository {
       await this.assertGateForCommit(
         tx,
         input,
-        checkpoint.deletionScopeDigest,
+        input.deletionScopeDigest,
         checkpoint.evidenceManifestHash,
         previousResolution,
       );
@@ -1526,22 +1526,13 @@ export class MemoryP2PersistenceRepository {
       status: 'current' | 'pending_review' | 'superseded';
     } | null,
   ): Promise<void> {
-    const [job, project, inputs, transcripts, authorities, factAuthorities] = await Promise.all([
+    const [job, project, inputs, transcripts, authorities] = await Promise.all([
       tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
       tx.elderProject.findUnique({ where: { id: input.projectId } }),
       tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
       tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
       tx.memoryEvidenceAuthority.findMany({
         where: { projectId: input.projectId, sessionId: input.sourceSessionId },
-      }),
-      tx.memoryResolution.findMany({
-        select: { sourceSessionId: true },
-        where: {
-          projectId: input.projectId,
-          semanticKind: 'fact',
-          sourceSessionId: input.sourceSessionId,
-          status: 'current',
-        },
       }),
     ]);
     const policyAuthorized =
@@ -1622,7 +1613,7 @@ export class MemoryP2PersistenceRepository {
         )
         .map(({ transcriptSegmentId }) => transcriptSegmentId),
     );
-    const hasAcceptedFactAuthority = factAuthorities.length > 0;
+    const deletionEligible = /^[0-9a-f]{64}$/u.test(deletionScopeDigest);
     const evidenceById = new Map<string, MemoryGateEvidenceReference>();
     const evidenceIdentityByInputSegmentId = new Map<string, string>();
     for (const claim of input.claims) {
@@ -1676,9 +1667,9 @@ export class MemoryP2PersistenceRepository {
           evidenceRole: classifyMemoryGateEvidenceRole(
             frozen.trustedEffectiveRole,
             transcript.correctedText ?? transcript.originalText,
-            acceptedFactSourceIds.has(evidence.sourceId) || hasAcceptedFactAuthority,
+            acceptedFactSourceIds.has(evidence.sourceId),
           ),
-          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible),
+          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, deletionEligible),
           projectId: input.projectId,
           sessionId: frozen.sessionId,
           sourceId: evidence.sourceId,

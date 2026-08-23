@@ -195,6 +195,7 @@ export interface MemoryP2CommitInput {
   checkpointId: string;
   claims: readonly MemoryP2ClaimInput[];
   commitDigest: string;
+  deletionScopeDigest: string;
   longSourceMidManifestHash: string | null;
   longSourceManifestHash: string | null;
   longSources: readonly MemoryP2LongSourceInput[];

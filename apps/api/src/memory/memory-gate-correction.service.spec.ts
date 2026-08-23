@@ -125,10 +125,16 @@ describe('Memory Gate/Correction V1 runtime evaluator', () => {
 
   it('does not promote ordinary story context or ordinary boundary text', () => {
     expect(classifyMemoryGateEvidenceRole('elder', '我小时候住在上海')).toBe('elder_story_context');
+    expect(classifyMemoryGateEvidenceRole('elder', '工作记忆[fact:birth.place]=上海')).toBe(
+      'explicit_fact_statement',
+    );
     expect(classifyMemoryGateEvidenceRole('interviewer', '工作记忆[fact:birth.place]=上海')).toBe(
       'interviewer_suggestion',
     );
     expect(classifyMemoryGateEvidenceRole('elder', '访谈边界=家庭关系')).toBe(
+      'elder_story_context',
+    );
+    expect(classifyMemoryGateEvidenceRole('elder', 'ordinary text', false, true)).toBe(
       'boundary_activation_intent',
     );
     expect(classifyMemoryGateEvidenceRole('elder', '请继续讲学校的故事')).toBe(

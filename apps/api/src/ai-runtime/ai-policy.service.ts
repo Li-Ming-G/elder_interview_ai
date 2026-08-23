@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../database/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { deletionScopeAuthorityDigest } from './deletion-scope.reader.js';
 import {
   BoundaryPolicyReader,
   type BoundaryPolicySnapshot,
@@ -12,6 +13,7 @@ import {
 export interface AiPolicySnapshot {
   blockedCanonicalKeys: readonly string[];
   deletionFenceRevision: number;
+  deletionScopeDigest: string;
   policyRevision: number;
   retentionPolicyVersion: number;
 }
@@ -88,6 +90,11 @@ export class AiPolicyService {
     return {
       blockedCanonicalKeys: boundary.blockedCanonicalKeys,
       deletionFenceRevision: deletion.fenceRevision,
+      deletionScopeDigest: deletionScopeAuthorityDigest(
+        projectId,
+        sessionIds,
+        deletion.fenceRevision,
+      ),
       policyRevision: project.aiPolicyRevision,
       retentionPolicyVersion: project.aiRetentionPolicyVersion,
     };

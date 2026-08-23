@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { canonicalJson, sha256 } from './ai-provenance.js';
+
 export class AiPolicyUnavailableError extends Error {
   public constructor() {
     super('AI_POLICY_UNAVAILABLE');
@@ -17,6 +19,20 @@ export class AiDeletionActiveFixtureError extends AiPolicyUnavailableError {
 
 export interface DeletionScopeSnapshot {
   fenceRevision: number;
+}
+
+export function deletionScopeAuthorityDigest(
+  projectId: string,
+  sessionIds: readonly string[],
+  fenceRevision: number,
+): string {
+  return sha256(
+    canonicalJson({
+      fenceRevision,
+      projectId,
+      sessionIds: [...sessionIds],
+    }),
+  );
 }
 
 export abstract class DeletionScopeReader {

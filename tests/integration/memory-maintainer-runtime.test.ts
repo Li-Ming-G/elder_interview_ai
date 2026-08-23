@@ -382,7 +382,13 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       profileConfig.enabled = false;
     }
 
-    await addSegment(seeded.sessionId, seeded.streamId, 1, '标签只作元数据', 'elder');
+    await addSegment(
+      seeded.sessionId,
+      seeded.streamId,
+      1,
+      '工作记忆[fact:tag.optional]=标签只作元数据',
+      'elder',
+    );
     await createRuntime(new TagChangeProvider()).requestFinalFlush(seeded.sessionId);
     const current = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'tag.optional', projectId, status: 'current' },
@@ -406,6 +412,23 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     } finally {
       profileConfig.enabled = false;
     }
+  });
+
+  it('does not reuse another current Fact authority for a fresh ordinary Fact', async () => {
+    const seeded = await seedSession(['工作记忆[fact:event:authority.bound]=基线']);
+    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+      seeded.sessionId,
+    );
+    await addSegment(seeded.sessionId, seeded.streamId, 1, '普通故事上下文', 'elder');
+    await expect(
+      createRuntime(new OrdinaryFactProvider()).requestFinalFlush(seeded.sessionId),
+    ).rejects.toThrow('FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED');
+    expect(
+      await prisma.memoryResolution.count({ where: { canonicalKey: 'ordinary.new', projectId } }),
+    ).toBe(0);
+    expect(
+      await prisma.memoryWorkingConsumption.count({ where: { sessionId: seeded.sessionId } }),
+    ).toBe(1);
   });
 
   it('preserves legacy-null authority as unavailable and rejects a partial upgrade', async () => {
@@ -971,7 +994,13 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       'RELATED',
       'RESUME',
     ].entries()) {
-      await addSegment(seeded.sessionId, seeded.streamId, index + 1, `矩阵:${operation}`, 'elder');
+      await addSegment(
+        seeded.sessionId,
+        seeded.streamId,
+        index + 1,
+        `工作记忆[fact:event:matrix-${operation.toLowerCase()}]=矩阵:${operation}`,
+        'elder',
+      );
       await runtime.requestFinalFlush(seeded.sessionId);
     }
     expect(
@@ -998,10 +1027,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     'after_snapshot',
   ] as const) {
     it(`rolls back every business table when ${stage} fails`, async () => {
-      const seeded = await seedSession([
-        `工作记忆[fact:event:rollback-${stage}]=事务回滚`,
-        '访谈边界=虚构边界',
-      ]);
+      const seeded = await seedSession([`工作记忆[fact:event:rollback-${stage}]=事务回滚`]);
       const runtime = createRuntime(
         new LocalTestMemoryMaintainerProvider(),
         new OneShotFailpoint(stage),
@@ -1019,7 +1045,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
         threads: 0,
       });
       expect(await prisma.transcriptSegment.count({ where: { sessionId: seeded.sessionId } })).toBe(
-        2,
+        1,
       );
     });
   }
@@ -1483,6 +1509,23 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       snapshots: 0,
     });
 
+    const deletionFenceSession = await seedSession([
+      '工作记忆[fact:event:deletion-fence]=删除范围漂移',
+    ]);
+    const deletionFenceProvider = new DeferredProvider();
+    const deletionFenceRun = createRuntime(deletionFenceProvider).requestFinalFlush(
+      deletionFenceSession.sessionId,
+    );
+    await deletionFenceProvider.waitUntilCalled();
+    deletion.setFenceRevision(2);
+    deletionFenceProvider.resolveNext();
+    await expect(deletionFenceRun).rejects.toThrow('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
+    deletion.setFenceRevision(1);
+    expect(await businessCounts(deletionFenceSession.sessionId)).toMatchObject({
+      consumptions: 0,
+      snapshots: 0,
+    });
+
     const transcriptSession = await seedSession(['工作记忆[fact:event:revision]=证据漂移']);
     const transcriptProvider = new DeferredProvider();
     const transcriptRun = createRuntime(transcriptProvider).requestFinalFlush(
@@ -1597,30 +1640,17 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     );
   });
 
-  it('rejects boundary revision drift after provider return', async () => {
+  it('fails closed when ordinary boundary marker text reaches the runtime', async () => {
     const boundarySession = await seedSession(['访谈边界=不得继续的虚构范围']);
-    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
-      boundarySession.sessionId,
-    );
-    const boundaryIds = (
-      await prisma.memoryBoundary.findMany({ select: { id: true }, where: { projectId } })
-    ).map(({ id }) => id);
-    const boundary = await prisma.memoryBoundaryRevision.findFirstOrThrow({
-      where: { boundaryId: { in: boundaryIds }, status: 'active', supersededAt: null },
-    });
-    const next = await seedSession(['工作记忆[fact:event:boundary-drift]=边界漂移']);
-    const provider = new DeferredProvider();
-    const running = createRuntime(provider).requestFinalFlush(next.sessionId);
-    await provider.waitUntilCalled();
-    await prisma.memoryBoundaryRevision.update({
-      data: { status: 'revoked' },
-      where: { id: boundary.id },
-    });
-    provider.resolveNext();
-    await expect(running).rejects.toThrow('MEMORY_BOUNDARY_CONTEXT_DRIFT');
-    await prisma.memoryBoundaryRevision.update({
-      data: { status: 'active' },
-      where: { id: boundary.id },
+    await expect(
+      createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        boundarySession.sessionId,
+      ),
+    ).rejects.toThrow('BOUNDARY_EXPLICIT_INTENT_REQUIRED');
+    expect(await businessCounts(boundarySession.sessionId)).toMatchObject({
+      boundaries: 0,
+      consumptions: 0,
+      snapshots: 0,
     });
   });
 
@@ -1840,6 +1870,8 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       clock,
       failpoint,
       { ...runtimeConfig(), ...config },
+      undefined,
+      deletion,
     );
   }
 
@@ -2141,6 +2173,51 @@ class TagChangeProvider extends MemoryMaintainerProvider {
   }
 }
 
+class OrdinaryFactProvider extends MemoryMaintainerProvider {
+  public override maintain(
+    context: MemoryMaintainerContextV12,
+  ): Promise<MemoryMaintainerOutputV12> {
+    const segment = context.transcript_membership.find(
+      ({ membership_kind }) => membership_kind === 'new',
+    );
+    if (segment === undefined) throw new Error('ORDINARY_FACT_INPUT_REQUIRED');
+    return Promise.resolve({
+      boundary_candidates: [],
+      operations: [
+        {
+          anchor_thread_id: null,
+          evidence_segment_ids: [segment.segment_id],
+          expected_anchor_thread_revision: null,
+          expected_resolution_revision: null,
+          kind: 'NEW',
+          operation_id: `ordinary-fact:${segment.segment_id}`,
+          proposed_state: {
+            canonical_key: 'ordinary.new',
+            claims: [
+              {
+                claim_id: null,
+                claim_key: 'ordinary-fact',
+                evidence_segment_ids: [segment.segment_id],
+                value: 'ordinary',
+                value_kind: 'exact',
+              },
+            ],
+            memory_tag: 'event',
+            resolution_kind: 'single',
+            semantic_kind: 'fact',
+            semantic_status: 'current',
+            value: 'ordinary',
+            value_kind: 'exact',
+          },
+          reason_code: 'new_topic',
+          target_resolution_id: null,
+        },
+      ],
+      output_schema_version: 'memory-maintainer-output-v1.2',
+    });
+  }
+}
+
 class MatrixProvider extends MemoryMaintainerProvider {
   public override maintain(
     context: MemoryMaintainerContextV12,
@@ -2149,7 +2226,7 @@ class MatrixProvider extends MemoryMaintainerProvider {
       .reverse()
       .find(({ membership_kind }) => membership_kind === 'new');
     if (segment === undefined) throw new Error('MATRIX_NEW_SEGMENT_REQUIRED');
-    const kind = segment.text.replace('矩阵:', '') as
+    const kind = (segment.text.split('=').at(-1) ?? segment.text).replace('矩阵:', '') as
       'DUPLICATE' | 'SUPPLEMENT' | 'UNCERTAIN' | 'BRANCH' | 'RELATED' | 'RESUME';
     const targetKey = kind === 'RESUME' ? 'matrix.related' : 'matrix.base';
     const target = context.current_working_memory.find(

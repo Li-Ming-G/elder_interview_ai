@@ -23,6 +23,7 @@ import {
   sha256,
 } from './ai-provenance.js';
 import { AiPolicyService } from './ai-policy.service.js';
+import { deletionScopeAuthorityDigest } from './deletion-scope.reader.js';
 import type { FrozenProviderSegment } from './structured-ai.provider.js';
 
 export interface FrozenActualQuestion {
@@ -50,6 +51,8 @@ async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T>
 
 export interface FrozenAiJob {
   actualQuestions: readonly FrozenActualQuestion[];
+  deletionFenceRevision: number;
+  deletionScopeDigest: string;
   id: string;
   inputHash: string;
   memories: readonly { inputMemoryId: string; resolutionId: string; resolutionRevision: number }[];
@@ -466,6 +469,11 @@ export class AiJobCoordinatorService {
         canonicalJson({
           actualQuestions: frozenActualQuestions,
           actorId: request.actorId,
+          deletionScopeDigest: deletionScopeAuthorityDigest(
+            request.projectId,
+            sessionIds,
+            policy.deletionFenceRevision,
+          ),
           jobType: request.jobType,
           memories: frozenMemories.map(({ resolutionId, resolutionRevision }) => ({
             resolutionId,
@@ -492,6 +500,12 @@ export class AiJobCoordinatorService {
       });
       const frozenJob: FrozenAiJob = {
         actualQuestions: frozenActualQuestions,
+        deletionFenceRevision: policy.deletionFenceRevision,
+        deletionScopeDigest: deletionScopeAuthorityDigest(
+          request.projectId,
+          sessionIds,
+          policy.deletionFenceRevision,
+        ),
         id: jobId,
         inputHash,
         memories: frozenMemories,
@@ -1044,6 +1058,8 @@ export class AiJobCoordinatorService {
         analysisRevision: question.analysisRevision,
         normalizedDigest: question.normalizedDigest,
       })),
+      deletionFenceRevision: -1,
+      deletionScopeDigest: '',
       id: job.id,
       inputHash: job.inputHash,
       memories: [],

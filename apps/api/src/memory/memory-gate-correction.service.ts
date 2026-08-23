@@ -57,30 +57,32 @@ export interface MemoryGateEvidenceReference {
 }
 
 /**
- * Reads the already accepted producer/source markers. A semantic kind is not
- * an evidence classification, and ordinary transcript prose is never promoted
- * to an explicit Fact or Boundary intent.
+ * Reads already accepted authority signals. A semantic kind or transcript
+ * marker is not an evidence classification, and ordinary transcript prose is
+ * never promoted to an explicit Fact or Boundary intent.
  */
 export function classifyMemoryGateEvidenceRole(
   trustedRole: MemoryGateEvidenceReference['trustedRole'],
   text: string,
   acceptedFactAuthority = false,
+  acceptedBoundaryIntent = false,
 ): MemoryGateEvidenceReference['evidenceRole'] {
   if (trustedRole !== 'elder') return 'interviewer_suggestion';
-  const source = text.trim();
-  if (acceptedFactAuthority || source.startsWith('工作记忆[fact:'))
+  if (acceptedFactAuthority || text.trim().startsWith('工作记忆[fact:'))
     return 'explicit_fact_statement';
-  if (source.startsWith('访谈边界=')) return 'boundary_activation_intent';
+  if (acceptedBoundaryIntent) return 'boundary_activation_intent';
+  void text;
   return 'elder_story_context';
 }
 
 export function memoryGateEligibility(
   policyAuthorized: boolean,
   retentionEligible: boolean,
+  deletionEligible: boolean,
 ): MemoryGateEvidenceReference['eligibility'] {
   return {
     authorization: policyAuthorized ? 'authorized' : 'unknown',
-    deletion: policyAuthorized ? 'not-deleted' : 'unknown',
+    deletion: deletionEligible ? 'not-deleted' : 'unknown',
     retention: retentionEligible ? 'eligible' : 'ineligible',
   };
 }
