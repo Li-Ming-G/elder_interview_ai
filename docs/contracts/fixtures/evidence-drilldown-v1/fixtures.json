@@ -1,0 +1,410 @@
+{
+  "contract": "p5-evidence-drilldown-v1",
+  "status": "synthetic-only",
+  "valid": [
+    {
+      "name": "bounded memory evidence request",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "request",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "operation": "get_memory_evidence",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "request": { "memory_id": "55555555-5555-4555-8555-555555555555" }
+      }
+    },
+    {
+      "name": "limited transcript search request",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "request",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "request": { "query": "synthetic harbor memory" }
+      }
+    },
+    {
+      "name": "memory evidence result with bounded neighboring context",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "result",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "operation": "get_memory_evidence",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "result": {
+          "result_type": "memory_evidence",
+          "memory": {
+            "memory_id": "55555555-5555-4555-8555-555555555555",
+            "resolution_authority_id": "66666666-6666-4666-8666-666666666666",
+            "revision_id": "77777777-7777-4777-8777-777777777777",
+            "revision_no": 2,
+            "source_level": "mid",
+            "semantic_kind": "episode",
+            "semantic_status": "current",
+            "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          "evidence": [
+            {
+              "source": {
+                "segment_id": "88888888-8888-4888-8888-888888888888",
+                "project_id": "33333333-3333-4333-8333-333333333333",
+                "session_id": "44444444-4444-4444-8444-444444444444",
+                "start_ms": 1200,
+                "text": "Synthetic elder evidence about the harbor.",
+                "trusted_role": "elder",
+                "content_kind": "conversation_final",
+                "transcript_revision": 3,
+                "text_revision": 1,
+                "speaker_role_revision": 1,
+                "effective_text_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+                "source_fence": {
+                  "authorization": { "status": "authorized", "scope": "p4-frozen-project-session-scope" },
+                  "retention": { "status": "eligible", "policy_revision": "synthetic-retention-v1" },
+                  "deletion": { "status": "not-deleted", "fence_revision": 1 }
+                }
+              },
+              "neighboring_context": {
+                "before": [],
+                "after": [
+                  {
+                    "segment_id": "99999999-9999-4999-8999-999999999999",
+                    "project_id": "33333333-3333-4333-8333-333333333333",
+                    "session_id": "44444444-4444-4444-8444-444444444444",
+                    "start_ms": 2400,
+                    "text": "Synthetic neighboring detail.",
+                    "trusted_role": "interviewer",
+                    "content_kind": "conversation_final",
+                    "transcript_revision": 3,
+                    "text_revision": 1,
+                    "speaker_role_revision": 1,
+                    "effective_text_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+                    "source_fence": {
+                      "authorization": { "status": "authorized", "scope": "p4-frozen-project-session-scope" },
+                      "retention": { "status": "eligible", "policy_revision": "synthetic-retention-v1" },
+                      "deletion": { "status": "not-deleted", "fence_revision": 1 }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "diagnostics": {
+          "stage": "evidence_drilldown",
+          "error_code": "NONE",
+          "duration_ms": 4,
+          "result_count": 1,
+          "reference_count": 2
+        }
+      }
+    },
+    {
+      "name": "valid transcript search no-match result",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "result",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "result": {
+          "result_type": "transcript_search",
+          "query": "synthetic absent phrase",
+          "match_state": "no_match",
+          "matches": []
+        },
+        "diagnostics": {
+          "stage": "evidence_drilldown",
+          "error_code": "NONE",
+          "duration_ms": 2,
+          "result_count": 0,
+          "reference_count": 0
+        }
+      }
+    },
+    {
+      "name": "cross-scope or non-member memory rejection",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "error",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac",
+        "operation": "get_memory_evidence",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "error": { "error_code": "MEMORY_NOT_MEMBER", "phase": "membership", "generation_outcome": "SYSTEM_ERROR" },
+        "diagnostics": { "stage": "evidence_drilldown", "error_code": "MEMORY_NOT_MEMBER", "duration_ms": 1, "result_count": 0, "reference_count": 0 }
+      }
+    },
+    {
+      "name": "stale source rejection",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "error",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaad",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "error": { "error_code": "STALE_SOURCE", "phase": "source_fence", "generation_outcome": "SYSTEM_ERROR" },
+        "diagnostics": { "stage": "evidence_drilldown", "error_code": "STALE_SOURCE", "duration_ms": 1, "result_count": 0, "reference_count": 0 }
+      }
+    },
+    {
+      "name": "deleted source rejection",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "error",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaae",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "error": { "error_code": "DELETED_SOURCE", "phase": "source_fence", "generation_outcome": "SYSTEM_ERROR" },
+        "diagnostics": { "stage": "evidence_drilldown", "error_code": "DELETED_SOURCE", "duration_ms": 1, "result_count": 0, "reference_count": 0 }
+      }
+    },
+    {
+      "name": "retention-ineligible source rejection",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "error",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaf",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "error": { "error_code": "RETENTION_INELIGIBLE", "phase": "source_fence", "generation_outcome": "SYSTEM_ERROR" },
+        "diagnostics": { "stage": "evidence_drilldown", "error_code": "RETENTION_INELIGIBLE", "duration_ms": 1, "result_count": 0, "reference_count": 0 }
+      }
+    },
+    {
+      "name": "second round or recursive tool use rejection",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "error",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab0",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "error": { "error_code": "ROUND_ALREADY_USED", "phase": "round_guard", "generation_outcome": "SYSTEM_ERROR" },
+        "diagnostics": { "stage": "evidence_drilldown", "error_code": "ROUND_ALREADY_USED", "duration_ms": 0, "result_count": 0, "reference_count": 0 }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "malformed request has no operation payload",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "request",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab1",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "request": {}
+      },
+      "expected_error": "MALFORMED_REQUEST"
+    },
+    {
+      "name": "malformed result cannot omit source fence",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "result",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab2",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 1,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "result": {
+          "result_type": "transcript_search",
+          "query": "synthetic",
+          "match_state": "matches",
+          "matches": [
+            {
+              "match_rank": 0,
+              "source": {
+                "segment_id": "88888888-8888-4888-8888-888888888888",
+                "project_id": "33333333-3333-4333-8333-333333333333",
+                "session_id": "44444444-4444-4444-8444-444444444444",
+                "start_ms": 0,
+                "text": "synthetic",
+                "trusted_role": "elder",
+                "content_kind": "conversation_final",
+                "transcript_revision": 1,
+                "text_revision": 1,
+                "speaker_role_revision": 1,
+                "effective_text_digest": "3333333333333333333333333333333333333333333333333333333333333333"
+              },
+              "neighboring_context": { "before": [], "after": [] }
+            }
+          ]
+        },
+        "diagnostics": {
+          "stage": "evidence_drilldown",
+          "error_code": "NONE",
+          "duration_ms": 1,
+          "result_count": 1,
+          "reference_count": 1
+        }
+      },
+      "expected_error": "MALFORMED_RESULT"
+    },
+    {
+      "name": "second evidence round cannot be represented",
+      "message": {
+        "contract_version": "p5-evidence-drilldown-v1",
+        "message_type": "request",
+        "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaab3",
+        "operation": "search_transcript",
+        "round": {
+          "generation_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          "context_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "membership_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "evidence_round": 2,
+          "max_evidence_rounds": 1
+        },
+        "scope": {
+          "scope_type": "p4-frozen-project-session-scope",
+          "source_contract": "p4-context-freeze-v1",
+          "project_id": "33333333-3333-4333-8333-333333333333",
+          "current_session_id": "44444444-4444-4444-8444-444444444444",
+          "authorized_session_ids": ["44444444-4444-4444-8444-444444444444"]
+        },
+        "request": { "query": "synthetic" }
+      },
+      "expected_error": "ROUND_ALREADY_USED"
+    }
+  ]
+}
