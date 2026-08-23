@@ -46,7 +46,7 @@ still projected as `REVIEW`; no merge is eligible.
 
 - `REQUEST_CHANGES`: return the same task to `IN_PROGRESS`, continue/relaunch the same Worker, retain Task Card and PR, and repair only the findings.
 - `PRODUCT_AMBIGUITY`: set the task `BLOCKED`, stop, and surface the ambiguity; do not choose a direction.
-- `PASS`: recheck exact-head equality, merge the current PR, wait for main CI, and only on success mark `DONE`, unlock only predefined `next_task`, sync main, and dispatch its predefined worker profile. Main CI failure means `BLOCKED / MAIN_VERIFY_FAILED`; do not mark `DONE` or unlock.
+- `PASS`: recheck exact-head equality, merge the current PR, wait for main CI, and only on success mark `DONE`, unlock only predefined `next_task`, sync main, and dispatch its predefined worker profile. Main CI failure means `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`; do not mark `DONE` or unlock.
 
 Never run two READY tasks concurrently, advance beyond `next_task`, create Task Cards, alter Accepted Contracts, invoke an internal Reviewer or invoke iteration-coach. Routine handoff does not require Product Owner forwarding; involve the Owner only for ambiguity, architecture decisions, scope amendments, or deferred provider/model/cost/product decisions.
 
@@ -105,10 +105,10 @@ continue through main verification. GitHub PR facts, not Worker chat, are the
 discovery authority.
 
 - A PR's existence, non-draft state, completed PR CI, or stable head does not prove PASS or merge safety. Formal PRs must include `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds the task in `REVIEW`.
-- If a PASS PR is already merged, do not merge again; proceed to main verification. Open merge conflicts/rejection yield `BLOCKED / MERGE_FAILED`; closed-unmerged PR yields `BLOCKED / PR_CLOSED_UNMERGED`.
-- Pending or temporarily missing main CI is not failure: retain a pending verification state and retry next cadence. GitHub API/network/rate-limit/auth/service errors are transient and do not change business state. Only confirmed main CI failure yields `BLOCKED / MAIN_VERIFY_FAILED`.
-- Before syncing main, verify repository identity and a safe clean/savable working tree. If local sync could overwrite uncommitted work, stop with `BLOCKED / LOCAL_SYNC_UNSAFE`; never force-reset or overwrite unknown changes.
-- At all times there is at most one active task and one READY task; any queue contradiction yields `BLOCKED / DISPATCHER_STATE_INVALID`.
+- If a PASS PR is already merged, do not merge again; proceed to main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
+- Pending or temporarily missing main CI is not an error: retain `REVIEW`, record a wait/no-op detail, and retry next cadence. GitHub API/network/rate-limit/auth/service failures are also retriable no-ops. Only confirmed main CI failure yields `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`.
+- Before syncing main, verify repository identity and a safe clean/savable working tree. If local sync could overwrite uncommitted work, stop with `BLOCKED / TASK_BLOCKED` and reason `LOCAL_SYNC_UNSAFE`; never force-reset or overwrite unknown changes.
+- At all times there is at most one active task and one READY task; any queue contradiction yields `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`. The Dispatcher never chooses between contradictory queue entries.
 
 Every irreversible transition performs a fresh read immediately before the
 action: PR head before merge, current queue before dispatch, PR head/comments

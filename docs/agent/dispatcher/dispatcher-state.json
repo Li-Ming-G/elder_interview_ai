@@ -2,120 +2,48 @@
   "$schema": "./dispatcher-state.schema.json",
   "queue": [
     {
-      "id": "P2C-01-DATABASE",
+      "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
       "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-01-DATABASE.md",
+      "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001@dbb0cc76f582997a6a647781007648c6937a8992",
         "MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001@717c5ca39e678c6f953d0430768ae715ef0feef2"
       ],
-      "pr": 76,
-      "next_task": "P2C-02-PERSISTENCE"
-    },
-    {
-      "id": "P2C-02-PERSISTENCE",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-02-PERSISTENCE.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P2C-01-DATABASE"],
-      "pr": 77,
-      "next_task": "P2C-03-ORCHESTRATION"
-    },
-    {
-      "id": "P2C-03-ORCHESTRATION",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-03-ORCHESTRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P2C-02-PERSISTENCE"],
-      "pr": 78,
-      "next_task": "P2C-04-TRACE-RECOVERY"
-    },
-    {
-      "id": "P2C-04-TRACE-RECOVERY",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-04-TRACE-RECOVERY.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P2C-03-ORCHESTRATION"],
-      "pr": 79,
-      "next_task": "P2C-05-INTEGRATION"
-    },
-    {
-      "id": "P2C-05A-RUNTIME-BINDING",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-05A-RUNTIME-BINDING.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P2C-04-TRACE-RECOVERY"],
-      "pr": 81,
-      "next_task": "P2C-05-INTEGRATION"
-    },
-    {
-      "id": "P2C-05-INTEGRATION",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P2C-05-INTEGRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P2C-04-TRACE-RECOVERY", "P2C-05A-RUNTIME-BINDING"],
       "pr": 80,
       "next_task": null
     },
     {
-      "id": "P3R-01-CONTRACT",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P3R-01-CONTRACT.md",
+      "id": "MEMORY-T5-T8-P2-D-PROVIDER-001",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/dispatcher/task-card-template.md",
       "worker_profile": "luna-high",
-      "depends_on": ["P2C-05-INTEGRATION"],
-      "pr": 82,
-      "next_task": "P3R-02-SUBSTRATE"
-    },
-    {
-      "id": "P3R-02-SUBSTRATE",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P3R-02-SUBSTRATE.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P3R-01-CONTRACT"],
-      "pr": 83,
-      "next_task": "P3R-03-INDEXING"
-    },
-    {
-      "id": "P3R-03-INDEXING",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P3R-03-INDEXING.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P3R-02-SUBSTRATE"],
-      "pr": 84,
-      "next_task": "P3R-04-RETRIEVAL"
-    },
-    {
-      "id": "P3R-04-RETRIEVAL",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P3R-04-RETRIEVAL.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P3R-03-INDEXING"],
-      "pr": 85,
-      "next_task": "P3R-05-INTEGRATION"
-    },
-    {
-      "id": "P3R-05-INTEGRATION",
-      "status": "DONE",
-      "task_card": "docs/agent/tasks/P3R-05-INTEGRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P3R-04-RETRIEVAL"],
-      "pr": 86,
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": null,
       "next_task": null
+    },
+    {
+      "id": "P3-RETRIEVAL-V1",
+      "status": "DONE",
+      "task_card": "docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": 86,
+      "next_task": "P4G-00-STATE-SYNC"
     },
     {
       "id": "P4G-00-STATE-SYNC",
       "status": "DONE",
       "task_card": "docs/agent/tasks/P4G-00-STATE-SYNC.md",
       "worker_profile": "luna-high",
-      "depends_on": ["P3R-05-INTEGRATION@18c4320f417fbfa90e41924ac7b049ea72b82379"],
+      "depends_on": ["P3-RETRIEVAL-V1@18c4320f417fbfa90e41924ac7b049ea72b82379"],
       "pr": 87,
-      "next_task": "P4C-01-CONTRACT"
+      "next_task": "P4C-01"
     },
     {
-      "id": "P4C-01-CONTRACT",
+      "id": "P4C-01",
       "status": "DONE",
-      "task_card": "docs/agent/tasks/P4C-01-CONTRACT.md",
+      "task_card": "docs/agent/tasks/P4C-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4G-00-STATE-SYNC"],
       "pr": 88,
@@ -126,7 +54,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/P4C-02.md",
       "worker_profile": "luna-high",
-      "depends_on": ["P4C-01-CONTRACT"],
+      "depends_on": ["P4C-01"],
       "pr": 89,
       "next_task": "DISPATCHER-RECOVERY-001"
     },
@@ -142,126 +70,18 @@
     {
       "id": "P4C-03",
       "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P4C-03-BUDGET-FREEZE.md",
+      "task_card": "docs/agent/tasks/P4C-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["DISPATCHER-RECOVERY-001"],
       "pr": null,
-      "next_task": "P4C-04-INTEGRATION"
+      "next_task": "P4C-04"
     },
     {
-      "id": "P4C-04-INTEGRATION",
+      "id": "P4C-04",
       "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P4C-04-INTEGRATION.md",
+      "task_card": "docs/agent/tasks/P4C-04.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-03"],
-      "pr": null,
-      "next_task": null
-    },
-    {
-      "id": "P5E-01-CONTRACT",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P5E-01-CONTRACT.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P4C-04-INTEGRATION"],
-      "pr": null,
-      "next_task": "P5E-02-EVIDENCE-READERS"
-    },
-    {
-      "id": "P5E-02-EVIDENCE-READERS",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P5E-02-EVIDENCE-READERS.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P5E-01-CONTRACT"],
-      "pr": null,
-      "next_task": "P5E-03-GATE-CORRECTION"
-    },
-    {
-      "id": "P5E-03-GATE-CORRECTION",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P5E-03-GATE-CORRECTION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P5E-02-EVIDENCE-READERS"],
-      "pr": null,
-      "next_task": "P5E-04-INTEGRATION"
-    },
-    {
-      "id": "P5E-04-INTEGRATION",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P5E-04-INTEGRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P5E-03-GATE-CORRECTION"],
-      "pr": null,
-      "next_task": "DIRECTOR-V2-01-CONTRACT"
-    },
-    {
-      "id": "DIRECTOR-V2-01-CONTRACT",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/DIRECTOR-V2-01-CONTRACT.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P4C-04-INTEGRATION", "P5E-04-INTEGRATION"],
-      "pr": null,
-      "next_task": "DIRECTOR-V2-02-ENGINE"
-    },
-    {
-      "id": "DIRECTOR-V2-02-ENGINE",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/DIRECTOR-V2-02-ENGINE.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["DIRECTOR-V2-01-CONTRACT"],
-      "pr": null,
-      "next_task": "DIRECTOR-V2-03-INTEGRATION"
-    },
-    {
-      "id": "DIRECTOR-V2-03-INTEGRATION",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/DIRECTOR-V2-03-INTEGRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["DIRECTOR-V2-02-ENGINE"],
-      "pr": null,
-      "next_task": "P6R-01-CONTRACT"
-    },
-    {
-      "id": "P6R-01-CONTRACT",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P6R-01-CONTRACT.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P4C-04-INTEGRATION", "P5E-04-INTEGRATION", "DIRECTOR-V2-03-INTEGRATION"],
-      "pr": null,
-      "next_task": "P6R-02-TRIGGER-GATE"
-    },
-    {
-      "id": "P6R-02-TRIGGER-GATE",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P6R-02-TRIGGER-GATE.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P6R-01-CONTRACT"],
-      "pr": null,
-      "next_task": "P6R-03-ORCHESTRATION"
-    },
-    {
-      "id": "P6R-03-ORCHESTRATION",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P6R-03-ORCHESTRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P6R-02-TRIGGER-GATE"],
-      "pr": null,
-      "next_task": "P6R-04-FENCE-ERRORS"
-    },
-    {
-      "id": "P6R-04-FENCE-ERRORS",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P6R-04-FENCE-ERRORS.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P6R-03-ORCHESTRATION"],
-      "pr": null,
-      "next_task": "P6R-05-INTEGRATION"
-    },
-    {
-      "id": "P6R-05-INTEGRATION",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/tasks/P6R-05-INTEGRATION.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["P6R-04-FENCE-ERRORS"],
       "pr": null,
       "next_task": null
     }

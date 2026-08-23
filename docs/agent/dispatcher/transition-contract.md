@@ -50,7 +50,7 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 - A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch.
 - Synthetic launch evidence proves only that the worker profile can be launched.
 - `PASS` alone does not unlock a downstream task. The current PR must first be merged into `main`; refresh and verify the accepted task on main, then mark `DONE` and unlock only predefined `next_task`.
-- On main CI failure after a valid PASS merge, do not mark `DONE` or unlock `next_task`; set `BLOCKED / MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure.
+- On main CI failure after a valid PASS merge, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure.
 - Pending/missing main CI is retriable and must not produce `DONE` or successor `READY`.
 - On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop for an external decision.
 - Never run two READY tasks concurrently or advance beyond predefined `next_task`.
@@ -64,10 +64,10 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 - If local `pr` is null or status is stale, fresh-query `Li-Ming-G/elder_interview_ai` across open and merged PRs. Use combined canonical Task Card, title/body, branch, predecessor/`next_task`, and phase evidence; no one marker is mandatory. Zero candidates is a no-op; one clear candidate is persisted and reconciled; equal candidates are `PRODUCT_AMBIGUITY`.
 - Open + current-head `REQUEST_CHANGES` is same canonical task `IN_PROGRESS`; open + no current-head verdict is `REVIEW`; open + current-head `PASS` requires a fresh exact-head recheck before merge. Merged PRs skip merge and continue through main verification.
 - Formal REVIEW requires `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` and is not a verdict.
-- If an already-accepted PR is merged, skip merge and perform main verification. Merge conflict/rejection is `BLOCKED / MERGE_FAILED`; closed-unmerged is `BLOCKED / PR_CLOSED_UNMERGED`.
-- Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / MAIN_VERIFY_FAILED` with main SHA and CI run recorded.
-- Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
-- More than one active task or READY task is `BLOCKED / DISPATCHER_STATE_INVALID`; Dispatcher never chooses between contradictory queue entries.
+- If an already-accepted PR is merged, skip merge and perform main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
+- Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are wait/no-op conditions retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`, main SHA, and CI run recorded.
+- Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / TASK_BLOCKED` with reason `LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
+- More than one active task or READY task is `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`; Dispatcher never chooses between contradictory queue entries.
 - A pulse advances at most one safe stage and never dispatches P4C-03 as a side effect of this recovery task.
 
 ## Permanent stage-end state synchronization

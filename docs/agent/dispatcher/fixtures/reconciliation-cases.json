@@ -1,15 +1,15 @@
 {
   "canonicalQueue": [
-    { "id": "P4C-01-CONTRACT", "task_card": "docs/agent/tasks/P4C-01-CONTRACT.md", "depends_on": [], "next_task": "P4C-02" },
-    { "id": "P4C-02", "task_card": "docs/agent/tasks/P4C-02.md", "depends_on": ["P4C-01-CONTRACT"], "next_task": "DISPATCHER-RECOVERY-001" },
+    { "id": "P4C-01", "task_card": "docs/agent/tasks/P4C-01.md", "depends_on": [], "next_task": "P4C-02" },
+    { "id": "P4C-02", "task_card": "docs/agent/tasks/P4C-02.md", "depends_on": ["P4C-01"], "next_task": "DISPATCHER-RECOVERY-001" },
     { "id": "DISPATCHER-RECOVERY-001", "task_card": "docs/agent/tasks/DISPATCHER-RECOVERY-001.md", "depends_on": ["P4C-02"], "next_task": "P4C-03" },
-    { "id": "P4C-03", "task_card": "docs/agent/tasks/P4C-03-BUDGET-FREEZE.md", "depends_on": ["DISPATCHER-RECOVERY-001"], "next_task": "P4C-04-INTEGRATION" },
-    { "id": "P4C-04-INTEGRATION", "task_card": "docs/agent/tasks/P4C-04-INTEGRATION.md", "depends_on": ["P4C-03"], "next_task": null }
+    { "id": "P4C-03", "task_card": "docs/agent/tasks/P4C-03.md", "depends_on": ["DISPATCHER-RECOVERY-001"], "next_task": "P4C-04" },
+    { "id": "P4C-04", "task_card": "docs/agent/tasks/P4C-04.md", "depends_on": ["P4C-03"], "next_task": null }
   ],
   "cases": {
     "A_stale_local_status": {
-      "local": { "activeTaskId": "P4C-01-CONTRACT", "tasks": { "P4C-01-CONTRACT": { "status": "DEFERRED", "pr": null } } },
-      "github": { "prs": [{ "number": 88, "title": "[P4C-01-CONTRACT] Freeze InterviewDirectorContextV2", "body": "docs/agent/tasks/P4C-01-CONTRACT.md", "head": { "ref": "codex/p4c-01-contract", "sha": "c6a1dc420058af981df6464aaaa1f71ee89dd146" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [] }], "main": { "status": "success", "verifiedTaskId": "P4C-01-CONTRACT", "sha": "3786b49e741abbbf7746783ff9af0e6bb883505e" } }
+      "local": { "activeTaskId": "P4C-01", "tasks": { "P4C-01": { "status": "DEFERRED", "pr": null } } },
+      "github": { "prs": [{ "number": 88, "title": "[P4C-01-CONTRACT] Freeze InterviewDirectorContextV2", "body": "Canonical task P4C-01\ndocs/agent/tasks/P4C-01.md", "head": { "ref": "codex/p4c-01-contract", "sha": "c6a1dc420058af981df6464aaaa1f71ee89dd146" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "comments": [] }], "main": { "status": "success", "verifiedTaskId": "P4C-01", "sha": "3786b49e741abbbf7746783ff9af0e6bb883505e" } }
     },
     "B_invented_task_id": {
       "local": { "activeTaskId": "P4C-02-ASSEMBLY", "tasks": { "P4C-02-ASSEMBLY": { "status": "IN_PROGRESS", "pr": null } } },

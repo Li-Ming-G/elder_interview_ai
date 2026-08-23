@@ -56,6 +56,7 @@ No application/runtime code, P1–P6 architecture change, Accepted Contract chan
 ```text
 node docs/agent/dispatcher/dispatcher-dry-run.mjs
 node -e "JSON.parse(require('fs').readFileSync('docs/agent/dispatcher/dispatcher-state.json'))"
+pnpm format:check
 git diff --check
 ```
 
