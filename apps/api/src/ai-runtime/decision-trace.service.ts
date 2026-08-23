@@ -386,6 +386,7 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
     traceId: string,
     refs: Pick<DecisionTraceInput, 'p3Candidates' | 'p4Memberships' | 'evidenceCalls'> & {
       contextDigest?: string | null;
+      stageTimingsMs?: Record<string, number>;
     },
   ): Promise<void> {
     const identity = await this.prisma.decisionTrace.findUnique({
@@ -427,7 +428,15 @@ export class DecisionTraceService implements OnModuleInit, OnModuleDestroy {
           });
         }
         await tx.decisionTrace.update({
-          data: { contextDigest: refs.contextDigest ?? null, stage: 'context_frozen' },
+          data: {
+            contextDigest: refs.contextDigest ?? trace.contextDigest,
+            stage: 'context_frozen',
+            ...(refs.stageTimingsMs === undefined
+              ? {}
+              : {
+                  stageTimingsJson: mergeStageTimings(trace.stageTimingsJson, refs.stageTimingsMs),
+                }),
+          },
           where: { id: traceId },
         });
       },
@@ -1371,5 +1380,23 @@ function terminalStageTimings(value: Prisma.JsonValue, durationMs: number): Pris
     }
   }
   timings.total = durationMs;
+  return timings;
+}
+
+function mergeStageTimings(
+  value: Prisma.JsonValue,
+  additions: Record<string, number>,
+): Prisma.InputJsonObject {
+  const timings: Record<string, Prisma.InputJsonValue> = {};
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    for (const [key, timing] of Object.entries(value)) {
+      if (typeof timing === 'number' && Number.isInteger(timing) && timing >= 0) {
+        timings[key] = timing;
+      }
+    }
+  }
+  for (const [key, timing] of Object.entries(additions)) {
+    if (Number.isInteger(timing) && timing >= 0) timings[key] = timing;
+  }
   return timings;
 }

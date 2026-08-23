@@ -5,6 +5,7 @@ import type { SuggestionRequestAcceptedResponse } from '@elder-interview/contrac
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import { API_CONFIG } from '../api-config.js';
+import { EvidenceDrilldownService } from '../evidence-drilldown/evidence-drilldown.service.js';
 import {
   AiJobCoordinatorService,
   type FrozenAiJob,
@@ -50,9 +51,14 @@ import {
   DIRECTOR_OUTPUT_SCHEMA_VERSION,
   DIRECTOR_PROMPT_BUNDLE_VERSION,
   type InterviewDirectorContextV1,
+  type InterviewDirectorOutputV1,
   QuestionDirectorContract,
 } from './question-director-contract.js';
 import { QuestionDirector } from './question-director.js';
+import {
+  runQuestionDirectorEvidenceRound,
+  type QuestionDirectorEvidenceRoundState,
+} from './question-director-evidence-round.js';
 import {
   assembleP4DirectorContextV2,
   buildP4ActualQuestionInputs,
@@ -60,6 +66,7 @@ import {
   type P4DirectorQuestionBankInput,
   type P4DirectorTranscriptInput,
 } from './p4-context-v2-consumer.js';
+import type { P4ContextV2 } from '../memory/p4-context-v2-assembly.js';
 import {
   latestSubstantiveElderAnswer,
   QUESTION_SELECTION_POLICY_VERSION,
@@ -85,6 +92,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     private readonly bank: QuestionBankReader,
     private readonly journey: QuestionJourneyService,
     private readonly director: QuestionDirector,
+    private readonly evidenceDrilldown: EvidenceDrilldownService,
     private readonly contract: QuestionDirectorContract,
     private readonly writer: QuestionEvidenceWriter,
     private readonly presentations: QuestionPresentationService,
@@ -310,7 +318,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     const replay = await this.prisma.questionGenerationAttempt.findUnique({ where: { requestId } });
     if (replay !== null) {
       const replayTrace = await this.prisma.decisionTrace.findUnique({
-        select: { id: true },
+        select: { generationId: true, id: true },
         where: { requestId },
       });
       const replayTraceId =
@@ -333,7 +341,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         context: null,
         consumerSessionId: sessionId,
         deadlineAt: 0,
+        generationId: replayTrace?.generationId ?? stableUuid(`generation:${requestId}`),
         job: null,
+        p4Context: null,
         shouldContinueListening: false,
         replayed: true,
         requestId,
@@ -493,8 +503,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       where: { id: receipt.attemptId },
     });
     let context: InterviewDirectorContextV1;
+    let p4Context: P4ContextV2;
     try {
-      context = await this.buildContext(
+      const builtContext = await this.buildContext(
         frozenJob,
         memories,
         actualAsked,
@@ -505,6 +516,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         inputSegments,
         sessionId,
       );
+      context = builtContext.directorContext;
+      p4Context = builtContext.p4Context;
       this.contract.assertContext(context);
       const displaySourceIds = [
         ...context.recently_displayed.map((item) => item.snapshot_id),
@@ -532,6 +545,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       await this.decisionTrace.attachReferences(trace.id, {
         contextDigest: manifestHash(p4Memberships.map((item) => canonicalJson(item))),
         p4Memberships,
+        stageTimingsMs: { evidence_invoked: 0, evidence_round_count: 0 },
       });
     } catch (error) {
       await this.decisionTrace
@@ -552,6 +566,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       attemptKind,
       basis,
       context,
+      p4Context,
       consumerSessionId: sessionId,
       deadlineAt: persistedAttempt.createdAt.getTime() + DEADLINE_MS,
       job: frozenJob,
@@ -559,11 +574,12 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       requestId,
       shouldContinueListening: decision.shouldContinueListening,
       traceId: trace.id,
+      generationId: trace.generationId,
     };
   }
 
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {
-    if (prepared.job === null || prepared.context === null) return;
+    if (prepared.job === null || prepared.context === null || prepared.p4Context === null) return;
     try {
       if (prepared.shouldContinueListening) {
         const publication = await this.writer.publishAttemptResult(
@@ -593,12 +609,53 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         return;
       }
       const context = prepared.context;
-      const output = await this.coordinator.callProviderWithSameInputRetry(
-        prepared.job,
-        () => this.director.generate({ context, prompt: this.contract.prompt }),
-        (value) => this.contract.parseOutput(value, context),
-        prepared.deadlineAt,
-      );
+      const job = prepared.job;
+      const p4 = prepared.p4Context;
+      const evidenceRoundState: QuestionDirectorEvidenceRoundState = {
+        evidenceRoundCount: 0,
+      };
+      const output =
+        await this.coordinator.callProviderWithSameInputRetry<InterviewDirectorOutputV1>(
+          job,
+          () =>
+            runQuestionDirectorEvidenceRound({
+              actorId: prepared.actorId,
+              context,
+              director: this.director,
+              evidence: this.evidenceDrilldown,
+              generationId: prepared.generationId,
+              onEvidenceCall: async (call) => {
+                await this.decisionTrace.attachReferences(prepared.traceId, {
+                  evidenceCalls: [
+                    {
+                      callId: stableUuid(`${prepared.traceId}:evidence:1`),
+                      invocationNo: 1,
+                      requestDigest: call.requestDigest,
+                      resultDigest: call.resultDigest,
+                      resultIds: call.resultIds,
+                      status: call.status,
+                      targetId: call.targetId,
+                      targetType: call.operation,
+                      tool: call.operation,
+                    },
+                  ],
+                  stageTimingsMs: {
+                    evidence_invoked: 1,
+                    evidence_round_count: 1,
+                    evidence_round: call.durationMs,
+                  },
+                });
+              },
+              p4Context: p4,
+              parseOutput: (value) => this.contract.parseOutput(value, context),
+              prompt: this.contract.prompt,
+              requestId: prepared.requestId,
+              roundState: evidenceRoundState,
+              scopeSessionIds: job.sessionIds,
+            }),
+          (value) => value as InterviewDirectorOutputV1,
+          prepared.deadlineAt,
+        );
       const candidate: QuestionCandidateResult | null =
         output.decision === 'suggest'
           ? {
@@ -615,7 +672,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
                 grounding: output.grounding,
                 purpose: output.purpose,
                 risk: output.risk,
-                segments: prepared.job.segments,
+                segments: job.segments,
                 stage: prepared.context.interview_state.journey_stage,
               }),
             }
@@ -625,7 +682,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           attemptId: prepared.attemptId,
           candidate,
           deadlineAt: prepared.deadlineAt,
-          job: prepared.job,
+          job,
           resultKind: candidate === null ? 'continue_listening' : 'suggestion',
           sessionId: prepared.consumerSessionId,
         },
@@ -675,7 +732,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       transcriptSegmentId: string;
     }[],
     consumerSessionId = job.sessionIds[0] ?? '',
-  ): Promise<InterviewDirectorContextV1> {
+  ): Promise<{ directorContext: InterviewDirectorContextV1; p4Context: P4ContextV2 }> {
     const [
       recentSnapshots,
       actualQuestionSources,
@@ -847,7 +904,10 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       recentTranscript,
       sessionId: consumerSessionId,
     });
-    return projectP4ContextV2ToDirectorV1(p4Context, legacyContext.current_memories);
+    return {
+      directorContext: projectP4ContextV2ToDirectorV1(p4Context, legacyContext.current_memories),
+      p4Context,
+    };
   }
 
   private async journeyContext(
@@ -924,9 +984,11 @@ interface PreparedQuestionAttempt {
   attemptKind: QuestionAttemptKind;
   basis: { presentationRevision: number; snapshotId: string | null };
   context: InterviewDirectorContextV1 | null;
+  generationId: string;
   consumerSessionId: string;
   deadlineAt: number;
   job: FrozenAiJob | null;
+  p4Context: P4ContextV2 | null;
   replayed: boolean;
   requestId: string;
   shouldContinueListening: boolean;

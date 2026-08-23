@@ -4,10 +4,20 @@ import type {
   InterviewDirectorContextV1,
   InterviewDirectorOutputV1,
 } from './question-director-contract.js';
+import type { EvidenceResultEnvelope } from '../evidence-drilldown/evidence-drilldown.types.js';
+
+export type QuestionDirectorEvidenceRequest = {
+  decision: 'request_evidence';
+  evidence: {
+    operation: 'get_memory_evidence' | 'search_transcript';
+    request: { memory_id: string } | { query: string };
+  };
+};
 
 export interface QuestionDirectorRequest {
   context: InterviewDirectorContextV1;
   prompt: { system: string; task: string };
+  evidence?: EvidenceResultEnvelope;
 }
 
 /** One provider-neutral Director call. It has no database or tool access. */
