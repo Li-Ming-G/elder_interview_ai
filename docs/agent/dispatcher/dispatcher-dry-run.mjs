@@ -150,7 +150,10 @@ function reconcile(canonicalQueue, local, github) {
   const localId = local.activeTaskId;
   const invalidLocalId = Boolean(localId && !ids.has(localId));
   const candidatesByTask = canonicalQueue.map((task) => ({ task, found: discoverUnique(task, github) }));
-  const ambiguous = candidatesByTask.find(({ found }) => found.kind === 'ambiguous');
+  const relevantCandidates = localId && !invalidLocalId
+    ? candidatesByTask.filter(({ task }) => task.id === localId)
+    : candidatesByTask;
+  const ambiguous = relevantCandidates.find(({ found }) => found.kind === 'ambiguous');
   if (ambiguous) return { status: 'BLOCKED', error: 'PRODUCT_AMBIGUITY', detail: 'equal PR candidates', candidates: ambiguous.found.candidates.map((item) => item.pr.number) };
   let selected = localId && byId.has(localId) ? { task: byId.get(localId), found: candidatesByTask.find(({ task }) => task.id === localId).found } : null;
   if (invalidLocalId) {
