@@ -42,40 +42,49 @@
       "properties": {
         "protected": {
           "type": "array",
-          "const": ["interview_state", "boundaries"]
+          "const": ["boundaries", "interview_state"]
         },
         "high": {
           "type": "array",
-          "const": [
-            "working_memory",
-            "active_memory",
-            "resumed_memory",
-            "actual_asked",
-            "displayed",
-            "current_presentation"
-          ]
+          "const": ["recent_transcript"]
         },
         "normal": {
           "type": "array",
-          "const": ["recent_transcript", "memory_candidates"]
+          "const": ["working_memory", "active_memory", "resumed_memory", "memory_candidates"]
         },
         "optional": {
           "type": "array",
-          "const": ["question_bank"]
+          "const": ["actual_asked", "displayed", "current_presentation", "question_bank"]
         }
       }
     },
     "ordering": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["class_order", "section_order_source", "entry_tie_breakers", "equal_key_behavior"],
+      "required": ["class_order", "section_order", "section_order_source", "entry_tie_breakers", "equal_key_behavior"],
       "properties": {
         "class_order": {
           "type": "array",
           "const": ["protected", "high", "normal", "optional"]
         },
+        "section_order": {
+          "type": "array",
+          "const": [
+            "boundaries",
+            "interview_state",
+            "recent_transcript",
+            "working_memory",
+            "active_memory",
+            "resumed_memory",
+            "memory_candidates",
+            "actual_asked",
+            "displayed",
+            "current_presentation",
+            "question_bank"
+          ]
+        },
         "section_order_source": {
-          "const": "p4-context-freeze-v1.freeze.required_sections"
+          "const": "p4-priority-budget-v1.selection_section_order"
         },
         "entry_tie_breakers": {
           "type": "array",

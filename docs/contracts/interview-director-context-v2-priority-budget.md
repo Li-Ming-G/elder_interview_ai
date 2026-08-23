@@ -27,27 +27,31 @@ not inferred from semantic content, retrieval score, model output, wall-clock ti
 
 | Class | Sections | Policy guarantee |
 | --- | --- | --- |
-| `protected` | `interview_state`, `boundaries` | Every member is retained. Partial retention is invalid. These members are never clipped or demoted. |
-| `high` | `working_memory`, `active_memory`, `resumed_memory`, `actual_asked`, `displayed`, `current_presentation` | Selected before `normal` and `optional`; a member is never displaced by a lower class. |
-| `normal` | `recent_transcript`, `memory_candidates` | Selected after all eligible `high` members, in deterministic order. |
-| `optional` | `question_bank` | Selected last and is the first non-protected class eligible for clipping. |
+| `protected` | `boundaries`, `interview_state` | Every member is retained. Partial retention is invalid. Active boundaries are never clipped or demoted. |
+| `high` | `recent_transcript` | Recent original conversation is selected immediately after protected state/boundaries and cannot be displaced by lower classes. |
+| `normal` | `working_memory`, `active_memory`, `resumed_memory`, `memory_candidates` | Selected after recent original conversation; these memory/history-derived entries are lower priority under constrained capacity. |
+| `optional` | `actual_asked`, `displayed`, `current_presentation`, `question_bank` | Selected last and is the first class eligible for clipping. |
 
-The `protected` class preserves high-priority interview state and boundary membership. A resolved budget that cannot
-retain every protected member fails closed; it must not return a partial state, omit a boundary, or fall back to V1.
-An empty P4C-01 section remains an explicit empty section and requires no selection entry.
+The `protected` class preserves high-priority interview state and active boundary membership. A resolved budget that
+cannot retain every protected member fails closed; it must not return a partial state, omit a boundary, or fall back
+to V1. An empty P4C-01 section remains an explicit empty section and requires no selection entry.
 
 ## 3. Deterministic ordering and tie-breaking
 
 Selection precedence is fixed as follows:
 
 1. priority class: `protected`, then `high`, then `normal`, then `optional`;
-2. the section's order in P4C-01 `freeze.required_sections`;
-3. the P4C-01 entry order tuple: `input_order`, `source_id_lexicographic`, then `revision_ascending`.
+2. the policy section order: `boundaries`, `interview_state`, `recent_transcript`, `working_memory`,
+   `active_memory`, `resumed_memory`, `memory_candidates`, `actual_asked`, `displayed`,
+   `current_presentation`, then `question_bank`;
+3. within a section, the P4C-01 entry order tuple: `input_order`, `source_id_lexicographic`, then
+   `revision_ascending`.
 
-The policy must preserve the P4C-01 entry order after applying these keys. If two distinct entries still have equal
-keys, the policy fails closed rather than depending on object-key order, database order, provider order or a hidden
-tie-breaker. The same frozen membership, policy revision and resolved configuration therefore produce the same
-selection plan.
+The policy section order only determines selection precedence; it does not reorder the P4C-01 source-complete
+manifest, its required-section list, or either digest. The policy must preserve P4C-01 entry order after applying
+these keys. If two distinct entries still have equal keys, the policy fails closed rather than depending on
+object-key order, database order, provider order or a hidden tie-breaker. The same frozen membership, policy revision
+and resolved configuration therefore produce the same selection plan.
 
 ## 4. Configuration injection
 
@@ -73,7 +77,8 @@ Clipping applies only to the selection plan; it never mutates P4C-01 source arra
 1. Validate complete P4C-01 membership, scope, source revisions, digests and section counts first.
 2. Resolve and validate the injected policy/configuration references.
 3. Retain every `protected` entry. If the protected set cannot fit, fail closed with no plan.
-4. Traverse `high`, then `normal`, then `optional` entries in the fixed order above.
+4. Traverse `high`, then `normal`, then `optional` entries in the fixed order above. This ensures recent original
+   conversation is considered before memory-derived, display/history, and question-bank material.
 5. For a non-protected entry, retain it only when the injected cost profile says it fits the remaining capacity.
 6. Once an entry does not fit, clip that entry and all later entries in the same ordered class; lower classes are not
    allowed to displace it. No partial content, field, source reference or boundary is emitted.
@@ -86,8 +91,10 @@ used.
 
 The machine artifact freezes the policy version, class-to-section mapping, ordering keys, fail-closed rules and opaque
 configuration references. It intentionally does not prescribe a production capacity, token unit, tokenizer or provider.
-Fixtures cover: protected state and boundaries surviving lower-class clipping; deterministic tie-breaking; missing or
-mismatched configuration rejection; and rejection of a plan that changes the complete P4C-01 membership manifest.
+Fixtures cover: protected state and boundaries surviving lower-class clipping; recent original conversation surviving
+shared constrained capacity ahead of lower-priority memory/display/history/question-bank entries; deterministic
+tie-breaking; missing or mismatched configuration rejection; and rejection of a plan that changes the complete
+P4C-01 membership manifest.
 
 This contract does not implement runtime assembly, Director integration, provider/model/tokenizer/embedding selection,
 P2-D, P5 evidence tools, P6 orchestration, migrations, or real-data fixtures.

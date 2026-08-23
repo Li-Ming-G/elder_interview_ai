@@ -20,21 +20,27 @@
       "current_presentation"
     ],
     "priority_classes": {
-      "protected": ["interview_state", "boundaries"],
-      "high": [
-        "working_memory",
-        "active_memory",
-        "resumed_memory",
-        "actual_asked",
-        "displayed",
-        "current_presentation"
-      ],
-      "normal": ["recent_transcript", "memory_candidates"],
-      "optional": ["question_bank"]
+      "protected": ["boundaries", "interview_state"],
+      "high": ["recent_transcript"],
+      "normal": ["working_memory", "active_memory", "resumed_memory", "memory_candidates"],
+      "optional": ["actual_asked", "displayed", "current_presentation", "question_bank"]
     },
     "ordering": {
       "class_order": ["protected", "high", "normal", "optional"],
-      "section_order_source": "p4-context-freeze-v1.freeze.required_sections",
+      "section_order": [
+        "boundaries",
+        "interview_state",
+        "recent_transcript",
+        "working_memory",
+        "active_memory",
+        "resumed_memory",
+        "memory_candidates",
+        "actual_asked",
+        "displayed",
+        "current_presentation",
+        "question_bank"
+      ],
+      "section_order_source": "p4-priority-budget-v1.selection_section_order",
       "entry_tie_breakers": ["input_order", "source_id_lexicographic", "revision_ascending"],
       "equal_key_behavior": "fail_closed_duplicate_order_key"
     },
@@ -65,15 +71,18 @@
         "entries": [
           { "section": "interview_state", "source_type": "interview_state", "source_id": "state:story_depth", "source_revision": null, "input_order": 0, "priority_class": "protected" },
           { "section": "boundaries", "source_type": "boundary_control", "source_id": "boundary:do-not-ask", "source_revision": 2, "input_order": 0, "priority_class": "protected" },
-          { "section": "working_memory", "source_type": "working_memory", "source_id": "working:1", "source_revision": 3, "input_order": 0, "priority_class": "high" },
+          { "section": "working_memory", "source_type": "working_memory", "source_id": "working:1", "source_revision": 3, "input_order": 0, "priority_class": "normal" },
           { "section": "question_bank", "source_type": "question_bank_item", "source_id": "bank:1", "source_revision": null, "input_order": 0, "priority_class": "optional" },
           { "section": "question_bank", "source_type": "question_bank_item", "source_id": "bank:2", "source_revision": null, "input_order": 1, "priority_class": "optional" }
         ],
-        "synthetic_resolved_capacity": { "protected": 2, "high": 1, "normal": 0, "optional": 1 }
+        "synthetic_resolved_capacity": {
+          "total_units": 4,
+          "entry_costs": { "state:story_depth": 1, "boundary:do-not-ask": 1, "working:1": 1, "bank:1": 1, "bank:2": 1 }
+        }
       },
       "expected": {
         "plan_status": "selected",
-        "selected_source_ids": ["state:story_depth", "boundary:do-not-ask", "working:1", "bank:1"],
+        "selected_source_ids": ["boundary:do-not-ask", "state:story_depth", "working:1", "bank:1"],
         "clipped_source_ids": ["bank:2"],
         "membership_digest_unchanged": true,
         "protected_entries_complete": true
@@ -84,17 +93,45 @@
       "input": {
         "membership_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "entries": [
-          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:b", "source_revision": 1, "input_order": 0, "priority_class": "normal" },
-          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 1, "input_order": 0, "priority_class": "normal" },
-          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 2, "input_order": 0, "priority_class": "normal" }
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:b", "source_revision": 1, "input_order": 0, "priority_class": "high" },
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 1, "input_order": 0, "priority_class": "high" },
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:a", "source_revision": 2, "input_order": 0, "priority_class": "high" }
         ],
-        "synthetic_resolved_capacity": { "protected": 0, "high": 0, "normal": 3, "optional": 0 }
+        "synthetic_resolved_capacity": {
+          "total_units": 3,
+          "entry_costs": { "segment:a": 1, "segment:b": 1 }
+        }
       },
       "expected": {
         "plan_status": "selected",
         "ordered_source_ids": ["segment:a", "segment:a", "segment:b"],
         "ordered_revisions": [1, 2, 1],
         "ordering": ["input_order", "source_id_lexicographic", "revision_ascending"]
+      }
+    },
+    {
+      "case_id": "recent-transcript-outranks-lower-priority-material-under-shared-capacity",
+      "input": {
+        "membership_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+        "entries": [
+          { "section": "boundaries", "source_type": "boundary_control", "source_id": "boundary:do-not-ask", "source_revision": 2, "input_order": 0, "priority_class": "protected" },
+          { "section": "recent_transcript", "source_type": "transcript_segment", "source_id": "segment:recent", "source_revision": 4, "input_order": 0, "priority_class": "high" },
+          { "section": "memory_candidates", "source_type": "memory_candidate", "source_id": "candidate:derived", "source_revision": 3, "input_order": 0, "priority_class": "normal" },
+          { "section": "displayed", "source_type": "display_snapshot", "source_id": "display:history", "source_revision": null, "input_order": 0, "priority_class": "optional" },
+          { "section": "question_bank", "source_type": "question_bank_item", "source_id": "bank:prompt", "source_revision": null, "input_order": 0, "priority_class": "optional" }
+        ],
+        "synthetic_resolved_capacity": {
+          "total_units": 2,
+          "entry_costs": { "boundary:do-not-ask": 1, "segment:recent": 1, "candidate:derived": 1, "display:history": 1, "bank:prompt": 1 }
+        }
+      },
+      "expected": {
+        "plan_status": "selected",
+        "selected_source_ids": ["boundary:do-not-ask", "segment:recent"],
+        "clipped_source_ids": ["candidate:derived", "display:history", "bank:prompt"],
+        "recent_transcript_not_displaced": true,
+        "active_boundary_protected": true,
+        "membership_digest_unchanged": true
       }
     }
   ],
