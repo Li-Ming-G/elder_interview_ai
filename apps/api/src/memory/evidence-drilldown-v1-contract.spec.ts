@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 
 type FixtureCase = { name: string; message: Record<string, unknown>; expected_error?: string };
 type FixtureDocument = { valid: FixtureCase[]; invalid: FixtureCase[] };
 
-const root = join(process.cwd(), '..', '..');
+const root = fileURLToPath(new URL('../../../../', import.meta.url));
 
 async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(join(root, path), 'utf8')) as unknown;
