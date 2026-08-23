@@ -6,20 +6,27 @@
 
 | id | status | depends_on | task_card | worker_profile | pr | next_task |
 | --- | --- | --- | --- | --- | --- | --- |
-| `MEMORY-T5-T8-P2-C-RUNTIME-001` | `BLOCKED` | A1 `dbb0cc76f582997a6a647781007648c6937a8992`; P2-B `717c5ca39e678c6f953d0430768ae715ef0feef2` | [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) | `luna-high` | `null` | `null` |
-| `MEMORY-T5-T8-P2-D-PROVIDER-001` | `DEFERRED` | P2-C external `PASS` plus owner provider/data decisions | not issued | `luna-high` | `null` | `null` |
-| `MEMORY-T9-T12-P3-P4-001` | `DEFERRED` | separate accepted Development Pack | not issued | `luna-high` | `null` | `null` |
+| `MEMORY-T5-T8-P2-C-RUNTIME-001` | `DONE` | A1 `dbb0cc76f582997a6a647781007648c6937a8992`; P2-B `717c5ca39e678c6f953d0430768ae715ef0feef2` | [`tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md`](tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md) | `luna-high` | `80` | `null` |
+| `MEMORY-T5-T8-P2-D-PROVIDER-001` | `DEFERRED` | P2-C complete plus owner provider/data decisions | not issued | `luna-high` | `null` | `null` |
+| `P3-RETRIEVAL-V1` | `DONE` | P3 contract/substrate/indexing/retrieval/integration; final main merge `18c4320f417fbfa90e41924ac7b049ea72b82379` | accepted P3R-01 → P3R-05 sequence | `luna-high` | `86` | `P4G-00-STATE-SYNC` |
+| `P4G-00-STATE-SYNC` | `REVIEW` | P2-C and P3 accepted facts; baseline `18c4320f417fbfa90e41924ac7b049ea72b82379` | [`tasks/P4G-00-STATE-SYNC.md`](tasks/P4G-00-STATE-SYNC.md) | `luna-high` | `87` | `P4C-01` |
+| `P4C-01` | `DEFERRED` | P4G-00 external `PASS`; P3 complete | [`tasks/P4C-01.md`](tasks/P4C-01.md) | `luna-high` | `null` | `P4C-02` |
+| `P4C-02` | `DEFERRED` | P4C-01 external `PASS` | [`tasks/P4C-02.md`](tasks/P4C-02.md) | `luna-high` | `null` | `P4C-03` |
+| `P4C-03` | `DEFERRED` | P4C-02 external `PASS` | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `null` | `P4C-04` |
+| `P4C-04` | `DEFERRED` | P4C-03 external `PASS` | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `null` | `null` |
 
 ## Current stop
 
-`MEMORY-T5-T8-P2-C-RUNTIME-001` is `BLOCKED` because governance handoff reconciliation is still required. Four implementation/documentation candidate heads exist and must not be integrated: database `87ee56c6ceb1aee7897d1d62a2b18703c304c2e3`, orchestration `97f647d607b020ef524014cfdab3e7b13eccd098`, trace `5ada42209e5ab245e1b799456694a1cac9ca7ab9`, integration docs `419f7bfc447b4b605c87e6c173b09c304cba5a41`. The formal old combination verdict is `FAIL P0=0/P1=6/P2=1`.
+P2-C is complete on main through the accepted PR #76–#81 sequence, with completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`. P3 is complete through PR #82–#86, with final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`. The old combined `MEMORY-T9-T12-P3-P4-001` placeholder is retired and replaced by the P4 governance gate plus the four-card sequential P4C queue.
 
-There is no `READY` task. Dispatcher returns `TASK_BLOCKED` and stops.
+`P4G-00-STATE-SYNC` is the current `REVIEW` gate. No successor is `READY` until its external Architect `PASS`; then and only then Dispatcher marks `P4C-01` `READY` and leaves P4C-02 through P4C-04 deferred.
 
 ## Recently accepted dependencies
 
 - P2-A1 semantic envelope: `DONE / PASS / CONTRACT ONLY`, exact head `dbb0cc76f582997a6a647781007648c6937a8992`.
 - P2-B persistence contract: `DONE / PASS / CONTRACT ONLY`, exact head `717c5ca39e678c6f953d0430768ae715ef0feef2`.
+- P2-C runtime: `DONE`, completion merge `b0d8c49c5cdd83b808c0bb2e411b759c024b40c0`.
+- P3 retrieval: `DONE`, final merge `18c4320f417fbfa90e41924ac7b049ea72b82379`.
 
 ## Maintenance
 

@@ -3,14 +3,14 @@
   "queue": [
     {
       "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
-      "status": "BLOCKED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "MEMORY-T5-T8-P2-A1-SEMANTIC-ENVELOPE-001@dbb0cc76f582997a6a647781007648c6937a8992",
         "MEMORY-T5-T8-P2-B-PERSISTENCE-CONTRACT-001@717c5ca39e678c6f953d0430768ae715ef0feef2"
       ],
-      "pr": null,
+      "pr": 80,
       "next_task": null
     },
     {
@@ -23,11 +23,56 @@
       "next_task": null
     },
     {
-      "id": "MEMORY-T9-T12-P3-P4-001",
-      "status": "DEFERRED",
-      "task_card": "docs/agent/dispatcher/task-card-template.md",
+      "id": "P3-RETRIEVAL-V1",
+      "status": "DONE",
+      "task_card": "docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md",
       "worker_profile": "luna-high",
       "depends_on": ["MEMORY-T5-T8-P2-C-RUNTIME-001"],
+      "pr": 86,
+      "next_task": "P4G-00-STATE-SYNC"
+    },
+    {
+      "id": "P4G-00-STATE-SYNC",
+      "status": "REVIEW",
+      "task_card": "docs/agent/tasks/P4G-00-STATE-SYNC.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P3-RETRIEVAL-V1@18c4320f417fbfa90e41924ac7b049ea72b82379"],
+      "pr": 87,
+      "next_task": "P4C-01"
+    },
+    {
+      "id": "P4C-01",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P4C-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4G-00-STATE-SYNC"],
+      "pr": null,
+      "next_task": "P4C-02"
+    },
+    {
+      "id": "P4C-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P4C-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4C-01"],
+      "pr": null,
+      "next_task": "P4C-03"
+    },
+    {
+      "id": "P4C-03",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P4C-03.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4C-02"],
+      "pr": null,
+      "next_task": "P4C-04"
+    },
+    {
+      "id": "P4C-04",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P4C-04.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P4C-03"],
       "pr": null,
       "next_task": null
     }
