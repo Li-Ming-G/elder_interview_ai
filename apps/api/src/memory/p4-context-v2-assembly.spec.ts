@@ -10,7 +10,10 @@ import {
   type P4AssemblyInput,
   type P4AssemblyMember,
   type P4ContextV2,
+  type P4SelectionConfiguration,
+  selectP4ContextV2,
   validateP4ContextV2,
+  validateP4SelectionPlan,
 } from './p4-context-v2-assembly.js';
 
 describe('P4 Context V2 deterministic assembly boundary', () => {
@@ -99,6 +102,147 @@ describe('P4 Context V2 deterministic assembly boundary', () => {
     expect(() => assembleP4ContextV2(invalid)).toThrow(
       new P4ContextAssemblyError('P4_ACTIVE_STATE_MISMATCH'),
     );
+  });
+
+  it('accepts distinct revisions for the same transcript source and rejects exact key collisions', () => {
+    const input = syntheticInput();
+    const transcript = requiredValue(input.recent_transcript[0]);
+    input.recent_transcript = [
+      member(
+        { ...transcript.value, text: 'synthetic revision two', text_revision: 2 },
+        3,
+        'd'.repeat(64),
+      ),
+      member(
+        { ...transcript.value, text: 'synthetic revision one', text_revision: 1 },
+        3,
+        'e'.repeat(64),
+      ),
+    ];
+    const context = assembleP4ContextV2(input);
+    expect(
+      context.membership.sections[4]?.entries.map(({ source_id, source_revision }) => [
+        source_id,
+        source_revision,
+      ]),
+    ).toEqual([
+      [UUID.segment, 1],
+      [UUID.segment, 2],
+    ]);
+
+    const collision = syntheticInput();
+    const collisionTranscript = requiredValue(collision.recent_transcript[0]);
+    collision.recent_transcript = [
+      collisionTranscript,
+      member({ ...collisionTranscript.value }, 3, 'd'.repeat(64)),
+    ];
+    expect(() => assembleP4ContextV2(collision)).toThrow(
+      new P4ContextAssemblyError('P4_ORDERING_KEY_COLLISION'),
+    );
+  });
+
+  it('accepts an omitted P3 candidate revision and records null source_revision', () => {
+    const input = syntheticInput();
+    const candidate = requiredValue(input.memory_candidates[0]);
+    const { revision_no, ...candidateWithoutRevision } = candidate.value;
+    void revision_no;
+    input.memory_candidates = [{ ...candidate, value: candidateWithoutRevision }];
+
+    const context = assembleP4ContextV2(input);
+    expect(context.memory_candidates[0]).not.toHaveProperty('revision_no');
+    expect(context.membership.sections[5]?.entries[0]?.source_revision).toBeNull();
+    expect(validateSchema(context)).toBe(true);
+  });
+
+  it('rejects malformed P4/P3 shape before returning a context', () => {
+    const input = syntheticInput();
+    const candidate = requiredValue(input.memory_candidates[0]);
+    input.memory_candidates = [
+      {
+        ...candidate,
+        value: { ...candidate.value, provider_payload: { secret: 'not allowed' } },
+      },
+    ];
+    expect(() => assembleP4ContextV2(input)).toThrow(
+      new P4ContextAssemblyError('P4_P3_CANDIDATE_CLOSED_SHAPE'),
+    );
+  });
+
+  it('builds a reference-only P4C-02 plan with protected precedence and clipping', () => {
+    const context = assembleP4ContextV2(syntheticInput());
+    const membershipBefore = JSON.stringify(context.membership);
+    const plan = selectP4ContextV2(context, selectionConfiguration(4));
+
+    expect(plan.selected.map(({ section, source_id }) => `${section}:${source_id}`)).toEqual([
+      `boundaries:${UUID.boundary}`,
+      'interview_state:state:story_depth',
+      `recent_transcript:${UUID.segment}`,
+      `working_memory:${UUID.working}`,
+    ]);
+    expect(plan.clipped.map(({ section, source_id }) => `${section}:${source_id}`)).toEqual([
+      `active_memory:${UUID.memory}`,
+      `memory_candidates:${UUID.memory}`,
+      `actual_asked:${UUID.question}`,
+      `displayed:${UUID.snapshot}`,
+      `current_presentation:${UUID.snapshot}`,
+      `question_bank:${UUID.bank}`,
+    ]);
+    expect(plan.fallback).toBe('no_v1_fallback');
+    expect(JSON.stringify(context.membership)).toBe(membershipBefore);
+    validateP4SelectionPlan(context, plan);
+
+    const withoutDigest = selectionConfiguration(4);
+    delete withoutDigest.config_digest;
+    expect(selectP4ContextV2(context, withoutDigest).configuration).not.toHaveProperty(
+      'config_digest',
+    );
+  });
+
+  it('fails closed for missing or mismatched config, protected overflow, partial protection, and membership drift', () => {
+    const context = assembleP4ContextV2(syntheticInput());
+    const configuration = selectionConfiguration(4);
+    const missingConfig = { ...configuration } as Record<string, unknown>;
+    delete missingConfig.capacity_profile_ref;
+    expect(() =>
+      selectP4ContextV2(context, missingConfig as unknown as P4SelectionConfiguration),
+    ).toThrow(new P4ContextAssemblyError('P4_CONFIGURATION_SHAPE_INVALID'));
+    expect(() =>
+      selectP4ContextV2(context, { ...configuration, config_ref: 'synthetic://other' }),
+    ).toThrow(new P4ContextAssemblyError('P4_CONFIGURATION_MISMATCH'));
+    expect(() => selectP4ContextV2(context, selectionConfiguration(1))).toThrow(
+      new P4ContextAssemblyError('P4_PROTECTED_OVERFLOW'),
+    );
+
+    const completePlan = selectP4ContextV2(context, selectionConfiguration(2));
+    const partialPlan = {
+      ...completePlan,
+      selected: completePlan.selected.filter(({ section }) => section !== 'interview_state'),
+    };
+    expect(() => {
+      validateP4SelectionPlan(context, partialPlan);
+    }).toThrow(new P4ContextAssemblyError('P4_PARTIAL_PROTECTED_SELECTION'));
+
+    const drifted = clone(context);
+    drifted.membership_digest = 'f'.repeat(64);
+    expect(() => selectP4ContextV2(drifted, configuration)).toThrow(
+      new P4ContextAssemblyError('P4_MEMBERSHIP_DIGEST_MISMATCH'),
+    );
+  });
+
+  it('orders selection references by policy section and accepted entry tie-breakers', () => {
+    const input = syntheticInput();
+    const transcript = requiredValue(input.recent_transcript[0]);
+    input.recent_transcript = [
+      member({ ...transcript.value, text: 'revision two', text_revision: 2 }, 0, 'd'.repeat(64)),
+      member({ ...transcript.value, text: 'revision one', text_revision: 1 }, 0, 'e'.repeat(64)),
+    ];
+    const context = assembleP4ContextV2(input);
+    const plan = selectP4ContextV2(context, selectionConfiguration(4));
+    expect(
+      plan.selected
+        .filter(({ section }) => section === 'recent_transcript')
+        .map(({ source_revision }) => source_revision),
+    ).toEqual([1, 2]);
   });
 });
 
@@ -297,6 +441,32 @@ function member<T>(
   source_membership_digest: string,
 ): P4AssemblyMember<T> {
   return { value, input_order, source_membership_digest };
+}
+
+function requiredValue<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('synthetic fixture value missing');
+  return value;
+}
+
+function selectionConfiguration(capacity_units: number): P4SelectionConfiguration {
+  return {
+    config_ref: 'synthetic://p4/budget/profile-1',
+    policy_version: 'p4-priority-budget-v1',
+    capacity_profile_ref: 'synthetic://p4/budget/capacity-1',
+    entry_cost_profile_ref: 'synthetic://p4/budget/costs-1',
+    config_digest: 'd'.repeat(64),
+    capacity_units,
+    entry_costs: {
+      [`state:story_depth`]: 1,
+      [UUID.boundary]: 1,
+      [UUID.segment]: 1,
+      [UUID.working]: 1,
+      [UUID.memory]: 1,
+      [UUID.question]: 1,
+      [UUID.snapshot]: 1,
+      [UUID.bank]: 1,
+    },
+  };
 }
 
 function reverseOrderedInputs(input: P4AssemblyInput): P4AssemblyInput {
