@@ -54,6 +54,14 @@ import {
 } from './question-director-contract.js';
 import { QuestionDirector } from './question-director.js';
 import {
+  assembleP4DirectorContextV2,
+  projectP4ContextV2ToDirectorV1,
+  type P4DirectorActualQuestionInput,
+  type P4DirectorDisplayedQuestionInput,
+  type P4DirectorQuestionBankInput,
+  type P4DirectorTranscriptInput,
+} from './p4-context-v2-consumer.js';
+import {
   latestSubstantiveElderAnswer,
   QUESTION_SELECTION_POLICY_VERSION,
   scoreQuestionSelectionV1,
@@ -495,6 +503,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         decision.stage,
         decision.reasonCodes,
         generation,
+        inputSegments,
         sessionId,
       );
       this.contract.assertContext(context);
@@ -659,20 +668,65 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     journeyStage: 'rapport' | 'life_outline' | 'story_depth',
     journeyReasonCodes: readonly string[],
     generation: Awaited<ReturnType<QuestionPresentationService['generationContext']>>,
+    inputSegments: readonly {
+      effectiveTextDigest: string;
+      inputOrder: number;
+      speakerRoleRevision: number;
+      textRevision: number;
+      transcriptSegmentId: string;
+    }[],
     consumerSessionId = job.sessionIds[0] ?? '',
   ): Promise<InterviewDirectorContextV1> {
-    const recentSnapshots = await this.prisma.questionDisplaySnapshot.findMany({
-      orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
-      take: 40,
-      where: {
-        expiresAt: { gt: new Date() },
-        retentionState: 'active',
-        sessionId: consumerSessionId,
-      },
-    });
+    const [
+      recentSnapshots,
+      actualQuestionSources,
+      actualQuestionEvidence,
+      currentPresentationSnapshot,
+    ] = await Promise.all([
+      this.prisma.questionDisplaySnapshot.findMany({
+        orderBy: [{ displaySequence: 'desc' }, { id: 'desc' }],
+        take: 40,
+        where: {
+          expiresAt: { gt: new Date() },
+          retentionState: 'active',
+          sessionId: consumerSessionId,
+        },
+      }),
+      this.prisma.actualQuestion.findMany({
+        select: { id: true, sourceKind: true },
+        where: { id: { in: job.actualQuestions.map(({ actualQuestionId }) => actualQuestionId) } },
+      }),
+      this.prisma.actualQuestionEvidence.findMany({
+        orderBy: { evidenceOrder: 'asc' },
+        select: { actualQuestionId: true, transcriptSegmentId: true },
+        where: {
+          actualQuestionId: {
+            in: job.actualQuestions.map(({ actualQuestionId }) => actualQuestionId),
+          },
+        },
+      }),
+      generation.currentPresentation === null
+        ? Promise.resolve(null)
+        : this.prisma.questionDisplaySnapshot.findFirst({
+            where: {
+              id: generation.currentPresentation.id,
+              retentionState: 'active',
+              sessionId: consumerSessionId,
+            },
+          }),
+    ]);
     const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
     const actualById = new Map(actualAsked.map((question) => [question.id, question]));
-    return {
+    const actualSourceById = new Map(
+      actualQuestionSources.map((question) => [question.id, question]),
+    );
+    const actualEvidenceById = new Map<string, string[]>();
+    for (const evidence of actualQuestionEvidence) {
+      const entries = actualEvidenceById.get(evidence.actualQuestionId) ?? [];
+      entries.push(evidence.transcriptSegmentId);
+      actualEvidenceById.set(evidence.actualQuestionId, entries);
+    }
+    const legacyContext: InterviewDirectorContextV1 = {
       actual_asked: job.actualQuestions.flatMap((frozen) => {
         const item = actualById.get(frozen.actualQuestionId);
         return item === undefined ? [] : [{ actual_question_id: item.id, text: item.questionText }];
@@ -724,6 +778,105 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         .reverse()
         .map((snapshot) => ({ snapshot_id: snapshot.id, text: snapshot.questionText })),
     };
+    const inputSegmentById = new Map(
+      inputSegments.map((segment) => [segment.transcriptSegmentId, segment]),
+    );
+    const recentTranscript: P4DirectorTranscriptInput[] = job.segments
+      .slice(-40)
+      .map((segment, inputOrder) => {
+        const membership = inputSegmentById.get(segment.segmentId);
+        if (membership === undefined) throw new Error('P4_TRANSCRIPT_MEMBERSHIP_UNAVAILABLE');
+        return {
+          effectiveTextDigest: membership.effectiveTextDigest,
+          inputOrder,
+          segmentId: segment.segmentId,
+          sessionId: segment.sessionId,
+          speakerRoleRevision: membership.speakerRoleRevision,
+          startMs: segment.startMs,
+          text: segment.text,
+          textRevision: membership.textRevision,
+          trustedRole: segment.trustedRole,
+        };
+      });
+    const p4ActualAsked: P4DirectorActualQuestionInput[] = job.actualQuestions.flatMap(
+      (frozen, inputOrder) => {
+        const item = actualById.get(frozen.actualQuestionId);
+        const source = actualSourceById.get(frozen.actualQuestionId);
+        const evidenceSegmentIds = actualEvidenceById.get(frozen.actualQuestionId);
+        if (item === undefined || source === undefined || evidenceSegmentIds === undefined)
+          return [];
+        if (
+          source.sourceKind !== 'interviewer_spontaneous' &&
+          source.sourceKind !== 'matched_system_suggestion'
+        ) {
+          throw new Error('P4_ACTUAL_QUESTION_SOURCE_UNAVAILABLE');
+        }
+        if (evidenceSegmentIds.length === 0)
+          throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_UNAVAILABLE');
+        return [
+          {
+            evidenceSegmentIds,
+            inputOrder,
+            normalizedDigest: item.normalizedDigest,
+            questionId: item.id,
+            questionText: item.questionText,
+            source: source.sourceKind,
+          },
+        ];
+      },
+    );
+    const p4Displayed: P4DirectorDisplayedQuestionInput[] = recentSnapshots.map(
+      (snapshot, inputOrder) => ({
+        displaySequence: snapshot.displaySequence,
+        inputOrder,
+        normalizedQuestionDigest: snapshot.normalizedQuestionDigest,
+        questionText: snapshot.questionText,
+        snapshotId: snapshot.id,
+      }),
+    );
+    const currentSnapshot =
+      generation.currentPresentation === null
+        ? null
+        : (currentPresentationSnapshot ??
+          recentSnapshots.find(({ id }) => id === generation.currentPresentation?.id) ??
+          null);
+    if (generation.currentPresentation !== null && currentSnapshot === null)
+      throw new Error('P4_CURRENT_PRESENTATION_UNAVAILABLE');
+    const p4QuestionBank: P4DirectorQuestionBankInput[] = bankReferences.map(
+      (reference, inputOrder) => ({
+        bank: reference.bank,
+        bankVersion: reference.bankVersion,
+        contentDigest: reference.contentDigest,
+        inputOrder,
+        itemId: reference.itemId,
+        purpose: reference.purpose,
+        questionText: reference.questionText,
+        sensitivity: reference.sensitivity,
+        topic: reference.topic,
+      }),
+    );
+    const p4Context = assembleP4DirectorContextV2({
+      actualAsked: p4ActualAsked,
+      currentPresentation:
+        currentSnapshot === null
+          ? null
+          : {
+              displaySequence: currentSnapshot.displaySequence,
+              normalizedQuestionDigest: currentSnapshot.normalizedQuestionDigest,
+              questionText: currentSnapshot.questionText,
+              snapshotId: currentSnapshot.id,
+            },
+      displayed: p4Displayed,
+      goal: goalFor(journeyStage),
+      journeyReasonCodes,
+      journeyStage,
+      policyRevision: job.policyRevision,
+      projectId: job.projectId,
+      questionBank: p4QuestionBank,
+      recentTranscript,
+      sessionId: consumerSessionId,
+    });
+    return projectP4ContextV2ToDirectorV1(p4Context, legacyContext.current_memories);
   }
 
   private async journeyContext(
