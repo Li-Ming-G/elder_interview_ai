@@ -61,14 +61,10 @@ export class EvidenceDrilldownService {
         ))
       )
         throw new EvidenceFailure('RETENTION_INELIGIBLE', 'source_fence');
-      const sourceIds = record.evidence.map((entry) => entry.source_id);
-      const frozenIds = [
-        ...new Set([...p4.recent_transcript.map((segment) => segment.segment_id), ...sourceIds]),
-      ];
       const transcript = await this.readAndValidateTranscript(
         envelope.scope.project_id,
         envelope.scope.authorized_session_ids,
-        frozenIds,
+        null,
         p4,
         policy,
       );

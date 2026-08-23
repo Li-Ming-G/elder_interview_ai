@@ -31,6 +31,10 @@ const UUID = {
   segment2: '44444444-4444-4444-8444-444444444444',
   segment3: '55555555-5555-4555-8555-555555555555',
   segment4: '88888888-8888-4888-8888-888888888888',
+  segment5: '99999999-9999-4999-8999-999999999999',
+  segment6: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  segment7: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  segment8: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 };
 
 describe('EvidenceDrilldownService', () => {
@@ -69,6 +73,30 @@ describe('EvidenceDrilldownService', () => {
     expect(fixture.reader.memoryReads).toBe(0);
   });
 
+  it('uses true finalized neighbors for an evidence source outside the recent slice', async () => {
+    const fixture = createFixture(true, true);
+    const result = await fixture.service.getMemoryEvidence(
+      fixture.memoryRequest(),
+      fixture.runtime,
+    );
+
+    expect(result).toMatchObject({ message_type: 'result' });
+    if (result.message_type !== 'result' || result.result.result_type !== 'memory_evidence') return;
+    const hit = result.result.evidence[0];
+    expect(hit?.source.segment_id).toBe(UUID.segment4);
+    expect(hit?.neighboring_context.before.map((segment) => segment.segment_id)).toEqual([
+      UUID.segment5,
+      UUID.segment6,
+    ]);
+    expect(hit?.neighboring_context.after.map((segment) => segment.segment_id)).toEqual([
+      UUID.segment7,
+      UUID.segment8,
+    ]);
+    expect(hit?.neighboring_context.before).not.toContainEqual(
+      expect.objectContaining({ segment_id: UUID.segment3 }),
+    );
+  });
+
   it('searches only frozen transcript members and orders matches deterministically', async () => {
     const fixture = createFixture();
     fixture.reader.transcriptRows = [...fixture.reader.transcriptRows].reverse();
@@ -96,7 +124,7 @@ describe('EvidenceDrilldownService', () => {
       return;
     expect(result.result.matches.map((match) => match.source.segment_id)).toEqual([UUID.segment4]);
     expect(result.result.matches[0]?.neighboring_context.before.at(-1)?.segment_id).toBe(
-      UUID.segment3,
+      UUID.segment6,
     );
   });
 
@@ -216,7 +244,7 @@ class FixtureReader extends EvidenceDrilldownReader {
 }
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function createFixture(eligible = true) {
+function createFixture(eligible = true, outsideMemory = false) {
   const p4Context = createP4Context();
   const memory = p4Context.active_memory.items[0];
   if (memory === undefined) throw new Error('memory fixture missing');
@@ -224,8 +252,14 @@ function createFixture(eligible = true) {
     transcript(UUID.segment1, 0, 'Before detail.'),
     transcript(UUID.segment2, 100, 'Harbor evidence from elder.', 'elder'),
     transcript(UUID.segment3, 200, 'After detail.', 'interviewer'),
-    transcript(UUID.segment4, 300, 'Older authorized detail.', 'elder'),
+    transcript(UUID.segment5, 300, 'True before one.', 'elder'),
+    transcript(UUID.segment6, 350, 'True before two.', 'interviewer'),
+    transcript(UUID.segment4, 400, 'Older authorized detail.', 'elder'),
+    transcript(UUID.segment7, 500, 'True after one.', 'interviewer'),
+    transcript(UUID.segment8, 550, 'True after two.', 'elder'),
   ];
+  const evidenceSourceId = outsideMemory ? UUID.segment4 : UUID.segment2;
+  const evidenceText = outsideMemory ? 'Older authorized detail.' : 'Harbor evidence from elder.';
   const reader = new FixtureReader(
     {
       memory: {
@@ -241,12 +275,12 @@ function createFixture(eligible = true) {
       evidence: [
         {
           authority_revision: 1,
-          effective_text_digest: effectiveTextDigest('Harbor evidence from elder.'),
+          effective_text_digest: effectiveTextDigest(evidenceText),
           evidence_id: '66666666-6666-4666-8666-666666666666',
           membership_digest: 'a'.repeat(64),
           project_id: UUID.project,
           session_id: UUID.session,
-          source_id: UUID.segment2,
+          source_id: evidenceSourceId,
           speaker_role_revision: 1,
           text_revision: 1,
         },
