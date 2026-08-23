@@ -54,7 +54,7 @@ export class EvidenceDrilldownService {
       if (record.evidence.length > 20)
         throw new EvidenceFailure('MALFORMED_RESULT', 'result_validation');
       if (
-        !(await this.eligibility.isMemoryResolutionEligible(
+        !(await this.eligibility.isMemoryIdentityEligible(
           runtime.actorId,
           envelope.scope.project_id,
           payload.memory_id,

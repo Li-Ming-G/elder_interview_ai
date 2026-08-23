@@ -326,7 +326,7 @@ function createFixture(eligible = true, outsideMemory = false, candidateMemory =
       }),
   } as unknown as AiPolicyService;
   const eligibility = {
-    isMemoryResolutionEligible: () => Promise.resolve(eligible),
+    isMemoryIdentityEligible: () => Promise.resolve(eligible),
   } as unknown as AiOutputEligibilityService;
   return {
     memoryRequest: (overrides: Record<string, unknown> = {}): EvidenceRequestEnvelope => ({
