@@ -1,0 +1,262 @@
+{
+  "contract": "interview-director-context-v2",
+  "status": "synthetic-only",
+  "valid": [
+    {
+      "name": "frozen context with separate active and resumed domains",
+      "context": {
+        "context_schema_version": "interview-director-context-v2",
+        "contract_version": "p4-context-freeze-v1",
+        "project_id": "11111111-1111-4111-8111-111111111111",
+        "current_session_id": "22222222-2222-4222-8222-222222222222",
+        "interview_state": {
+          "journey_stage": "story_depth",
+          "journey_reason_codes": ["recent_detail", "current_thread"],
+          "goal": "沿着当前故事主线深入一个具体片段。"
+        },
+        "working_memory": {
+          "source": "p1-working-direct",
+          "items": [
+            {
+              "id": "33333333-3333-4333-8333-333333333333",
+              "canonical_key": "episode:school",
+              "memory_type": "episode",
+              "value": "synthetic working value",
+              "value_kind": "exact",
+              "layer": "working",
+              "status": "current",
+              "revision": 2,
+              "thread_id": "44444444-4444-4444-8444-444444444444",
+              "evidence": [
+                {
+                  "segment_id": "55555555-5555-4555-8555-555555555555",
+                  "text_revision": 1,
+                  "speaker_role_revision": 1,
+                  "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "order": 0
+                }
+              ]
+            }
+          ]
+        },
+        "active_memory": {
+          "state": "active",
+          "thread_id": "44444444-4444-4444-8444-444444444444",
+          "thread_revision": 3,
+          "source_session_id": "22222222-2222-4222-8222-222222222222",
+          "items": [
+            {
+              "memory_id": "66666666-6666-4666-8666-666666666666",
+              "resolution_authority_id": "77777777-7777-4777-8777-777777777777",
+              "revision_id": "88888888-8888-4888-8888-888888888888",
+              "revision_no": 2,
+              "source_level": "mid",
+              "semantic_kind": "episode",
+              "semantic_status": "current",
+              "safe_content": "synthetic active safe content",
+              "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "input_order": 0
+            }
+          ]
+        },
+        "resumed_memory": {
+          "state": "resumed",
+          "thread_id": "99999999-9999-4999-8999-999999999999",
+          "thread_revision": 1,
+          "source_session_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "items": []
+        },
+        "recent_transcript": [
+          {
+            "segment_id": "55555555-5555-4555-8555-555555555555",
+            "session_id": "22222222-2222-4222-8222-222222222222",
+            "start_ms": 1200,
+            "text": "synthetic elder final",
+            "trusted_role": "elder",
+            "content_kind": "conversation_final",
+            "text_revision": 1,
+            "speaker_role_revision": 1,
+            "effective_text_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "memory_candidates": [
+          {
+            "memory_id": "66666666-6666-4666-8666-666666666666",
+            "resolution_authority_id": "77777777-7777-4777-8777-777777777777",
+            "revision_id": "88888888-8888-4888-8888-888888888888",
+            "revision_no": 2,
+            "source_level": "mid",
+            "semantic_kind": "episode",
+            "semantic_status": "current",
+            "safe_content": "synthetic candidate content",
+            "retrieval_sources": ["embedding", "graph"],
+            "embedding_score": 0.9,
+            "graph_distance": 1,
+            "rank": 0
+          }
+        ],
+        "boundaries": [
+          {
+            "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "code": "do_not_ask",
+            "abstract_scope": "synthetic protected topic",
+            "status": "active",
+            "revision": 1,
+            "content_policy": "control-only-no-source-text"
+          }
+        ],
+        "actual_asked": [
+          {
+            "actual_question_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "text": "synthetic actual question",
+            "source": "interviewer_spontaneous",
+            "evidence_segment_ids": ["55555555-5555-4555-8555-555555555555"]
+          }
+        ],
+        "displayed": [
+          {
+            "snapshot_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            "text": "synthetic displayed question",
+            "display_sequence": 1,
+            "outcome": "actual_asked",
+            "actual_question_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+          }
+        ],
+        "question_bank": [
+          {
+            "question_bank_item_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "bank": "deep",
+            "topic": "synthetic topic",
+            "question_text": "synthetic bank question",
+            "purpose": "detail",
+            "sensitivity": "low",
+            "bank_version": "synthetic-1"
+          }
+        ],
+        "current_presentation": {
+          "snapshot_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          "text": "synthetic displayed question",
+          "display_sequence": 1
+        },
+        "priority_order": [
+          "boundaries",
+          "recent_transcript",
+          "working_memory",
+          "active_memory",
+          "resumed_memory",
+          "memory_candidates",
+          "actual_asked",
+          "displayed",
+          "question_bank",
+          "interview_state",
+          "current_presentation"
+        ],
+        "budget": {
+          "config_ref": "synthetic-budget-config",
+          "policy_version": "synthetic-budget-v1",
+          "overflow_behavior": "clip-by-frozen-priority-and-order"
+        },
+        "v1_compatibility": {
+          "mode": "projection-only",
+          "schema_id": "interview-director-context-v1",
+          "projection_fields": [
+            "current_presentation",
+            "interview_state",
+            "recent_transcript",
+            "actual_asked",
+            "recently_displayed",
+            "bank_references",
+            "boundaries"
+          ]
+        },
+        "freeze": {
+          "freeze_schema_version": "p4-context-freeze-v1",
+          "source_contracts": {
+            "p3_retrieval": "memory-p3-retrieval-v1",
+            "v1_context": "interview-director-context-v1",
+            "p4_context": "p4-context-freeze-v1"
+          },
+          "scope": {
+            "project_id": "11111111-1111-4111-8111-111111111111",
+            "current_session_id": "22222222-2222-4222-8222-222222222222",
+            "active_thread_id": "44444444-4444-4444-8444-444444444444",
+            "resumed_thread_id": "99999999-9999-4999-8999-999999999999"
+          },
+          "required_sections": [
+            "interview_state",
+            "working_memory",
+            "active_memory",
+            "resumed_memory",
+            "recent_transcript",
+            "memory_candidates",
+            "boundaries",
+            "actual_asked",
+            "displayed",
+            "question_bank",
+            "current_presentation"
+          ],
+          "deterministic_ordering": {
+            "algorithm": "p4-canonical-order-v1",
+            "tie_breakers": ["input_order", "source_id_lexicographic", "revision_ascending"]
+          },
+          "budget_config_ref": "synthetic-budget-config",
+          "policy_revision": "synthetic-policy-v1"
+        },
+        "membership": {
+          "membership_schema_version": "p4-membership-freeze-v1",
+          "scope": {
+            "project_id": "11111111-1111-4111-8111-111111111111",
+            "current_session_id": "22222222-2222-4222-8222-222222222222"
+          },
+          "entries": [
+            {
+              "section": "boundaries",
+              "source_type": "boundary_control",
+              "source_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              "source_revision": 1,
+              "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "input_order": 0
+            },
+            {
+              "section": "recent_transcript",
+              "source_type": "transcript_segment",
+              "source_id": "55555555-5555-4555-8555-555555555555",
+              "source_revision": 1,
+              "membership_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "input_order": 1
+            }
+          ]
+        },
+        "membership_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "context_digest": "2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing required section must fail closed",
+      "path": "context.boundaries",
+      "expected_error": "P4_REQUIRED_SECTION_MISSING"
+    },
+    {
+      "name": "boundary cannot carry evidence or source text",
+      "path": "context.boundaries.0.evidence",
+      "expected_error": "P4_BOUNDARY_CONTROL_ONLY"
+    },
+    {
+      "name": "displayed is not actual asked",
+      "path": "context.actual_asked.0",
+      "expected_error": "P4_ACTUAL_DISPLAY_DISTINCTION"
+    },
+    {
+      "name": "P3 candidate shape cannot add provider payload",
+      "path": "context.memory_candidates.0.provider_payload",
+      "expected_error": "P4_P3_CANDIDATE_CLOSED_SHAPE"
+    },
+    {
+      "name": "empty thread section must not retain thread identity",
+      "path": "context.active_memory.thread_id",
+      "expected_error": "P4_THREAD_SECTION_STATE_PARITY"
+    }
+  ]
+}

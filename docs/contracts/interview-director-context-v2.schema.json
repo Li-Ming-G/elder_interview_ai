@@ -1,0 +1,572 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.example/schemas/interview-director-context-v2.json",
+  "title": "InterviewDirectorContextV2",
+  "$comment": "P4C-01-CONTRACT formal membership/freeze surface. This schema is a contract artifact; it does not authorize runtime assembly or Director wiring.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context_schema_version",
+    "contract_version",
+    "project_id",
+    "current_session_id",
+    "interview_state",
+    "working_memory",
+    "active_memory",
+    "resumed_memory",
+    "recent_transcript",
+    "memory_candidates",
+    "boundaries",
+    "actual_asked",
+    "displayed",
+    "question_bank",
+    "current_presentation",
+    "priority_order",
+    "budget",
+    "v1_compatibility",
+    "freeze",
+    "membership",
+    "membership_digest",
+    "context_digest"
+  ],
+  "properties": {
+    "context_schema_version": { "const": "interview-director-context-v2" },
+    "contract_version": { "const": "p4-context-freeze-v1" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "current_session_id": { "$ref": "#/$defs/uuid" },
+    "interview_state": { "$ref": "#/$defs/interviewState" },
+    "working_memory": { "$ref": "#/$defs/workingMemorySection" },
+    "active_memory": {
+      "$ref": "#/$defs/threadMemorySection",
+      "description": "The current thread domain. It is separate from resumed_memory even when both are empty."
+    },
+    "resumed_memory": {
+      "$ref": "#/$defs/threadMemorySection",
+      "description": "A resumed/continuation thread domain. It is never folded into active_memory."
+    },
+    "recent_transcript": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/transcriptSegment" }
+    },
+    "memory_candidates": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/p3Candidate" }
+    },
+    "boundaries": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/controlBoundary" }
+    },
+    "actual_asked": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/actualQuestion" }
+    },
+    "displayed": {
+      "type": "array",
+      "maxItems": 40,
+      "items": { "$ref": "#/$defs/displayedQuestion" }
+    },
+    "question_bank": {
+      "type": "array",
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/questionBankReference" }
+    },
+    "current_presentation": {
+      "oneOf": [
+        { "$ref": "#/$defs/presentation" },
+        { "type": "null" }
+      ]
+    },
+    "priority_order": {
+      "type": "array",
+      "const": [
+        "boundaries",
+        "recent_transcript",
+        "working_memory",
+        "active_memory",
+        "resumed_memory",
+        "memory_candidates",
+        "actual_asked",
+        "displayed",
+        "question_bank",
+        "interview_state",
+        "current_presentation"
+      ]
+    },
+    "budget": { "$ref": "#/$defs/budgetSeam" },
+    "v1_compatibility": { "$ref": "#/$defs/v1Compatibility" },
+    "freeze": { "$ref": "#/$defs/freezeMetadata" },
+    "membership": { "$ref": "#/$defs/membershipFreeze" },
+    "membership_digest": { "$ref": "#/$defs/digest" },
+    "context_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "interviewState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["journey_stage", "journey_reason_codes", "goal"],
+      "properties": {
+        "journey_stage": { "enum": ["rapport", "life_outline", "story_depth"] },
+        "journey_reason_codes": {
+          "type": "array",
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+        },
+        "goal": { "type": "string", "minLength": 1, "maxLength": 300 }
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment_id",
+        "text_revision",
+        "speaker_role_revision",
+        "effective_text_digest",
+        "order"
+      ],
+      "properties": {
+        "segment_id": { "$ref": "#/$defs/uuid" },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "$ref": "#/$defs/digest" },
+        "order": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "workingMemoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "canonical_key",
+        "memory_type",
+        "value",
+        "value_kind",
+        "layer",
+        "status",
+        "revision",
+        "thread_id",
+        "evidence"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "canonical_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "memory_type": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "value": {},
+        "value_kind": { "enum": ["exact", "range", "unknown"] },
+        "layer": { "const": "working" },
+        "status": { "enum": ["current", "uncertain", "disputed"] },
+        "revision": { "type": "integer", "minimum": 1 },
+        "thread_id": { "$ref": "#/$defs/uuid" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/evidenceReference" }
+        }
+      }
+    },
+    "workingMemorySection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "items"],
+      "properties": {
+        "source": { "const": "p1-working-direct" },
+        "items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/workingMemoryItem" }
+        }
+      }
+    },
+    "threadMemoryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_id",
+        "resolution_authority_id",
+        "revision_id",
+        "revision_no",
+        "source_level",
+        "semantic_kind",
+        "semantic_status",
+        "safe_content",
+        "membership_digest",
+        "input_order"
+      ],
+      "properties": {
+        "memory_id": { "$ref": "#/$defs/uuid" },
+        "resolution_authority_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
+        "source_level": { "enum": ["mid", "long"] },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "safe_content": { "type": "string", "minLength": 1, "maxLength": 12000 },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "input_order": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "threadMemorySection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "thread_id", "thread_revision", "source_session_id", "items"],
+      "properties": {
+        "state": { "enum": ["active", "resumed", "empty"] },
+        "thread_id": { "type": ["string", "null"], "format": "uuid" },
+        "thread_revision": { "type": ["integer", "null"], "minimum": 1 },
+        "source_session_id": { "type": ["string", "null"], "format": "uuid" },
+        "items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": { "$ref": "#/$defs/threadMemoryItem" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "empty" } } },
+          "then": {
+            "properties": {
+              "thread_id": { "type": "null" },
+              "thread_revision": { "type": "null" },
+              "source_session_id": { "type": "null" },
+              "items": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "state": { "enum": ["active", "resumed"] } } },
+          "then": {
+            "properties": {
+              "thread_id": { "$ref": "#/$defs/uuid" },
+              "thread_revision": { "type": "integer", "minimum": 1 },
+              "source_session_id": { "$ref": "#/$defs/uuid" }
+            }
+          }
+        }
+      ]
+    },
+    "transcriptSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segment_id",
+        "session_id",
+        "start_ms",
+        "text",
+        "trusted_role",
+        "content_kind",
+        "text_revision",
+        "speaker_role_revision",
+        "effective_text_digest"
+      ],
+      "properties": {
+        "segment_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "trusted_role": { "enum": ["elder", "interviewer"] },
+        "content_kind": { "const": "conversation_final" },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "p3Candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_id",
+        "resolution_authority_id",
+        "revision_id",
+        "source_level",
+        "semantic_kind",
+        "semantic_status",
+        "safe_content",
+        "retrieval_sources",
+        "embedding_score",
+        "graph_distance",
+        "rank"
+      ],
+      "$comment": "Byte/field shape intentionally mirrors memory-p3-retrieval-v1 candidate.",
+      "properties": {
+        "memory_id": { "$ref": "#/$defs/uuid" },
+        "resolution_authority_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
+        "source_level": { "enum": ["mid", "long"] },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "safe_content": { "type": "string", "minLength": 1, "maxLength": 12000 },
+        "retrieval_sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["embedding", "graph"] }
+        },
+        "embedding_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "graph_distance": { "type": ["integer", "null"], "minimum": 0 },
+        "rank": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "controlBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "code", "abstract_scope", "status", "revision", "content_policy"],
+      "$comment": "Boundary is intentionally control-only. No source text, evidence, or raw marker payload is permitted.",
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "abstract_scope": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "status": { "const": "active" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "content_policy": { "const": "control-only-no-source-text" }
+      }
+    },
+    "actualQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actual_question_id", "text", "source", "evidence_segment_ids"],
+      "properties": {
+        "actual_question_id": { "$ref": "#/$defs/uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "source": { "enum": ["interviewer_spontaneous", "matched_system_suggestion"] },
+        "evidence_segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    },
+    "displayedQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "text", "display_sequence", "outcome", "actual_question_id"],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "display_sequence": { "type": "integer", "minimum": 1 },
+        "outcome": { "enum": ["actual_asked", "explicitly_replaced", "not_observed", "unjudged"] },
+        "actual_question_id": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "questionBankReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question_bank_item_id",
+        "bank",
+        "topic",
+        "question_text",
+        "purpose",
+        "sensitivity",
+        "bank_version"
+      ],
+      "properties": {
+        "question_bank_item_id": { "$ref": "#/$defs/uuid" },
+        "bank": { "enum": ["basic", "deep"] },
+        "topic": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "question_text": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "purpose": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "sensitivity": { "enum": ["low", "medium", "high"] },
+        "bank_version": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "text", "display_sequence"],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "display_sequence": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "budgetSeam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config_ref", "policy_version", "overflow_behavior"],
+      "properties": {
+        "config_ref": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "overflow_behavior": { "const": "clip-by-frozen-priority-and-order" },
+        "applied_limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "working_memory": { "type": "integer", "minimum": 0 },
+            "active_memory": { "type": "integer", "minimum": 0 },
+            "resumed_memory": { "type": "integer", "minimum": 0 },
+            "recent_transcript": { "type": "integer", "minimum": 0 },
+            "memory_candidates": { "type": "integer", "minimum": 0 },
+            "actual_asked": { "type": "integer", "minimum": 0 },
+            "displayed": { "type": "integer", "minimum": 0 },
+            "question_bank": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "v1Compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "schema_id", "projection_fields"],
+      "properties": {
+        "mode": { "const": "projection-only" },
+        "schema_id": { "const": "interview-director-context-v1" },
+        "projection_fields": {
+          "type": "array",
+          "const": [
+            "current_presentation",
+            "interview_state",
+            "recent_transcript",
+            "actual_asked",
+            "recently_displayed",
+            "bank_references",
+            "boundaries"
+          ]
+        }
+      }
+    },
+    "freezeMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "freeze_schema_version",
+        "source_contracts",
+        "scope",
+        "required_sections",
+        "deterministic_ordering",
+        "budget_config_ref",
+        "policy_revision"
+      ],
+      "properties": {
+        "freeze_schema_version": { "const": "p4-context-freeze-v1" },
+        "source_contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p3_retrieval", "v1_context", "p4_context"],
+          "properties": {
+            "p3_retrieval": { "const": "memory-p3-retrieval-v1" },
+            "v1_context": { "const": "interview-director-context-v1" },
+            "p4_context": { "const": "p4-context-freeze-v1" }
+          }
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["project_id", "current_session_id", "active_thread_id", "resumed_thread_id"],
+          "properties": {
+            "project_id": { "$ref": "#/$defs/uuid" },
+            "current_session_id": { "$ref": "#/$defs/uuid" },
+            "active_thread_id": { "type": ["string", "null"], "format": "uuid" },
+            "resumed_thread_id": { "type": ["string", "null"], "format": "uuid" }
+          }
+        },
+        "required_sections": {
+          "type": "array",
+          "const": [
+            "interview_state",
+            "working_memory",
+            "active_memory",
+            "resumed_memory",
+            "recent_transcript",
+            "memory_candidates",
+            "boundaries",
+            "actual_asked",
+            "displayed",
+            "question_bank",
+            "current_presentation"
+          ]
+        },
+        "deterministic_ordering": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "tie_breakers"],
+          "properties": {
+            "algorithm": { "const": "p4-canonical-order-v1" },
+            "tie_breakers": {
+              "type": "array",
+              "const": ["input_order", "source_id_lexicographic", "revision_ascending"]
+            }
+          }
+        },
+        "budget_config_ref": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "policy_revision": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "membershipEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section", "source_type", "source_id", "source_revision", "membership_digest", "input_order"],
+      "properties": {
+        "section": {
+          "enum": [
+            "interview_state",
+            "working_memory",
+            "active_memory",
+            "resumed_memory",
+            "recent_transcript",
+            "memory_candidates",
+            "boundaries",
+            "actual_asked",
+            "displayed",
+            "question_bank",
+            "current_presentation"
+          ]
+        },
+        "source_type": {
+          "enum": [
+            "interview_state",
+            "working_memory",
+            "memory_thread",
+            "transcript_segment",
+            "memory_candidate",
+            "boundary_control",
+            "actual_question",
+            "display_snapshot",
+            "question_bank_item",
+            "presentation"
+          ]
+        },
+        "source_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "source_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "input_order": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "membershipFreeze": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["membership_schema_version", "scope", "entries"],
+      "properties": {
+        "membership_schema_version": { "const": "p4-membership-freeze-v1" },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["project_id", "current_session_id"],
+          "properties": {
+            "project_id": { "$ref": "#/$defs/uuid" },
+            "current_session_id": { "$ref": "#/$defs/uuid" }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/membershipEntry" }
+        }
+      }
+    }
+  }
+}
