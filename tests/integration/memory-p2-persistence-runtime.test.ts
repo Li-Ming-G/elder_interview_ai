@@ -1049,6 +1049,31 @@ async function seedFixture(
       triggerDedupeKey: `memory-p1-v1.2:${sessionId}:final`,
     }),
   });
+  const p1InputSegmentId = randomUUID();
+  await prisma.aiJobInputSegment.create({
+    data: {
+      aiJobId: p1JobId,
+      contentKind: 'conversation',
+      effectiveTextDigest: effectiveTextDigest(text),
+      id: p1InputSegmentId,
+      inputOrder: 0,
+      roleAuthority: 'user_confirmed',
+      sessionId,
+      speakerRoleRevision: 1,
+      textRevision: 0,
+      transcriptSegmentId: segmentId,
+      trustedEffectiveRole: 'elder',
+    },
+  });
+  await prisma.memoryClaimEvidence.create({
+    data: {
+      aiJobInputSegmentId: p1InputSegmentId,
+      evidenceOrder: 0,
+      id: randomUUID(),
+      memoryClaimId: sourceClaimId,
+      transcriptSegmentId: segmentId,
+    },
+  });
   await prisma.memoryWorkingSnapshot.create({
     data: {
       aiJobId: p1JobId,

@@ -1599,7 +1599,7 @@ export class MemoryP2PersistenceRepository {
     });
     const acceptedClaimIds = acceptedFactClaimEvidence.map(({ memoryClaimId }) => memoryClaimId);
     const acceptedClaims = await tx.memoryClaim.findMany({
-      select: { id: true },
+      select: { id: true, sourceSessionId: true },
       where: {
         id: { in: acceptedClaimIds },
         projectId: input.projectId,
@@ -1607,7 +1607,11 @@ export class MemoryP2PersistenceRepository {
         semanticKind: 'fact',
       },
     });
-    const acceptedClaimIdSet = new Set(acceptedClaims.map(({ id }) => id));
+    const acceptedClaimIdSet = new Set(
+      acceptedClaims
+        .filter(({ sourceSessionId }) => sourceSessionId === input.sourceSessionId)
+        .map(({ id }) => id),
+    );
     const acceptedMembers = await tx.memoryResolutionMember.findMany({
       select: { memoryClaimId: true, memoryResolutionId: true },
       where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
@@ -1616,7 +1620,7 @@ export class MemoryP2PersistenceRepository {
       ({ memoryResolutionId }) => memoryResolutionId,
     );
     const acceptedResolutions = await tx.memoryResolution.findMany({
-      select: { id: true },
+      select: { id: true, sourceSessionId: true },
       where: {
         id: { in: acceptedResolutionIds },
         projectId: input.projectId,
@@ -1624,7 +1628,11 @@ export class MemoryP2PersistenceRepository {
         status: 'current',
       },
     });
-    const acceptedResolutionIdSet = new Set(acceptedResolutions.map(({ id }) => id));
+    const acceptedResolutionIdSet = new Set(
+      acceptedResolutions
+        .filter(({ sourceSessionId }) => sourceSessionId === input.sourceSessionId)
+        .map(({ id }) => id),
+    );
     const acceptedFactSourceIds = new Set(
       acceptedFactClaimEvidence
         .filter(({ memoryClaimId }) => acceptedClaimIdSet.has(memoryClaimId))

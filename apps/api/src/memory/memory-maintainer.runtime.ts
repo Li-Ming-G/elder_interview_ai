@@ -50,6 +50,7 @@ import {
   type MemoryMaintainerOperationV12,
   type MemoryMaintainerOutputV12,
   type MemoryMaintainerTriggerKind,
+  type MemorySemanticKind,
 } from './memory-maintainer.provider.js';
 import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
 import {
@@ -152,6 +153,8 @@ interface PreparedAttempt {
 interface MemoryGateRuntimeAuthority {
   acceptedBoundaryIntentSourceIds: ReadonlySet<string>;
   acceptedFactSourceIds: ReadonlySet<string>;
+  acceptedFactEvidenceInputBySourceId: ReadonlyMap<string, string>;
+  acceptedFactSourceIdsByResolutionId: ReadonlyMap<string, ReadonlySet<string>>;
   evidenceBySegmentId: ReadonlyMap<string, MemoryGateEvidenceReference>;
   snapshot: MemoryGateAuthoritySnapshot;
 }
@@ -1065,9 +1068,13 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
       await this.assertContextAuthorityCurrent(tx, job, context);
       const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
-      this.assertGateForOperations(job, context, output.operations, gateAuthority);
+      const gatedOperations = this.assertGateForOperations(
+        context,
+        output.operations,
+        gateAuthority,
+      );
       this.assertGateForBoundaries(output, gateAuthority);
-      await this.applyOperations(tx, job, batch, context, output.operations);
+      await this.applyOperations(tx, job, batch, context, gatedOperations, gateAuthority);
       await this.failpoint.hit('after_operations');
       await this.applyBoundaries(tx, job, batch, output);
       await this.failpoint.hit('after_boundaries');
@@ -1127,8 +1134,17 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     batch: SelectedBatch,
     context: MemoryMaintainerContextV12,
     operations: readonly MemoryMaintainerOperationV12[],
+    authority: MemoryGateRuntimeAuthority,
   ): Promise<void> {
-    const inputBySegment = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
+    const inputBySegment = new Map(
+      job.segments.map((segment) => [
+        segment.segmentId,
+        { inputSegmentId: segment.inputSegmentId, segmentId: segment.segmentId },
+      ]),
+    );
+    for (const [segmentId, inputSegmentId] of authority.acceptedFactEvidenceInputBySourceId)
+      if (!inputBySegment.has(segmentId))
+        inputBySegment.set(segmentId, { inputSegmentId, segmentId });
     const touchedTargets = new Set<string>();
     const semanticSlots = new Set<string>();
     for (const operation of operations) {
@@ -1293,24 +1309,45 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   }
 
   private assertGateForOperations(
-    job: FrozenAiJob,
     context: MemoryMaintainerContextV12,
     operations: readonly MemoryMaintainerOperationV12[],
     authority: MemoryGateRuntimeAuthority,
-  ): void {
-    const inputBySegment = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
+  ): MemoryMaintainerOperationV12[] {
+    const gatedOperations: MemoryMaintainerOperationV12[] = [];
     for (const operation of operations) {
       if (operation.kind === 'DUPLICATE') continue;
       const state = operation.proposed_state;
       if (state === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
+      const gatedEvidenceSegmentIds = this.gatedFactEvidenceSegmentIds(
+        operation,
+        state.semantic_kind,
+        context,
+        authority,
+      );
+      const gatedOperation =
+        gatedEvidenceSegmentIds === operation.evidence_segment_ids
+          ? operation
+          : {
+              ...operation,
+              evidence_segment_ids: gatedEvidenceSegmentIds,
+              proposed_state: {
+                ...state,
+                claims: state.claims.map((claim) => ({
+                  ...claim,
+                  evidence_segment_ids: gatedEvidenceSegmentIds,
+                })),
+              },
+            };
+      const gatedState = gatedOperation.proposed_state;
+      if (gatedState === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
       if (operation.target_resolution_id !== null) {
         const target = context.current_working_memory.find(
           ({ resolution_id }) => resolution_id === operation.target_resolution_id,
         );
         if (
           target === undefined ||
-          target.canonical_key !== state.canonical_key ||
-          target.semantic_kind !== state.semantic_kind ||
+          target.canonical_key !== gatedState.canonical_key ||
+          target.semantic_kind !== gatedState.semantic_kind ||
           target.thread_id !== operation.anchor_thread_id ||
           target.revision !== operation.expected_resolution_revision
         )
@@ -1334,9 +1371,9 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         operation:
           operation.target_resolution_id === null
             ? 'create'
-            : state.semantic_status === 'uncertain'
+            : gatedState.semantic_status === 'uncertain'
               ? 'mark_uncertain'
-              : state.semantic_status === 'disputed'
+              : gatedState.semantic_status === 'disputed'
                 ? 'mark_disputed'
                 : 'correct',
         target:
@@ -1352,12 +1389,59 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
                 targetType: 'memory_resolution',
               },
         expectedRevision: operation.expected_resolution_revision,
-        proposedState: this.gateSemanticState(state, inputBySegment, authority),
+        proposedState: this.gateSemanticState(gatedState, authority),
         evidence,
         evidenceManifestDigest: authority.snapshot.evidenceManifestDigest,
       };
       this.gate.assertWritable(candidate, authority.snapshot);
+      gatedOperations.push(gatedOperation);
     }
+    return gatedOperations;
+  }
+
+  private gatedFactEvidenceSegmentIds(
+    operation: MemoryMaintainerOperationV12,
+    semanticKind: MemorySemanticKind,
+    context: MemoryMaintainerContextV12,
+    authority: MemoryGateRuntimeAuthority,
+  ): readonly string[] {
+    if (semanticKind !== 'fact') return operation.evidence_segment_ids;
+    if (
+      operation.evidence_segment_ids.some((segmentId) =>
+        authority.acceptedFactSourceIds.has(segmentId),
+      )
+    )
+      return operation.evidence_segment_ids;
+
+    const targetEvidence =
+      operation.target_resolution_id === null
+        ? []
+        : [
+            ...(authority.acceptedFactSourceIdsByResolutionId.get(operation.target_resolution_id) ??
+              []),
+          ];
+    const activeThreadId = context.active_thread?.thread_id;
+    const activeThreadEvidence =
+      activeThreadId === undefined
+        ? []
+        : context.current_working_memory
+            .filter(
+              ({ semantic_kind, thread_id }) =>
+                semantic_kind === 'fact' && thread_id === activeThreadId,
+            )
+            .flatMap(({ resolution_id }) => [
+              ...(authority.acceptedFactSourceIdsByResolutionId.get(resolution_id) ?? []),
+            ]);
+    const derivedEvidence =
+      targetEvidence.length > 0
+        ? targetEvidence
+        : ['BRANCH', 'RELATED'].includes(operation.kind)
+          ? activeThreadEvidence
+          : [];
+    const inScope = derivedEvidence.filter((segmentId) =>
+      authority.evidenceBySegmentId.has(segmentId),
+    );
+    return inScope.length === 0 ? operation.evidence_segment_ids : inScope;
   }
 
   private assertGateForBoundaries(
@@ -1392,7 +1476,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
 
   private gateSemanticState(
     state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
-    inputBySegment: ReadonlyMap<string, FrozenAiJob['segments'][number]>,
     authority: MemoryGateRuntimeAuthority,
   ): MemoryGateSemanticState {
     return {
@@ -1401,8 +1484,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         claimId: claim.claim_id,
         claimKey: claim.claim_key,
         evidenceIds: claim.evidence_segment_ids.map((segmentId) => {
-          const segment = inputBySegment.get(segmentId);
-          if (segment === undefined) throw new Error('MEMORY_GATE_EVIDENCE_OUTSIDE_INPUT');
           const evidence = authority.evidenceBySegmentId.get(segmentId);
           if (evidence === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
           return evidence.evidenceId;
@@ -1499,21 +1580,19 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       if (current === undefined || row.authorityRevision > current.authorityRevision)
         authorityBySourceId.set(row.sourceId, row);
     }
-    const acceptedFactClaimEvidence = await tx.memoryClaimEvidence.findMany({
-      select: { memoryClaimId: true, transcriptSegmentId: true },
-      where: { transcriptSegmentId: { in: transcriptIds } },
-    });
-    const acceptedClaimIds = acceptedFactClaimEvidence.map(({ memoryClaimId }) => memoryClaimId);
     const acceptedClaims = await tx.memoryClaim.findMany({
-      select: { id: true },
+      select: { id: true, sourceSessionId: true },
       where: {
-        id: { in: acceptedClaimIds },
         projectId: job.projectId,
         provenanceState: 'active',
         semanticKind: 'fact',
+        sourceSessionId: { in: [...job.sessionIds] },
       },
     });
     const acceptedClaimIdSet = new Set(acceptedClaims.map(({ id }) => id));
+    const acceptedClaimSessionById = new Map(
+      acceptedClaims.map(({ id, sourceSessionId }) => [id, sourceSessionId]),
+    );
     const acceptedMembers = await tx.memoryResolutionMember.findMany({
       select: { memoryClaimId: true, memoryResolutionId: true },
       where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
@@ -1522,7 +1601,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       ({ memoryResolutionId }) => memoryResolutionId,
     );
     const acceptedResolutions = await tx.memoryResolution.findMany({
-      select: { id: true },
+      select: { id: true, sourceSessionId: true },
       where: {
         id: { in: acceptedResolutionIds },
         projectId: job.projectId,
@@ -1530,18 +1609,60 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         status: 'current',
       },
     });
-    const acceptedResolutionIdSet = new Set(acceptedResolutions.map(({ id }) => id));
-    const acceptedFactSourceIds = new Set(
-      acceptedFactClaimEvidence
-        .filter(({ memoryClaimId }) => acceptedClaimIdSet.has(memoryClaimId))
-        .filter(({ memoryClaimId }) =>
-          acceptedMembers.some(
-            (member) =>
-              member.memoryClaimId === memoryClaimId &&
-              acceptedResolutionIdSet.has(member.memoryResolutionId),
-          ),
+    const acceptedResolutionSessionById = new Map(
+      acceptedResolutions.map(({ id, sourceSessionId }) => [id, sourceSessionId]),
+    );
+    const acceptedResolutionIdSet = new Set(
+      acceptedResolutions
+        .filter(
+          ({ sourceSessionId }) =>
+            sourceSessionId !== null && job.sessionIds.includes(sourceSessionId),
         )
-        .map(({ transcriptSegmentId }) => transcriptSegmentId),
+        .map(({ id }) => id),
+    );
+    const acceptedFactClaimEvidence = await tx.memoryClaimEvidence.findMany({
+      select: { aiJobInputSegmentId: true, memoryClaimId: true, transcriptSegmentId: true },
+      where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
+    });
+    const acceptedTranscriptIds = [
+      ...new Set(acceptedFactClaimEvidence.map(({ transcriptSegmentId }) => transcriptSegmentId)),
+    ];
+    const acceptedTranscripts = await tx.transcriptSegment.findMany({
+      where: { id: { in: acceptedTranscriptIds } },
+    });
+    const transcriptSessionById = new Map(
+      [...transcripts, ...acceptedTranscripts].map((segment) => [segment.id, segment.sessionId]),
+    );
+    const acceptedFactEvidenceInputBySourceId = new Map<string, string>();
+    const acceptedFactSourceIdsByResolutionId = new Map<string, Set<string>>();
+    for (const {
+      aiJobInputSegmentId,
+      memoryClaimId,
+      transcriptSegmentId,
+    } of acceptedFactClaimEvidence) {
+      if (
+        !acceptedClaimIdSet.has(memoryClaimId) ||
+        transcriptSessionById.get(transcriptSegmentId) !==
+          acceptedClaimSessionById.get(memoryClaimId)
+      )
+        continue;
+      for (const member of acceptedMembers) {
+        if (
+          member.memoryClaimId !== memoryClaimId ||
+          !acceptedResolutionIdSet.has(member.memoryResolutionId) ||
+          acceptedResolutionSessionById.get(member.memoryResolutionId) !==
+            acceptedClaimSessionById.get(memoryClaimId)
+        )
+          continue;
+        const sourceIds =
+          acceptedFactSourceIdsByResolutionId.get(member.memoryResolutionId) ?? new Set<string>();
+        sourceIds.add(transcriptSegmentId);
+        acceptedFactSourceIdsByResolutionId.set(member.memoryResolutionId, sourceIds);
+        acceptedFactEvidenceInputBySourceId.set(transcriptSegmentId, aiJobInputSegmentId);
+      }
+    }
+    const acceptedFactSourceIds = new Set(
+      [...acceptedFactSourceIdsByResolutionId.values()].flatMap((sourceIds) => [...sourceIds]),
     );
     const boundaryEvidence = await tx.memoryBoundaryEvidence.findMany({
       select: { boundaryRevisionId: true, transcriptSegmentId: true },
@@ -1617,9 +1738,37 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         trustedRole: input.trustedEffectiveRole,
       });
     }
+    for (const [sourceId, inputSegmentId] of acceptedFactEvidenceInputBySourceId) {
+      if (evidenceBySegmentId.has(sourceId)) continue;
+      const transcript = acceptedTranscripts.find(({ id }) => id === sourceId);
+      if (
+        transcript === undefined ||
+        !job.sessionIds.includes(transcript.sessionId) ||
+        projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole !== 'elder'
+      )
+        continue;
+      const text = transcript.correctedText ?? transcript.originalText;
+      evidenceBySegmentId.set(sourceId, {
+        authorityRevision: 1,
+        contentKind: 'conversation_final',
+        effectiveTextDigest: effectiveTextDigest(text),
+        evidenceId: inputSegmentId,
+        evidenceRole: 'explicit_fact_statement',
+        eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, !deletionDrifted),
+        projectId: job.projectId,
+        sessionId: transcript.sessionId,
+        sourceId,
+        sourceKind: 'transcript_segment',
+        speakerRoleRevision: transcript.speakerRoleRevision,
+        textRevision: transcript.textRevision,
+        trustedRole: 'elder',
+      });
+    }
     return {
       acceptedBoundaryIntentSourceIds,
+      acceptedFactEvidenceInputBySourceId,
       acceptedFactSourceIds,
+      acceptedFactSourceIdsByResolutionId,
       evidenceBySegmentId,
       snapshot: {
         authorityContract: 'memory-claim-resolution-v1',
@@ -1735,7 +1884,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     threadId: string,
     state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
     claim: NonNullable<MemoryMaintainerOperationV12['proposed_state']>['claims'][number],
-    inputBySegment: ReadonlyMap<string, FrozenAiJob['segments'][number]>,
+    inputBySegment: ReadonlyMap<string, { inputSegmentId: string; segmentId: string }>,
   ): Promise<string> {
     const evidence = claim.evidence_segment_ids.map((segmentId) => {
       const input = inputBySegment.get(segmentId);
