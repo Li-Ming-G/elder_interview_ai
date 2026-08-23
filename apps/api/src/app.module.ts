@@ -12,6 +12,7 @@ import { createAiRuntimeModule } from './ai-runtime/ai-runtime.module.js';
 import { createAudioModule } from './audio/audio.module.js';
 import { createAuthModule } from './auth/auth.module.js';
 import { CsrfMiddleware } from './auth/csrf.middleware.js';
+import { createEvidenceDrilldownModule } from './evidence-drilldown/evidence-drilldown.module.js';
 import { OriginMiddleware } from './auth/origin.middleware.js';
 import { HealthController } from './health/health.controller.js';
 import { RequestIdMiddleware } from './http/request-id.middleware.js';
@@ -36,6 +37,11 @@ export class AppModule implements NestModule {
       transcriptionModule,
     );
     const aiRuntimeModule = createAiRuntimeModule(config, authModule);
+    const evidenceDrilldownModule = createEvidenceDrilldownModule(
+      config,
+      authModule,
+      aiRuntimeModule,
+    );
     const questionBankModule = createQuestionBankModule(authModule, config.appEnv);
     const questionEvidenceModule = createQuestionEvidenceModule(
       config,
@@ -63,6 +69,7 @@ export class AppModule implements NestModule {
       imports: [
         authModule,
         aiRuntimeModule,
+        evidenceDrilldownModule,
         audioModule,
         memoryModule,
         createProjectFoundationModule(
