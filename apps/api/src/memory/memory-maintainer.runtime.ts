@@ -1406,19 +1406,35 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     tx: Prisma.TransactionClient,
     job: FrozenAiJob,
   ): Promise<MemoryGateRuntimeAuthority> {
-    const [storedJob, project, consent, assignment, scopes, inputs] = await Promise.all([
-      tx.aiJob.findUnique({ where: { id: job.id } }),
-      tx.elderProject.findUnique({ where: { id: job.projectId } }),
-      tx.consentRecord.findFirst({
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        where: { consentType: 'recording_transcription_ai', projectId: job.projectId },
-      }),
-      tx.projectAssignment.findFirst({
-        where: { projectId: job.projectId, revokedAt: null, userId: job.requestedBy },
-      }),
-      tx.aiJobSessionScope.findMany({ orderBy: { inputOrder: 'asc' }, where: { aiJobId: job.id } }),
-      tx.aiJobInputSegment.findMany({ orderBy: { inputOrder: 'asc' }, where: { aiJobId: job.id } }),
-    ]);
+    const [storedJob, project, consent, assignment, scopes, inputs, factAuthorities] =
+      await Promise.all([
+        tx.aiJob.findUnique({ where: { id: job.id } }),
+        tx.elderProject.findUnique({ where: { id: job.projectId } }),
+        tx.consentRecord.findFirst({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          where: { consentType: 'recording_transcription_ai', projectId: job.projectId },
+        }),
+        tx.projectAssignment.findFirst({
+          where: { projectId: job.projectId, revokedAt: null, userId: job.requestedBy },
+        }),
+        tx.aiJobSessionScope.findMany({
+          orderBy: { inputOrder: 'asc' },
+          where: { aiJobId: job.id },
+        }),
+        tx.aiJobInputSegment.findMany({
+          orderBy: { inputOrder: 'asc' },
+          where: { aiJobId: job.id },
+        }),
+        tx.memoryResolution.findMany({
+          select: { sourceSessionId: true },
+          where: {
+            projectId: job.projectId,
+            semanticKind: 'fact',
+            sourceSessionId: { in: [...job.sessionIds] },
+            status: 'current',
+          },
+        }),
+      ]);
     const policyAuthorized =
       storedJob !== null &&
       project !== null &&
@@ -1516,6 +1532,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         evidenceRole: classifyMemoryGateEvidenceRole(
           input.trustedEffectiveRole,
           transcript.correctedText ?? transcript.originalText,
+          factAuthorities.some(({ sourceSessionId }) => sourceSessionId === input.sessionId),
         ),
         eligibility: memoryGateEligibility(policyAuthorized, retentionEligible),
         projectId: job.projectId,
