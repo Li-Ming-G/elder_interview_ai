@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assembleP4DirectorContextV2,
+  buildP4ActualQuestionInputs,
   projectP4ContextV2ToDirectorV1,
 } from './p4-context-v2-consumer.js';
 import { QuestionDirectorContract } from './question-director-contract.js';
@@ -11,6 +12,7 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 const SEGMENT_ID = '33333333-3333-4333-8333-333333333333';
 const ACTUAL_ID = '44444444-4444-4444-8444-444444444444';
 const SNAPSHOT_ID = '55555555-5555-4555-8555-555555555555';
+const SNAPSHOT_ID_2 = '88888888-8888-4888-8888-888888888888';
 const BANK_ITEM_ID = '66666666-6666-4666-8666-666666666666';
 const DIGEST = 'a'.repeat(64);
 
@@ -28,10 +30,10 @@ describe('P4 Context V2 Director consumer handoff', () => {
         },
       ],
       currentPresentation: {
-        displaySequence: 1,
+        displaySequence: 2,
         normalizedQuestionDigest: DIGEST,
-        questionText: '你当时和谁一起去的？',
-        snapshotId: SNAPSHOT_ID,
+        questionText: '后来发生了什么？',
+        snapshotId: SNAPSHOT_ID_2,
       },
       displayed: [
         {
@@ -40,6 +42,13 @@ describe('P4 Context V2 Director consumer handoff', () => {
           normalizedQuestionDigest: DIGEST,
           questionText: '你当时和谁一起去的？',
           snapshotId: SNAPSHOT_ID,
+        },
+        {
+          displaySequence: 2,
+          inputOrder: 1,
+          normalizedQuestionDigest: DIGEST,
+          questionText: '后来发生了什么？',
+          snapshotId: SNAPSHOT_ID_2,
         },
       ],
       goal: '沿着当前故事主线深入一个具体片段。',
@@ -98,7 +107,7 @@ describe('P4 Context V2 Director consumer handoff', () => {
           value: '河边',
         },
       ],
-      current_presentation: { snapshot_id: SNAPSHOT_ID, text: '你当时和谁一起去的？' },
+      current_presentation: { snapshot_id: SNAPSHOT_ID_2, text: '后来发生了什么？' },
       interview_state: {
         goal: '沿着当前故事主线深入一个具体片段。',
         journey_reason_codes: ['current_thread'],
@@ -113,7 +122,10 @@ describe('P4 Context V2 Director consumer handoff', () => {
         },
       ],
       actual_asked: [{ actual_question_id: ACTUAL_ID, text: '你当时和谁一起去的？' }],
-      recently_displayed: [{ snapshot_id: SNAPSHOT_ID, text: '你当时和谁一起去的？' }],
+      recently_displayed: [
+        { snapshot_id: SNAPSHOT_ID, text: '你当时和谁一起去的？' },
+        { snapshot_id: SNAPSHOT_ID_2, text: '后来发生了什么？' },
+      ],
       bank_references: [
         {
           bank: 'deep',
@@ -126,6 +138,96 @@ describe('P4 Context V2 Director consumer handoff', () => {
       ],
       boundaries: [],
     });
+  });
+
+  it('fails closed for missing or drifted frozen actual-question members', () => {
+    const frozen = [{ actualQuestionId: ACTUAL_ID, analysisRevision: 3, normalizedDigest: DIGEST }];
+    const source = [{ id: ACTUAL_ID, sourceKind: 'interviewer_spontaneous' }];
+    const evidence = [
+      { actualQuestionId: ACTUAL_ID, evidenceOrder: 0, transcriptSegmentId: SEGMENT_ID },
+    ];
+    const frozenSegments = new Set([SEGMENT_ID]);
+
+    expect(() => buildP4ActualQuestionInputs(frozen, [], source, evidence, frozenSegments)).toThrow(
+      'P4_ACTUAL_QUESTION_CURRENT_MISSING_OR_DUPLICATE',
+    );
+    expect(() =>
+      buildP4ActualQuestionInputs(
+        frozen,
+        [
+          {
+            analysisRevision: 3,
+            id: ACTUAL_ID,
+            normalizedDigest: DIGEST,
+            questionText: '没有证据的问题',
+          },
+        ],
+        source,
+        [],
+        frozenSegments,
+      ),
+    ).toThrow('P4_ACTUAL_QUESTION_EVIDENCE_UNAVAILABLE');
+    expect(() =>
+      buildP4ActualQuestionInputs(
+        frozen,
+        [
+          {
+            analysisRevision: 3,
+            id: ACTUAL_ID,
+            normalizedDigest: DIGEST,
+            questionText: '没有来源的问题',
+          },
+        ],
+        [],
+        evidence,
+        frozenSegments,
+      ),
+    ).toThrow('P4_ACTUAL_QUESTION_SOURCE_MISSING_OR_DUPLICATE');
+    expect(() =>
+      buildP4ActualQuestionInputs(
+        frozen,
+        [
+          {
+            analysisRevision: 4,
+            id: ACTUAL_ID,
+            normalizedDigest: DIGEST,
+            questionText: '漂移的问题',
+          },
+        ],
+        source,
+        evidence,
+        frozenSegments,
+      ),
+    ).toThrow('P4_ACTUAL_QUESTION_FROZEN_DRIFT');
+  });
+
+  it('binds actual-question membership to the frozen digest and evidence set', () => {
+    const frozenDigest = 'b'.repeat(64);
+    const result = buildP4ActualQuestionInputs(
+      [{ actualQuestionId: ACTUAL_ID, analysisRevision: 3, normalizedDigest: frozenDigest }],
+      [
+        {
+          analysisRevision: 3,
+          id: ACTUAL_ID,
+          normalizedDigest: frozenDigest,
+          questionText: '冻结的问题',
+        },
+      ],
+      [{ id: ACTUAL_ID, sourceKind: 'interviewer_spontaneous' }],
+      [{ actualQuestionId: ACTUAL_ID, evidenceOrder: 0, transcriptSegmentId: SEGMENT_ID }],
+      new Set([SEGMENT_ID]),
+    );
+
+    expect(result).toEqual([
+      {
+        evidenceSegmentIds: [SEGMENT_ID],
+        inputOrder: 0,
+        normalizedDigest: frozenDigest,
+        questionId: ACTUAL_ID,
+        questionText: '冻结的问题',
+        source: 'interviewer_spontaneous',
+      },
+    ]);
   });
 
   it('does not infer displayed publication as actual evidence', () => {

@@ -39,6 +39,30 @@ export interface P4DirectorActualQuestionInput {
   questionId: string;
 }
 
+export interface P4FrozenActualQuestionInput {
+  actualQuestionId: string;
+  analysisRevision: number;
+  normalizedDigest: string;
+}
+
+export interface P4CurrentActualQuestionInput {
+  analysisRevision: number;
+  id: string;
+  normalizedDigest: string;
+  questionText: string;
+}
+
+export interface P4ActualQuestionSourceInput {
+  id: string;
+  sourceKind: string;
+}
+
+export interface P4ActualQuestionEvidenceInput {
+  actualQuestionId: string;
+  evidenceOrder: number;
+  transcriptSegmentId: string;
+}
+
 export interface P4DirectorDisplayedQuestionInput {
   displaySequence: number;
   inputOrder: number;
@@ -78,6 +102,76 @@ export interface P4DirectorAssemblyInput {
   questionBank: readonly P4DirectorQuestionBankInput[];
   recentTranscript: readonly P4DirectorTranscriptInput[];
   sessionId: string;
+}
+
+export function buildP4ActualQuestionInputs(
+  frozenQuestions: readonly P4FrozenActualQuestionInput[],
+  currentQuestions: readonly P4CurrentActualQuestionInput[],
+  sources: readonly P4ActualQuestionSourceInput[],
+  evidence: readonly P4ActualQuestionEvidenceInput[],
+  frozenTranscriptSegmentIds: ReadonlySet<string>,
+): P4DirectorActualQuestionInput[] {
+  const frozenIds = new Set<string>();
+  const currentById = groupBy(currentQuestions, (item) => item.id);
+  const sourcesById = groupBy(sources, (item) => item.id);
+  const evidenceById = new Map<string, P4ActualQuestionEvidenceInput[]>();
+  for (const item of evidence) {
+    const entries = evidenceById.get(item.actualQuestionId) ?? [];
+    entries.push(item);
+    evidenceById.set(item.actualQuestionId, entries);
+  }
+
+  const result = frozenQuestions.map((frozen, inputOrder) => {
+    if (frozenIds.has(frozen.actualQuestionId))
+      throw new Error('P4_ACTUAL_QUESTION_FROZEN_DUPLICATE');
+    frozenIds.add(frozen.actualQuestionId);
+
+    const current = exactlyOne(
+      currentById.get(frozen.actualQuestionId),
+      'P4_ACTUAL_QUESTION_CURRENT_MISSING_OR_DUPLICATE',
+    );
+    if (
+      current.analysisRevision !== frozen.analysisRevision ||
+      current.normalizedDigest !== frozen.normalizedDigest
+    )
+      throw new Error('P4_ACTUAL_QUESTION_FROZEN_DRIFT');
+
+    const source = exactlyOne(
+      sourcesById.get(frozen.actualQuestionId),
+      'P4_ACTUAL_QUESTION_SOURCE_MISSING_OR_DUPLICATE',
+    );
+    const sourceKind: P4DirectorActualQuestionInput['source'] | null =
+      source.sourceKind === 'interviewer_spontaneous' ||
+      source.sourceKind === 'matched_system_suggestion'
+        ? source.sourceKind
+        : null;
+    if (sourceKind === null) throw new Error('P4_ACTUAL_QUESTION_SOURCE_UNAVAILABLE');
+
+    const evidenceEntries = evidenceById.get(frozen.actualQuestionId) ?? [];
+    if (evidenceEntries.length === 0) throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_UNAVAILABLE');
+    const evidenceOrders = new Set<number>();
+    const evidenceSegmentIds = evidenceEntries.map((entry) => {
+      if (evidenceOrders.has(entry.evidenceOrder))
+        throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_DUPLICATE');
+      evidenceOrders.add(entry.evidenceOrder);
+      if (!frozenTranscriptSegmentIds.has(entry.transcriptSegmentId))
+        throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_OUTSIDE_FROZEN_INPUT');
+      return entry.transcriptSegmentId;
+    });
+    if (new Set(evidenceSegmentIds).size !== evidenceSegmentIds.length)
+      throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_DUPLICATE');
+
+    return {
+      evidenceSegmentIds,
+      inputOrder,
+      normalizedDigest: frozen.normalizedDigest,
+      questionId: frozen.actualQuestionId,
+      questionText: current.questionText,
+      source: sourceKind,
+    };
+  });
+  if (result.length !== frozenIds.size) throw new Error('P4_ACTUAL_QUESTION_MEMBERSHIP_INCOMPLETE');
+  return result;
 }
 
 export function assembleP4DirectorContextV2(input: P4DirectorAssemblyInput): P4ContextV2 {
@@ -221,6 +315,20 @@ function emptyThreadMemory(): P4AssemblyInput['active_memory'] {
     thread_id: null,
     thread_revision: null,
   };
+}
+
+function groupBy<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    grouped.set(key, [...(grouped.get(key) ?? []), item]);
+  }
+  return grouped;
+}
+
+function exactlyOne<T>(items: readonly T[] | undefined, errorCode: string): T {
+  if (items === undefined || items.length !== 1) throw new Error(errorCode);
+  return items[0] as T;
 }
 
 function projectPresentation(

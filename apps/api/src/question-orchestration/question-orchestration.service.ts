@@ -55,9 +55,8 @@ import {
 import { QuestionDirector } from './question-director.js';
 import {
   assembleP4DirectorContextV2,
+  buildP4ActualQuestionInputs,
   projectP4ContextV2ToDirectorV1,
-  type P4DirectorActualQuestionInput,
-  type P4DirectorDisplayedQuestionInput,
   type P4DirectorQuestionBankInput,
   type P4DirectorTranscriptInput,
 } from './p4-context-v2-consumer.js';
@@ -698,7 +697,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       }),
       this.prisma.actualQuestionEvidence.findMany({
         orderBy: { evidenceOrder: 'asc' },
-        select: { actualQuestionId: true, transcriptSegmentId: true },
+        select: { actualQuestionId: true, evidenceOrder: true, transcriptSegmentId: true },
         where: {
           actualQuestionId: {
             in: job.actualQuestions.map(({ actualQuestionId }) => actualQuestionId),
@@ -717,15 +716,6 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     ]);
     const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
     const actualById = new Map(actualAsked.map((question) => [question.id, question]));
-    const actualSourceById = new Map(
-      actualQuestionSources.map((question) => [question.id, question]),
-    );
-    const actualEvidenceById = new Map<string, string[]>();
-    for (const evidence of actualQuestionEvidence) {
-      const entries = actualEvidenceById.get(evidence.actualQuestionId) ?? [];
-      entries.push(evidence.transcriptSegmentId);
-      actualEvidenceById.set(evidence.actualQuestionId, entries);
-    }
     const legacyContext: InterviewDirectorContextV1 = {
       actual_asked: job.actualQuestions.flatMap((frozen) => {
         const item = actualById.get(frozen.actualQuestionId);
@@ -798,42 +788,23 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
           trustedRole: segment.trustedRole,
         };
       });
-    const p4ActualAsked: P4DirectorActualQuestionInput[] = job.actualQuestions.flatMap(
-      (frozen, inputOrder) => {
-        const item = actualById.get(frozen.actualQuestionId);
-        const source = actualSourceById.get(frozen.actualQuestionId);
-        const evidenceSegmentIds = actualEvidenceById.get(frozen.actualQuestionId);
-        if (item === undefined || source === undefined || evidenceSegmentIds === undefined)
-          return [];
-        if (
-          source.sourceKind !== 'interviewer_spontaneous' &&
-          source.sourceKind !== 'matched_system_suggestion'
-        ) {
-          throw new Error('P4_ACTUAL_QUESTION_SOURCE_UNAVAILABLE');
-        }
-        if (evidenceSegmentIds.length === 0)
-          throw new Error('P4_ACTUAL_QUESTION_EVIDENCE_UNAVAILABLE');
-        return [
-          {
-            evidenceSegmentIds,
-            inputOrder,
-            normalizedDigest: item.normalizedDigest,
-            questionId: item.id,
-            questionText: item.questionText,
-            source: source.sourceKind,
-          },
-        ];
-      },
+    const p4ActualAsked = buildP4ActualQuestionInputs(
+      job.actualQuestions,
+      actualAsked,
+      actualQuestionSources,
+      actualQuestionEvidence,
+      new Set(job.segments.map(({ segmentId }) => segmentId)),
     );
-    const p4Displayed: P4DirectorDisplayedQuestionInput[] = recentSnapshots.map(
-      (snapshot, inputOrder) => ({
+    const p4Displayed = recentSnapshots
+      .slice()
+      .reverse()
+      .map((snapshot, inputOrder) => ({
         displaySequence: snapshot.displaySequence,
         inputOrder,
         normalizedQuestionDigest: snapshot.normalizedQuestionDigest,
         questionText: snapshot.questionText,
         snapshotId: snapshot.id,
-      }),
-    );
+      }));
     const currentSnapshot =
       generation.currentPresentation === null
         ? null
