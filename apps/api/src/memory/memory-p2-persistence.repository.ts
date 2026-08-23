@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common';
 import { EMPTY_MANIFEST_HASH, manifestHash } from '../ai-runtime/ai-provenance.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
+  MemoryResolutionKind,
   Prisma,
   type AiJobInputSegment,
   type MemoryLayerIdentity,
@@ -41,13 +42,26 @@ import type {
   MemoryP2TraceReferenceAuthority,
   MemoryP2TraceReference,
 } from './memory-p2-observability.types.js';
+import {
+  MemoryGateCorrectionService,
+  type MemoryGateCandidate,
+  type MemoryGateEvidenceReference,
+} from './memory-gate-correction.service.js';
 
 type TransactionClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaService | TransactionClient;
 
+function resolutionValueKind(value: MemoryResolutionKind): 'exact' | 'range' | 'unknown' | null {
+  if (value === MemoryResolutionKind.range) return 'range';
+  if (value === MemoryResolutionKind.unknown || value === MemoryResolutionKind.review_required)
+    return 'unknown';
+  return 'exact';
+}
+
 @Injectable()
 export class MemoryP2PersistenceRepository {
   public readonly transactionOwnership = 'existing_ai_job_coordinator' as const;
+  private readonly gate = new MemoryGateCorrectionService();
   public constructor(private readonly prisma: PrismaService) {}
 
   public async freezeCheckpoint(
@@ -517,6 +531,7 @@ export class MemoryP2PersistenceRepository {
         (previousResolution?.resolutionRevision ?? 0) !== input.target.expectedCurrentRevision
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
+      this.assertGateForCommit(input, checkpoint.deletionScopeDigest, previousResolution);
       const resolutionRevision = input.target.expectedCurrentRevision + 1;
       if (previousResolution !== null) {
         const frozen = await tx.aiJobInputMemory.findFirst({
@@ -524,10 +539,16 @@ export class MemoryP2PersistenceRepository {
         });
         if (frozen === null || frozen.resolutionRevision !== previousResolution.resolutionRevision)
           throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        await tx.memoryResolution.update({
+        const superseded = await tx.memoryResolution.updateMany({
           data: { status: 'superseded' },
-          where: { id: previousResolution.id },
+          where: {
+            id: previousResolution.id,
+            resolutionRevision: previousResolution.resolutionRevision,
+            status: 'current',
+          },
         });
+        if (superseded.count !== 1)
+          throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
       }
 
       const claimRows = await this.createClaims(tx, input);
@@ -1477,6 +1498,109 @@ export class MemoryP2PersistenceRepository {
         projectId: input.projectId,
       },
     });
+  }
+
+  private assertGateForCommit(
+    input: MemoryP2CommitInput,
+    deletionScopeDigest: string,
+    previousResolution: {
+      id: string;
+      resolutionRevision: number;
+      semanticKind: 'episode' | 'fact' | null;
+      semanticStatus: 'current' | 'uncertain' | 'disputed' | null;
+      status: 'current' | 'pending_review' | 'superseded';
+    } | null,
+  ): void {
+    const evidenceById = new Map<string, MemoryGateEvidenceReference>();
+    for (const claim of input.claims) {
+      for (const evidence of claim.evidences) {
+        const evidenceId = evidence.expectedEvidenceId ?? evidence.sourceId;
+        evidenceById.set(evidenceId, {
+          authorityRevision: evidence.authorityRevision,
+          contentKind: 'conversation_final',
+          effectiveTextDigest: evidence.effectiveTextDigest,
+          evidenceId,
+          evidenceRole:
+            input.target.semanticKind === 'fact'
+              ? 'explicit_fact_statement'
+              : 'elder_story_context',
+          eligibility: {
+            authorization: 'authorized',
+            deletion: 'not-deleted',
+            retention: 'eligible',
+          },
+          projectId: input.projectId,
+          sessionId: input.sourceSessionId,
+          sourceId: evidence.sourceId,
+          sourceKind: 'transcript_segment',
+          speakerRoleRevision: evidence.speakerRoleRevision,
+          textRevision: evidence.textRevision,
+          trustedRole: 'elder',
+        });
+      }
+    }
+    const evidence = [...evidenceById.values()];
+    const semanticStatus = input.target.semanticStatus;
+    const candidate: MemoryGateCandidate = {
+      candidateId: input.aiJobId,
+      proposalSource: 'llm_proposal',
+      candidateKind: input.target.semanticKind,
+      operation:
+        previousResolution === null
+          ? 'create'
+          : semanticStatus === 'uncertain'
+            ? 'mark_uncertain'
+            : semanticStatus === 'disputed'
+              ? 'mark_disputed'
+              : 'correct',
+      target:
+        previousResolution === null
+          ? null
+          : {
+              authorityId: input.target.authorityId ?? previousResolution.id,
+              revisionId: previousResolution.id,
+              revisionNo: previousResolution.resolutionRevision,
+              resolutionStatus: previousResolution.status === 'current' ? 'current' : 'superseded',
+              semanticStatus: previousResolution.semanticStatus ?? 'current',
+              semanticKind: previousResolution.semanticKind ?? input.target.semanticKind,
+              targetType: 'memory_resolution',
+            },
+      expectedRevision: previousResolution === null ? null : input.target.expectedCurrentRevision,
+      proposedState: {
+        canonicalKey: input.target.canonicalKey,
+        claims: input.claims.map((claim) => ({
+          claimId: null,
+          claimKey: claim.canonicalKey,
+          evidenceIds: claim.evidences.map(
+            (evidence) => evidence.expectedEvidenceId ?? evidence.sourceId,
+          ),
+        })),
+        resolutionKind:
+          input.target.resolutionKind === 'review_required'
+            ? 'unknown'
+            : input.target.resolutionKind,
+        reviewRequired: semanticStatus !== 'current',
+        semanticKind: input.target.semanticKind,
+        semanticStatus,
+        value: semanticStatus === 'disputed' ? null : input.target.resolvedValueJson,
+        valueKind:
+          semanticStatus === 'disputed' ? null : resolutionValueKind(input.target.resolutionKind),
+      },
+      evidence,
+      evidenceManifestDigest: input.sourceSessionId,
+    };
+    const decision = this.gate.evaluate(candidate, {
+      authorityContract: 'memory-claim-resolution-v1',
+      currentSessionId: input.sourceSessionId,
+      deletionScopeDigest,
+      evidenceManifestDigest: input.sourceSessionId,
+      policyRevision: input.projectId,
+      projectId: input.projectId,
+      snapshotRevision: 1,
+      sourceSessionIds: [input.sourceSessionId],
+    });
+    if (decision.mutation.action === 'none')
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
   }
 
   private async createClaims(
