@@ -21,7 +21,6 @@
     "displayed",
     "question_bank",
     "current_presentation",
-    "priority_order",
     "budget",
     "v1_compatibility",
     "freeze",
@@ -37,11 +36,11 @@
     "interview_state": { "$ref": "#/$defs/interviewState" },
     "working_memory": { "$ref": "#/$defs/workingMemorySection" },
     "active_memory": {
-      "$ref": "#/$defs/threadMemorySection",
+      "$ref": "#/$defs/activeMemorySection",
       "description": "The current thread domain. It is separate from resumed_memory even when both are empty."
     },
     "resumed_memory": {
-      "$ref": "#/$defs/threadMemorySection",
+      "$ref": "#/$defs/resumedMemorySection",
       "description": "A resumed/continuation thread domain. It is never folded into active_memory."
     },
     "recent_transcript": {
@@ -78,22 +77,6 @@
       "oneOf": [
         { "$ref": "#/$defs/presentation" },
         { "type": "null" }
-      ]
-    },
-    "priority_order": {
-      "type": "array",
-      "const": [
-        "boundaries",
-        "recent_transcript",
-        "working_memory",
-        "active_memory",
-        "resumed_memory",
-        "memory_candidates",
-        "actual_asked",
-        "displayed",
-        "question_bank",
-        "interview_state",
-        "current_presentation"
       ]
     },
     "budget": { "$ref": "#/$defs/budgetSeam" },
@@ -258,6 +241,20 @@
         }
       ]
     },
+    "activeMemorySection": {
+      "allOf": [
+        { "$ref": "#/$defs/threadMemorySection" },
+        { "properties": { "state": { "enum": ["active", "empty"] } } }
+      ],
+      "$comment": "Only active or empty is valid in the active_memory slot."
+    },
+    "resumedMemorySection": {
+      "allOf": [
+        { "$ref": "#/$defs/threadMemorySection" },
+        { "properties": { "state": { "enum": ["resumed", "empty"] } } }
+      ],
+      "$comment": "Only resumed or empty is valid in the resumed_memory slot."
+    },
     "transcriptSegment": {
       "type": "object",
       "additionalProperties": false,
@@ -398,25 +395,11 @@
     "budgetSeam": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["config_ref", "policy_version", "overflow_behavior"],
+      "$comment": "Opaque seam only. P4C-01 does not define priority, clipping, or numeric budget behavior.",
+      "required": ["config_ref", "policy_version"],
       "properties": {
         "config_ref": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 },
-        "overflow_behavior": { "const": "clip-by-frozen-priority-and-order" },
-        "applied_limits": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "working_memory": { "type": "integer", "minimum": 0 },
-            "active_memory": { "type": "integer", "minimum": 0 },
-            "resumed_memory": { "type": "integer", "minimum": 0 },
-            "recent_transcript": { "type": "integer", "minimum": 0 },
-            "memory_candidates": { "type": "integer", "minimum": 0 },
-            "actual_asked": { "type": "integer", "minimum": 0 },
-            "displayed": { "type": "integer", "minimum": 0 },
-            "question_bank": { "type": "integer", "minimum": 0 }
-          }
-        }
+        "policy_version": { "type": "string", "minLength": 1, "maxLength": 80 }
       }
     },
     "v1Compatibility": {
@@ -510,49 +493,244 @@
     "membershipEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["section", "source_type", "source_id", "source_revision", "membership_digest", "input_order"],
+      "required": [
+        "section",
+        "source_type",
+        "source_id",
+        "source_revision",
+        "content_digest",
+        "membership_digest",
+        "input_order"
+      ],
       "properties": {
-        "section": {
-          "enum": [
-            "interview_state",
-            "working_memory",
-            "active_memory",
-            "resumed_memory",
-            "recent_transcript",
-            "memory_candidates",
-            "boundaries",
-            "actual_asked",
-            "displayed",
-            "question_bank",
-            "current_presentation"
-          ]
-        },
-        "source_type": {
-          "enum": [
-            "interview_state",
-            "working_memory",
-            "memory_thread",
-            "transcript_segment",
-            "memory_candidate",
-            "boundary_control",
-            "actual_question",
-            "display_snapshot",
-            "question_bank_item",
-            "presentation"
-          ]
-        },
+        "section": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "source_type": { "type": "string", "minLength": 1, "maxLength": 40 },
         "source_id": { "type": "string", "minLength": 1, "maxLength": 200 },
         "source_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "content_digest": { "$ref": "#/$defs/digest" },
         "membership_digest": { "$ref": "#/$defs/digest" },
         "input_order": { "type": "integer", "minimum": 0 }
       }
     },
+    "sectionMembership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["section", "source_bearing", "expected_member_count", "entries"],
+      "properties": {
+        "section": { "type": "string" },
+        "source_bearing": { "const": true },
+        "expected_member_count": { "type": "integer", "minimum": 0 },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/membershipEntry" }
+        }
+      }
+    },
+    "interviewStateMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "interview_state" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "interview_state" }, "source_type": { "const": "interview_state" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "workingMemoryMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "working_memory" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "working_memory" }, "source_type": { "const": "working_memory" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "activeMemoryMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "active_memory" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "active_memory" }, "source_type": { "const": "memory_thread" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "resumedMemoryMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "resumed_memory" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "resumed_memory" }, "source_type": { "const": "memory_thread" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "recentTranscriptMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "recent_transcript" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "recent_transcript" }, "source_type": { "const": "transcript_segment" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "candidateMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "memory_candidates" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "memory_candidates" }, "source_type": { "const": "memory_candidate" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "boundaryMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "boundaries" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "boundaries" }, "source_type": { "const": "boundary_control" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "actualQuestionMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "actual_asked" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "actual_asked" }, "source_type": { "const": "actual_question" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "displayedMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "displayed" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "displayed" }, "source_type": { "const": "display_snapshot" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "questionBankMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "question_bank" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "question_bank" }, "source_type": { "const": "question_bank_item" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "presentationMembership": {
+      "allOf": [
+        { "$ref": "#/$defs/sectionMembership" },
+        {
+          "properties": {
+            "section": { "const": "current_presentation" },
+            "entries": {
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/membershipEntry" },
+                  { "properties": { "section": { "const": "current_presentation" }, "source_type": { "const": "presentation" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
     "membershipFreeze": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["membership_schema_version", "scope", "entries"],
+      "$comment": "Exactly one ordered section manifest is required for every required section. Cross-field source completeness, count, revision, and digest parity are fail-closed semantic checks for the future assembly validator.",
+      "required": ["membership_schema_version", "scope", "sections"],
       "properties": {
-        "membership_schema_version": { "const": "p4-membership-freeze-v1" },
+        "membership_schema_version": { "const": "p4-membership-freeze-v2" },
         "scope": {
           "type": "object",
           "additionalProperties": false,
@@ -562,9 +740,24 @@
             "current_session_id": { "$ref": "#/$defs/uuid" }
           }
         },
-        "entries": {
+        "sections": {
           "type": "array",
-          "items": { "$ref": "#/$defs/membershipEntry" }
+          "minItems": 11,
+          "maxItems": 11,
+          "prefixItems": [
+            { "$ref": "#/$defs/interviewStateMembership" },
+            { "$ref": "#/$defs/workingMemoryMembership" },
+            { "$ref": "#/$defs/activeMemoryMembership" },
+            { "$ref": "#/$defs/resumedMemoryMembership" },
+            { "$ref": "#/$defs/recentTranscriptMembership" },
+            { "$ref": "#/$defs/candidateMembership" },
+            { "$ref": "#/$defs/boundaryMembership" },
+            { "$ref": "#/$defs/actualQuestionMembership" },
+            { "$ref": "#/$defs/displayedMembership" },
+            { "$ref": "#/$defs/questionBankMembership" },
+            { "$ref": "#/$defs/presentationMembership" }
+          ],
+          "items": false
         }
       }
     }
