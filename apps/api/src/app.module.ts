@@ -62,6 +62,7 @@ export class AppModule implements NestModule {
       questionBankModule,
       questionEvidenceModule,
       realtimeModule,
+      evidenceDrilldownModule,
     );
     return {
       controllers: [HealthController],

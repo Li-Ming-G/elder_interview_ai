@@ -24,6 +24,7 @@ export function createQuestionOrchestrationModule(
   questionBankModule: DynamicModule,
   questionEvidenceModule: DynamicModule,
   realtimeModule: DynamicModule,
+  evidenceDrilldownModule: DynamicModule,
 ): DynamicModule {
   const localOrTest = ['local', 'test'].includes(config.appEnv);
   return {
@@ -32,6 +33,7 @@ export function createQuestionOrchestrationModule(
     imports: [
       authModule,
       aiRuntimeModule,
+      evidenceDrilldownModule,
       memoryModule,
       questionBankModule,
       questionEvidenceModule,
