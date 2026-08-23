@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/evidence-drilldown-v1.schema.json",
+  "title": "P5 Evidence Drill-down V1",
+  "$comment": "Provider-neutral, read-only, one-round evidence contract. It does not select a provider/model or implement runtime.",
+  "oneOf": [
+    { "$ref": "#/$defs/requestEnvelope" },
+    { "$ref": "#/$defs/resultEnvelope" },
+    { "$ref": "#/$defs/errorEnvelope" }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "operation": {
+      "enum": ["get_memory_evidence", "search_transcript"]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_type",
+        "source_contract",
+        "project_id",
+        "current_session_id",
+        "authorized_session_ids"
+      ],
+      "properties": {
+        "scope_type": { "const": "p4-frozen-project-session-scope" },
+        "source_contract": { "const": "p4-context-freeze-v1" },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "current_session_id": { "$ref": "#/$defs/uuid" },
+        "authorized_session_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        }
+      }
+    },
+    "roundFence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generation_id", "context_digest", "membership_digest", "evidence_round", "max_evidence_rounds"],
+      "properties": {
+        "generation_id": { "$ref": "#/$defs/uuid" },
+        "context_digest": { "$ref": "#/$defs/digest" },
+        "membership_digest": { "$ref": "#/$defs/digest" },
+        "evidence_round": { "const": 1 },
+        "max_evidence_rounds": { "const": 1 }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "error_code", "duration_ms", "result_count", "reference_count"],
+      "properties": {
+        "stage": { "const": "evidence_drilldown" },
+        "error_code": {
+          "enum": [
+            "NONE",
+            "OUT_OF_SCOPE",
+            "MEMORY_NOT_MEMBER",
+            "STALE_SOURCE",
+            "DELETED_SOURCE",
+            "RETENTION_INELIGIBLE",
+            "AUTHORIZATION_DENIED",
+            "MALFORMED_REQUEST",
+            "MALFORMED_RESULT",
+            "TOOL_EXECUTION_FAILED",
+            "ROUND_ALREADY_USED",
+            "ROUND_RECURSION_FORBIDDEN"
+          ]
+        },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "result_count": { "type": "integer", "minimum": 0 },
+        "reference_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "requestEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "message_type", "request_id", "operation", "round", "scope", "request"],
+      "properties": {
+        "contract_version": { "const": "p5-evidence-drilldown-v1" },
+        "message_type": { "const": "request" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "round": { "$ref": "#/$defs/roundFence" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "request": {
+          "oneOf": [
+            { "$ref": "#/$defs/memoryEvidenceRequest" },
+            { "$ref": "#/$defs/transcriptSearchRequest" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "get_memory_evidence" } } },
+          "then": { "properties": { "request": { "$ref": "#/$defs/memoryEvidenceRequest" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "search_transcript" } } },
+          "then": { "properties": { "request": { "$ref": "#/$defs/transcriptSearchRequest" } } }
+        }
+      ]
+    },
+    "memoryEvidenceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["memory_id"],
+      "properties": {
+        "memory_id": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "transcriptSearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query"],
+      "properties": {
+        "query": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "resultEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "message_type", "request_id", "operation", "round", "scope", "result", "diagnostics"],
+      "properties": {
+        "contract_version": { "const": "p5-evidence-drilldown-v1" },
+        "message_type": { "const": "result" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "round": { "$ref": "#/$defs/roundFence" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "result": {
+          "oneOf": [
+            { "$ref": "#/$defs/memoryEvidenceResult" },
+            { "$ref": "#/$defs/transcriptSearchResult" }
+          ]
+        },
+        "diagnostics": { "$ref": "#/$defs/diagnostics" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "get_memory_evidence" } } },
+          "then": { "properties": { "result": { "$ref": "#/$defs/memoryEvidenceResult" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "search_transcript" } } },
+          "then": { "properties": { "result": { "$ref": "#/$defs/transcriptSearchResult" } } }
+        }
+      ]
+    },
+    "memoryEvidenceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_type", "memory", "evidence"],
+      "properties": {
+        "result_type": { "const": "memory_evidence" },
+        "memory": { "$ref": "#/$defs/memoryReference" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/evidenceHit" }
+        }
+      }
+    },
+    "transcriptSearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result_type", "query", "match_state", "matches"],
+      "properties": {
+        "result_type": { "const": "transcript_search" },
+        "query": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "match_state": { "enum": ["matches", "no_match"] },
+        "matches": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/searchHit" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "match_state": { "const": "matches" } } },
+          "then": { "properties": { "matches": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "match_state": { "const": "no_match" } } },
+          "then": { "properties": { "matches": { "maxItems": 0 } } }
+        }
+      ]
+    },
+    "memoryReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["memory_id", "resolution_authority_id", "revision_id", "revision_no", "source_level", "semantic_kind", "semantic_status", "membership_digest"],
+      "properties": {
+        "memory_id": { "$ref": "#/$defs/uuid" },
+        "resolution_authority_id": { "$ref": "#/$defs/uuid" },
+        "revision_id": { "$ref": "#/$defs/uuid" },
+        "revision_no": { "type": "integer", "minimum": 1 },
+        "source_level": { "enum": ["mid", "long"] },
+        "semantic_kind": { "enum": ["episode", "fact"] },
+        "semantic_status": { "enum": ["current", "uncertain", "disputed"] },
+        "membership_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "evidenceHit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "neighboring_context"],
+      "properties": {
+        "source": { "$ref": "#/$defs/transcriptSegment" },
+        "neighboring_context": { "$ref": "#/$defs/neighboringContext" }
+      }
+    },
+    "searchHit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match_rank", "source", "neighboring_context"],
+      "properties": {
+        "match_rank": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "source": { "$ref": "#/$defs/transcriptSegment" },
+        "neighboring_context": { "$ref": "#/$defs/neighboringContext" }
+      }
+    },
+    "neighboringContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before", "after"],
+      "properties": {
+        "before": { "type": "array", "maxItems": 2, "items": { "$ref": "#/$defs/transcriptSegment" } },
+        "after": { "type": "array", "maxItems": 2, "items": { "$ref": "#/$defs/transcriptSegment" } }
+      }
+    },
+    "transcriptSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment_id", "project_id", "session_id", "start_ms", "text", "trusted_role", "content_kind", "transcript_revision", "text_revision", "speaker_role_revision", "effective_text_digest", "source_fence"],
+      "properties": {
+        "segment_id": { "$ref": "#/$defs/uuid" },
+        "project_id": { "$ref": "#/$defs/uuid" },
+        "session_id": { "$ref": "#/$defs/uuid" },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "trusted_role": { "enum": ["elder", "interviewer"] },
+        "content_kind": { "const": "conversation_final" },
+        "transcript_revision": { "type": "integer", "minimum": 1 },
+        "text_revision": { "type": "integer", "minimum": 0 },
+        "speaker_role_revision": { "type": "integer", "minimum": 0 },
+        "effective_text_digest": { "$ref": "#/$defs/digest" },
+        "source_fence": { "$ref": "#/$defs/sourceFence" }
+      }
+    },
+    "sourceFence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authorization", "retention", "deletion"],
+      "properties": {
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "scope"],
+          "properties": {
+            "status": { "const": "authorized" },
+            "scope": { "const": "p4-frozen-project-session-scope" }
+          }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "policy_revision"],
+          "properties": {
+            "status": { "const": "eligible" },
+            "policy_revision": { "type": "string", "minLength": 1, "maxLength": 120 }
+          }
+        },
+        "deletion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "fence_revision"],
+          "properties": {
+            "status": { "const": "not-deleted" },
+            "fence_revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "errorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "message_type", "request_id", "operation", "round", "scope", "error", "diagnostics"],
+      "properties": {
+        "contract_version": { "const": "p5-evidence-drilldown-v1" },
+        "message_type": { "const": "error" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "round": { "$ref": "#/$defs/roundFence" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "error": { "$ref": "#/$defs/error" },
+        "diagnostics": { "$ref": "#/$defs/diagnostics" }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error_code", "phase", "generation_outcome"],
+      "properties": {
+        "error_code": {
+          "enum": [
+            "OUT_OF_SCOPE",
+            "MEMORY_NOT_MEMBER",
+            "STALE_SOURCE",
+            "DELETED_SOURCE",
+            "RETENTION_INELIGIBLE",
+            "AUTHORIZATION_DENIED",
+            "MALFORMED_REQUEST",
+            "MALFORMED_RESULT",
+            "TOOL_EXECUTION_FAILED",
+            "ROUND_ALREADY_USED",
+            "ROUND_RECURSION_FORBIDDEN"
+          ]
+        },
+        "phase": { "enum": ["request_validation", "scope", "membership", "source_fence", "round_guard", "execution", "result_validation"] },
+        "generation_outcome": { "const": "SYSTEM_ERROR" }
+      }
+    }
+  }
+}
