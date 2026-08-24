@@ -202,7 +202,11 @@ export class MemoryP2RuntimeStoreAdapter
     if (job.retentionState !== 'active' || job.expiresAt <= this.clock.now())
       return blocked('P2_RETENTION_UNAVAILABLE', 'unavailable');
     try {
-      await this.policy.assertAllowed(job.requestedBy, job.projectId, [attempt.trigger.sessionId]);
+      const currentPolicy = await this.policy.assertAllowed(job.requestedBy, job.projectId, [
+        attempt.trigger.sessionId,
+      ]);
+      if (currentPolicy.deletionScopeDigest !== attempt.trigger.policy.deletionScopeDigest)
+        return blocked('P2_DELETION_SCOPE_DRIFT', 'cancelled');
     } catch {
       return blocked('P2_POLICY_DRIFT', 'cancelled');
     }
@@ -1590,6 +1594,7 @@ export class MemoryP2RuntimeStoreAdapter
       checkpointId: checkpoint.id,
       claims,
       commitDigest: semanticCanonicalDigest('memory-p2-commit-v1', request.proposal),
+      deletionScopeDigest: request.attempt.trigger.policy.deletionScopeDigest,
       longSourceManifestHash:
         targetLayer === 'long' ? request.attempt.context.source_manifest_hash : null,
       longSourceMidManifestHash,
@@ -1705,6 +1710,8 @@ export class MemoryP2RuntimeStoreAdapter
       provisional,
       {
         actualQuestions: [],
+        deletionFenceRevision: -1,
+        deletionScopeDigest: '',
         id: candidate.sourceMidJobId,
         inputHash: sourceJob.inputHash,
         memories: [],

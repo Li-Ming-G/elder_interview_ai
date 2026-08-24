@@ -28,6 +28,7 @@ import {
 } from './memory-maintainer.runtime.js';
 import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
 import { MemoryWorkingSnapshotReader } from './memory-working-snapshot.reader.js';
+import { MemoryGateCorrectionService } from './memory-gate-correction.service.js';
 
 @Module({})
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
@@ -69,6 +70,7 @@ export function createMemoryModule(
       WorkingMemoryOperationApplier,
       MemoryMaintainerRuntime,
       MemoryWorkingSnapshotReader,
+      MemoryGateCorrectionService,
     ],
     imports: [aiRuntimeModule, questionEvidenceModule, realtimeModule],
     module: MemoryModule,
@@ -97,6 +99,7 @@ export function createMemoryModule(
       MemoryMaintainerV12Validator,
       MemoryMaintainerRuntime,
       MemoryWorkingSnapshotReader,
+      MemoryGateCorrectionService,
     ],
   };
 }

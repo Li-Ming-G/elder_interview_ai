@@ -1,11 +1,22 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Optional,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 
 import {
   AiJobCoordinatorService,
   type FrozenAiJob,
 } from '../ai-runtime/ai-job-coordinator.service.js';
+import {
+  DeletionScopeReader,
+  deletionScopeAuthorityDigest,
+  UnavailableDeletionScopeReader,
+} from '../ai-runtime/deletion-scope.reader.js';
 import {
   EMPTY_MANIFEST_HASH,
   canonicalJson,
@@ -39,8 +50,18 @@ import {
   type MemoryMaintainerOperationV12,
   type MemoryMaintainerOutputV12,
   type MemoryMaintainerTriggerKind,
+  type MemorySemanticKind,
 } from './memory-maintainer.provider.js';
 import { MemoryMaintainerV12Validator } from './memory-maintainer.validator.js';
+import {
+  classifyMemoryGateEvidenceRole,
+  memoryGateEligibility,
+  MemoryGateCorrectionService,
+  type MemoryGateAuthoritySnapshot,
+  type MemoryGateCandidate,
+  type MemoryGateEvidenceReference,
+  type MemoryGateSemanticState,
+} from './memory-gate-correction.service.js';
 
 export const MEMORY_MAINTAINER_RUNTIME_CONFIG = Symbol('MEMORY_MAINTAINER_RUNTIME_CONFIG');
 const CONTRACT_VERSION = 'memory-maintainer-v1.2';
@@ -129,6 +150,15 @@ interface PreparedAttempt {
   triggerIdentity: string;
 }
 
+interface MemoryGateRuntimeAuthority {
+  acceptedBoundaryIntentSourceIds: ReadonlySet<string>;
+  acceptedFactSourceIds: ReadonlySet<string>;
+  acceptedFactEvidenceInputBySourceId: ReadonlyMap<string, string>;
+  acceptedFactSourceIdsByResolutionId: ReadonlyMap<string, ReadonlySet<string>>;
+  evidenceBySegmentId: ReadonlyMap<string, MemoryGateEvidenceReference>;
+  snapshot: MemoryGateAuthoritySnapshot;
+}
+
 @Injectable()
 export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   private readonly active = new Map<string, Promise<void>>();
@@ -146,6 +176,9 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     private readonly failpoint: MemoryMaintainerFailpoint,
     @Inject(MEMORY_MAINTAINER_RUNTIME_CONFIG)
     private readonly config: MemoryMaintainerRuntimeConfig,
+    private readonly gate: MemoryGateCorrectionService = new MemoryGateCorrectionService(),
+    @Optional()
+    private readonly deletionScopes: DeletionScopeReader = new UnavailableDeletionScopeReader(),
   ) {}
 
   public isEnabled(): boolean {
@@ -680,55 +713,72 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       ...batch.overlapSegments.map((segment) => [segment.id, 'overlap'] as const),
       ...batch.newSegments.map((segment) => [segment.id, 'new'] as const),
     ]);
-    const job = await this.jobs.freeze({
-      actorId: batch.actorId,
-      contextBuilderVersion: CONTRACT_VERSION,
-      exactSegmentIds: ordered.map(({ id }) => id),
-      expiresAt: new Date(this.clock.now().getTime() + RETENTION_MS),
-      jobType: 'working_memory_maintain',
-      memoryResolutionIds: currentResolutionIds,
-      projectId: batch.projectId,
-      requestId,
-      ...(prior === null ? {} : { retryOfJobId: prior.id }),
-      sessionIds: [batch.sessionId],
-      triggerDedupeKey: triggerIdentity,
-      trustedRole: 'elder',
-      trustedRoles: ['elder', 'interviewer'],
-      afterFreeze: async (tx, frozen) => {
-        for (const [inputOrder, segment] of frozen.segments.entries()) {
-          const membershipKind = kindBySegment.get(segment.segmentId);
-          if (membershipKind === undefined) throw new Error('MEMORY_INPUT_MEMBERSHIP_MISSING');
-          await tx.memoryMaintenanceInputSegment.create({
-            data: {
-              aiJobId: frozen.id,
-              aiJobInputSegmentId: segment.inputSegmentId,
-              id: randomUUID(),
-              inputOrder,
-              membershipKind,
-              transcriptSegmentId: segment.segmentId,
-            },
+    let job: FrozenAiJob;
+    try {
+      job = await this.jobs.freeze({
+        actorId: batch.actorId,
+        contextBuilderVersion: CONTRACT_VERSION,
+        exactSegmentIds: ordered.map(({ id }) => id),
+        expiresAt: new Date(this.clock.now().getTime() + RETENTION_MS),
+        jobType: 'working_memory_maintain',
+        memoryResolutionIds: currentResolutionIds,
+        projectId: batch.projectId,
+        requestId,
+        ...(prior === null ? {} : { retryOfJobId: prior.id }),
+        sessionIds: [batch.sessionId],
+        triggerDedupeKey: triggerIdentity,
+        trustedRole: 'elder',
+        trustedRoles: ['elder', 'interviewer'],
+        afterFreeze: async (tx, frozen) => {
+          for (const [inputOrder, segment] of frozen.segments.entries()) {
+            const membershipKind = kindBySegment.get(segment.segmentId);
+            if (membershipKind === undefined) throw new Error('MEMORY_INPUT_MEMBERSHIP_MISSING');
+            await tx.memoryMaintenanceInputSegment.create({
+              data: {
+                aiJobId: frozen.id,
+                aiJobInputSegmentId: segment.inputSegmentId,
+                id: randomUUID(),
+                inputOrder,
+                membershipKind,
+                transcriptSegmentId: segment.segmentId,
+              },
+            });
+          }
+          const triggerObservation = memoryTriggerObservation(
+            frozen,
+            batch,
+            triggerIdentity,
+            this.config.minimumUsefulCharacters,
+          );
+          const activeThread = await tx.memoryThreadRevision.findFirst({
+            select: { threadId: true },
+            where: { sourceSessionId: batch.sessionId, status: 'active', supersededAt: null },
           });
-        }
-        const triggerObservation = memoryTriggerObservation(
-          frozen,
-          batch,
-          triggerIdentity,
-          this.config.minimumUsefulCharacters,
-        );
-        const activeThread = await tx.memoryThreadRevision.findFirst({
-          select: { threadId: true },
-          where: { sourceSessionId: batch.sessionId, status: 'active', supersededAt: null },
+          await this.traces.beginInTransaction(
+            tx,
+            memoryDecisionTraceInput(frozen, batch.sessionId, triggerObservation, {
+              activeThreadId: activeThread?.threadId ?? null,
+              decisionOutcome: 'continue_listening',
+              stage: 'prepare',
+            }),
+          );
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'AI_REQUEST_IDENTITY_CONFLICT') {
+        const activeJob = await this.prisma.aiJob.findFirst({
+          orderBy: { attemptNo: 'desc' },
+          select: { status: true },
+          where: {
+            jobType: 'working_memory_maintain',
+            status: { in: ['pending', 'running', 'succeeded'] },
+            triggerDedupeKey: triggerIdentity,
+          },
         });
-        await this.traces.beginInTransaction(
-          tx,
-          memoryDecisionTraceInput(frozen, batch.sessionId, triggerObservation, {
-            activeThreadId: activeThread?.threadId ?? null,
-            decisionOutcome: 'continue_listening',
-            stage: 'prepare',
-          }),
-        );
-      },
-    });
+        if (activeJob !== null) return;
+      }
+      throw error;
+    }
     if (job.replayed) return;
     const triggerObservation = memoryTriggerObservation(
       job,
@@ -1034,7 +1084,14 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       });
       if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
       await this.assertContextAuthorityCurrent(tx, job, context);
-      await this.applyOperations(tx, job, batch, context, output.operations);
+      const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
+      const gatedOperations = this.assertGateForOperations(
+        context,
+        output.operations,
+        gateAuthority,
+      );
+      this.assertGateForBoundaries(output, gateAuthority);
+      await this.applyOperations(tx, job, batch, context, gatedOperations, gateAuthority);
       await this.failpoint.hit('after_operations');
       await this.applyBoundaries(tx, job, batch, output);
       await this.failpoint.hit('after_boundaries');
@@ -1094,8 +1151,17 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     batch: SelectedBatch,
     context: MemoryMaintainerContextV12,
     operations: readonly MemoryMaintainerOperationV12[],
+    authority: MemoryGateRuntimeAuthority,
   ): Promise<void> {
-    const inputBySegment = new Map(job.segments.map((segment) => [segment.segmentId, segment]));
+    const inputBySegment = new Map(
+      job.segments.map((segment) => [
+        segment.segmentId,
+        { inputSegmentId: segment.inputSegmentId, segmentId: segment.segmentId },
+      ]),
+    );
+    for (const [segmentId, inputSegmentId] of authority.acceptedFactEvidenceInputBySourceId)
+      if (!inputBySegment.has(segmentId))
+        inputBySegment.set(segmentId, { inputSegmentId, segmentId });
     const touchedTargets = new Set<string>();
     const semanticSlots = new Set<string>();
     for (const operation of operations) {
@@ -1136,7 +1202,16 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         state.canonical_key,
         target?.threadId ?? null,
       );
-      const claimIds: string[] = [];
+      const priorMemberIds =
+        target === null
+          ? []
+          : (
+              await tx.memoryResolutionMember.findMany({
+                orderBy: { memberOrder: 'asc' },
+                where: { memoryResolutionId: target.id },
+              })
+            ).map(({ memoryClaimId }) => memoryClaimId);
+      const claimIds: string[] = state.semantic_status === 'disputed' ? [] : [...priorMemberIds];
       for (const claim of state.claims) {
         if (state.semantic_status === 'disputed') {
           if (claim.claim_id === null) throw new Error('MEMORY_DISPUTED_CLAIM_ID_REQUIRED');
@@ -1187,11 +1262,17 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
           projectId: job.projectId,
         },
       });
-      if (target !== null)
-        await tx.memoryResolution.update({
+      if (target !== null) {
+        const superseded = await tx.memoryResolution.updateMany({
           data: { status: 'superseded' },
-          where: { id: target.id },
+          where: {
+            id: target.id,
+            resolutionRevision: target.resolutionRevision,
+            status: 'current',
+          },
         });
+        if (superseded.count !== 1) throw new Error('MEMORY_TARGET_CAS_FAILED');
+      }
       await tx.memoryResolution.create({
         data: {
           aiDerivedOutputId: derivedId,
@@ -1242,6 +1323,459 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
         });
       }
     }
+  }
+
+  private assertGateForOperations(
+    context: MemoryMaintainerContextV12,
+    operations: readonly MemoryMaintainerOperationV12[],
+    authority: MemoryGateRuntimeAuthority,
+  ): MemoryMaintainerOperationV12[] {
+    const gatedOperations: MemoryMaintainerOperationV12[] = [];
+    for (const operation of operations) {
+      if (operation.kind === 'DUPLICATE') continue;
+      const state = operation.proposed_state;
+      if (state === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
+      const gatedEvidenceSegmentIds = this.gatedFactEvidenceSegmentIds(
+        operation,
+        state.semantic_kind,
+        authority,
+      );
+      const gatedOperation =
+        gatedEvidenceSegmentIds === operation.evidence_segment_ids
+          ? operation
+          : {
+              ...operation,
+              evidence_segment_ids: gatedEvidenceSegmentIds,
+              proposed_state: {
+                ...state,
+                claims: state.claims.map((claim) => ({
+                  ...claim,
+                  evidence_segment_ids: gatedEvidenceSegmentIds,
+                })),
+              },
+            };
+      const gatedState = gatedOperation.proposed_state;
+      if (gatedState === null) throw new Error('MEMORY_PROPOSED_STATE_REQUIRED');
+      if (operation.target_resolution_id !== null) {
+        const target = context.current_working_memory.find(
+          ({ resolution_id }) => resolution_id === operation.target_resolution_id,
+        );
+        if (
+          target === undefined ||
+          target.canonical_key !== gatedState.canonical_key ||
+          target.semantic_kind !== gatedState.semantic_kind ||
+          target.thread_id !== operation.anchor_thread_id ||
+          target.revision !== operation.expected_resolution_revision
+        )
+          throw new Error('MEMORY_TARGET_CAS_FAILED');
+      }
+      const evidence = gatedOperation.evidence_segment_ids.map((segmentId) => {
+        const reference = authority.evidenceBySegmentId.get(segmentId);
+        if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+        return reference;
+      });
+      const targetMemory =
+        operation.target_resolution_id === null
+          ? null
+          : context.current_working_memory.find(
+              ({ resolution_id }) => resolution_id === operation.target_resolution_id,
+            );
+      const candidate: MemoryGateCandidate = {
+        candidateId: operation.operation_id,
+        proposalSource: 'llm_proposal',
+        candidateKind: state.semantic_kind,
+        operation:
+          operation.target_resolution_id === null
+            ? 'create'
+            : gatedState.semantic_status === 'uncertain'
+              ? 'mark_uncertain'
+              : gatedState.semantic_status === 'disputed'
+                ? 'mark_disputed'
+                : 'correct',
+        target:
+          targetMemory === undefined || targetMemory === null
+            ? null
+            : {
+                authorityId: targetMemory.resolution_id,
+                revisionId: targetMemory.resolution_id,
+                revisionNo: targetMemory.revision,
+                resolutionStatus: targetMemory.resolution_status,
+                semanticStatus: targetMemory.semantic_status,
+                semanticKind: targetMemory.semantic_kind,
+                targetType: 'memory_resolution',
+              },
+        expectedRevision: operation.expected_resolution_revision,
+        proposedState: this.gateSemanticState(gatedState, authority),
+        evidence,
+        evidenceManifestDigest: authority.snapshot.evidenceManifestDigest,
+      };
+      this.gate.assertWritable(candidate, authority.snapshot);
+      gatedOperations.push(gatedOperation);
+    }
+    return gatedOperations;
+  }
+
+  private gatedFactEvidenceSegmentIds(
+    operation: MemoryMaintainerOperationV12,
+    semanticKind: MemorySemanticKind,
+    authority: MemoryGateRuntimeAuthority,
+  ): readonly string[] {
+    if (semanticKind !== 'fact') return operation.evidence_segment_ids;
+    if (
+      operation.evidence_segment_ids.some((segmentId) =>
+        authority.acceptedFactSourceIds.has(segmentId),
+      )
+    )
+      return operation.evidence_segment_ids;
+
+    if (operation.target_resolution_id === null || ['BRANCH', 'RELATED'].includes(operation.kind))
+      return operation.evidence_segment_ids;
+    const derivedEvidence = [
+      ...(authority.acceptedFactSourceIdsByResolutionId.get(operation.target_resolution_id) ?? []),
+    ];
+    const inScope = derivedEvidence.filter((segmentId) =>
+      authority.evidenceBySegmentId.has(segmentId),
+    );
+    return inScope.length === 0 ? operation.evidence_segment_ids : inScope;
+  }
+
+  private assertGateForBoundaries(
+    output: MemoryMaintainerOutputV12,
+    authority: MemoryGateRuntimeAuthority,
+  ): void {
+    for (const boundary of output.boundary_candidates) {
+      const evidence = boundary.evidence_segment_ids.map((segmentId) => {
+        const reference = authority.evidenceBySegmentId.get(segmentId);
+        if (reference === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+        return reference;
+      });
+      const candidate: MemoryGateCandidate = {
+        candidateId: boundary.candidate_id,
+        proposalSource: 'llm_proposal',
+        candidateKind: 'boundary',
+        operation: 'activate',
+        target: null,
+        expectedRevision: null,
+        proposedState: {
+          abstractScope: boundary.abstract_scope,
+          code: 'elder_explicit_boundary',
+          reviewRequired: false,
+          status: 'active',
+        },
+        evidence,
+        evidenceManifestDigest: authority.snapshot.evidenceManifestDigest,
+      };
+      this.gate.assertWritable(candidate, authority.snapshot);
+    }
+  }
+
+  private gateSemanticState(
+    state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
+    authority: MemoryGateRuntimeAuthority,
+  ): MemoryGateSemanticState {
+    return {
+      canonicalKey: state.canonical_key,
+      claims: state.claims.map((claim) => ({
+        claimId: claim.claim_id,
+        claimKey: claim.claim_key,
+        evidenceIds: claim.evidence_segment_ids.map((segmentId) => {
+          const evidence = authority.evidenceBySegmentId.get(segmentId);
+          if (evidence === undefined) throw new Error('MEMORY_GATE_EVIDENCE_AUTHORITY_UNAVAILABLE');
+          return evidence.evidenceId;
+        }),
+      })),
+      resolutionKind: state.resolution_kind,
+      reviewRequired: state.semantic_status !== 'current',
+      semanticKind: state.semantic_kind,
+      semanticStatus: state.semantic_status,
+      value: state.semantic_status === 'disputed' ? null : state.value,
+      valueKind: state.semantic_status === 'disputed' ? null : state.value_kind,
+    };
+  }
+
+  private async readGateRuntimeAuthority(
+    tx: Prisma.TransactionClient,
+    job: FrozenAiJob,
+  ): Promise<MemoryGateRuntimeAuthority> {
+    const deletion = await this.deletionScopes.assertNoActiveScope(job.projectId, job.sessionIds);
+    const deletionDrifted =
+      deletion.fenceRevision !== job.deletionFenceRevision ||
+      deletionScopeAuthorityDigest(job.projectId, job.sessionIds, deletion.fenceRevision) !==
+        job.deletionScopeDigest;
+    if (deletionDrifted) throw new Error('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
+    const [storedJob, project, consent, assignment, scopes, inputs] = await Promise.all([
+      tx.aiJob.findUnique({ where: { id: job.id } }),
+      tx.elderProject.findUnique({ where: { id: job.projectId } }),
+      tx.consentRecord.findFirst({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        where: { consentType: 'recording_transcription_ai', projectId: job.projectId },
+      }),
+      tx.projectAssignment.findFirst({
+        where: { projectId: job.projectId, revokedAt: null, userId: job.requestedBy },
+      }),
+      tx.aiJobSessionScope.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: job.id },
+      }),
+      tx.aiJobInputSegment.findMany({
+        orderBy: { inputOrder: 'asc' },
+        where: { aiJobId: job.id },
+      }),
+    ]);
+    const policyAuthorized =
+      storedJob !== null &&
+      project !== null &&
+      storedJob.projectId === job.projectId &&
+      storedJob.inputHash === job.inputHash &&
+      storedJob.policyRevision === job.policyRevision &&
+      storedJob.retentionPolicyVersion === job.retentionPolicyVersion &&
+      storedJob.requestedBy === job.requestedBy &&
+      project.aiPolicyRevision === storedJob.policyRevision &&
+      project.aiRetentionPolicyVersion === storedJob.retentionPolicyVersion &&
+      project.deletedAt === null &&
+      !['restricted', 'deleted'].includes(project.status) &&
+      assignment !== null &&
+      consent?.status === 'valid' &&
+      consent.revokedAt === null;
+    const retentionEligible =
+      storedJob !== null &&
+      storedJob.retentionState === 'active' &&
+      storedJob.expiresAt > new Date();
+    if (
+      storedJob === null ||
+      project === null ||
+      storedJob.projectId !== job.projectId ||
+      storedJob.inputHash !== job.inputHash ||
+      storedJob.policyRevision !== job.policyRevision ||
+      storedJob.retentionPolicyVersion !== job.retentionPolicyVersion ||
+      storedJob.requestedBy !== job.requestedBy ||
+      project.aiPolicyRevision !== storedJob.policyRevision ||
+      project.aiRetentionPolicyVersion !== storedJob.retentionPolicyVersion ||
+      !policyAuthorized ||
+      scopes.map(({ sessionId }) => sessionId).join('|') !== job.sessionIds.join('|')
+    )
+      throw new Error('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
+
+    const inputById = new Map(inputs.map((input) => [input.id, input]));
+    const transcriptIds = inputs.map(({ transcriptSegmentId }) => transcriptSegmentId);
+    const transcripts = await tx.transcriptSegment.findMany({
+      where: { id: { in: transcriptIds } },
+    });
+    const transcriptById = new Map(transcripts.map((segment) => [segment.id, segment]));
+    const authorityRows = await tx.memoryEvidenceAuthority.findMany({
+      where: {
+        projectId: job.projectId,
+        sourceId: { in: transcriptIds },
+        sourceKind: 'transcript_segment',
+      },
+    });
+    const authorityBySourceId = new Map<string, (typeof authorityRows)[number]>();
+    for (const row of authorityRows) {
+      const current = authorityBySourceId.get(row.sourceId);
+      if (current === undefined || row.authorityRevision > current.authorityRevision)
+        authorityBySourceId.set(row.sourceId, row);
+    }
+    const acceptedClaims = await tx.memoryClaim.findMany({
+      select: { id: true, sourceSessionId: true },
+      where: {
+        projectId: job.projectId,
+        provenanceState: 'active',
+        semanticKind: 'fact',
+        sourceSessionId: { in: [...job.sessionIds] },
+      },
+    });
+    const acceptedClaimIdSet = new Set(acceptedClaims.map(({ id }) => id));
+    const acceptedClaimSessionById = new Map(
+      acceptedClaims.map(({ id, sourceSessionId }) => [id, sourceSessionId]),
+    );
+    const acceptedMembers = await tx.memoryResolutionMember.findMany({
+      select: { memoryClaimId: true, memoryResolutionId: true },
+      where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
+    });
+    const acceptedResolutionIds = acceptedMembers.map(
+      ({ memoryResolutionId }) => memoryResolutionId,
+    );
+    const acceptedResolutions = await tx.memoryResolution.findMany({
+      select: { id: true, sourceSessionId: true },
+      where: {
+        id: { in: acceptedResolutionIds },
+        projectId: job.projectId,
+        semanticKind: 'fact',
+        status: 'current',
+      },
+    });
+    const acceptedResolutionSessionById = new Map(
+      acceptedResolutions.map(({ id, sourceSessionId }) => [id, sourceSessionId]),
+    );
+    const acceptedResolutionIdSet = new Set(
+      acceptedResolutions
+        .filter(
+          ({ sourceSessionId }) =>
+            sourceSessionId !== null && job.sessionIds.includes(sourceSessionId),
+        )
+        .map(({ id }) => id),
+    );
+    const acceptedFactClaimEvidence = await tx.memoryClaimEvidence.findMany({
+      select: { aiJobInputSegmentId: true, memoryClaimId: true, transcriptSegmentId: true },
+      where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
+    });
+    const acceptedTranscriptIds = [
+      ...new Set(acceptedFactClaimEvidence.map(({ transcriptSegmentId }) => transcriptSegmentId)),
+    ];
+    const acceptedTranscripts = await tx.transcriptSegment.findMany({
+      where: { id: { in: acceptedTranscriptIds } },
+    });
+    const transcriptSessionById = new Map(
+      [...transcripts, ...acceptedTranscripts].map((segment) => [segment.id, segment.sessionId]),
+    );
+    const acceptedFactEvidenceInputBySourceId = new Map<string, string>();
+    const acceptedFactSourceIdsByResolutionId = new Map<string, Set<string>>();
+    for (const {
+      aiJobInputSegmentId,
+      memoryClaimId,
+      transcriptSegmentId,
+    } of acceptedFactClaimEvidence) {
+      if (
+        !acceptedClaimIdSet.has(memoryClaimId) ||
+        transcriptSessionById.get(transcriptSegmentId) !==
+          acceptedClaimSessionById.get(memoryClaimId)
+      )
+        continue;
+      for (const member of acceptedMembers) {
+        if (
+          member.memoryClaimId !== memoryClaimId ||
+          !acceptedResolutionIdSet.has(member.memoryResolutionId) ||
+          acceptedResolutionSessionById.get(member.memoryResolutionId) !==
+            acceptedClaimSessionById.get(memoryClaimId)
+        )
+          continue;
+        const sourceIds =
+          acceptedFactSourceIdsByResolutionId.get(member.memoryResolutionId) ?? new Set<string>();
+        sourceIds.add(transcriptSegmentId);
+        acceptedFactSourceIdsByResolutionId.set(member.memoryResolutionId, sourceIds);
+        acceptedFactEvidenceInputBySourceId.set(transcriptSegmentId, aiJobInputSegmentId);
+      }
+    }
+    const acceptedFactSourceIds = new Set(
+      [...acceptedFactSourceIdsByResolutionId.values()].flatMap((sourceIds) => [...sourceIds]),
+    );
+    const boundaryEvidence = await tx.memoryBoundaryEvidence.findMany({
+      select: { boundaryRevisionId: true, transcriptSegmentId: true },
+      where: { transcriptSegmentId: { in: transcriptIds } },
+    });
+    const boundaryRevisionIds = boundaryEvidence.map(
+      ({ boundaryRevisionId }) => boundaryRevisionId,
+    );
+    const acceptedBoundaryRevisions = await tx.memoryBoundaryRevision.findMany({
+      select: { id: true },
+      where: { code: 'elder_explicit_boundary', id: { in: boundaryRevisionIds } },
+    });
+    const acceptedBoundaryRevisionIdSet = new Set(acceptedBoundaryRevisions.map(({ id }) => id));
+    const acceptedBoundaryIntentSourceIds = new Set(
+      boundaryEvidence
+        .filter(({ boundaryRevisionId }) => acceptedBoundaryRevisionIdSet.has(boundaryRevisionId))
+        .map(({ transcriptSegmentId }) => transcriptSegmentId),
+    );
+    const evidenceBySegmentId = new Map<string, MemoryGateEvidenceReference>();
+    for (const frozen of job.segments) {
+      const input = inputById.get(frozen.inputSegmentId);
+      const transcript =
+        input === undefined ? undefined : transcriptById.get(input.transcriptSegmentId);
+      if (
+        input === undefined ||
+        transcript === undefined ||
+        input.sessionId !== frozen.sessionId ||
+        input.transcriptSegmentId !== frozen.segmentId ||
+        input.textRevision !== frozen.textRevision ||
+        input.speakerRoleRevision !== frozen.speakerRoleRevision ||
+        input.effectiveTextDigest !== frozen.effectiveTextDigest ||
+        input.trustedEffectiveRole !== frozen.trustedRole ||
+        input.contentKind !== 'conversation' ||
+        transcript.textRevision !== input.textRevision ||
+        transcript.speakerRoleRevision !== input.speakerRoleRevision ||
+        projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole !==
+          input.trustedEffectiveRole ||
+        effectiveTextDigest(transcript.correctedText ?? transcript.originalText) !==
+          input.effectiveTextDigest
+      )
+        throw new Error('MEMORY_GATE_STALE_EVIDENCE');
+      const authorityRow = authorityBySourceId.get(frozen.segmentId);
+      if (
+        authorityRow !== undefined &&
+        (authorityRow.projectId !== job.projectId ||
+          authorityRow.sessionId !== frozen.sessionId ||
+          authorityRow.authorityRevision < 1 ||
+          authorityRow.sourceKind !== 'transcript_segment' ||
+          authorityRow.transcriptTextRevision !== input.textRevision ||
+          authorityRow.speakerRoleRevision !== input.speakerRoleRevision ||
+          authorityRow.effectiveTextDigest !== input.effectiveTextDigest)
+      )
+        throw new Error('MEMORY_GATE_STALE_EVIDENCE');
+      const evidenceId = authorityRow?.evidenceId ?? frozen.inputSegmentId;
+      evidenceBySegmentId.set(frozen.segmentId, {
+        authorityRevision: authorityRow?.authorityRevision ?? 1,
+        contentKind: 'conversation_final',
+        effectiveTextDigest: input.effectiveTextDigest,
+        evidenceId,
+        evidenceRole: classifyMemoryGateEvidenceRole(
+          input.trustedEffectiveRole,
+          transcript.correctedText ?? transcript.originalText,
+          acceptedFactSourceIds.has(input.transcriptSegmentId),
+          acceptedBoundaryIntentSourceIds.has(input.transcriptSegmentId),
+        ),
+        eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, !deletionDrifted),
+        projectId: job.projectId,
+        sessionId: input.sessionId,
+        sourceId: input.transcriptSegmentId,
+        sourceKind: 'transcript_segment',
+        speakerRoleRevision: input.speakerRoleRevision,
+        textRevision: input.textRevision,
+        trustedRole: input.trustedEffectiveRole,
+      });
+    }
+    for (const [sourceId, inputSegmentId] of acceptedFactEvidenceInputBySourceId) {
+      if (evidenceBySegmentId.has(sourceId)) continue;
+      const transcript = acceptedTranscripts.find(({ id }) => id === sourceId);
+      if (
+        transcript === undefined ||
+        !job.sessionIds.includes(transcript.sessionId) ||
+        projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole !== 'elder'
+      )
+        continue;
+      const text = transcript.correctedText ?? transcript.originalText;
+      evidenceBySegmentId.set(sourceId, {
+        authorityRevision: 1,
+        contentKind: 'conversation_final',
+        effectiveTextDigest: effectiveTextDigest(text),
+        evidenceId: inputSegmentId,
+        evidenceRole: 'explicit_fact_statement',
+        eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, !deletionDrifted),
+        projectId: job.projectId,
+        sessionId: transcript.sessionId,
+        sourceId,
+        sourceKind: 'transcript_segment',
+        speakerRoleRevision: transcript.speakerRoleRevision,
+        textRevision: transcript.textRevision,
+        trustedRole: 'elder',
+      });
+    }
+    return {
+      acceptedBoundaryIntentSourceIds,
+      acceptedFactEvidenceInputBySourceId,
+      acceptedFactSourceIds,
+      acceptedFactSourceIdsByResolutionId,
+      evidenceBySegmentId,
+      snapshot: {
+        authorityContract: 'memory-claim-resolution-v1',
+        currentSessionId: job.sessionIds[0] ?? '',
+        deletionScopeDigest: job.deletionScopeDigest,
+        evidenceManifestDigest: storedJob.inputHash,
+        policyRevision: String(storedJob.policyRevision),
+        projectId: storedJob.projectId,
+        snapshotRevision: 1,
+        sourceSessionIds: job.sessionIds,
+      },
+    };
   }
 
   private async resolveThread(
@@ -1345,7 +1879,7 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     threadId: string,
     state: NonNullable<MemoryMaintainerOperationV12['proposed_state']>,
     claim: NonNullable<MemoryMaintainerOperationV12['proposed_state']>['claims'][number],
-    inputBySegment: ReadonlyMap<string, FrozenAiJob['segments'][number]>,
+    inputBySegment: ReadonlyMap<string, { inputSegmentId: string; segmentId: string }>,
   ): Promise<string> {
     const evidence = claim.evidence_segment_ids.map((segmentId) => {
       const input = inputBySegment.get(segmentId);

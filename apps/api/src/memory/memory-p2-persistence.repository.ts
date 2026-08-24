@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
-import { EMPTY_MANIFEST_HASH, manifestHash } from '../ai-runtime/ai-provenance.js';
+import {
+  EMPTY_MANIFEST_HASH,
+  effectiveTextDigest,
+  manifestHash,
+} from '../ai-runtime/ai-provenance.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
+  MemoryResolutionKind,
   Prisma,
   type AiJobInputSegment,
   type MemoryLayerIdentity,
@@ -41,14 +46,42 @@ import type {
   MemoryP2TraceReferenceAuthority,
   MemoryP2TraceReference,
 } from './memory-p2-observability.types.js';
+import {
+  classifyMemoryGateEvidenceRole,
+  memoryGateEligibility,
+  MemoryGateCorrectionService,
+  type MemoryGateCandidate,
+  type MemoryGateEvidenceReference,
+} from './memory-gate-correction.service.js';
+import { projectTrustedSpeakerRole } from '../transcription/trusted-speaker-role.js';
+import {
+  deletionScopeAuthorityDigest,
+  DeletionScopeReader,
+  UnavailableDeletionScopeReader,
+} from '../ai-runtime/deletion-scope.reader.js';
 
 type TransactionClient = Prisma.TransactionClient;
 type DatabaseClient = PrismaService | TransactionClient;
 
+function resolutionValueKind(value: MemoryResolutionKind): 'exact' | 'range' | 'unknown' | null {
+  if (value === MemoryResolutionKind.range) return 'range';
+  if (value === MemoryResolutionKind.unknown || value === MemoryResolutionKind.review_required)
+    return 'unknown';
+  return 'exact';
+}
+
 @Injectable()
 export class MemoryP2PersistenceRepository {
   public readonly transactionOwnership = 'existing_ai_job_coordinator' as const;
-  public constructor(private readonly prisma: PrismaService) {}
+  private readonly gate = new MemoryGateCorrectionService();
+  private readonly deletionScopes: DeletionScopeReader;
+
+  public constructor(
+    private readonly prisma: PrismaService,
+    @Optional() deletionScopes?: DeletionScopeReader,
+  ) {
+    this.deletionScopes = deletionScopes ?? new UnavailableDeletionScopeReader();
+  }
 
   public async freezeCheckpoint(
     input: MemoryP2FreezeCheckpointInput,
@@ -484,6 +517,7 @@ export class MemoryP2PersistenceRepository {
         projection.sourceCheckpointId !== input.checkpointId ||
         trace.aiJobId !== input.aiJobId ||
         projection.deletionScopeDigest !== trace.deletionScopeDigest ||
+        input.deletionScopeDigest !== checkpoint.deletionScopeDigest ||
         (job.jobType !== 'long_session_end' &&
           projection.deletionScopeDigest !== checkpoint.deletionScopeDigest) ||
         job.policyRevision !== checkpoint.aiPolicyRevision ||
@@ -498,12 +532,17 @@ export class MemoryP2PersistenceRepository {
           projection.sourceRevisionDigest !== checkpoint.memberManifestHash)
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+      const deletionScopeDigest = await this.assertAuthoritativeDeletionScope(
+        input,
+        checkpoint.deletionScopeDigest,
+        projection.deletionScopeDigest,
+        trace.deletionScopeDigest,
+      );
       if (
         input.claims.length === 0 ||
         input.target.layer !== (job.jobType === 'long_session_end' ? 'long' : 'mid')
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_MANIFEST_INVALID');
-
       const resolutionId = randomUUID();
       const resolutionOutputId = randomUUID();
       const layerRevisionId = randomUUID();
@@ -517,6 +556,19 @@ export class MemoryP2PersistenceRepository {
         (previousResolution?.resolutionRevision ?? 0) !== input.target.expectedCurrentRevision
       )
         throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
+      await this.assertGateForCommit(
+        tx,
+        input,
+        deletionScopeDigest,
+        checkpoint.evidenceManifestHash,
+        previousResolution,
+      );
+      await this.assertAuthoritativeDeletionScope(
+        input,
+        checkpoint.deletionScopeDigest,
+        projection.deletionScopeDigest,
+        trace.deletionScopeDigest,
+      );
       const resolutionRevision = input.target.expectedCurrentRevision + 1;
       if (previousResolution !== null) {
         const frozen = await tx.aiJobInputMemory.findFirst({
@@ -524,10 +576,16 @@ export class MemoryP2PersistenceRepository {
         });
         if (frozen === null || frozen.resolutionRevision !== previousResolution.resolutionRevision)
           throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
-        await tx.memoryResolution.update({
+        const superseded = await tx.memoryResolution.updateMany({
           data: { status: 'superseded' },
-          where: { id: previousResolution.id },
+          where: {
+            id: previousResolution.id,
+            resolutionRevision: previousResolution.resolutionRevision,
+            status: 'current',
+          },
         });
+        if (superseded.count !== 1)
+          throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
       }
 
       const claimRows = await this.createClaims(tx, input);
@@ -1477,6 +1535,269 @@ export class MemoryP2PersistenceRepository {
         projectId: input.projectId,
       },
     });
+  }
+
+  private async assertGateForCommit(
+    tx: TransactionClient,
+    input: MemoryP2CommitInput,
+    deletionScopeDigest: string,
+    evidenceManifestDigest: string,
+    previousResolution: {
+      id: string;
+      resolutionRevision: number;
+      semanticKind: 'episode' | 'fact' | null;
+      semanticStatus: 'current' | 'uncertain' | 'disputed' | null;
+      status: 'current' | 'pending_review' | 'superseded';
+    } | null,
+  ): Promise<void> {
+    const [job, project, inputs, transcripts, authorities] = await Promise.all([
+      tx.aiJob.findUnique({ where: { id: input.aiJobId } }),
+      tx.elderProject.findUnique({ where: { id: input.projectId } }),
+      tx.aiJobInputSegment.findMany({ where: { aiJobId: input.aiJobId } }),
+      tx.transcriptSegment.findMany({ where: { sessionId: input.sourceSessionId } }),
+      tx.memoryEvidenceAuthority.findMany({
+        where: { projectId: input.projectId, sessionId: input.sourceSessionId },
+      }),
+    ]);
+    const policyAuthorized =
+      job !== null &&
+      project !== null &&
+      job.projectId === input.projectId &&
+      project.deletedAt === null &&
+      !['restricted', 'deleted'].includes(project.status) &&
+      job.policyRevision === project.aiPolicyRevision;
+    const retentionEligible =
+      job !== null &&
+      project !== null &&
+      job.retentionState === 'active' &&
+      job.expiresAt > new Date() &&
+      job.retentionPolicyVersion === project.aiRetentionPolicyVersion;
+    if (
+      job === null ||
+      project === null ||
+      job.projectId !== input.projectId ||
+      !(['mid_online', 'mid_final', 'long_session_end'] as string[]).includes(job.jobType) ||
+      !policyAuthorized ||
+      !retentionEligible
+    )
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+
+    const inputById = new Map(inputs.map((row) => [row.id, row]));
+    const transcriptById = new Map(transcripts.map((row) => [row.id, row]));
+    const authorityBySourceId = new Map<string, (typeof authorities)[number]>();
+    for (const row of authorities) {
+      const current = authorityBySourceId.get(row.sourceId);
+      if (current === undefined || row.authorityRevision > current.authorityRevision)
+        authorityBySourceId.set(row.sourceId, row);
+    }
+    const authorityBySourceRevision = new Map(
+      authorities.map((row) => [`${row.sourceId}:${String(row.authorityRevision)}`, row]),
+    );
+    const acceptedFactClaimEvidence = await tx.memoryClaimEvidence.findMany({
+      select: { memoryClaimId: true, transcriptSegmentId: true },
+      where: { transcriptSegmentId: { in: [...transcriptById.keys()] } },
+    });
+    const acceptedClaimIds = acceptedFactClaimEvidence.map(({ memoryClaimId }) => memoryClaimId);
+    const acceptedClaims = await tx.memoryClaim.findMany({
+      select: { id: true, sourceSessionId: true },
+      where: {
+        id: { in: acceptedClaimIds },
+        projectId: input.projectId,
+        provenanceState: 'active',
+        semanticKind: 'fact',
+      },
+    });
+    const acceptedClaimIdSet = new Set(
+      acceptedClaims
+        .filter(({ sourceSessionId }) => sourceSessionId === input.sourceSessionId)
+        .map(({ id }) => id),
+    );
+    const acceptedMembers = await tx.memoryResolutionMember.findMany({
+      select: { memoryClaimId: true, memoryResolutionId: true },
+      where: { memoryClaimId: { in: [...acceptedClaimIdSet] } },
+    });
+    const acceptedResolutionIds = acceptedMembers.map(
+      ({ memoryResolutionId }) => memoryResolutionId,
+    );
+    const acceptedResolutions = await tx.memoryResolution.findMany({
+      select: { id: true, sourceSessionId: true },
+      where: {
+        id: { in: acceptedResolutionIds },
+        projectId: input.projectId,
+        semanticKind: 'fact',
+        status: 'current',
+      },
+    });
+    const acceptedResolutionIdSet = new Set(
+      acceptedResolutions
+        .filter(({ sourceSessionId }) => sourceSessionId === input.sourceSessionId)
+        .map(({ id }) => id),
+    );
+    const acceptedFactSourceIds = new Set(
+      acceptedFactClaimEvidence
+        .filter(({ memoryClaimId }) => acceptedClaimIdSet.has(memoryClaimId))
+        .filter(({ memoryClaimId }) =>
+          acceptedMembers.some(
+            (member) =>
+              member.memoryClaimId === memoryClaimId &&
+              acceptedResolutionIdSet.has(member.memoryResolutionId),
+          ),
+        )
+        .map(({ transcriptSegmentId }) => transcriptSegmentId),
+    );
+    const evidenceById = new Map<string, MemoryGateEvidenceReference>();
+    const evidenceIdentityByInputSegmentId = new Map<string, string>();
+    for (const claim of input.claims) {
+      for (const evidence of claim.evidences) {
+        const frozen = inputById.get(evidence.inputSegmentId);
+        const transcript =
+          frozen === undefined ? undefined : transcriptById.get(frozen.transcriptSegmentId);
+        const sourceAuthority = authorityBySourceId.get(evidence.sourceId);
+        const authority = authorityBySourceRevision.get(
+          `${evidence.sourceId}:${String(evidence.authorityRevision)}`,
+        );
+        if (
+          frozen === undefined ||
+          transcript === undefined ||
+          frozen.sessionId !== input.sourceSessionId ||
+          frozen.transcriptSegmentId !== evidence.sourceId ||
+          frozen.textRevision !== evidence.textRevision ||
+          frozen.speakerRoleRevision !== evidence.speakerRoleRevision ||
+          frozen.effectiveTextDigest !== evidence.effectiveTextDigest ||
+          frozen.trustedEffectiveRole !==
+            projectTrustedSpeakerRole(transcript).trustedEffectiveSpeakerRole ||
+          (frozen.trustedEffectiveRole !== 'elder' &&
+            frozen.trustedEffectiveRole !== 'interviewer') ||
+          frozen.contentKind !== 'conversation' ||
+          transcript.textRevision !== frozen.textRevision ||
+          transcript.speakerRoleRevision !== frozen.speakerRoleRevision ||
+          effectiveTextDigest(transcript.correctedText ?? transcript.originalText) !==
+            frozen.effectiveTextDigest
+        )
+          throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+        if (
+          (authority === undefined && evidence.expectedEvidenceId !== null) ||
+          (sourceAuthority !== undefined && authority === undefined) ||
+          (authority !== undefined &&
+            ((authority.evidenceId !== evidence.expectedEvidenceId &&
+              evidence.expectedEvidenceId !== null) ||
+              authority.authorityRevision !== evidence.authorityRevision ||
+              authority.sourceId !== evidence.sourceId ||
+              authority.transcriptTextRevision !== evidence.textRevision ||
+              authority.speakerRoleRevision !== evidence.speakerRoleRevision ||
+              authority.effectiveTextDigest !== evidence.effectiveTextDigest))
+        )
+          throw new MemoryP2PersistenceError('MEMORY_P2_AUTHORITY_CAS_MISMATCH');
+        const evidenceId = authority?.evidenceId ?? evidence.inputSegmentId;
+        evidenceIdentityByInputSegmentId.set(evidence.inputSegmentId, evidenceId);
+        evidenceById.set(evidenceId, {
+          authorityRevision: authority?.authorityRevision ?? evidence.authorityRevision,
+          contentKind: 'conversation_final',
+          effectiveTextDigest: evidence.effectiveTextDigest,
+          evidenceId,
+          evidenceRole: classifyMemoryGateEvidenceRole(
+            frozen.trustedEffectiveRole,
+            transcript.correctedText ?? transcript.originalText,
+            acceptedFactSourceIds.has(evidence.sourceId),
+          ),
+          eligibility: memoryGateEligibility(policyAuthorized, retentionEligible, true),
+          projectId: input.projectId,
+          sessionId: frozen.sessionId,
+          sourceId: evidence.sourceId,
+          sourceKind: 'transcript_segment',
+          speakerRoleRevision: frozen.speakerRoleRevision,
+          textRevision: frozen.textRevision,
+          trustedRole: frozen.trustedEffectiveRole,
+        });
+      }
+    }
+    const evidence = [...evidenceById.values()];
+    const semanticStatus = input.target.semanticStatus;
+    const candidate: MemoryGateCandidate = {
+      candidateId: input.aiJobId,
+      proposalSource: 'llm_proposal',
+      candidateKind: input.target.semanticKind,
+      operation:
+        previousResolution === null
+          ? 'create'
+          : semanticStatus === 'uncertain'
+            ? 'mark_uncertain'
+            : semanticStatus === 'disputed'
+              ? 'mark_disputed'
+              : 'correct',
+      target:
+        previousResolution === null
+          ? null
+          : {
+              authorityId: input.target.authorityId ?? previousResolution.id,
+              revisionId: previousResolution.id,
+              revisionNo: previousResolution.resolutionRevision,
+              resolutionStatus: previousResolution.status === 'current' ? 'current' : 'superseded',
+              semanticStatus: previousResolution.semanticStatus ?? 'current',
+              semanticKind: previousResolution.semanticKind ?? input.target.semanticKind,
+              targetType: 'memory_resolution',
+            },
+      expectedRevision: previousResolution === null ? null : input.target.expectedCurrentRevision,
+      proposedState: {
+        canonicalKey: input.target.canonicalKey,
+        claims: input.claims.map((claim) => ({
+          claimId: null,
+          claimKey: claim.canonicalKey,
+          evidenceIds: claim.evidences.map((evidence) => {
+            const evidenceId = evidenceIdentityByInputSegmentId.get(evidence.inputSegmentId);
+            if (evidenceId === undefined)
+              throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+            return evidenceId;
+          }),
+        })),
+        resolutionKind:
+          input.target.resolutionKind === 'review_required'
+            ? 'unknown'
+            : input.target.resolutionKind,
+        reviewRequired: semanticStatus !== 'current',
+        semanticKind: input.target.semanticKind,
+        semanticStatus,
+        value: semanticStatus === 'disputed' ? null : input.target.resolvedValueJson,
+        valueKind:
+          semanticStatus === 'disputed' ? null : resolutionValueKind(input.target.resolutionKind),
+      },
+      evidence,
+      evidenceManifestDigest,
+    };
+    const decision = this.gate.evaluate(candidate, {
+      authorityContract: 'memory-claim-resolution-v1',
+      currentSessionId: input.sourceSessionId,
+      deletionScopeDigest,
+      evidenceManifestDigest,
+      policyRevision: String(job.policyRevision),
+      projectId: input.projectId,
+      snapshotRevision: 1,
+      sourceSessionIds: [input.sourceSessionId],
+    });
+    if (decision.mutation.action === 'none')
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+  }
+
+  private async assertAuthoritativeDeletionScope(
+    input: MemoryP2CommitInput,
+    ...expectedDigests: Array<string | null | undefined>
+  ): Promise<string> {
+    let snapshot: Awaited<ReturnType<DeletionScopeReader['assertNoActiveScope']>>;
+    try {
+      snapshot = await this.deletionScopes.assertNoActiveScope(input.projectId, [
+        input.sourceSessionId,
+      ]);
+    } catch {
+      throw new MemoryP2PersistenceError('MEMORY_P2_SOURCE_NOT_FROZEN');
+    }
+    const digest = deletionScopeAuthorityDigest(
+      input.projectId,
+      [input.sourceSessionId],
+      snapshot.fenceRevision,
+    );
+    if (expectedDigests.some((expected) => expected !== digest))
+      throw new MemoryP2PersistenceError('MEMORY_P2_JOB_NOT_RUNNING');
+    return digest;
   }
 
   private async createClaims(

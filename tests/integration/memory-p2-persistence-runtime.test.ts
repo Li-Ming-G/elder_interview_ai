@@ -9,7 +9,12 @@ import {
   AiPolicyService,
   LocalTestBoundaryPolicyFixtureReader,
 } from '../../apps/api/src/ai-runtime/ai-policy.service.js';
-import { LocalTestDeletionScopeFixtureReader } from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
+import {
+  deletionScopeAuthorityDigest,
+  DeletionScopeReader,
+  LocalTestDeletionScopeFixtureReader,
+  type DeletionScopeSnapshot,
+} from '../../apps/api/src/ai-runtime/deletion-scope.reader.js';
 import { canonicalDigest } from '../../apps/api/src/memory/memory-persistence-contract.js';
 import {
   EMPTY_MANIFEST_HASH,
@@ -58,6 +63,7 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
   let prisma: PrismaService;
   let repository: MemoryP2PersistenceRepository;
   let reader: MemoryP2PersistenceReader;
+  let deletionScopes: LocalTestDeletionScopeFixtureReader;
   let fixture: Awaited<ReturnType<typeof seedFixture>>;
   const integrationFixtures: Array<Awaited<ReturnType<typeof seedFixture>>> = [];
 
@@ -74,7 +80,8 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
       }),
     );
     await prisma.$connect();
-    repository = new MemoryP2PersistenceRepository(prisma);
+    deletionScopes = new LocalTestDeletionScopeFixtureReader();
+    repository = new MemoryP2PersistenceRepository(prisma, deletionScopes);
     reader = new MemoryP2PersistenceReader(prisma);
     fixture = await seedFixture(prisma);
   });
@@ -255,6 +262,41 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
     expect(await prisma.memoryP2RetentionTarget.count({ where: { aiJobId: frozen.aiJobId } })).toBe(
       4,
     );
+  });
+
+  it('rejects a stale deletion-scope digest before semantic mutation', async () => {
+    const frozen = freezeInput(fixture, await createP2Job(prisma, fixture, 'stale-deletion'));
+    await repository.freezeCheckpoint(frozen);
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    deletionScopes.setFenceRevision(2);
+    try {
+      await expect(
+        repository.commitLayerRevision(commitInput(fixture, frozen)),
+      ).rejects.toMatchObject({
+        code: 'MEMORY_P2_JOB_NOT_RUNNING',
+      });
+      expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
+    } finally {
+      deletionScopes.setFenceRevision(1);
+    }
+  });
+
+  it('rejects deletion-scope drift between the authoritative rereads', async () => {
+    const raceFixture = await seedFixture(prisma);
+    integrationFixtures.push(raceFixture);
+    const frozen = freezeInput(
+      raceFixture,
+      await createP2Job(prisma, raceFixture, 'deletion-race'),
+    );
+    await repository.freezeCheckpoint(frozen);
+    const racingReader = new RacyDeletionScopeReader();
+    const racingRepository = new MemoryP2PersistenceRepository(prisma, racingReader);
+    const before = await businessCounts(prisma, frozen.aiJobId);
+    await expect(
+      racingRepository.commitLayerRevision(commitInput(raceFixture, frozen)),
+    ).rejects.toMatchObject({ code: 'MEMORY_P2_JOB_NOT_RUNNING' });
+    expect(racingReader.calls).toBe(2);
+    expect(await businessCounts(prisma, frozen.aiJobId)).toEqual(before);
   });
 
   it('rolls back every semantic and projection write on target CAS mismatch', async () => {
@@ -684,7 +726,7 @@ describe('MEMORY-T5-T8-P2-C-RUNTIME-001 repository runtime', () => {
       },
     });
     const longTraceId = randomUUID();
-    const longScopeDigest = sha256(`scope:${longJob.id}`);
+    const longScopeDigest = deletionScopeAuthorityDigest(fixture.projectId, [fixture.sessionId], 1);
     const checkpointCount = await prisma.memoryEvolutionCheckpoint.count();
     const longLease = leaseFor(longJob.id);
     const longFreezeInput = {
@@ -868,7 +910,7 @@ async function seedFixture(
   const retentionRootId = randomUUID();
   const p1JobId = randomUUID();
   const snapshotId = randomUUID();
-  const text = `虚构的校园记忆证据${suffix}`;
+  const text = `工作记忆[fact:source-school${suffix}]=虚构的校园记忆证据${suffix}`;
   if (options === undefined)
     await prisma.user.create({
       data: {
@@ -1007,6 +1049,31 @@ async function seedFixture(
       triggerDedupeKey: `memory-p1-v1.2:${sessionId}:final`,
     }),
   });
+  const p1InputSegmentId = randomUUID();
+  await prisma.aiJobInputSegment.create({
+    data: {
+      aiJobId: p1JobId,
+      contentKind: 'conversation',
+      effectiveTextDigest: effectiveTextDigest(text),
+      id: p1InputSegmentId,
+      inputOrder: 0,
+      roleAuthority: 'user_confirmed',
+      sessionId,
+      speakerRoleRevision: 1,
+      textRevision: 0,
+      transcriptSegmentId: segmentId,
+      trustedEffectiveRole: 'elder',
+    },
+  });
+  await prisma.memoryClaimEvidence.create({
+    data: {
+      aiJobInputSegmentId: p1InputSegmentId,
+      evidenceOrder: 0,
+      id: randomUUID(),
+      memoryClaimId: sourceClaimId,
+      transcriptSegmentId: segmentId,
+    },
+  });
   await prisma.memoryWorkingSnapshot.create({
     data: {
       aiJobId: p1JobId,
@@ -1133,7 +1200,11 @@ function freezeInput(
   };
   const checkpointId = randomUUID();
   const traceId = randomUUID();
-  const deletionScopeDigest = sha256(`scope:${job.id}`);
+  const deletionScopeDigest = deletionScopeAuthorityDigest(
+    fixture.projectId,
+    [fixture.sessionId],
+    1,
+  );
   const memberManifestHash = memoryP2CheckpointManifestHash([member]);
   return {
     aiJobId: job.id,
@@ -1252,6 +1323,7 @@ function commitInput(
     checkpointId: frozen.checkpointId,
     claims: [claim],
     commitDigest: sha256(`commit:${frozen.aiJobId}`),
+    deletionScopeDigest: frozen.deletionScopeDigest,
     longSourceMidManifestHash: null,
     longSourceManifestHash: null,
     longSources: [],
@@ -1356,7 +1428,15 @@ async function prepareRuntimeFixture(
   prisma: PrismaService,
   fixture: Awaited<ReturnType<typeof seedFixture>>,
 ): Promise<void> {
-  const inputSegmentId = randomUUID();
+  const existingInput = await prisma.aiJobInputSegment.findUnique({
+    where: {
+      aiJobId_transcriptSegmentId: {
+        aiJobId: fixture.p1JobId,
+        transcriptSegmentId: fixture.segmentId,
+      },
+    },
+  });
+  const inputSegmentId = existingInput?.id ?? randomUUID();
   const inputMemoryId = randomUUID();
   const outputId = randomUUID();
   const segmentManifestHash = manifestHash([
@@ -1393,30 +1473,32 @@ async function prepareRuntimeFixture(
       speakerRoleRevision: 1,
     },
   });
-  await prisma.aiJobInputSegment.create({
-    data: {
-      aiJobId: fixture.p1JobId,
-      contentKind: 'conversation',
-      effectiveTextDigest: fixture.segmentDigest,
-      id: inputSegmentId,
-      inputOrder: 0,
-      roleAuthority: 'user_confirmed',
-      sessionId: fixture.sessionId,
-      speakerRoleRevision: 1,
-      textRevision: 0,
-      transcriptSegmentId: fixture.segmentId,
-      trustedEffectiveRole: 'elder',
-    },
-  });
-  await prisma.memoryClaimEvidence.create({
-    data: {
-      aiJobInputSegmentId: inputSegmentId,
-      evidenceOrder: 0,
-      id: randomUUID(),
-      memoryClaimId: fixture.sourceClaimId,
-      transcriptSegmentId: fixture.segmentId,
-    },
-  });
+  if (existingInput === null) {
+    await prisma.aiJobInputSegment.create({
+      data: {
+        aiJobId: fixture.p1JobId,
+        contentKind: 'conversation',
+        effectiveTextDigest: fixture.segmentDigest,
+        id: inputSegmentId,
+        inputOrder: 0,
+        roleAuthority: 'user_confirmed',
+        sessionId: fixture.sessionId,
+        speakerRoleRevision: 1,
+        textRevision: 0,
+        transcriptSegmentId: fixture.segmentId,
+        trustedEffectiveRole: 'elder',
+      },
+    });
+    await prisma.memoryClaimEvidence.create({
+      data: {
+        aiJobInputSegmentId: inputSegmentId,
+        evidenceOrder: 0,
+        id: randomUUID(),
+        memoryClaimId: fixture.sourceClaimId,
+        transcriptSegmentId: fixture.segmentId,
+      },
+    });
+  }
   await prisma.aiJobInputMemory.create({
     data: {
       aiJobId: fixture.p1JobId,
@@ -1581,7 +1663,7 @@ function runtimeTriggerRequest(
     p1TerminalJobId: kind === 'session_final_flush' ? fixture.p1JobId : null,
     policy: {
       aiPolicyRevision: 1,
-      deletionScopeDigest: sha256(`p2-runtime-scope:${fixture.projectId}`),
+      deletionScopeDigest: deletionScopeAuthorityDigest(fixture.projectId, [fixture.sessionId], 1),
       p2PolicyRevision: 'memory-p2-policy-v1',
       p2RetentionPolicyVersion: 'memory-p2-retention-v1',
       retentionPolicyVersion: 1,
@@ -1632,6 +1714,18 @@ class ManualClock {
 
   public advance(milliseconds: number): void {
     this.current = new Date(this.current.getTime() + milliseconds);
+  }
+}
+
+class RacyDeletionScopeReader extends DeletionScopeReader {
+  public calls = 0;
+
+  public override assertNoActiveScope(
+    ..._args: [string, readonly string[]]
+  ): Promise<DeletionScopeSnapshot> {
+    void _args;
+    this.calls += 1;
+    return Promise.resolve({ fenceRevision: this.calls === 1 ? 1 : 2 });
   }
 }
 

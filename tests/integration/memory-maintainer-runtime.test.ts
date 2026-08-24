@@ -160,7 +160,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('freezes new and overlap membership, consumes only new, and keeps revision zero exact', async () => {
-    const first = await seedSession(['工作记忆[fact:event:first]=第一段']);
+    const first = await seedSession(['工作记忆[episode:event:first]=第一段']);
     const runtime = createRuntime(new LocalTestMemoryMaintainerProvider());
     await runtime.requestFinalFlush(first.sessionId);
     await addSegment(first.sessionId, first.streamId, 1, '倾听员承接', 'interviewer');
@@ -361,10 +361,11 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('persists an untagged Fact and lets metadata change without changing semantic identity', async () => {
-    const seeded = await seedSession(['工作记忆[fact:tag.optional]=base']);
+    const seeded = await seedSession(['工作记忆[episode:tag.optional]=base']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
+    await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, 'tag.optional');
     const first = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'tag.optional', projectId, status: 'current' },
     });
@@ -407,6 +408,45 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       profileConfig.enabled = false;
     }
   });
+
+  it('does not reuse another current Fact authority for a fresh ordinary Fact', async () => {
+    const seeded = await seedSession(['工作记忆[episode:event:authority.bound]=基线']);
+    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+      seeded.sessionId,
+    );
+    await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, 'authority.bound');
+    await addSegment(seeded.sessionId, seeded.streamId, 1, '普通故事上下文', 'elder');
+    await expect(
+      createRuntime(new OrdinaryFactProvider()).requestFinalFlush(seeded.sessionId),
+    ).rejects.toThrow('FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED');
+    expect(
+      await prisma.memoryResolution.count({ where: { canonicalKey: 'ordinary.new', projectId } }),
+    ).toBe(0);
+    expect(
+      await prisma.memoryWorkingConsumption.count({ where: { sessionId: seeded.sessionId } }),
+    ).toBe(1);
+  });
+
+  it.each(['BRANCH', 'RELATED'] as const)(
+    'rejects an ordinary-story fresh %s Fact beside an existing Fact',
+    async (kind) => {
+      const canonicalKey = `authority.${kind.toLowerCase()}`;
+      const seeded = await seedSession([`工作记忆[episode:event:${canonicalKey}]=基线`]);
+      await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        seeded.sessionId,
+      );
+      await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, canonicalKey);
+      await addSegment(seeded.sessionId, seeded.streamId, 1, '普通故事上下文', 'elder');
+      await expect(
+        createRuntime(new OrdinaryFactProvider(kind)).requestFinalFlush(seeded.sessionId),
+      ).rejects.toThrow('FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED');
+      expect(
+        await prisma.memoryResolution.count({
+          where: { canonicalKey: `ordinary.${kind.toLowerCase()}`, projectId },
+        }),
+      ).toBe(0);
+    },
+  );
 
   it('preserves legacy-null authority as unavailable and rejects a partial upgrade', async () => {
     const rootId = randomUUID();
@@ -468,7 +508,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       })
     ).map(({ id }) => id);
     expect(legacyProfileMemory.some(({ id }) => p1Ids.includes(id))).toBe(false);
-    const seeded = await seedSession(['工作记忆[fact:event:legacy-check]=不读取旧 sentinel']);
+    const seeded = await seedSession(['工作记忆[episode:event:legacy-check]=不读取旧 sentinel']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
@@ -497,7 +537,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('coalesces concurrent final notifications into one provider call and one committed snapshot', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:concurrent]=并发通知']);
+    const seeded = await seedSession(['工作记忆[episode:event:concurrent]=并发通知']);
     const provider = new DeferredProvider();
     const runtime = createRuntime(provider);
     const first = runtime.requestFinalFlush(seeded.sessionId);
@@ -512,7 +552,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('recovers a lost notification through the durable scanner', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:lost-notice]=丢通知']);
+    const seeded = await seedSession(['工作记忆[episode:event:lost-notice]=丢通知']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).reconcilePersistedState();
     expect(
       await prisma.memoryWorkingConsumption.count({ where: { sessionId: seeded.sessionId } }),
@@ -520,7 +560,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('rolls back a normal frozen job and memberships when atomic trace creation fails', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:trace-rollback]=原子回滚']);
+    const seeded = await seedSession(['工作记忆[episode:event:trace-rollback]=原子回滚']);
     const traceFailure = vi
       .spyOn(traces, 'beginInTransaction')
       .mockRejectedValueOnce(new Error('TRACE_ATOMIC_FAILURE'));
@@ -958,10 +998,11 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('applies the provider-neutral operation matrix through one authority', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:matrix.base]=base']);
+    const seeded = await seedSession(['工作记忆[episode:event:matrix.base]=base']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
+    await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, 'matrix.base');
     const runtime = createRuntime(new MatrixProvider());
     for (const [index, operation] of [
       'DUPLICATE',
@@ -998,10 +1039,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     'after_snapshot',
   ] as const) {
     it(`rolls back every business table when ${stage} fails`, async () => {
-      const seeded = await seedSession([
-        `工作记忆[fact:event:rollback-${stage}]=事务回滚`,
-        '访谈边界=虚构边界',
-      ]);
+      const seeded = await seedSession([`工作记忆[episode:event:rollback-${stage}]=事务回滚`]);
       const runtime = createRuntime(
         new LocalTestMemoryMaintainerProvider(),
         new OneShotFailpoint(stage),
@@ -1019,14 +1057,14 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
         threads: 0,
       });
       expect(await prisma.transcriptSegment.count({ where: { sessionId: seeded.sessionId } })).toBe(
-        2,
+        1,
       );
     });
   }
 
   for (const stage of ['before_freeze', 'after_freeze', 'after_provider'] as const) {
     it(`keeps transcript safe when crashing at ${stage}`, async () => {
-      const seeded = await seedSession([`工作记忆[fact:event:crash-${stage}]=崩溃隔离`]);
+      const seeded = await seedSession([`工作记忆[episode:event:crash-${stage}]=崩溃隔离`]);
       const runtime = createRuntime(
         new LocalTestMemoryMaintainerProvider(),
         new OneShotFailpoint(stage),
@@ -1054,7 +1092,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   }
 
   it('repairs an after-freeze crash from persisted state without replaying the provider', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:atomic-restart]=事务后崩溃']);
+    const seeded = await seedSession(['工作记忆[episode:event:atomic-restart]=事务后崩溃']);
     const crashed = createRuntime(new CountingProvider(), new OneShotFailpoint('after_freeze'));
     await expect(crashed.requestFinalFlush(seeded.sessionId)).rejects.toThrow(
       'FAILPOINT_after_freeze',
@@ -1407,7 +1445,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('keeps the committed batch authoritative when the process crashes after writeback', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:crash-after-writeback]=提交后崩溃']);
+    const seeded = await seedSession(['工作记忆[episode:event:crash-after-writeback]=提交后崩溃']);
     const runtime = createRuntime(
       new LocalTestMemoryMaintainerProvider(),
       new OneShotFailpoint('after_writeback'),
@@ -1429,7 +1467,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('retains a failed attempt and creates a direct retry with the same identity', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:retry]=失败后重试']);
+    const seeded = await seedSession(['工作记忆[episode:event:retry]=失败后重试']);
     const failpoint = new OneShotFailpoint('during_writeback');
     const runtime = createRuntime(new LocalTestMemoryMaintainerProvider(), failpoint);
     await expect(runtime.requestFinalFlush(seeded.sessionId)).rejects.toThrow(
@@ -1446,7 +1484,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('terminalizes a stale attempt once and fences its late callback', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:late]=迟到回调']);
+    const seeded = await seedSession(['工作记忆[episode:event:late]=迟到回调']);
     const provider = new DeferredProvider();
     const late = createRuntime(provider).requestFinalFlush(seeded.sessionId);
     await provider.waitUntilCalled();
@@ -1470,7 +1508,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   });
 
   it('fails closed on policy and transcript drift without damaging transcript rows', async () => {
-    const policySession = await seedSession(['工作记忆[fact:event:policy]=策略漂移']);
+    const policySession = await seedSession(['工作记忆[episode:event:policy]=策略漂移']);
     const policyProvider = new DeferredProvider();
     const policyRun = createRuntime(policyProvider).requestFinalFlush(policySession.sessionId);
     await policyProvider.waitUntilCalled();
@@ -1483,7 +1521,24 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       snapshots: 0,
     });
 
-    const transcriptSession = await seedSession(['工作记忆[fact:event:revision]=证据漂移']);
+    const deletionFenceSession = await seedSession([
+      '工作记忆[episode:event:deletion-fence]=删除范围漂移',
+    ]);
+    const deletionFenceProvider = new DeferredProvider();
+    const deletionFenceRun = createRuntime(deletionFenceProvider).requestFinalFlush(
+      deletionFenceSession.sessionId,
+    );
+    await deletionFenceProvider.waitUntilCalled();
+    deletion.setFenceRevision(2);
+    deletionFenceProvider.resolveNext();
+    await expect(deletionFenceRun).rejects.toThrow('MEMORY_GATE_AUTHORITY_SNAPSHOT_UNAVAILABLE');
+    deletion.setFenceRevision(1);
+    expect(await businessCounts(deletionFenceSession.sessionId)).toMatchObject({
+      consumptions: 0,
+      snapshots: 0,
+    });
+
+    const transcriptSession = await seedSession(['工作记忆[episode:event:revision]=证据漂移']);
     const transcriptProvider = new DeferredProvider();
     const transcriptRun = createRuntime(transcriptProvider).requestFinalFlush(
       transcriptSession.sessionId,
@@ -1503,14 +1558,14 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       await prisma.transcriptSegment.count({ where: { sessionId: transcriptSession.sessionId } }),
     ).toBe(1);
 
-    const targetBase = await seedSession(['工作记忆[fact:event:target-base]=目标基线']);
+    const targetBase = await seedSession(['工作记忆[episode:event:target-base]=目标基线']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       targetBase.sessionId,
     );
     const target = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'target-base', projectId, status: 'current' },
     });
-    const targetSession = await seedSession(['工作记忆[fact:event:target-next]=目标漂移']);
+    const targetSession = await seedSession(['工作记忆[episode:event:target-next]=目标漂移']);
     const targetProvider = new DeferredProvider();
     const targetRun = createRuntime(targetProvider).requestFinalFlush(targetSession.sessionId);
     await targetProvider.waitUntilCalled();
@@ -1548,7 +1603,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   it.each(['normal', 'disputed'] as const)(
     'enforces runtime target identity CAS against malicious %s output',
     async (mode) => {
-      const base = await seedSession([`工作记忆[fact:event:cas-${mode}-base]=基线`]);
+      const base = await seedSession([`工作记忆[episode:event:cas-${mode}-base]=基线`]);
       await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
         base.sessionId,
       );
@@ -1572,7 +1627,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
   );
 
   it('keeps the last complete snapshot visible while a newer writeback fails', async () => {
-    const seeded = await seedSession(['工作记忆[fact:event:visible-old]=旧快照']);
+    const seeded = await seedSession(['工作记忆[episode:event:visible-old]=旧快照']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
@@ -1582,7 +1637,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       seeded.sessionId,
       seeded.streamId,
       1,
-      '工作记忆[fact:event:failed-new]=失败新批',
+      '工作记忆[episode:event:failed-new]=失败新批',
       'elder',
     );
     const failing = createRuntime(
@@ -1597,30 +1652,17 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     );
   });
 
-  it('rejects boundary revision drift after provider return', async () => {
+  it('fails closed when ordinary boundary marker text reaches the runtime', async () => {
     const boundarySession = await seedSession(['访谈边界=不得继续的虚构范围']);
-    await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
-      boundarySession.sessionId,
-    );
-    const boundaryIds = (
-      await prisma.memoryBoundary.findMany({ select: { id: true }, where: { projectId } })
-    ).map(({ id }) => id);
-    const boundary = await prisma.memoryBoundaryRevision.findFirstOrThrow({
-      where: { boundaryId: { in: boundaryIds }, status: 'active', supersededAt: null },
-    });
-    const next = await seedSession(['工作记忆[fact:event:boundary-drift]=边界漂移']);
-    const provider = new DeferredProvider();
-    const running = createRuntime(provider).requestFinalFlush(next.sessionId);
-    await provider.waitUntilCalled();
-    await prisma.memoryBoundaryRevision.update({
-      data: { status: 'revoked' },
-      where: { id: boundary.id },
-    });
-    provider.resolveNext();
-    await expect(running).rejects.toThrow('MEMORY_BOUNDARY_CONTEXT_DRIFT');
-    await prisma.memoryBoundaryRevision.update({
-      data: { status: 'active' },
-      where: { id: boundary.id },
+    await expect(
+      createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        boundarySession.sessionId,
+      ),
+    ).rejects.toThrow('BOUNDARY_EXPLICIT_INTENT_REQUIRED');
+    expect(await businessCounts(boundarySession.sessionId)).toMatchObject({
+      boundaries: 0,
+      consumptions: 0,
+      snapshots: 0,
     });
   });
 
@@ -1659,10 +1701,11 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
 
   it('detaches authority provenance across thread and session deletion without blocking cleanup', async () => {
     profileConfig.enabled = true;
-    const seeded = await seedSession(['工作记忆[fact:event:delete-provenance]=删除邻接']);
+    const seeded = await seedSession(['工作记忆[episode:event:delete-provenance]=删除邻接']);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
       seeded.sessionId,
     );
+    await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, 'delete-provenance');
     const resolution = await prisma.memoryResolution.findFirstOrThrow({
       where: { canonicalKey: 'delete-provenance', projectId, status: 'current' },
     });
@@ -1757,7 +1800,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     );
 
     const sessionOnly = await seedSession([
-      '工作记忆[fact:event:delete-session-provenance]=仅删除会话',
+      '工作记忆[episode:event:delete-session-provenance]=仅删除会话',
     ]);
     const keeper = await seedSession([]);
     await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
@@ -1840,6 +1883,8 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       clock,
       failpoint,
       { ...runtimeConfig(), ...config },
+      undefined,
+      deletion,
     );
   }
 
@@ -1895,6 +1940,29 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
       },
     });
     return id;
+  }
+
+  async function promoteCurrentMemoryToAcceptedFact(
+    sessionId: string,
+    canonicalKey: string,
+  ): Promise<void> {
+    const resolution = await prisma.memoryResolution.findFirstOrThrow({
+      where: { canonicalKey, projectId, sourceSessionId: sessionId, status: 'current' },
+    });
+    const members = await prisma.memoryResolutionMember.findMany({
+      select: { memoryClaimId: true },
+      where: { memoryResolutionId: resolution.id },
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.memoryClaim.updateMany({
+        data: { semanticKind: 'fact' },
+        where: { id: { in: members.map(({ memoryClaimId }) => memoryClaimId) } },
+      });
+      await tx.memoryResolution.update({
+        data: { semanticKind: 'fact' },
+        where: { id: resolution.id },
+      });
+    });
   }
 
   async function maintainerJobs(sessionId: string): Promise<AiJob[]> {
@@ -2141,6 +2209,56 @@ class TagChangeProvider extends MemoryMaintainerProvider {
   }
 }
 
+class OrdinaryFactProvider extends MemoryMaintainerProvider {
+  public constructor(private readonly kind: 'NEW' | 'BRANCH' | 'RELATED' = 'NEW') {
+    super();
+  }
+
+  public override maintain(
+    context: MemoryMaintainerContextV12,
+  ): Promise<MemoryMaintainerOutputV12> {
+    const segment = context.transcript_membership.find(
+      ({ membership_kind }) => membership_kind === 'new',
+    );
+    if (segment === undefined) throw new Error('ORDINARY_FACT_INPUT_REQUIRED');
+    return Promise.resolve({
+      boundary_candidates: [],
+      operations: [
+        {
+          anchor_thread_id: this.kind === 'NEW' ? null : (context.active_thread?.thread_id ?? null),
+          evidence_segment_ids: [segment.segment_id],
+          expected_anchor_thread_revision:
+            this.kind === 'NEW' ? null : (context.active_thread?.revision ?? null),
+          expected_resolution_revision: null,
+          kind: this.kind,
+          operation_id: `ordinary-${this.kind.toLowerCase()}:${segment.segment_id}`,
+          proposed_state: {
+            canonical_key: `ordinary.${this.kind.toLowerCase()}`,
+            claims: [
+              {
+                claim_id: null,
+                claim_key: 'ordinary-fact',
+                evidence_segment_ids: [segment.segment_id],
+                value: 'ordinary',
+                value_kind: 'exact',
+              },
+            ],
+            memory_tag: 'event',
+            resolution_kind: 'single',
+            semantic_kind: 'fact',
+            semantic_status: 'current',
+            value: 'ordinary',
+            value_kind: 'exact',
+          },
+          reason_code: 'new_topic',
+          target_resolution_id: null,
+        },
+      ],
+      output_schema_version: 'memory-maintainer-output-v1.2',
+    });
+  }
+}
+
 class MatrixProvider extends MemoryMaintainerProvider {
   public override maintain(
     context: MemoryMaintainerContextV12,
@@ -2188,7 +2306,7 @@ class MatrixProvider extends MemoryMaintainerProvider {
                   ],
                   memory_tag: 'event',
                   resolution_kind: uncertain ? 'unknown' : 'single',
-                  semantic_kind: 'fact',
+                  semantic_kind: creates ? 'episode' : (target?.semantic_kind ?? 'fact'),
                   semantic_status: uncertain ? 'uncertain' : 'current',
                   value: uncertain ? 'unknown' : kind.toLowerCase(),
                   value_kind: uncertain ? 'unknown' : 'exact',
