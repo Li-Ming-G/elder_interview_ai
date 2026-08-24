@@ -190,16 +190,16 @@
     },
     {
       "id": "CPA-02",
-      "status": "READY",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/CPA-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["CPA-01"],
-      "pr": null,
+      "pr": 106,
       "next_task": "CPA-03"
     },
     {
       "id": "CPA-03",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/CPA-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["CPA-02"],
