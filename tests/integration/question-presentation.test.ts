@@ -638,9 +638,17 @@ describe('DEV-007B constrained question publication', () => {
       const automatic = await waitForAutomaticTerminal(eventSessionId);
       expect(generate).toHaveBeenCalledTimes(1);
       expect(automatic).toMatchObject({
-        attempt_kind: 'automatic',
         publication_outcome: 'published',
         result_kind: 'suggestion',
+        status: 'succeeded',
+      });
+      const automaticAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+        where: { id: automatic.attempt_id },
+      });
+      expect(automaticAttempt).toMatchObject({
+        attemptKind: 'automatic',
+        publicationOutcome: 'published',
+        requestId: automatic.request_id,
         status: 'succeeded',
       });
       const automaticTrace = await prisma.decisionTrace.findUniqueOrThrow({
@@ -739,9 +747,18 @@ describe('DEV-007B constrained question publication', () => {
       const continued = await waitForAutomaticTerminal(continueSessionId);
       expect(generate).not.toHaveBeenCalled();
       expect(continued).toMatchObject({
-        attempt_kind: 'automatic',
         publication_outcome: 'not_applicable',
         result_kind: 'continue_listening',
+        status: 'succeeded',
+      });
+      const continuedAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+        where: { id: continued.attempt_id },
+      });
+      expect(continuedAttempt).toMatchObject({
+        attemptKind: 'automatic',
+        publicationOutcome: 'not_applicable',
+        requestId: continued.request_id,
+        resultKind: 'continue_listening',
         status: 'succeeded',
       });
       const continuedTrace = await prisma.decisionTrace.findUniqueOrThrow({
@@ -786,8 +803,16 @@ describe('DEV-007B constrained question publication', () => {
       });
       const manual = await waitForTerminal(manualRequestId, manualSessionId);
       expect(manual).toMatchObject({
-        attempt_kind: 'manual_next',
         publication_outcome: 'published',
+        status: 'succeeded',
+      });
+      const manualAttempt = await prisma.questionGenerationAttempt.findUniqueOrThrow({
+        where: { id: manual.attempt_id },
+      });
+      expect(manualAttempt).toMatchObject({
+        attemptKind: 'manual_next',
+        publicationOutcome: 'published',
+        requestId: manual.request_id,
         status: 'succeeded',
       });
       expect(
