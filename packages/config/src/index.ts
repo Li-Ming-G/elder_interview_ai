@@ -2,6 +2,41 @@ import { z } from 'zod';
 
 const appEnvironmentSchema = z.enum(['local', 'test', 'staging', 'production']);
 
+export const CHECKPOINT_A_OPENROUTER_ENDPOINT =
+  'https://openrouter.ai/api/v1/chat/completions' as const;
+export const CHECKPOINT_A_OPENROUTER_MODEL = 'stealth/ox-alpha' as const;
+export const CHECKPOINT_A_OPENROUTER_SECRET_REF = 'OPENROUTER_API_KEY' as const;
+
+export type CheckpointAStartMode = 'generic' | 'checkpoint_a';
+
+export interface CheckpointADirectorDisabledConfig {
+  readonly mode: 'generic';
+  readonly provider: 'deterministic_fixture';
+  readonly networkEnabled: false;
+}
+
+export interface CheckpointAOpenRouterConfig {
+  readonly allowFallback: false;
+  readonly endpoint: typeof CHECKPOINT_A_OPENROUTER_ENDPOINT;
+  readonly model: typeof CHECKPOINT_A_OPENROUTER_MODEL;
+  readonly mode: 'checkpoint_a';
+  readonly networkEnabled: true;
+  readonly provider: 'openrouter';
+  readonly requireParameters: true;
+  readonly responseFormat: 'json_object';
+  readonly secretRef: typeof CHECKPOINT_A_OPENROUTER_SECRET_REF;
+  /** Server-only credential. It is deliberately non-enumerable and redacted by toJSON(). */
+  readonly apiKey: string;
+}
+
+export type CheckpointADirectorConfig =
+  CheckpointADirectorDisabledConfig | CheckpointAOpenRouterConfig;
+
+export interface ApiConfigLoadOptions {
+  /** This option is server-owned; browser input must never be used to select a start mode. */
+  readonly checkpointAStartMode?: CheckpointAStartMode;
+}
+
 const apiConfigSchema = z.object({
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
@@ -53,6 +88,7 @@ export interface ApiConfig {
   audioStorageRoot: string;
   audioChunkMaxBytes: number;
   asr: AsrConfig;
+  checkpointA: CheckpointADirectorConfig;
 }
 
 export type AsrConfig =
@@ -86,7 +122,10 @@ export class ConfigValidationError extends Error {
   }
 }
 
-export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
+export function loadApiConfig(
+  environment: NodeJS.ProcessEnv,
+  options: ApiConfigLoadOptions = {},
+): ApiConfig {
   const result = apiConfigSchema.safeParse(environment);
 
   if (!result.success) {
@@ -155,7 +194,85 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv): ApiConfig {
     audioStorageRoot: result.data.AUDIO_STORAGE_ROOT,
     audioChunkMaxBytes: result.data.AUDIO_CHUNK_MAX_BYTES,
     asr,
+    checkpointA: loadCheckpointADirectorConfig(environment, options.checkpointAStartMode),
   };
+}
+
+/**
+ * Loads the server-owned Director seam without making a network call.
+ *
+ * The default generic mode is intentionally deterministic and ignores an ambient key. The
+ * Checkpoint A mode is only valid for the explicit local checkpoint path. This function returns
+ * the credential only to the server-side adapter boundary; its serialized form is always safe.
+ */
+export function loadCheckpointADirectorConfig(
+  environment: NodeJS.ProcessEnv,
+  startMode: CheckpointAStartMode = 'generic',
+): CheckpointADirectorConfig {
+  if (!isCheckpointAStartMode(startMode)) {
+    throw new ConfigValidationError(['CHECKPOINT_A_START_MODE']);
+  }
+  if (startMode === 'generic') {
+    return Object.freeze({
+      mode: 'generic',
+      networkEnabled: false,
+      provider: 'deterministic_fixture',
+    });
+  }
+
+  if (environment.APP_ENV !== 'local') {
+    throw new ConfigValidationError(['APP_ENV']);
+  }
+
+  const apiKey = environment[CHECKPOINT_A_OPENROUTER_SECRET_REF];
+  if (apiKey === undefined || apiKey.trim().length === 0) {
+    throw new ConfigValidationError([CHECKPOINT_A_OPENROUTER_SECRET_REF]);
+  }
+
+  return createCheckpointAOpenRouterConfig(apiKey);
+}
+
+function isCheckpointAStartMode(value: unknown): value is CheckpointAStartMode {
+  return value === 'generic' || value === 'checkpoint_a';
+}
+
+function createCheckpointAOpenRouterConfig(apiKey: string): CheckpointAOpenRouterConfig {
+  const config = {
+    allowFallback: false,
+    endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
+    model: CHECKPOINT_A_OPENROUTER_MODEL,
+    mode: 'checkpoint_a',
+    networkEnabled: true,
+    provider: 'openrouter',
+    requireParameters: true,
+    responseFormat: 'json_object',
+    secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
+  } as CheckpointAOpenRouterConfig;
+
+  Object.defineProperty(config, 'apiKey', {
+    configurable: false,
+    enumerable: false,
+    value: apiKey,
+    writable: false,
+  });
+  Object.defineProperty(config, 'toJSON', {
+    configurable: false,
+    enumerable: false,
+    value: () => ({
+      allowFallback: false,
+      endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
+      model: CHECKPOINT_A_OPENROUTER_MODEL,
+      mode: 'checkpoint_a',
+      networkEnabled: true,
+      provider: 'openrouter',
+      requireParameters: true,
+      responseFormat: 'json_object',
+      secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
+    }),
+    writable: false,
+  });
+
+  return Object.freeze(config);
 }
 
 export function loadAppEnvironment(environment: NodeJS.ProcessEnv): AppEnvironment {

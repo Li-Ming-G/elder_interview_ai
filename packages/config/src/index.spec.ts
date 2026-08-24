@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { ConfigValidationError, loadApiConfig } from './index.js';
+import {
+  CHECKPOINT_A_OPENROUTER_ENDPOINT,
+  CHECKPOINT_A_OPENROUTER_MODEL,
+  CHECKPOINT_A_OPENROUTER_SECRET_REF,
+  ConfigValidationError,
+  loadApiConfig,
+  loadCheckpointADirectorConfig,
+} from './index.js';
 
 describe('loadApiConfig', () => {
   it('loads a complete API configuration', () => {
@@ -131,5 +138,86 @@ describe('loadApiConfig', () => {
     } catch (error: unknown) {
       expect(String(error)).not.toContain(invalidAppId);
     }
+  });
+
+  it('loads the exact local Checkpoint A binding only when explicitly selected', () => {
+    const apiKey = 'fictional-checkpoint-a-key';
+    const config = loadCheckpointADirectorConfig(
+      { APP_ENV: 'local', OPENROUTER_API_KEY: apiKey },
+      'checkpoint_a',
+    );
+
+    expect(config).toMatchObject({
+      allowFallback: false,
+      endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
+      model: CHECKPOINT_A_OPENROUTER_MODEL,
+      mode: 'checkpoint_a',
+      networkEnabled: true,
+      provider: 'openrouter',
+      requireParameters: true,
+      responseFormat: 'json_object',
+      secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
+    });
+    expect(config).toHaveProperty('apiKey', apiKey);
+  });
+
+  it('reports only the key name when Checkpoint A key is missing', () => {
+    expect(() => loadCheckpointADirectorConfig({ APP_ENV: 'local' }, 'checkpoint_a')).toThrow(
+      CHECKPOINT_A_OPENROUTER_SECRET_REF,
+    );
+    try {
+      loadCheckpointADirectorConfig({ APP_ENV: 'local' }, 'checkpoint_a');
+    } catch (error: unknown) {
+      expect(String(error)).toBe(
+        `ConfigValidationError: Invalid configuration keys: ${CHECKPOINT_A_OPENROUTER_SECRET_REF}`,
+      );
+      expect(String(error)).not.toContain('undefined');
+    }
+  });
+
+  it('keeps generic startup deterministic even when an ambient key exists', () => {
+    const config = loadCheckpointADirectorConfig({
+      APP_ENV: 'local',
+      OPENROUTER_API_KEY: 'ambient-key-must-not-activate',
+    });
+
+    expect(config).toEqual({
+      mode: 'generic',
+      networkEnabled: false,
+      provider: 'deterministic_fixture',
+    });
+    expect(
+      loadApiConfig({
+        APP_ENV: 'local',
+        AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
+        AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
+        AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
+        DATABASE_URL: 'postgresql://app:test@127.0.0.1:5433/app_test',
+        OPENROUTER_API_KEY: 'ambient-key-must-not-activate',
+      }).checkpointA,
+    ).toMatchObject({ mode: 'generic', networkEnabled: false });
+  });
+
+  it('fails closed for test, staging and production Checkpoint A activation', () => {
+    for (const appEnv of ['test', 'staging', 'production'] as const) {
+      expect(() =>
+        loadCheckpointADirectorConfig(
+          { APP_ENV: appEnv, OPENROUTER_API_KEY: 'fictional-key' },
+          'checkpoint_a',
+        ),
+      ).toThrow('APP_ENV');
+    }
+  });
+
+  it('does not serialize the Checkpoint A secret', () => {
+    const apiKey = 'fictional-secret-must-not-serialize';
+    const config = loadCheckpointADirectorConfig(
+      { APP_ENV: 'local', OPENROUTER_API_KEY: apiKey },
+      'checkpoint_a',
+    );
+
+    expect(JSON.stringify(config)).not.toContain(apiKey);
+    expect(JSON.stringify({ checkpointA: config })).not.toContain(apiKey);
+    expect(Object.keys(config)).not.toContain('apiKey');
   });
 });
