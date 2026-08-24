@@ -1338,7 +1338,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       const gatedEvidenceSegmentIds = this.gatedFactEvidenceSegmentIds(
         operation,
         state.semantic_kind,
-        context,
         authority,
       );
       const gatedOperation =
@@ -1419,7 +1418,6 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
   private gatedFactEvidenceSegmentIds(
     operation: MemoryMaintainerOperationV12,
     semanticKind: MemorySemanticKind,
-    context: MemoryMaintainerContextV12,
     authority: MemoryGateRuntimeAuthority,
   ): readonly string[] {
     if (semanticKind !== 'fact') return operation.evidence_segment_ids;
@@ -1430,31 +1428,11 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     )
       return operation.evidence_segment_ids;
 
-    const targetEvidence =
-      operation.target_resolution_id === null
-        ? []
-        : [
-            ...(authority.acceptedFactSourceIdsByResolutionId.get(operation.target_resolution_id) ??
-              []),
-          ];
-    const activeThreadId = context.active_thread?.thread_id;
-    const activeThreadEvidence =
-      activeThreadId === undefined
-        ? []
-        : context.current_working_memory
-            .filter(
-              ({ semantic_kind, thread_id }) =>
-                semantic_kind === 'fact' && thread_id === activeThreadId,
-            )
-            .flatMap(({ resolution_id }) => [
-              ...(authority.acceptedFactSourceIdsByResolutionId.get(resolution_id) ?? []),
-            ]);
-    const derivedEvidence =
-      targetEvidence.length > 0
-        ? targetEvidence
-        : ['BRANCH', 'RELATED'].includes(operation.kind)
-          ? activeThreadEvidence
-          : [];
+    if (operation.target_resolution_id === null || ['BRANCH', 'RELATED'].includes(operation.kind))
+      return operation.evidence_segment_ids;
+    const derivedEvidence = [
+      ...(authority.acceptedFactSourceIdsByResolutionId.get(operation.target_resolution_id) ?? []),
+    ];
     const inScope = derivedEvidence.filter((segmentId) =>
       authority.evidenceBySegmentId.has(segmentId),
     );

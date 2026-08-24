@@ -427,6 +427,27 @@ describe('MEMORY-T2-T4-RUNTIME-001 PostgreSQL runtime and recovery', () => {
     ).toBe(1);
   });
 
+  it.each(['BRANCH', 'RELATED'] as const)(
+    'rejects an ordinary-story fresh %s Fact beside an existing Fact',
+    async (kind) => {
+      const canonicalKey = `authority.${kind.toLowerCase()}`;
+      const seeded = await seedSession([`工作记忆[episode:event:${canonicalKey}]=基线`]);
+      await createRuntime(new LocalTestMemoryMaintainerProvider()).requestFinalFlush(
+        seeded.sessionId,
+      );
+      await promoteCurrentMemoryToAcceptedFact(seeded.sessionId, canonicalKey);
+      await addSegment(seeded.sessionId, seeded.streamId, 1, '普通故事上下文', 'elder');
+      await expect(
+        createRuntime(new OrdinaryFactProvider(kind)).requestFinalFlush(seeded.sessionId),
+      ).rejects.toThrow('FACT_EXPLICIT_ELDER_EVIDENCE_REQUIRED');
+      expect(
+        await prisma.memoryResolution.count({
+          where: { canonicalKey: `ordinary.${kind.toLowerCase()}`, projectId },
+        }),
+      ).toBe(0);
+    },
+  );
+
   it('preserves legacy-null authority as unavailable and rejects a partial upgrade', async () => {
     const rootId = randomUUID();
     await prisma.memoryRetentionRoot.create({
@@ -2189,6 +2210,10 @@ class TagChangeProvider extends MemoryMaintainerProvider {
 }
 
 class OrdinaryFactProvider extends MemoryMaintainerProvider {
+  public constructor(private readonly kind: 'NEW' | 'BRANCH' | 'RELATED' = 'NEW') {
+    super();
+  }
+
   public override maintain(
     context: MemoryMaintainerContextV12,
   ): Promise<MemoryMaintainerOutputV12> {
@@ -2200,14 +2225,15 @@ class OrdinaryFactProvider extends MemoryMaintainerProvider {
       boundary_candidates: [],
       operations: [
         {
-          anchor_thread_id: null,
+          anchor_thread_id: this.kind === 'NEW' ? null : (context.active_thread?.thread_id ?? null),
           evidence_segment_ids: [segment.segment_id],
-          expected_anchor_thread_revision: null,
+          expected_anchor_thread_revision:
+            this.kind === 'NEW' ? null : (context.active_thread?.revision ?? null),
           expected_resolution_revision: null,
-          kind: 'NEW',
-          operation_id: `ordinary-fact:${segment.segment_id}`,
+          kind: this.kind,
+          operation_id: `ordinary-${this.kind.toLowerCase()}:${segment.segment_id}`,
           proposed_state: {
-            canonical_key: 'ordinary.new',
+            canonical_key: `ordinary.${this.kind.toLowerCase()}`,
             claims: [
               {
                 claim_id: null,
@@ -2280,7 +2306,7 @@ class MatrixProvider extends MemoryMaintainerProvider {
                   ],
                   memory_tag: 'event',
                   resolution_kind: uncertain ? 'unknown' : 'single',
-                  semantic_kind: 'fact',
+                  semantic_kind: creates ? 'episode' : 'fact',
                   semantic_status: uncertain ? 'uncertain' : 'current',
                   value: uncertain ? 'unknown' : kind.toLowerCase(),
                   value_kind: uncertain ? 'unknown' : 'exact',
