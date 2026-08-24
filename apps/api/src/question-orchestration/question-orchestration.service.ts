@@ -463,8 +463,31 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       const replayAttempt = await this.prisma.questionGenerationAttempt.findUnique({
         where: { requestId },
       });
-      if (replayAttempt !== null) await this.decisionTrace.recoverAttempt(replayAttempt.id);
-      throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
+      if (replayAttempt === null) {
+        await this.recordPreparationFailure({
+          actorId,
+          attemptKind,
+          basis,
+          failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+          interviewContextSnapshotId: openingContext?.snapshotId ?? null,
+          job,
+          journeyBasisHash: sha256(requestId),
+          journeyPolicyVersion: JOURNEY_POLICY_VERSION,
+          journeyReasonCodes: ['stage.hold_no_decisive_signal'],
+          journeyStage: generation.journeyStage ?? 'rapport',
+          requestId,
+          sessionId,
+        });
+      }
+      const recoveredAttempt = await this.prisma.questionGenerationAttempt.findUnique({
+        where: { requestId },
+      });
+      if (recoveredAttempt !== null) await this.decisionTrace.recoverAttempt(recoveredAttempt.id);
+      const replayState = await this.prisma.aiJob.findUnique({
+        select: { status: true },
+        where: { id: job.id },
+      });
+      throw new Error(`AI_REQUEST_REPLAY_${(replayState?.status ?? job.status).toUpperCase()}`);
     }
 
     let decision: JourneyDecision | null = null;
@@ -686,41 +709,34 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     requestId: string;
     sessionId: string;
   }): Promise<void> {
-    await this.coordinator.failOrphanedSystemJob(input.job.id, input.failureCode);
-    try {
-      await this.presentations.recordSystemUnavailableAttempt(
-        {
-          attemptKind: input.attemptKind,
-          basisPresentationRevision: input.basis.presentationRevision,
-          basisSnapshotId: input.basis.snapshotId,
-          contextBuilderDigest: this.contract.contextBuilderDigest,
-          contextBuilderVersion: DIRECTOR_CONTEXT_BUILDER_VERSION,
-          contextSchemaDigest: this.contract.contextSchemaDigest,
-          contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
-          failureCode: input.failureCode,
-          interviewContextSnapshotId: input.interviewContextSnapshotId,
-          job: input.job,
-          journeyBasisHash: input.journeyBasisHash,
-          journeyPolicyVersion: input.journeyPolicyVersion,
-          journeyReasonCodes: input.journeyReasonCodes,
-          journeyStage: input.journeyStage,
-          modelConfigDigest: this.contract.modelConfigDigest,
-          modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
-          outputSchemaDigest: this.contract.outputSchemaDigest,
-          outputSchemaVersion: DIRECTOR_OUTPUT_SCHEMA_VERSION,
-          promptBundleDigest: this.contract.promptBundleDigest,
-          promptBundleVersion: DIRECTOR_PROMPT_BUNDLE_VERSION,
-          selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
-          sessionId: input.sessionId,
-          similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
-        },
-        input.requestId,
-      );
-    } catch {
-      // The job is already terminal. A later Decision Trace reconciliation can
-      // repair a missing attempt/trace without allowing the live lane to wait.
-      await this.coordinator.failOrphanedSystemJob(input.job.id, input.failureCode);
-    }
+    await this.presentations.recordSystemUnavailableAttempt(
+      {
+        attemptKind: input.attemptKind,
+        basisPresentationRevision: input.basis.presentationRevision,
+        basisSnapshotId: input.basis.snapshotId,
+        contextBuilderDigest: this.contract.contextBuilderDigest,
+        contextBuilderVersion: DIRECTOR_CONTEXT_BUILDER_VERSION,
+        contextSchemaDigest: this.contract.contextSchemaDigest,
+        contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
+        failureCode: input.failureCode,
+        interviewContextSnapshotId: input.interviewContextSnapshotId,
+        job: input.job,
+        journeyBasisHash: input.journeyBasisHash,
+        journeyPolicyVersion: input.journeyPolicyVersion,
+        journeyReasonCodes: input.journeyReasonCodes,
+        journeyStage: input.journeyStage,
+        modelConfigDigest: this.contract.modelConfigDigest,
+        modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
+        outputSchemaDigest: this.contract.outputSchemaDigest,
+        outputSchemaVersion: DIRECTOR_OUTPUT_SCHEMA_VERSION,
+        promptBundleDigest: this.contract.promptBundleDigest,
+        promptBundleVersion: DIRECTOR_PROMPT_BUNDLE_VERSION,
+        selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
+        sessionId: input.sessionId,
+        similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
+      },
+      input.requestId,
+    );
   }
 
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {

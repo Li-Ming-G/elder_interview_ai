@@ -49,20 +49,48 @@ async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T>
   }
 }
 
-const SAFE_AI_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,79}$/u;
+const OWNED_AI_ERROR_CODES = {
+  AI_UNAVAILABLE: 'AI_UNAVAILABLE',
+  AI_CONTEXT_SCHEMA_INVALID: 'AI_CONTEXT_SCHEMA_INVALID',
+  AI_EVIDENCE_OUTSIDE_FROZEN_INPUT: 'AI_EVIDENCE_OUTSIDE_FROZEN_INPUT',
+  AI_JOB_CANCELLED: 'AI_JOB_CANCELLED',
+  AI_JOB_NOT_RUNNING: 'AI_JOB_NOT_RUNNING',
+  AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT: 'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT',
+  AI_OUTPUT_SCHEMA_INVALID: 'AI_OUTPUT_SCHEMA_INVALID',
+  AI_PROVIDER_TIMEOUT: 'AI_PROVIDER_TIMEOUT',
+  AI_PROVIDER_UNAVAILABLE: 'AI_PROVIDER_UNAVAILABLE',
+  AI_REQUEST_IDENTITY_CONFLICT: 'AI_REQUEST_IDENTITY_CONFLICT',
+  AI_SESSION_SCOPE_INVALID: 'AI_SESSION_SCOPE_INVALID',
+  CONTEXT_BUILD_FAILED: 'CONTEXT_BUILD_FAILED',
+  DIRECTOR_FAILED: 'DIRECTOR_FAILED',
+  EVIDENCE_TIMEOUT: 'EVIDENCE_TIMEOUT',
+  MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE: 'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE',
+  MEMORY_TRACE_PROVENANCE_UNAVAILABLE: 'MEMORY_TRACE_PROVENANCE_UNAVAILABLE',
+  MEMORY_UNJUDGED: 'MEMORY_UNJUDGED',
+  MEMORY_UNJUDGED_JOB_DRIFT: 'MEMORY_UNJUDGED_JOB_DRIFT',
+  PROVIDER_FAILED: 'PROVIDER_FAILED',
+  QUESTION_PREPARATION_FAILED: 'QUESTION_PREPARATION_FAILED',
+  SYSTEM_COORDINATOR_RESTARTED: 'SYSTEM_COORDINATOR_RESTARTED',
+  SYSTEM_REJECTION_FAILED: 'SYSTEM_REJECTION_FAILED',
+  WRITEBACK_FAILED: 'WRITEBACK_FAILED',
+} as const;
 
-export function safeAiErrorCode(error: unknown, fallback: string): string {
-  const candidate = error instanceof Error ? error.message : '';
-  return SAFE_AI_ERROR_CODE.test(candidate) ? candidate : fallback;
+type OwnedAiErrorCode = keyof typeof OWNED_AI_ERROR_CODES;
+
+function ownedAiErrorCode(value: unknown): OwnedAiErrorCode | null {
+  if (typeof value !== 'string') return null;
+  return Object.prototype.hasOwnProperty.call(OWNED_AI_ERROR_CODES, value)
+    ? (value as OwnedAiErrorCode)
+    : null;
 }
 
-export interface AiWriteBackOptions {
-  /**
-   * P2 maintainer writes are background work. They retain the coordinator's
-   * CAS/drift checks but do not serialize the live question lane on advisory
-   * project/session locks.
-   */
-  lockLiveLane?: boolean;
+export function safeAiErrorCode(error: unknown, fallback: string): string {
+  const candidate = error instanceof Error ? error.message : error;
+  return (
+    ownedAiErrorCode(candidate) ??
+    ownedAiErrorCode(fallback) ??
+    OWNED_AI_ERROR_CODES.PROVIDER_FAILED
+  );
 }
 
 export interface FrozenAiJob {
@@ -789,15 +817,12 @@ export class AiJobCoordinatorService {
   public async writeBack<T>(
     job: FrozenAiJob,
     write: (tx: Prisma.TransactionClient) => Promise<T>,
-    options: AiWriteBackOptions = {},
   ): Promise<T> {
     if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
     try {
       const outcome = await this.prisma.$transaction<T | CancellationResult>(async (tx) => {
-        if (options.lockLiveLane !== false) {
-          await this.lock(tx, `project:${job.projectId}`);
-          for (const sessionId of job.sessionIds) await this.lock(tx, `session:${sessionId}`);
-        }
+        await this.lock(tx, `project:${job.projectId}`);
+        for (const sessionId of job.sessionIds) await this.lock(tx, `session:${sessionId}`);
         const driftCode = await this.findDrift(tx, job);
         if (driftCode !== null) {
           await tx.aiJob.updateMany({

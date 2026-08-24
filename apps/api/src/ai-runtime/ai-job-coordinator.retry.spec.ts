@@ -37,32 +37,15 @@ describe('question generation same-input retry budget', () => {
     expect(safeAiErrorCode(new Error('provider body: transcript text'), 'PROVIDER_FAILED')).toBe(
       'PROVIDER_FAILED',
     );
+    expect(safeAiErrorCode('MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE', 'PROVIDER_FAILED')).toBe(
+      'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE',
+    );
     expect(safeAiErrorCode(new Error('EVIDENCE_TIMEOUT'), 'PROVIDER_FAILED')).toBe(
       'EVIDENCE_TIMEOUT',
     );
-  });
-
-  it('allows the P2 background writeback to retain CAS checks without live-lane locks', async () => {
-    const tx = {
-      $executeRaw: vi.fn(),
-      aiJob: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-    };
-    const prisma = {
-      $transaction: vi.fn((callback: (value: typeof tx) => unknown) => callback(tx)),
-    } as unknown as PrismaService;
-    const coordinator = new AiJobCoordinatorService(
-      prisma,
-      {} as AiPolicyService,
-      {} as AiOutputEligibilityService,
+    expect(safeAiErrorCode(new Error('UPPERCASE_EXTERNAL_BODY'), 'PROVIDER_FAILED')).toBe(
+      'PROVIDER_FAILED',
     );
-    (coordinator as unknown as { findDrift: ReturnType<typeof vi.fn> }).findDrift = vi
-      .fn()
-      .mockResolvedValue(null);
-
-    await expect(
-      coordinator.writeBack(job(), () => Promise.resolve('committed'), { lockLiveLane: false }),
-    ).resolves.toBe('committed');
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('shares one absolute deadline across primary and retry', async () => {
