@@ -24,7 +24,7 @@
 | `P6R-02` | `DONE` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `100` | `P6R-03` |
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
 | `P6R-04` | `DONE` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
-| `P6R-05` | `READY` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `null` | `null` |
+| `P6R-05` | `DONE` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
 
 ## Current phase
 
@@ -34,7 +34,7 @@ The active development stage is now P6 Runtime / T18–T24:
 
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
-Only `P6R-05` is READY. Dispatcher may unlock exactly one predefined successor only after current external Architect `PASS`, merge, successful main verification and refreshed-main reconciliation.
+No task in the current P6 runtime pack is READY. The P6 pack is complete after P6R-05 external PASS, merge, successful main verification and refreshed-main reconciliation.
 
 ## P6 stage intent
 
@@ -46,6 +46,7 @@ Only `P6R-05` is READY. Dispatcher may unlock exactly one predefined successor o
 
 P6R-03 is accepted through PR #101, merge/main `35c8b869f819ea3bc6a0f1e1d89cbadd1fa88c70`, with main CI run `32695474272` SUCCESS.
 P6R-04 is accepted through PR #102, merge/main `272bc89782b38f356082fb0c21a30646b6c302bf`, with main CI run `32701819747` SUCCESS.
+P6R-05 is accepted through PR #103, merge/main `045b041445eec2e73060afa5bbbe0e15c82cc51e`, with main CI run `32711482477` SUCCESS.
 
 P6R-02 is accepted through PR #100, merge/main `8c103ef631851b833a57efebe3c1b3ddc8dcadd8`, with main CI run `32691042422` SUCCESS.
 

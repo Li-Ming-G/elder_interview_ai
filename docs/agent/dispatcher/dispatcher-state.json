@@ -166,13 +166,13 @@
       "pr": 102,
       "next_task": "P6R-05"
     },
-    {
-      "id": "P6R-05",
-      "status": "READY",
+      {
+        "id": "P6R-05",
+        "status": "DONE",
       "task_card": "docs/agent/tasks/P6R-05.md",
       "worker_profile": "luna-high",
       "depends_on": ["P6R-04"],
-      "pr": null,
+        "pr": 103,
       "next_task": null
     }
   ]

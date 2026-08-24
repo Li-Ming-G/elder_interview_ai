@@ -44,6 +44,7 @@ P6 accepted path:
 - P6R-02: PR #100, accepted head `e0d20f167d1a52686efd3f1dcea5ab5028d6f3a5`, merge/main `8c103ef631851b833a57efebe3c1b3ddc8dcadd8`, main CI run `32691042422` SUCCESS.
 - P6R-03: PR #101, accepted head `8a0b0f433b8cec1abb12497e655f61342b121be2`, merge/main `35c8b869f819ea3bc6a0f1e1d89cbadd1fa88c70`, main CI run `32695474272` SUCCESS.
 - P6R-04: PR #102, accepted head `7d45756b671172dc5d67e724c68baed9ff34f9f2`, merge/main `272bc89782b38f356082fb0c21a30646b6c302bf`, main CI run `32701819747` SUCCESS.
+- P6R-05: PR #103, accepted head `74cd8b263c7c65971ca229c3521c49cf64a2796f`, merge/main `045b041445eec2e73060afa5bbbe0e15c82cc51e`, main CI run `32711482477` SUCCESS.
 
 ## P6 canonical queue
 
@@ -55,7 +56,7 @@ P6R-01  T18–T24 Runtime Orchestration V1 contract
   → P6R-05  integrated runtime / Decision Trace closeout
 ```
 
-`P6R-01` through `P6R-04` are complete through PR #102; `P6R-05` is now `READY`. Later successors remain `DEFERRED` and may be unlocked only by the canonical Dispatcher after predecessor external Architect `PASS`, merge and successful main verification.
+`P6R-01` through `P6R-05` are complete through PR #103; this P6 runtime pack is closed. Later successors remain `DEFERRED` until explicitly issued.
 
 The owner-issued planning source is `docs/agent/tasks/P6-DEVELOPMENT-PACK.md`.
 
@@ -84,7 +85,7 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: `P6R-05` only.
+- `READY`: none in the current P6 pack.
 - `IN_PROGRESS`: none at pack issuance time.
 - `REVIEW`: none at pack issuance time.
 - `DEFERRED`: P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
@@ -100,4 +101,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-After PR #102 is verified on refreshed `main`, Dispatcher sees `P6R-05 = READY`; it may persist `READY → IN_PROGRESS` and launch the declared `luna-high` Worker. Later P6 successors remain deferred until the accepted lifecycle unlocks them.
+After PR #103 is verified on refreshed `main`, the P6 Runtime / T18–T24 pack is complete. No successor is predefined in the current queue; later work remains deferred until explicitly issued.
