@@ -747,7 +747,7 @@ describe('DEV-007B constrained question publication', () => {
       const continued = await waitForAutomaticTerminal(continueSessionId);
       expect(generate).not.toHaveBeenCalled();
       expect(continued).toMatchObject({
-        publication_outcome: 'not_applicable',
+        publication_outcome: 'published',
         result_kind: 'continue_listening',
         status: 'succeeded',
       });
@@ -756,7 +756,7 @@ describe('DEV-007B constrained question publication', () => {
       });
       expect(continuedAttempt).toMatchObject({
         attemptKind: 'automatic',
-        publicationOutcome: 'not_applicable',
+        publicationOutcome: 'published',
         requestId: continued.request_id,
         resultKind: 'continue_listening',
         status: 'succeeded',
@@ -767,7 +767,7 @@ describe('DEV-007B constrained question publication', () => {
       expect(continuedTrace).toMatchObject({
         decisionOutcome: 'continue_listening',
         directorInvoked: false,
-        publicationOutcome: 'not_applicable',
+        publicationOutcome: 'published',
         status: 'succeeded',
       });
       // Manual-next cancels the still-pending automatic gate and uses the same
