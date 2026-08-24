@@ -49,6 +49,22 @@ async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T>
   }
 }
 
+const SAFE_AI_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,79}$/u;
+
+export function safeAiErrorCode(error: unknown, fallback: string): string {
+  const candidate = error instanceof Error ? error.message : '';
+  return SAFE_AI_ERROR_CODE.test(candidate) ? candidate : fallback;
+}
+
+export interface AiWriteBackOptions {
+  /**
+   * P2 maintainer writes are background work. They retain the coordinator's
+   * CAS/drift checks but do not serialize the live question lane on advisory
+   * project/session locks.
+   */
+  lockLiveLane?: boolean;
+}
+
 export interface FrozenAiJob {
   actualQuestions: readonly FrozenActualQuestion[];
   deletionFenceRevision: number;
@@ -555,14 +571,18 @@ export class AiJobCoordinatorService {
       await this.prisma.aiProviderCall.update({
         data: {
           completedAt: new Date(),
-          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'UNKNOWN',
+          errorCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
           latencyMs: Date.now() - startedAt.getTime(),
           status: 'failed',
         },
         where: { id: callId },
       });
       await this.prisma.aiJob.updateMany({
-        data: { completedAt: new Date(), failureCode: 'PROVIDER_FAILED', status: 'failed' },
+        data: {
+          completedAt: new Date(),
+          failureCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
+          status: 'failed',
+        },
         where: { id: job.id, status: 'running' },
       });
       throw error;
@@ -626,7 +646,7 @@ export class AiJobCoordinatorService {
         await this.prisma.aiProviderCall.update({
           data: {
             completedAt: new Date(),
-            errorCode: error instanceof Error ? error.message.slice(0, 80) : 'UNKNOWN',
+            errorCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
             latencyMs: Date.now() - startedAt.getTime(),
             status: 'failed',
           },
@@ -635,7 +655,11 @@ export class AiJobCoordinatorService {
       }
     }
     await this.prisma.aiJob.updateMany({
-      data: { completedAt: new Date(), failureCode: 'PROVIDER_FAILED', status: 'failed' },
+      data: {
+        completedAt: new Date(),
+        failureCode: safeAiErrorCode(lastError, 'PROVIDER_FAILED'),
+        status: 'failed',
+      },
       where: { id: job.id, status: 'running' },
     });
     throw lastError;
@@ -649,11 +673,14 @@ export class AiJobCoordinatorService {
     });
   }
 
-  public async failOrphanedSystemJob(jobId: string): Promise<void> {
+  public async failOrphanedSystemJob(
+    jobId: string,
+    failureCode = 'SYSTEM_COORDINATOR_RESTARTED',
+  ): Promise<void> {
     await this.prisma.aiJob.updateMany({
       data: {
         completedAt: new Date(),
-        failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+        failureCode: safeAiErrorCode(failureCode, 'SYSTEM_COORDINATOR_RESTARTED'),
         status: 'failed',
       },
       where: { id: jobId, status: { in: ['pending', 'running'] } },
@@ -713,7 +740,7 @@ export class AiJobCoordinatorService {
           completedAt: now,
           contextBuilderVersion: 'system-rejection-v1',
           expiresAt: request.expiresAt,
-          failureCode: failureCode.slice(0, 80),
+          failureCode: safeAiErrorCode(failureCode, 'SYSTEM_REJECTION_FAILED'),
           inputHash: sha256(
             canonicalJson({ failureCode, projectId: request.projectId, sessionIds }),
           ),
@@ -762,12 +789,15 @@ export class AiJobCoordinatorService {
   public async writeBack<T>(
     job: FrozenAiJob,
     write: (tx: Prisma.TransactionClient) => Promise<T>,
+    options: AiWriteBackOptions = {},
   ): Promise<T> {
     if (job.replayed) throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
     try {
       const outcome = await this.prisma.$transaction<T | CancellationResult>(async (tx) => {
-        await this.lock(tx, `project:${job.projectId}`);
-        for (const sessionId of job.sessionIds) await this.lock(tx, `session:${sessionId}`);
+        if (options.lockLiveLane !== false) {
+          await this.lock(tx, `project:${job.projectId}`);
+          for (const sessionId of job.sessionIds) await this.lock(tx, `session:${sessionId}`);
+        }
         const driftCode = await this.findDrift(tx, job);
         if (driftCode !== null) {
           await tx.aiJob.updateMany({
@@ -792,7 +822,7 @@ export class AiJobCoordinatorService {
         await this.prisma.aiJob.update({
           data: {
             completedAt: new Date(),
-            failureCode: error instanceof Error ? error.message.slice(0, 80) : 'WRITEBACK_FAILED',
+            failureCode: safeAiErrorCode(error, 'WRITEBACK_FAILED'),
             status: 'failed',
           },
           where: { id: job.id },
@@ -1117,7 +1147,11 @@ export class AiJobCoordinatorService {
 
   private async cancelJob(jobId: string, code: string): Promise<void> {
     await this.prisma.aiJob.updateMany({
-      data: { completedAt: new Date(), failureCode: code, status: 'cancelled' },
+      data: {
+        completedAt: new Date(),
+        failureCode: safeAiErrorCode(code, 'AI_JOB_CANCELLED'),
+        status: 'cancelled',
+      },
       where: { id: jobId, status: { in: ['pending', 'running'] } },
     });
   }

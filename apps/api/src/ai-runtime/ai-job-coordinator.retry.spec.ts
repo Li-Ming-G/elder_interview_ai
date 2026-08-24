@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   AiJobCoordinatorService,
+  safeAiErrorCode,
   type FreezeAiJobRequest,
   type FrozenAiJob,
 } from './ai-job-coordinator.service.js';
@@ -10,6 +11,60 @@ import { AiOutputEligibilityService } from './ai-output-eligibility.service.js';
 import { AiPolicyService } from './ai-policy.service.js';
 
 describe('question generation same-input retry budget', () => {
+  it('preserves the safe deadline diagnostic when no provider call can start', async () => {
+    const { coordinator, invoke, updateJob } = fixture();
+
+    await expect(
+      coordinator.callProviderWithSameInputRetry<unknown>(
+        job(),
+        invoke,
+        (value: unknown): unknown => value,
+        Date.now() - 1,
+      ),
+    ).rejects.toThrow('AI_PROVIDER_TIMEOUT');
+
+    expect(invoke).not.toHaveBeenCalled();
+    const updateInput = updateJob.mock.calls.at(-1)?.[0];
+    const update =
+      typeof updateInput === 'object' && updateInput !== null
+        ? (updateInput as { data?: { failureCode?: string; status?: string } })
+        : undefined;
+    expect(update?.data?.failureCode).toBe('AI_PROVIDER_TIMEOUT');
+    expect(update?.data?.status).toBe('failed');
+  });
+
+  it('never copies an arbitrary provider error body into durable diagnostics', () => {
+    expect(safeAiErrorCode(new Error('provider body: transcript text'), 'PROVIDER_FAILED')).toBe(
+      'PROVIDER_FAILED',
+    );
+    expect(safeAiErrorCode(new Error('EVIDENCE_TIMEOUT'), 'PROVIDER_FAILED')).toBe(
+      'EVIDENCE_TIMEOUT',
+    );
+  });
+
+  it('allows the P2 background writeback to retain CAS checks without live-lane locks', async () => {
+    const tx = {
+      $executeRaw: vi.fn(),
+      aiJob: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (value: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaService;
+    const coordinator = new AiJobCoordinatorService(
+      prisma,
+      {} as AiPolicyService,
+      {} as AiOutputEligibilityService,
+    );
+    (coordinator as unknown as { findDrift: ReturnType<typeof vi.fn> }).findDrift = vi
+      .fn()
+      .mockResolvedValue(null);
+
+    await expect(
+      coordinator.writeBack(job(), () => Promise.resolve('committed'), { lockLiveLane: false }),
+    ).resolves.toBe('committed');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('shares one absolute deadline across primary and retry', async () => {
     const { coordinator, invoke } = fixture();
     invoke
@@ -195,9 +250,11 @@ function fixture(): {
   assertAllowed: ReturnType<typeof vi.fn<AiPolicyService['assertAllowed']>>;
   coordinator: AiJobCoordinatorService;
   invoke: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+  updateJob: ReturnType<typeof vi.fn<(input: unknown) => unknown>>;
 } {
+  const updateJob = vi.fn<(input: unknown) => unknown>().mockResolvedValue({ count: 1 });
   const prisma = {
-    aiJob: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    aiJob: { updateMany: updateJob },
     aiProviderCall: {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
@@ -210,7 +267,7 @@ function fixture(): {
   });
   const policy = { assertAllowed } as unknown as AiPolicyService;
   const coordinator = new AiJobCoordinatorService(prisma, policy, {} as AiOutputEligibilityService);
-  return { assertAllowed, coordinator, invoke: vi.fn<() => Promise<unknown>>() };
+  return { assertAllowed, coordinator, invoke: vi.fn<() => Promise<unknown>>(), updateJob };
 }
 
 function job(): FrozenAiJob {

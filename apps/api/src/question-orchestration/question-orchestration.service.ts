@@ -8,13 +8,14 @@ import { API_CONFIG } from '../api-config.js';
 import { EvidenceDrilldownService } from '../evidence-drilldown/evidence-drilldown.service.js';
 import {
   AiJobCoordinatorService,
+  safeAiErrorCode,
   type FrozenAiJob,
 } from '../ai-runtime/ai-job-coordinator.service.js';
 import {
   DecisionTraceService,
   type DecisionTraceP4Input,
 } from '../ai-runtime/decision-trace.service.js';
-import { canonicalJson, manifestHash } from '../ai-runtime/ai-provenance.js';
+import { canonicalJson, manifestHash, sha256 } from '../ai-runtime/ai-provenance.js';
 import type { AuthPrincipal } from '../auth/auth.types.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { InterviewContextService } from '../memory/interview-context.service.js';
@@ -28,6 +29,7 @@ import { QuestionBankError } from '../question-bank/question-bank.types.js';
 import {
   JOURNEY_POLICY_VERSION,
   QuestionJourneyService,
+  type JourneyDecision,
   type FrozenJourneyContext,
   type JourneyInputSignal,
 } from '../question-bank/question-journey.service.js';
@@ -178,7 +180,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       void this.complete(prepared).catch(async (error: unknown) => {
         await this.presentations.failAttempt(
           prepared.attemptId,
-          error instanceof Error ? error.message.slice(0, 80) : 'AI_UNAVAILABLE',
+          safeAiErrorCode(error, 'AI_UNAVAILABLE'),
         );
       });
     }
@@ -217,7 +219,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       void this.complete(prepared).catch(async (error: unknown) => {
         await this.presentations.failAttempt(
           prepared.attemptId,
-          error instanceof Error ? error.message.slice(0, 80) : 'AI_UNAVAILABLE',
+          safeAiErrorCode(error, 'AI_UNAVAILABLE'),
         );
       });
     }
@@ -465,29 +467,49 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       throw new Error(`AI_REQUEST_REPLAY_${job.status.toUpperCase()}`);
     }
 
-    const journeyContext = await this.journeyContext(job, generation.journeyStage, memories);
-    const decision = this.journey.evaluate(journeyContext, JOURNEY_POLICY_VERSION);
+    let decision: JourneyDecision | null = null;
     let references: readonly EligibleQuestionBankItem[] = [];
-    if (decision.publicationAllowed) {
-      try {
-        references = await this.bank.listEligible(
-          decision.stage,
-          journeyFacts(journeyContext.signals),
-          {
-            environmentScope: ['local', 'test'].includes(this.config.appEnv)
-              ? 'internal_demo'
-              : 'product',
-            policyDecision: 'allowed',
-          },
-        );
-      } catch (error) {
-        if (
-          !(error instanceof QuestionBankError) ||
-          error.code !== 'QUESTION_BANK_ACTIVE_RELEASE_UNAVAILABLE'
-        ) {
-          throw error;
+    try {
+      const journeyContext = await this.journeyContext(job, generation.journeyStage, memories);
+      decision = this.journey.evaluate(journeyContext, JOURNEY_POLICY_VERSION);
+      if (decision.publicationAllowed) {
+        try {
+          references = await this.bank.listEligible(
+            decision.stage,
+            journeyFacts(journeyContext.signals),
+            {
+              environmentScope: ['local', 'test'].includes(this.config.appEnv)
+                ? 'internal_demo'
+                : 'product',
+              policyDecision: 'allowed',
+            },
+          );
+        } catch (error) {
+          if (
+            !(error instanceof QuestionBankError) ||
+            error.code !== 'QUESTION_BANK_ACTIVE_RELEASE_UNAVAILABLE'
+          ) {
+            throw error;
+          }
         }
       }
+    } catch (error) {
+      const failureCode = safeAiErrorCode(error, 'QUESTION_PREPARATION_FAILED');
+      await this.recordPreparationFailure({
+        actorId,
+        attemptKind,
+        basis,
+        failureCode,
+        interviewContextSnapshotId: openingContext?.snapshotId ?? null,
+        job,
+        journeyBasisHash: decision?.basisHash ?? sha256(requestId),
+        journeyPolicyVersion: decision?.journeyPolicyVersion ?? JOURNEY_POLICY_VERSION,
+        journeyReasonCodes: decision?.reasonCodes ?? ['stage.hold_no_decisive_signal'],
+        journeyStage: decision?.stage ?? generation.journeyStage ?? 'rapport',
+        requestId,
+        sessionId,
+      });
+      throw error;
     }
     const bankReferences = references.slice(0, 30).map(toBankInputReference);
     let receipt: QuestionAttemptReceipt;
@@ -574,6 +596,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     });
     let context: InterviewDirectorContextV1;
     let p4Context: P4ContextV2;
+    const deadlineAt = persistedAttempt.createdAt.getTime() + DEADLINE_MS;
     try {
       const builtContext = await this.buildContext(
         frozenJob,
@@ -617,11 +640,12 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
         p4Memberships,
         stageTimingsMs: { evidence_invoked: 0, evidence_round_count: 0 },
       });
+      assertBeforeGenerationDeadline(deadlineAt);
     } catch (error) {
       await this.decisionTrace
         .finalize(trace.id, {
           decisionOutcome: 'system_error',
-          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'CONTEXT_BUILD_FAILED',
+          errorCode: safeAiErrorCode(error, 'CONTEXT_BUILD_FAILED'),
           directorInvoked: false,
           stage: 'context',
           status: 'failed',
@@ -638,7 +662,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       context,
       p4Context,
       consumerSessionId: sessionId,
-      deadlineAt: persistedAttempt.createdAt.getTime() + DEADLINE_MS,
+      deadlineAt,
       job: frozenJob,
       replayed: false,
       requestId,
@@ -648,8 +672,60 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     };
   }
 
+  private async recordPreparationFailure(input: {
+    actorId: string;
+    attemptKind: QuestionAttemptKind;
+    basis: { presentationRevision: number; snapshotId: string | null };
+    failureCode: string;
+    interviewContextSnapshotId: string | null;
+    job: FrozenAiJob;
+    journeyBasisHash: string;
+    journeyPolicyVersion: string;
+    journeyReasonCodes: JourneyDecision['reasonCodes'];
+    journeyStage: JourneyDecision['stage'];
+    requestId: string;
+    sessionId: string;
+  }): Promise<void> {
+    await this.coordinator.failOrphanedSystemJob(input.job.id, input.failureCode);
+    try {
+      await this.presentations.recordSystemUnavailableAttempt(
+        {
+          attemptKind: input.attemptKind,
+          basisPresentationRevision: input.basis.presentationRevision,
+          basisSnapshotId: input.basis.snapshotId,
+          contextBuilderDigest: this.contract.contextBuilderDigest,
+          contextBuilderVersion: DIRECTOR_CONTEXT_BUILDER_VERSION,
+          contextSchemaDigest: this.contract.contextSchemaDigest,
+          contextSchemaVersion: DIRECTOR_CONTEXT_SCHEMA_VERSION,
+          failureCode: input.failureCode,
+          interviewContextSnapshotId: input.interviewContextSnapshotId,
+          job: input.job,
+          journeyBasisHash: input.journeyBasisHash,
+          journeyPolicyVersion: input.journeyPolicyVersion,
+          journeyReasonCodes: input.journeyReasonCodes,
+          journeyStage: input.journeyStage,
+          modelConfigDigest: this.contract.modelConfigDigest,
+          modelConfigVersion: DIRECTOR_MODEL_CONFIG_VERSION,
+          outputSchemaDigest: this.contract.outputSchemaDigest,
+          outputSchemaVersion: DIRECTOR_OUTPUT_SCHEMA_VERSION,
+          promptBundleDigest: this.contract.promptBundleDigest,
+          promptBundleVersion: DIRECTOR_PROMPT_BUNDLE_VERSION,
+          selectionPolicyVersion: QUESTION_SELECTION_POLICY_VERSION,
+          sessionId: input.sessionId,
+          similarityPolicyVersion: QUESTION_SIMILARITY_VERSION,
+        },
+        input.requestId,
+      );
+    } catch {
+      // The job is already terminal. A later Decision Trace reconciliation can
+      // repair a missing attempt/trace without allowing the live lane to wait.
+      await this.coordinator.failOrphanedSystemJob(input.job.id, input.failureCode);
+    }
+  }
+
   private async complete(prepared: PreparedQuestionAttempt): Promise<void> {
     if (prepared.job === null || prepared.context === null || prepared.p4Context === null) return;
+    let directorInvoked = false;
     try {
       if (prepared.shouldContinueListening) {
         const publication = await this.writer.publishAttemptResult(
@@ -684,6 +760,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       const evidenceRoundState: QuestionDirectorEvidenceRoundState = {
         evidenceRoundCount: 0,
       };
+      directorInvoked = true;
       const output =
         await this.coordinator.callProviderWithSameInputRetry<InterviewDirectorOutputV1>(
           job,
@@ -775,8 +852,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       await this.decisionTrace
         .finalize(prepared.traceId, {
           decisionOutcome: 'system_error',
-          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'DIRECTOR_FAILED',
-          directorInvoked: true,
+          errorCode: safeAiErrorCode(error, 'DIRECTOR_FAILED'),
+          directorInvoked,
           stage: 'director',
           status: 'failed',
         })
@@ -1333,4 +1410,8 @@ function traceOutcomeForPublication(
   return traceStatusForPublication(publicationOutcome) === 'succeeded'
     ? successOutcome
     : 'unavailable';
+}
+
+function assertBeforeGenerationDeadline(deadlineAt: number): void {
+  if (Date.now() >= deadlineAt) throw new Error('AI_PROVIDER_TIMEOUT');
 }

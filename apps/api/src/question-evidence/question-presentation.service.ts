@@ -905,6 +905,7 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         snapshotId: attempt.basisSnapshotId,
       });
     });
+    await this.coordinator.failOrphanedSystemJob(attempt.aiJobId, code);
   }
 
   private async publishCandidate(

@@ -1056,48 +1056,54 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
     context: MemoryMaintainerContextV12,
     output: MemoryMaintainerOutputV12,
   ): Promise<void> {
-    await this.jobs.writeBack(job, async (tx) => {
-      await this.failpoint.hit('during_writeback');
-      const traceMemberships = await tx.decisionTraceTranscriptMembership.findMany({
-        where: { trace: { aiJobId: job.id } },
-      });
-      const database = await tx.transcriptSegment.findMany({
-        where: { id: { in: job.segments.map(({ segmentId }) => segmentId) } },
-      });
-      const parity = validateMemoryMaintainerRevisionParity({
-        database: database.map(({ id, textRevision }) => ({
-          segment_id: id,
-          text_revision: textRevision,
-        })),
-        context_membership: context.transcript_membership.map(({ segment_id, text_revision }) => ({
-          segment_id,
-          text_revision,
-        })),
-        decision_trace_membership: traceMemberships.map(({ segmentId, textRevision }) => ({
-          segment_id: segmentId,
-          text_revision: textRevision,
-        })),
-        writeback_cas: database.map(({ id, textRevision }) => ({
-          segment_id: id,
-          text_revision: textRevision,
-        })),
-      });
-      if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
-      await this.assertContextAuthorityCurrent(tx, job, context);
-      const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
-      const gatedOperations = this.assertGateForOperations(
-        context,
-        output.operations,
-        gateAuthority,
-      );
-      this.assertGateForBoundaries(output, gateAuthority);
-      await this.applyOperations(tx, job, batch, context, gatedOperations, gateAuthority);
-      await this.failpoint.hit('after_operations');
-      await this.applyBoundaries(tx, job, batch, output);
-      await this.failpoint.hit('after_boundaries');
-      await this.commitSnapshot(tx, job, batch);
-      await this.failpoint.hit('after_snapshot');
-    });
+    await this.jobs.writeBack(
+      job,
+      async (tx) => {
+        await this.failpoint.hit('during_writeback');
+        const traceMemberships = await tx.decisionTraceTranscriptMembership.findMany({
+          where: { trace: { aiJobId: job.id } },
+        });
+        const database = await tx.transcriptSegment.findMany({
+          where: { id: { in: job.segments.map(({ segmentId }) => segmentId) } },
+        });
+        const parity = validateMemoryMaintainerRevisionParity({
+          database: database.map(({ id, textRevision }) => ({
+            segment_id: id,
+            text_revision: textRevision,
+          })),
+          context_membership: context.transcript_membership.map(
+            ({ segment_id, text_revision }) => ({
+              segment_id,
+              text_revision,
+            }),
+          ),
+          decision_trace_membership: traceMemberships.map(({ segmentId, textRevision }) => ({
+            segment_id: segmentId,
+            text_revision: textRevision,
+          })),
+          writeback_cas: database.map(({ id, textRevision }) => ({
+            segment_id: id,
+            text_revision: textRevision,
+          })),
+        });
+        if (!parity.valid) throw new Error(parity.errors[0] ?? 'MEMORY_REVISION_PARITY_INVALID');
+        await this.assertContextAuthorityCurrent(tx, job, context);
+        const gateAuthority = await this.readGateRuntimeAuthority(tx, job);
+        const gatedOperations = this.assertGateForOperations(
+          context,
+          output.operations,
+          gateAuthority,
+        );
+        this.assertGateForBoundaries(output, gateAuthority);
+        await this.applyOperations(tx, job, batch, context, gatedOperations, gateAuthority);
+        await this.failpoint.hit('after_operations');
+        await this.applyBoundaries(tx, job, batch, output);
+        await this.failpoint.hit('after_boundaries');
+        await this.commitSnapshot(tx, job, batch);
+        await this.failpoint.hit('after_snapshot');
+      },
+      { lockLiveLane: false },
+    );
   }
 
   private async assertContextAuthorityCurrent(
