@@ -310,9 +310,22 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
         session.projectId !== command.job.projectId ||
         job === null ||
         job.requestId !== requestId ||
-        !['failed', 'cancelled'].includes(job.status)
+        !['pending', 'running', 'failed', 'cancelled'].includes(job.status)
       ) {
         throw new Error('AI_SYSTEM_UNAVAILABLE_BINDING_INVALID');
+      }
+      if (['pending', 'running'].includes(job.status)) {
+        const terminalized = await tx.aiJob.updateMany({
+          data: {
+            completedAt: new Date(),
+            failureCode: command.failureCode.slice(0, 80),
+            status: 'failed',
+          },
+          where: { id: job.id, status: { in: ['pending', 'running'] } },
+        });
+        if (terminalized.count !== 1) {
+          throw new Error('AI_SYSTEM_UNAVAILABLE_BINDING_INVALID');
+        }
       }
       const state = await ensureState(tx, command.sessionId, command.job.policyRevision);
       const now = new Date();
@@ -880,31 +893,42 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     const attempt = await this.prisma.questionGenerationAttempt.findUnique({
       where: { id: attemptId },
     });
-    if (attempt === null || !['pending', 'running'].includes(attempt.status)) return;
-    await this.prisma.$transaction(async (tx) => {
-      await lock(tx, `session:${attempt.sessionId}`);
-      const updated = await tx.questionGenerationAttempt.updateMany({
-        data: {
-          completedAt: new Date(),
-          failureCode: code,
-          publicationOutcome: 'policy_blocked',
-          resultKind: 'unavailable',
-          status: 'failed',
-        },
-        where: { id: attemptId, status: { in: ['pending', 'running'] } },
+    if (attempt === null) return;
+    if (['pending', 'running'].includes(attempt.status)) {
+      await this.prisma.$transaction(async (tx) => {
+        await lock(tx, `session:${attempt.sessionId}`);
+        const updated = await tx.questionGenerationAttempt.updateMany({
+          data: {
+            completedAt: new Date(),
+            failureCode: code,
+            publicationOutcome: 'policy_blocked',
+            resultKind: 'unavailable',
+            status: 'failed',
+          },
+          where: { id: attemptId, status: { in: ['pending', 'running'] } },
+        });
+        if (updated.count !== 1) return;
+        await createEvent(tx, {
+          actorId: null,
+          aiJobId: attempt.aiJobId,
+          eventType:
+            attempt.attemptKind === 'manual_next'
+              ? 'manual_next_failed'
+              : 'presentation_unavailable',
+          metadata: { attempt_id: attemptId, code },
+          ownerKind: 'ai_job',
+          sessionId: attempt.sessionId,
+          snapshotId: attempt.basisSnapshotId,
+        });
       });
-      if (updated.count !== 1) return;
-      await createEvent(tx, {
-        actorId: null,
-        aiJobId: attempt.aiJobId,
-        eventType:
-          attempt.attemptKind === 'manual_next' ? 'manual_next_failed' : 'presentation_unavailable',
-        metadata: { attempt_id: attemptId, code },
-        ownerKind: 'ai_job',
-        sessionId: attempt.sessionId,
-        snapshotId: attempt.basisSnapshotId,
-      });
+    }
+    const current = await this.prisma.questionGenerationAttempt.findUnique({
+      select: { aiJobId: true, status: true },
+      where: { id: attemptId },
     });
+    if (current !== null && ['failed', 'cancelled'].includes(current.status)) {
+      await this.coordinator.failOrphanedSystemJob(current.aiJobId, code);
+    }
   }
 
   private async publishCandidate(

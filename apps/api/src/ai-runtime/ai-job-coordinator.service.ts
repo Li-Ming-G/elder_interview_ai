@@ -49,6 +49,51 @@ async function withDeadline<T>(work: Promise<T>, deadlineMs: number): Promise<T>
   }
 }
 
+const OWNED_AI_ERROR_CODES = {
+  AI_UNAVAILABLE: 'AI_UNAVAILABLE',
+  AI_CONTEXT_SCHEMA_INVALID: 'AI_CONTEXT_SCHEMA_INVALID',
+  AI_EVIDENCE_OUTSIDE_FROZEN_INPUT: 'AI_EVIDENCE_OUTSIDE_FROZEN_INPUT',
+  AI_JOB_CANCELLED: 'AI_JOB_CANCELLED',
+  AI_JOB_NOT_RUNNING: 'AI_JOB_NOT_RUNNING',
+  AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT: 'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT',
+  AI_OUTPUT_SCHEMA_INVALID: 'AI_OUTPUT_SCHEMA_INVALID',
+  AI_PROVIDER_TIMEOUT: 'AI_PROVIDER_TIMEOUT',
+  AI_PROVIDER_UNAVAILABLE: 'AI_PROVIDER_UNAVAILABLE',
+  AI_REQUEST_IDENTITY_CONFLICT: 'AI_REQUEST_IDENTITY_CONFLICT',
+  AI_SESSION_SCOPE_INVALID: 'AI_SESSION_SCOPE_INVALID',
+  CONTEXT_BUILD_FAILED: 'CONTEXT_BUILD_FAILED',
+  DIRECTOR_FAILED: 'DIRECTOR_FAILED',
+  EVIDENCE_TIMEOUT: 'EVIDENCE_TIMEOUT',
+  MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE: 'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE',
+  MEMORY_TRACE_PROVENANCE_UNAVAILABLE: 'MEMORY_TRACE_PROVENANCE_UNAVAILABLE',
+  MEMORY_UNJUDGED: 'MEMORY_UNJUDGED',
+  MEMORY_UNJUDGED_JOB_DRIFT: 'MEMORY_UNJUDGED_JOB_DRIFT',
+  PROVIDER_FAILED: 'PROVIDER_FAILED',
+  QUESTION_PREPARATION_FAILED: 'QUESTION_PREPARATION_FAILED',
+  SYSTEM_COORDINATOR_RESTARTED: 'SYSTEM_COORDINATOR_RESTARTED',
+  SYSTEM_REJECTION_FAILED: 'SYSTEM_REJECTION_FAILED',
+  TEST_CONTEXT_ATTACHMENT_FAILED: 'TEST_CONTEXT_ATTACHMENT_FAILED',
+  WRITEBACK_FAILED: 'WRITEBACK_FAILED',
+} as const;
+
+type OwnedAiErrorCode = keyof typeof OWNED_AI_ERROR_CODES;
+
+function ownedAiErrorCode(value: unknown): OwnedAiErrorCode | null {
+  if (typeof value !== 'string') return null;
+  return Object.prototype.hasOwnProperty.call(OWNED_AI_ERROR_CODES, value)
+    ? (value as OwnedAiErrorCode)
+    : null;
+}
+
+export function safeAiErrorCode(error: unknown, fallback: string): string {
+  const candidate = error instanceof Error ? error.message : error;
+  return (
+    ownedAiErrorCode(candidate) ??
+    ownedAiErrorCode(fallback) ??
+    OWNED_AI_ERROR_CODES.PROVIDER_FAILED
+  );
+}
+
 export interface FrozenAiJob {
   actualQuestions: readonly FrozenActualQuestion[];
   deletionFenceRevision: number;
@@ -555,14 +600,18 @@ export class AiJobCoordinatorService {
       await this.prisma.aiProviderCall.update({
         data: {
           completedAt: new Date(),
-          errorCode: error instanceof Error ? error.message.slice(0, 80) : 'UNKNOWN',
+          errorCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
           latencyMs: Date.now() - startedAt.getTime(),
           status: 'failed',
         },
         where: { id: callId },
       });
       await this.prisma.aiJob.updateMany({
-        data: { completedAt: new Date(), failureCode: 'PROVIDER_FAILED', status: 'failed' },
+        data: {
+          completedAt: new Date(),
+          failureCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
+          status: 'failed',
+        },
         where: { id: job.id, status: 'running' },
       });
       throw error;
@@ -626,7 +675,7 @@ export class AiJobCoordinatorService {
         await this.prisma.aiProviderCall.update({
           data: {
             completedAt: new Date(),
-            errorCode: error instanceof Error ? error.message.slice(0, 80) : 'UNKNOWN',
+            errorCode: safeAiErrorCode(error, 'PROVIDER_FAILED'),
             latencyMs: Date.now() - startedAt.getTime(),
             status: 'failed',
           },
@@ -635,7 +684,11 @@ export class AiJobCoordinatorService {
       }
     }
     await this.prisma.aiJob.updateMany({
-      data: { completedAt: new Date(), failureCode: 'PROVIDER_FAILED', status: 'failed' },
+      data: {
+        completedAt: new Date(),
+        failureCode: safeAiErrorCode(lastError, 'PROVIDER_FAILED'),
+        status: 'failed',
+      },
       where: { id: job.id, status: 'running' },
     });
     throw lastError;
@@ -649,11 +702,14 @@ export class AiJobCoordinatorService {
     });
   }
 
-  public async failOrphanedSystemJob(jobId: string): Promise<void> {
+  public async failOrphanedSystemJob(
+    jobId: string,
+    failureCode = 'SYSTEM_COORDINATOR_RESTARTED',
+  ): Promise<void> {
     await this.prisma.aiJob.updateMany({
       data: {
         completedAt: new Date(),
-        failureCode: 'SYSTEM_COORDINATOR_RESTARTED',
+        failureCode: safeAiErrorCode(failureCode, 'SYSTEM_COORDINATOR_RESTARTED'),
         status: 'failed',
       },
       where: { id: jobId, status: { in: ['pending', 'running'] } },
@@ -713,7 +769,7 @@ export class AiJobCoordinatorService {
           completedAt: now,
           contextBuilderVersion: 'system-rejection-v1',
           expiresAt: request.expiresAt,
-          failureCode: failureCode.slice(0, 80),
+          failureCode: safeAiErrorCode(failureCode, 'SYSTEM_REJECTION_FAILED'),
           inputHash: sha256(
             canonicalJson({ failureCode, projectId: request.projectId, sessionIds }),
           ),
@@ -792,7 +848,7 @@ export class AiJobCoordinatorService {
         await this.prisma.aiJob.update({
           data: {
             completedAt: new Date(),
-            failureCode: error instanceof Error ? error.message.slice(0, 80) : 'WRITEBACK_FAILED',
+            failureCode: safeAiErrorCode(error, 'WRITEBACK_FAILED'),
             status: 'failed',
           },
           where: { id: job.id },
@@ -1117,7 +1173,11 @@ export class AiJobCoordinatorService {
 
   private async cancelJob(jobId: string, code: string): Promise<void> {
     await this.prisma.aiJob.updateMany({
-      data: { completedAt: new Date(), failureCode: code, status: 'cancelled' },
+      data: {
+        completedAt: new Date(),
+        failureCode: safeAiErrorCode(code, 'AI_JOB_CANCELLED'),
+        status: 'cancelled',
+      },
       where: { id: jobId, status: { in: ['pending', 'running'] } },
     });
   }
