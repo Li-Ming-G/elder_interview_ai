@@ -1276,11 +1276,12 @@ describe('DEV-007B constrained question publication', () => {
   }
 
   async function runAutomatic(targetSessionId: string, segmentId: string): Promise<void> {
-    await (
-      orchestration as unknown as {
-        runAutomatic(sessionId: string, finalizedSegmentId: string): Promise<void>;
-      }
-    ).runAutomatic(targetSessionId, segmentId);
+    const internal = orchestration as unknown as {
+      finalizedBuffer: { append(sessionId: string, finalizedSegmentId: string): void };
+      runAutomatic(sessionId: string): Promise<void>;
+    };
+    internal.finalizedBuffer.append(targetSessionId, segmentId);
+    await internal.runAutomatic(targetSessionId);
   }
 });
 
