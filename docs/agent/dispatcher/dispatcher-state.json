@@ -87,46 +87,91 @@
     },
     {
       "id": "P5E-01",
-      "status": "READY",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P5E-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["P4C-04"],
-      "pr": null,
+      "pr": 93,
       "next_task": "P5E-02"
     },
     {
       "id": "P5E-02",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P5E-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["P5E-01"],
-      "pr": null,
+      "pr": 94,
       "next_task": "P5E-03"
     },
     {
       "id": "P5E-03",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P5E-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["P5E-02"],
-      "pr": null,
+      "pr": 95,
       "next_task": "P5C-01"
     },
     {
       "id": "P5C-01",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P5C-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["P5E-03"],
-      "pr": null,
+      "pr": 96,
       "next_task": "P5C-02"
     },
     {
       "id": "P5C-02",
-      "status": "DEFERRED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P5C-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["P5C-01"],
+      "pr": 97,
+      "next_task": "P6R-01"
+    },
+    {
+      "id": "P6R-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/P6R-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P5C-02"],
+      "pr": null,
+      "next_task": "P6R-02"
+    },
+    {
+      "id": "P6R-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P6R-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P6R-01"],
+      "pr": null,
+      "next_task": "P6R-03"
+    },
+    {
+      "id": "P6R-03",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P6R-03.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P6R-02"],
+      "pr": null,
+      "next_task": "P6R-04"
+    },
+    {
+      "id": "P6R-04",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P6R-04.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P6R-03"],
+      "pr": null,
+      "next_task": "P6R-05"
+    },
+    {
+      "id": "P6R-05",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/P6R-05.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["P6R-04"],
       "pr": null,
       "next_task": null
     }
