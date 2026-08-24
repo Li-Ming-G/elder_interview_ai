@@ -94,6 +94,8 @@ Frozen Checkpoint A facts:
   for Owner hands-on acceptance. No scoring/evaluation UI may start automatically.
 - CPA-02 is accepted through PR #106, accepted head `bde59361ff4ce4ed76e72164597df324d7caf2a5`,
   merge/main `74882ef57fb932f673ccbc5890a08b97bf2de6fe`, with main CI run `32729016596` SUCCESS.
+- CPA-03 is accepted through PR #107, accepted head `72338b8c7acab11b714bdc92bd11f60d568c7dd6`,
+  merge/main `8a531f527bc90770ee2ead622a48983498d2fbfe`, with main CI run `32746977248` SUCCESS.
 
 ## Frozen P6 runtime decisions for this pack
 
@@ -123,7 +125,7 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: `CPA-03` only.
+- `READY`: none; CPA-04 is gated on the Owner Prompt artifact.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `DEFERRED`: `CPA-04` through `CPA-05`; CPA-04 additionally awaits the Owner Prompt artifact;
@@ -140,7 +142,7 @@ Task Card for scope/entry â†’ exact Accepted Contract for behavior/invariants â†
 
 ## Next step
 
-Dispatcher may start only `CPA-03` after fresh-reading the merged Checkpoint A Development Pack
-from `origin/main` and verifying CPA-02 main CI success. It must advance only the predefined queue. CPA-04 cannot become eligible until
+Dispatcher must not start CPA-04 until fresh-reading the merged Checkpoint A Development Pack
+from `origin/main`, verifying CPA-03 main CI success, and confirming the Architect-recorded Owner Prompt artifact identity. It must advance only the predefined queue. CPA-04 cannot become eligible until
 the Architect records the Owner Prompt artifact identity. CPA-05 ends at the Owner acceptance gate
 with `next_task: null`.
