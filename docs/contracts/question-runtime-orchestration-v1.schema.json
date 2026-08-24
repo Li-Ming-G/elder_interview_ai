@@ -1,0 +1,552 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elder-interview.local/contracts/question-runtime-orchestration-v1.schema.json",
+  "title": "QuestionRuntimeOrchestrationV1",
+  "description": "Provider-neutral orchestration observation for one finalized/interim ASR, manual-next, replay, or restart decision. It stores typed references, revisions, digests, fences, deadlines, and outcomes; it never stores transcript text, prompts, context bodies, provider payloads, or model choices.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "project_id",
+    "session_id",
+    "observed_at",
+    "current_basis",
+    "trigger",
+    "lanes",
+    "generation",
+    "terminal",
+    "trace"
+  ],
+  "properties": {
+    "schema_version": { "const": "question-runtime-orchestration-v1" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "project_id": { "$ref": "#/$defs/uuid" },
+    "session_id": { "$ref": "#/$defs/uuid" },
+    "observed_at": { "$ref": "#/$defs/date_time" },
+    "current_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presentation_revision",
+        "snapshot_id",
+        "context_revision",
+        "context_digest",
+        "membership_digest",
+        "input_hash"
+      ],
+      "properties": {
+        "presentation_revision": { "type": "integer", "minimum": 0 },
+        "snapshot_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "context_revision": { "type": "integer", "minimum": 0 },
+        "context_digest": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "membership_digest": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "input_hash": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_event_id",
+        "finalized_segment_ids",
+        "buffer",
+        "automatic_gate",
+        "manual_priority"
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["interim_asr", "finalized_asr", "manual_next", "replay", "restart"]
+        },
+        "source_event_id": { "$ref": "#/$defs/uuid" },
+        "finalized_segment_ids": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "buffer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action", "pending_final_count", "debounce_ms_baseline", "wait_active"],
+          "properties": {
+            "action": { "enum": ["ignored", "append", "coalesced", "replayed"] },
+            "pending_final_count": { "type": "integer", "minimum": 0 },
+            "debounce_ms_baseline": {
+              "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+            },
+            "wait_active": { "type": "boolean" }
+          }
+        },
+        "automatic_gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eligible",
+            "reason",
+            "minimum_interval_ms_baseline",
+            "wait_until"
+          ],
+          "properties": {
+            "eligible": { "type": "boolean" },
+            "reason": {
+              "enum": [
+                "not_applicable",
+                "interim_not_eligible",
+                "debounce_wait",
+                "minimum_interval_wait",
+                "no_new_finalized_input",
+                "eligible",
+                "manual_bypass"
+              ]
+            },
+            "minimum_interval_ms_baseline": {
+              "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+            },
+            "wait_until": {
+              "anyOf": [{ "$ref": "#/$defs/date_time" }, { "type": "null" }]
+            }
+          }
+        },
+        "manual_priority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bypasses_automatic_wait",
+            "intent_sequence",
+            "supersedes_older_automatic_basis"
+          ],
+          "properties": {
+            "bypasses_automatic_wait": { "type": "boolean" },
+            "intent_sequence": {
+              "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+            },
+            "supersedes_older_automatic_basis": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recording_blocked",
+        "finalized_asr_blocked",
+        "director_status",
+        "p1_background_status",
+        "p2_background_status",
+        "background_blocks_director",
+        "background_blocks_recording"
+      ],
+      "properties": {
+        "recording_blocked": { "const": false },
+        "finalized_asr_blocked": { "const": false },
+        "director_status": { "enum": ["idle", "waiting", "running", "terminal"] },
+        "p1_background_status": {
+          "enum": ["idle", "pending", "running", "succeeded", "failed", "unavailable"]
+        },
+        "p2_background_status": {
+          "enum": ["idle", "pending", "running", "succeeded", "failed", "unavailable"]
+        },
+        "background_blocks_director": { "const": false },
+        "background_blocks_recording": { "const": false }
+      }
+    },
+    "generation": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "generation_id",
+            "request_id",
+            "attempt_id",
+            "ai_job_id",
+            "trace_id",
+            "attempt_kind",
+            "lifecycle_status",
+            "replayed",
+            "replay_of",
+            "deadline",
+            "fence",
+            "publication",
+            "result"
+          ],
+          "properties": {
+            "generation_id": { "$ref": "#/$defs/uuid" },
+            "request_id": { "$ref": "#/$defs/uuid" },
+            "attempt_id": { "$ref": "#/$defs/uuid" },
+            "ai_job_id": { "$ref": "#/$defs/uuid" },
+            "trace_id": { "$ref": "#/$defs/uuid" },
+            "attempt_kind": { "enum": ["automatic", "manual_next", "second_session_opening"] },
+            "lifecycle_status": {
+              "enum": ["pending", "running", "succeeded", "failed", "cancelled", "stale", "unavailable"]
+            },
+            "replayed": { "type": "boolean" },
+            "replay_of": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["generation_id", "request_id", "attempt_id", "ai_job_id"],
+                  "properties": {
+                    "generation_id": { "$ref": "#/$defs/uuid" },
+                    "request_id": { "$ref": "#/$defs/uuid" },
+                    "attempt_id": { "$ref": "#/$defs/uuid" },
+                    "ai_job_id": { "$ref": "#/$defs/uuid" }
+                  }
+                }
+              ]
+            },
+            "deadline": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["started_at", "deadline_at", "state", "deadline_ms_baseline", "error_code"],
+              "properties": {
+                "started_at": { "$ref": "#/$defs/date_time" },
+                "deadline_at": { "$ref": "#/$defs/date_time" },
+                "state": { "enum": ["pending", "within_deadline", "expired"] },
+                "deadline_ms_baseline": { "type": "integer", "minimum": 0 },
+                "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] }
+              }
+            },
+            "fence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "basis_presentation_revision",
+                "basis_snapshot_id",
+                "current_presentation_revision",
+                "current_snapshot_id",
+                "authority",
+                "can_publish",
+                "reason"
+              ],
+              "properties": {
+                "basis_presentation_revision": { "type": "integer", "minimum": 0 },
+                "basis_snapshot_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+                "current_presentation_revision": { "type": "integer", "minimum": 0 },
+                "current_snapshot_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+                "authority": { "enum": ["current_basis", "older_basis", "unknown"] },
+                "can_publish": { "type": "boolean" },
+                "reason": {
+                  "enum": [
+                    "current_basis",
+                    "newer_basis",
+                    "superseded_by_manual",
+                    "retention_or_deletion",
+                    "policy_blocked",
+                    "unknown_basis"
+                  ]
+                }
+              }
+            },
+            "publication": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["attempted", "outcome", "accepted_presentation_revision", "accepted_snapshot_id"],
+              "properties": {
+                "attempted": { "type": "boolean" },
+                "outcome": {
+                  "enum": [
+                    "published",
+                    "not_better",
+                    "duplicate_filtered",
+                    "stale_basis",
+                    "superseded_by_manual",
+                    "policy_blocked",
+                    "not_applicable"
+                  ]
+                },
+                "accepted_presentation_revision": { "type": "integer", "minimum": 0 },
+                "accepted_snapshot_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+              }
+            },
+            "result": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["director_invoked", "decision_outcome", "generation_outcome", "semantic_success", "error_code"],
+              "properties": {
+                "director_invoked": { "type": "boolean" },
+                "decision_outcome": { "enum": ["question", "continue_listening", "system_error", "unavailable"] },
+                "generation_outcome": {
+                  "enum": ["QUESTION", "CONTINUE_LISTENING", "SYSTEM_ERROR", "UNAVAILABLE"]
+                },
+                "semantic_success": { "type": "boolean" },
+                "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "decision_outcome", "generation_outcome", "error_code", "publication_outcome"],
+      "properties": {
+        "state": {
+          "enum": ["not_started", "buffered", "waiting", "running", "published", "completed_no_question", "system_error", "unavailable", "stale", "replayed"]
+        },
+        "decision_outcome": {
+          "enum": ["not_started", "question", "continue_listening", "system_error", "unavailable"]
+        },
+        "generation_outcome": {
+          "enum": ["NOT_STARTED", "QUESTION", "CONTINUE_LISTENING", "SYSTEM_ERROR", "UNAVAILABLE"]
+        },
+        "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] },
+        "publication_outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "published",
+                "not_better",
+                "duplicate_filtered",
+                "stale_basis",
+                "superseded_by_manual",
+                "policy_blocked",
+                "not_applicable"
+              ]
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "request_id",
+        "generation_id",
+        "attempt_id",
+        "ai_job_id",
+        "trace_kind",
+        "trigger_type",
+        "stage",
+        "status",
+        "decision_outcome",
+        "deadline_state",
+        "error_code",
+        "publication_outcome",
+        "references"
+      ],
+      "properties": {
+        "trace_id": { "$ref": "#/$defs/uuid" },
+        "request_id": { "$ref": "#/$defs/uuid" },
+        "generation_id": { "$ref": "#/$defs/uuid" },
+        "attempt_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "ai_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "trace_kind": { "const": "question_orchestration" },
+        "trigger_type": { "enum": ["automatic", "manual_next", "second_session_opening", "recovery"] },
+        "stage": { "enum": ["buffer", "automatic_gate", "director", "publication", "deadline", "replay", "restart"] },
+        "status": { "enum": ["running", "succeeded", "failed", "cancelled", "stale", "unavailable"] },
+        "decision_outcome": { "enum": ["question", "continue_listening", "system_error", "unavailable"] },
+        "deadline_state": { "enum": ["not_started", "pending", "within_deadline", "expired"] },
+        "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] },
+        "publication_outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "published",
+                "not_better",
+                "duplicate_filtered",
+                "stale_basis",
+                "superseded_by_manual",
+                "policy_blocked",
+                "not_applicable"
+              ]
+            },
+            { "type": "null" }
+          ]
+        },
+        "references": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "trigger_event_id",
+            "generation_id",
+            "request_id",
+            "attempt_id",
+            "ai_job_id",
+            "basis_presentation_revision",
+            "current_presentation_revision",
+            "deadline_at"
+          ],
+          "properties": {
+            "trigger_event_id": { "$ref": "#/$defs/uuid" },
+            "generation_id": { "$ref": "#/$defs/uuid" },
+            "request_id": { "$ref": "#/$defs/uuid" },
+            "attempt_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+            "ai_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+            "basis_presentation_revision": { "type": "integer", "minimum": 0 },
+            "current_presentation_revision": { "type": "integer", "minimum": 0 },
+            "deadline_at": { "anyOf": [{ "$ref": "#/$defs/date_time" }, { "type": "null" }] }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "trigger": { "properties": { "kind": { "const": "interim_asr" } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "generation": { "type": "null" },
+          "terminal": {
+            "properties": {
+              "generation_outcome": { "const": "NOT_STARTED" },
+              "decision_outcome": { "const": "not_started" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": { "properties": { "kind": { "const": "manual_next" } } }
+        }
+      },
+      "then": {
+        "required": ["generation"],
+        "properties": {
+          "trigger": {
+            "properties": {
+              "automatic_gate": { "properties": { "reason": { "const": "manual_bypass" } } },
+              "manual_priority": { "properties": { "bypasses_automatic_wait": { "const": true } } }
+            }
+          },
+          "generation": {
+            "type": "object",
+            "properties": { "attempt_kind": { "const": "manual_next" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": { "properties": { "kind": { "const": "finalized_asr" } } }
+        }
+      },
+      "then": {
+        "properties": {
+          "trigger": {
+            "properties": {
+              "finalized_segment_ids": { "minItems": 1 },
+              "buffer": { "properties": { "action": { "enum": ["append", "coalesced"] } } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": { "properties": { "kind": { "enum": ["replay", "restart"] } } }
+        }
+      },
+      "then": {
+        "required": ["generation"],
+        "properties": {
+          "generation": {
+            "type": "object",
+            "properties": { "replayed": { "const": true }, "replay_of": { "type": "object" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "generation": {
+            "type": "object",
+            "properties": {
+              "result": { "properties": { "decision_outcome": { "const": "continue_listening" } } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "generation": {
+            "properties": {
+              "result": {
+                "properties": {
+                  "generation_outcome": { "const": "CONTINUE_LISTENING" },
+                  "semantic_success": { "const": true },
+                  "error_code": { "type": "null" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "generation": {
+            "type": "object",
+            "properties": {
+              "deadline": { "properties": { "state": { "const": "expired" } } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "generation": {
+            "properties": {
+              "deadline": { "properties": { "error_code": { "not": { "const": null } } } },
+              "result": {
+                "properties": {
+                  "decision_outcome": { "const": "system_error" },
+                  "generation_outcome": { "const": "SYSTEM_ERROR" },
+                  "semantic_success": { "const": false }
+                }
+              }
+            }
+          },
+          "terminal": {
+            "properties": {
+              "decision_outcome": { "const": "system_error" },
+              "generation_outcome": { "const": "SYSTEM_ERROR" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "date_time": { "type": "string", "format": "date-time" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "error_code": {
+      "enum": [
+        "DEADLINE_EXPIRED",
+        "AI_PROVIDER_TIMEOUT",
+        "AI_UNAVAILABLE",
+        "CONTEXT_UNAVAILABLE",
+        "P3_UNAVAILABLE",
+        "P4_UNAVAILABLE",
+        "EVIDENCE_GATE_FAILED",
+        "RUNTIME_FAILURE",
+        "STALE_BASIS",
+        "SUPERSEDED_BY_MANUAL",
+        "RETENTION_OR_DELETION_BLOCKED",
+        "REPLAY_EXISTING",
+        "NOT_ELIGIBLE"
+      ]
+    }
+  }
+}

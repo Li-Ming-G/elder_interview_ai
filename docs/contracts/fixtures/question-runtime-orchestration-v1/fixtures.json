@@ -1,0 +1,190 @@
+{
+  "valid": [
+    {
+      "name": "interim ASR is observational only",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000001",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:00.000Z",
+        "current_basis": {
+          "presentation_revision": 4,
+          "snapshot_id": "00000000-0000-4000-8000-000000000103",
+          "context_revision": 4,
+          "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "input_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "trigger": {
+          "kind": "interim_asr",
+          "source_event_id": "00000000-0000-4000-8000-000000000104",
+          "finalized_segment_ids": [],
+          "buffer": { "action": "ignored", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false },
+          "automatic_gate": { "eligible": false, "reason": "interim_not_eligible", "minimum_interval_ms_baseline": null, "wait_until": null },
+          "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false }
+        },
+        "lanes": {
+          "recording_blocked": false,
+          "finalized_asr_blocked": false,
+          "director_status": "idle",
+          "p1_background_status": "idle",
+          "p2_background_status": "idle",
+          "background_blocks_director": false,
+          "background_blocks_recording": false
+        },
+        "generation": null,
+        "terminal": { "state": "not_started", "decision_outcome": "not_started", "generation_outcome": "NOT_STARTED", "error_code": null, "publication_outcome": null },
+        "trace": {
+          "trace_id": "00000000-0000-4000-8000-000000000105",
+          "request_id": "00000000-0000-4000-8000-000000000106",
+          "generation_id": "00000000-0000-4000-8000-000000000107",
+          "attempt_id": null,
+          "ai_job_id": null,
+          "trace_kind": "question_orchestration",
+          "trigger_type": "automatic",
+          "stage": "buffer",
+          "status": "succeeded",
+          "decision_outcome": "continue_listening",
+          "deadline_state": "not_started",
+          "error_code": null,
+          "publication_outcome": "not_applicable",
+          "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000104", "generation_id": "00000000-0000-4000-8000-000000000107", "request_id": "00000000-0000-4000-8000-000000000106", "attempt_id": null, "ai_job_id": null, "basis_presentation_revision": 4, "current_presentation_revision": 4, "deadline_at": null }
+        }
+      }
+    },
+    {
+      "name": "rapid finalized finals are coalesced into one bounded eligibility check",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000201",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:02.000Z",
+        "current_basis": { "presentation_revision": 4, "snapshot_id": "00000000-0000-4000-8000-000000000103", "context_revision": 4, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+        "trigger": {
+          "kind": "finalized_asr",
+          "source_event_id": "00000000-0000-4000-8000-000000000202",
+          "finalized_segment_ids": ["00000000-0000-4000-8000-000000000203", "00000000-0000-4000-8000-000000000204", "00000000-0000-4000-8000-000000000205"],
+          "buffer": { "action": "coalesced", "pending_final_count": 3, "debounce_ms_baseline": 1500, "wait_active": true },
+          "automatic_gate": { "eligible": false, "reason": "debounce_wait", "minimum_interval_ms_baseline": 20000, "wait_until": "2026-08-24T00:00:03.500Z" },
+          "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false }
+        },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "waiting", "p1_background_status": "pending", "p2_background_status": "running", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": null,
+        "terminal": { "state": "buffered", "decision_outcome": "not_started", "generation_outcome": "NOT_STARTED", "error_code": null, "publication_outcome": null },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000206", "request_id": "00000000-0000-4000-8000-000000000207", "generation_id": "00000000-0000-4000-8000-000000000208", "attempt_id": null, "ai_job_id": null, "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "automatic_gate", "status": "succeeded", "decision_outcome": "continue_listening", "deadline_state": "not_started", "error_code": null, "publication_outcome": "not_applicable", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000202", "generation_id": "00000000-0000-4000-8000-000000000208", "request_id": "00000000-0000-4000-8000-000000000207", "attempt_id": null, "ai_job_id": null, "basis_presentation_revision": 4, "current_presentation_revision": 4, "deadline_at": null } }
+      }
+    },
+    {
+      "name": "manual-next bypasses automatic waiting",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000301",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:04.000Z",
+        "current_basis": { "presentation_revision": 4, "snapshot_id": "00000000-0000-4000-8000-000000000103", "context_revision": 4, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
+        "trigger": { "kind": "manual_next", "source_event_id": "00000000-0000-4000-8000-000000000302", "finalized_segment_ids": [], "buffer": { "action": "append", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "manual_bypass", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": true, "intent_sequence": 7, "supersedes_older_automatic_basis": true } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "pending", "p2_background_status": "failed", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000303", "request_id": "00000000-0000-4000-8000-000000000304", "attempt_id": "00000000-0000-4000-8000-000000000305", "ai_job_id": "00000000-0000-4000-8000-000000000306", "trace_id": "00000000-0000-4000-8000-000000000307", "attempt_kind": "manual_next", "lifecycle_status": "succeeded", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:00:04.010Z", "deadline_at": "2026-08-24T00:00:12.010Z", "state": "within_deadline", "deadline_ms_baseline": 8000, "error_code": null }, "fence": { "basis_presentation_revision": 4, "basis_snapshot_id": "00000000-0000-4000-8000-000000000103", "current_presentation_revision": 4, "current_snapshot_id": "00000000-0000-4000-8000-000000000103", "authority": "current_basis", "can_publish": true, "reason": "current_basis" }, "publication": { "attempted": true, "outcome": "published", "accepted_presentation_revision": 5, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000308" }, "result": { "director_invoked": true, "decision_outcome": "question", "generation_outcome": "QUESTION", "semantic_success": true, "error_code": null } },
+        "terminal": { "state": "published", "decision_outcome": "question", "generation_outcome": "QUESTION", "error_code": null, "publication_outcome": "published" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000307", "request_id": "00000000-0000-4000-8000-000000000304", "generation_id": "00000000-0000-4000-8000-000000000303", "attempt_id": "00000000-0000-4000-8000-000000000305", "ai_job_id": "00000000-0000-4000-8000-000000000306", "trace_kind": "question_orchestration", "trigger_type": "manual_next", "stage": "publication", "status": "succeeded", "decision_outcome": "question", "deadline_state": "within_deadline", "error_code": null, "publication_outcome": "published", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000302", "generation_id": "00000000-0000-4000-8000-000000000303", "request_id": "00000000-0000-4000-8000-000000000304", "attempt_id": "00000000-0000-4000-8000-000000000305", "ai_job_id": "00000000-0000-4000-8000-000000000306", "basis_presentation_revision": 4, "current_presentation_revision": 4, "deadline_at": "2026-08-24T00:00:12.010Z" } }
+      }
+    },
+    {
+      "name": "older automatic generation loses publication authority",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000401",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:15.000Z",
+        "current_basis": { "presentation_revision": 6, "snapshot_id": "00000000-0000-4000-8000-000000000402", "context_revision": 6, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+        "trigger": { "kind": "finalized_asr", "source_event_id": "00000000-0000-4000-8000-000000000403", "finalized_segment_ids": ["00000000-0000-4000-8000-000000000404"], "buffer": { "action": "append", "pending_final_count": 1, "debounce_ms_baseline": 1500, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "eligible", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "succeeded", "p2_background_status": "succeeded", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000405", "request_id": "00000000-0000-4000-8000-000000000406", "attempt_id": "00000000-0000-4000-8000-000000000407", "ai_job_id": "00000000-0000-4000-8000-000000000408", "trace_id": "00000000-0000-4000-8000-000000000409", "attempt_kind": "automatic", "lifecycle_status": "stale", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:00:05.000Z", "deadline_at": "2026-08-24T00:00:13.000Z", "state": "within_deadline", "deadline_ms_baseline": 8000, "error_code": null }, "fence": { "basis_presentation_revision": 5, "basis_snapshot_id": "00000000-0000-4000-8000-000000000410", "current_presentation_revision": 6, "current_snapshot_id": "00000000-0000-4000-8000-000000000402", "authority": "older_basis", "can_publish": false, "reason": "superseded_by_manual" }, "publication": { "attempted": false, "outcome": "superseded_by_manual", "accepted_presentation_revision": 6, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000402" }, "result": { "director_invoked": true, "decision_outcome": "question", "generation_outcome": "QUESTION", "semantic_success": true, "error_code": null } },
+        "terminal": { "state": "stale", "decision_outcome": "question", "generation_outcome": "QUESTION", "error_code": null, "publication_outcome": "superseded_by_manual" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000409", "request_id": "00000000-0000-4000-8000-000000000406", "generation_id": "00000000-0000-4000-8000-000000000405", "attempt_id": "00000000-0000-4000-8000-000000000407", "ai_job_id": "00000000-0000-4000-8000-000000000408", "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "publication", "status": "stale", "decision_outcome": "question", "deadline_state": "within_deadline", "error_code": "SUPERSEDED_BY_MANUAL", "publication_outcome": "superseded_by_manual", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000403", "generation_id": "00000000-0000-4000-8000-000000000405", "request_id": "00000000-0000-4000-8000-000000000406", "attempt_id": "00000000-0000-4000-8000-000000000407", "ai_job_id": "00000000-0000-4000-8000-000000000408", "basis_presentation_revision": 5, "current_presentation_revision": 6, "deadline_at": "2026-08-24T00:00:13.000Z" } }
+      }
+    },
+    {
+      "name": "deadline expiration is a system error",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000501",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:22.000Z",
+        "current_basis": { "presentation_revision": 6, "snapshot_id": "00000000-0000-4000-8000-000000000402", "context_revision": 6, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "1111111111111111111111111111111111111111111111111111111111111111" },
+        "trigger": { "kind": "finalized_asr", "source_event_id": "00000000-0000-4000-8000-000000000502", "finalized_segment_ids": ["00000000-0000-4000-8000-000000000503"], "buffer": { "action": "append", "pending_final_count": 1, "debounce_ms_baseline": 1500, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "eligible", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "running", "p2_background_status": "pending", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000504", "request_id": "00000000-0000-4000-8000-000000000505", "attempt_id": "00000000-0000-4000-8000-000000000506", "ai_job_id": "00000000-0000-4000-8000-000000000507", "trace_id": "00000000-0000-4000-8000-000000000508", "attempt_kind": "automatic", "lifecycle_status": "failed", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:00:14.000Z", "deadline_at": "2026-08-24T00:00:22.000Z", "state": "expired", "deadline_ms_baseline": 8000, "error_code": "DEADLINE_EXPIRED" }, "fence": { "basis_presentation_revision": 6, "basis_snapshot_id": "00000000-0000-4000-8000-000000000402", "current_presentation_revision": 6, "current_snapshot_id": "00000000-0000-4000-8000-000000000402", "authority": "current_basis", "can_publish": false, "reason": "policy_blocked" }, "publication": { "attempted": false, "outcome": "policy_blocked", "accepted_presentation_revision": 6, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000402" }, "result": { "director_invoked": true, "decision_outcome": "system_error", "generation_outcome": "SYSTEM_ERROR", "semantic_success": false, "error_code": "DEADLINE_EXPIRED" } },
+        "terminal": { "state": "system_error", "decision_outcome": "system_error", "generation_outcome": "SYSTEM_ERROR", "error_code": "DEADLINE_EXPIRED", "publication_outcome": "policy_blocked" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000508", "request_id": "00000000-0000-4000-8000-000000000505", "generation_id": "00000000-0000-4000-8000-000000000504", "attempt_id": "00000000-0000-4000-8000-000000000506", "ai_job_id": "00000000-0000-4000-8000-000000000507", "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "deadline", "status": "failed", "decision_outcome": "system_error", "deadline_state": "expired", "error_code": "DEADLINE_EXPIRED", "publication_outcome": "policy_blocked", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000502", "generation_id": "00000000-0000-4000-8000-000000000504", "request_id": "00000000-0000-4000-8000-000000000505", "attempt_id": "00000000-0000-4000-8000-000000000506", "ai_job_id": "00000000-0000-4000-8000-000000000507", "basis_presentation_revision": 6, "current_presentation_revision": 6, "deadline_at": "2026-08-24T00:00:22.000Z" } }
+      }
+    },
+    {
+      "name": "genuine continue-listening remains a successful semantic decision",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000601",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:30.000Z",
+        "current_basis": { "presentation_revision": 6, "snapshot_id": "00000000-0000-4000-8000-000000000402", "context_revision": 6, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "2222222222222222222222222222222222222222222222222222222222222222" },
+        "trigger": { "kind": "manual_next", "source_event_id": "00000000-0000-4000-8000-000000000602", "finalized_segment_ids": [], "buffer": { "action": "append", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "manual_bypass", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": true, "intent_sequence": 8, "supersedes_older_automatic_basis": false } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "pending", "p2_background_status": "pending", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000603", "request_id": "00000000-0000-4000-8000-000000000604", "attempt_id": "00000000-0000-4000-8000-000000000605", "ai_job_id": "00000000-0000-4000-8000-000000000606", "trace_id": "00000000-0000-4000-8000-000000000607", "attempt_kind": "manual_next", "lifecycle_status": "succeeded", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:00:31.000Z", "deadline_at": "2026-08-24T00:00:39.000Z", "state": "within_deadline", "deadline_ms_baseline": 8000, "error_code": null }, "fence": { "basis_presentation_revision": 6, "basis_snapshot_id": "00000000-0000-4000-8000-000000000402", "current_presentation_revision": 6, "current_snapshot_id": "00000000-0000-4000-8000-000000000402", "authority": "current_basis", "can_publish": true, "reason": "current_basis" }, "publication": { "attempted": true, "outcome": "not_applicable", "accepted_presentation_revision": 6, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000402" }, "result": { "director_invoked": true, "decision_outcome": "continue_listening", "generation_outcome": "CONTINUE_LISTENING", "semantic_success": true, "error_code": null } },
+        "terminal": { "state": "completed_no_question", "decision_outcome": "continue_listening", "generation_outcome": "CONTINUE_LISTENING", "error_code": null, "publication_outcome": "not_applicable" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000607", "request_id": "00000000-0000-4000-8000-000000000604", "generation_id": "00000000-0000-4000-8000-000000000603", "attempt_id": "00000000-0000-4000-8000-000000000605", "ai_job_id": "00000000-0000-4000-8000-000000000606", "trace_kind": "question_orchestration", "trigger_type": "manual_next", "stage": "director", "status": "succeeded", "decision_outcome": "continue_listening", "deadline_state": "within_deadline", "error_code": null, "publication_outcome": "not_applicable", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000602", "generation_id": "00000000-0000-4000-8000-000000000603", "request_id": "00000000-0000-4000-8000-000000000604", "attempt_id": "00000000-0000-4000-8000-000000000605", "ai_job_id": "00000000-0000-4000-8000-000000000606", "basis_presentation_revision": 6, "current_presentation_revision": 6, "deadline_at": "2026-08-24T00:00:39.000Z" } }
+      }
+    },
+    {
+      "name": "P2 failure does not block the Director lane",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000701",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:00:45.000Z",
+        "current_basis": { "presentation_revision": 6, "snapshot_id": "00000000-0000-4000-8000-000000000402", "context_revision": 6, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "3333333333333333333333333333333333333333333333333333333333333333" },
+        "trigger": { "kind": "manual_next", "source_event_id": "00000000-0000-4000-8000-000000000702", "finalized_segment_ids": [], "buffer": { "action": "append", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "manual_bypass", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": true, "intent_sequence": 9, "supersedes_older_automatic_basis": false } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "failed", "p2_background_status": "failed", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000703", "request_id": "00000000-0000-4000-8000-000000000704", "attempt_id": "00000000-0000-4000-8000-000000000705", "ai_job_id": "00000000-0000-4000-8000-000000000706", "trace_id": "00000000-0000-4000-8000-000000000707", "attempt_kind": "manual_next", "lifecycle_status": "succeeded", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:00:46.000Z", "deadline_at": "2026-08-24T00:00:54.000Z", "state": "within_deadline", "deadline_ms_baseline": 8000, "error_code": null }, "fence": { "basis_presentation_revision": 6, "basis_snapshot_id": "00000000-0000-4000-8000-000000000402", "current_presentation_revision": 6, "current_snapshot_id": "00000000-0000-4000-8000-000000000402", "authority": "current_basis", "can_publish": true, "reason": "current_basis" }, "publication": { "attempted": true, "outcome": "published", "accepted_presentation_revision": 7, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000708" }, "result": { "director_invoked": true, "decision_outcome": "question", "generation_outcome": "QUESTION", "semantic_success": true, "error_code": null } },
+        "terminal": { "state": "published", "decision_outcome": "question", "generation_outcome": "QUESTION", "error_code": null, "publication_outcome": "published" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000707", "request_id": "00000000-0000-4000-8000-000000000704", "generation_id": "00000000-0000-4000-8000-000000000703", "attempt_id": "00000000-0000-4000-8000-000000000705", "ai_job_id": "00000000-0000-4000-8000-000000000706", "trace_kind": "question_orchestration", "trigger_type": "manual_next", "stage": "publication", "status": "succeeded", "decision_outcome": "question", "deadline_state": "within_deadline", "error_code": null, "publication_outcome": "published", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000702", "generation_id": "00000000-0000-4000-8000-000000000703", "request_id": "00000000-0000-4000-8000-000000000704", "attempt_id": "00000000-0000-4000-8000-000000000705", "ai_job_id": "00000000-0000-4000-8000-000000000706", "basis_presentation_revision": 6, "current_presentation_revision": 6, "deadline_at": "2026-08-24T00:00:54.000Z" } }
+      }
+    },
+    {
+      "name": "restart reuses the existing durable generation authority",
+      "record": {
+        "schema_version": "question-runtime-orchestration-v1",
+        "event_id": "00000000-0000-4000-8000-000000000801",
+        "project_id": "00000000-0000-4000-8000-000000000101",
+        "session_id": "00000000-0000-4000-8000-000000000102",
+        "observed_at": "2026-08-24T00:01:00.000Z",
+        "current_basis": { "presentation_revision": 7, "snapshot_id": "00000000-0000-4000-8000-000000000708", "context_revision": 7, "context_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "membership_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "input_hash": "4444444444444444444444444444444444444444444444444444444444444444" },
+        "trigger": { "kind": "restart", "source_event_id": "00000000-0000-4000-8000-000000000802", "finalized_segment_ids": [], "buffer": { "action": "replayed", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "eligible", "minimum_interval_ms_baseline": null, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } },
+        "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "succeeded", "p2_background_status": "succeeded", "background_blocks_director": false, "background_blocks_recording": false },
+        "generation": { "generation_id": "00000000-0000-4000-8000-000000000803", "request_id": "00000000-0000-4000-8000-000000000804", "attempt_id": "00000000-0000-4000-8000-000000000805", "ai_job_id": "00000000-0000-4000-8000-000000000806", "trace_id": "00000000-0000-4000-8000-000000000807", "attempt_kind": "automatic", "lifecycle_status": "succeeded", "replayed": true, "replay_of": { "generation_id": "00000000-0000-4000-8000-000000000803", "request_id": "00000000-0000-4000-8000-000000000804", "attempt_id": "00000000-0000-4000-8000-000000000805", "ai_job_id": "00000000-0000-4000-8000-000000000806" }, "deadline": { "started_at": "2026-08-24T00:00:10.000Z", "deadline_at": "2026-08-24T00:00:18.000Z", "state": "within_deadline", "deadline_ms_baseline": 8000, "error_code": null }, "fence": { "basis_presentation_revision": 7, "basis_snapshot_id": "00000000-0000-4000-8000-000000000708", "current_presentation_revision": 7, "current_snapshot_id": "00000000-0000-4000-8000-000000000708", "authority": "current_basis", "can_publish": true, "reason": "current_basis" }, "publication": { "attempted": true, "outcome": "not_better", "accepted_presentation_revision": 7, "accepted_snapshot_id": "00000000-0000-4000-8000-000000000708" }, "result": { "director_invoked": false, "decision_outcome": "question", "generation_outcome": "QUESTION", "semantic_success": true, "error_code": null } },
+        "terminal": { "state": "replayed", "decision_outcome": "question", "generation_outcome": "QUESTION", "error_code": null, "publication_outcome": "not_better" },
+        "trace": { "trace_id": "00000000-0000-4000-8000-000000000807", "request_id": "00000000-0000-4000-8000-000000000804", "generation_id": "00000000-0000-4000-8000-000000000803", "attempt_id": "00000000-0000-4000-8000-000000000805", "ai_job_id": "00000000-0000-4000-8000-000000000806", "trace_kind": "question_orchestration", "trigger_type": "recovery", "stage": "restart", "status": "succeeded", "decision_outcome": "question", "deadline_state": "within_deadline", "error_code": "REPLAY_EXISTING", "publication_outcome": "not_better", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000000802", "generation_id": "00000000-0000-4000-8000-000000000803", "request_id": "00000000-0000-4000-8000-000000000804", "attempt_id": "00000000-0000-4000-8000-000000000805", "ai_job_id": "00000000-0000-4000-8000-000000000806", "basis_presentation_revision": 7, "current_presentation_revision": 7, "deadline_at": "2026-08-24T00:00:18.000Z" } }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "interim ASR cannot contain a generation",
+      "record": { "schema_version": "question-runtime-orchestration-v1", "event_id": "00000000-0000-4000-8000-000000009001", "project_id": "00000000-0000-4000-8000-000000000101", "session_id": "00000000-0000-4000-8000-000000000102", "observed_at": "2026-08-24T00:02:00.000Z", "current_basis": { "presentation_revision": 0, "snapshot_id": null, "context_revision": 0, "context_digest": null, "membership_digest": null, "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "trigger": { "kind": "interim_asr", "source_event_id": "00000000-0000-4000-8000-000000009002", "finalized_segment_ids": [], "buffer": { "action": "ignored", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": false, "reason": "interim_not_eligible", "minimum_interval_ms_baseline": null, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } }, "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "idle", "p1_background_status": "idle", "p2_background_status": "idle", "background_blocks_director": false, "background_blocks_recording": false }, "generation": { "bad": true }, "terminal": { "state": "not_started", "decision_outcome": "not_started", "generation_outcome": "NOT_STARTED", "error_code": null, "publication_outcome": null }, "trace": { "trace_id": "00000000-0000-4000-8000-000000009003", "request_id": "00000000-0000-4000-8000-000000009004", "generation_id": "00000000-0000-4000-8000-000000009005", "attempt_id": null, "ai_job_id": null, "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "buffer", "status": "succeeded", "decision_outcome": "continue_listening", "deadline_state": "not_started", "error_code": null, "publication_outcome": "not_applicable", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000009002", "generation_id": "00000000-0000-4000-8000-000000009005", "request_id": "00000000-0000-4000-8000-000000009004", "attempt_id": null, "ai_job_id": null, "basis_presentation_revision": 0, "current_presentation_revision": 0, "deadline_at": null } } }
+    },
+    {
+      "name": "timeout cannot be relabeled continue-listening",
+      "record": { "schema_version": "question-runtime-orchestration-v1", "event_id": "00000000-0000-4000-8000-000000009101", "project_id": "00000000-0000-4000-8000-000000000101", "session_id": "00000000-0000-4000-8000-000000000102", "observed_at": "2026-08-24T00:02:01.000Z", "current_basis": { "presentation_revision": 0, "snapshot_id": null, "context_revision": 0, "context_digest": null, "membership_digest": null, "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "trigger": { "kind": "finalized_asr", "source_event_id": "00000000-0000-4000-8000-000000009102", "finalized_segment_ids": ["00000000-0000-4000-8000-000000009103"], "buffer": { "action": "append", "pending_final_count": 1, "debounce_ms_baseline": 1500, "wait_active": false }, "automatic_gate": { "eligible": true, "reason": "eligible", "minimum_interval_ms_baseline": 20000, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } }, "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "terminal", "p1_background_status": "idle", "p2_background_status": "idle", "background_blocks_director": false, "background_blocks_recording": false }, "generation": { "generation_id": "00000000-0000-4000-8000-000000009104", "request_id": "00000000-0000-4000-8000-000000009105", "attempt_id": "00000000-0000-4000-8000-000000009106", "ai_job_id": "00000000-0000-4000-8000-000000009107", "trace_id": "00000000-0000-4000-8000-000000009108", "attempt_kind": "automatic", "lifecycle_status": "failed", "replayed": false, "replay_of": null, "deadline": { "started_at": "2026-08-24T00:02:02.000Z", "deadline_at": "2026-08-24T00:02:10.000Z", "state": "expired", "deadline_ms_baseline": 8000, "error_code": "DEADLINE_EXPIRED" }, "fence": { "basis_presentation_revision": 0, "basis_snapshot_id": null, "current_presentation_revision": 0, "current_snapshot_id": null, "authority": "current_basis", "can_publish": false, "reason": "policy_blocked" }, "publication": { "attempted": false, "outcome": "policy_blocked", "accepted_presentation_revision": 0, "accepted_snapshot_id": null }, "result": { "director_invoked": true, "decision_outcome": "continue_listening", "generation_outcome": "CONTINUE_LISTENING", "semantic_success": true, "error_code": "DEADLINE_EXPIRED" } }, "terminal": { "state": "system_error", "decision_outcome": "continue_listening", "generation_outcome": "CONTINUE_LISTENING", "error_code": "DEADLINE_EXPIRED", "publication_outcome": "policy_blocked" }, "trace": { "trace_id": "00000000-0000-4000-8000-000000009108", "request_id": "00000000-0000-4000-8000-000000009105", "generation_id": "00000000-0000-4000-8000-000000009104", "attempt_id": "00000000-0000-4000-8000-000000009106", "ai_job_id": "00000000-0000-4000-8000-000000009107", "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "deadline", "status": "failed", "decision_outcome": "continue_listening", "deadline_state": "expired", "error_code": "DEADLINE_EXPIRED", "publication_outcome": "policy_blocked", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000009102", "generation_id": "00000000-0000-4000-8000-000000009104", "request_id": "00000000-0000-4000-8000-000000009105", "attempt_id": "00000000-0000-4000-8000-000000009106", "ai_job_id": "00000000-0000-4000-8000-000000009107", "basis_presentation_revision": 0, "current_presentation_revision": 0, "deadline_at": "2026-08-24T00:02:10.000Z" } } }
+    },
+    {
+      "name": "raw provider payload is forbidden",
+      "record": { "schema_version": "question-runtime-orchestration-v1", "event_id": "00000000-0000-4000-8000-000000009201", "project_id": "00000000-0000-4000-8000-000000000101", "session_id": "00000000-0000-4000-8000-000000000102", "observed_at": "2026-08-24T00:02:02.000Z", "current_basis": { "presentation_revision": 0, "snapshot_id": null, "context_revision": 0, "context_digest": null, "membership_digest": null, "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "trigger": { "kind": "interim_asr", "source_event_id": "00000000-0000-4000-8000-000000009202", "finalized_segment_ids": [], "buffer": { "action": "ignored", "pending_final_count": 0, "debounce_ms_baseline": null, "wait_active": false }, "automatic_gate": { "eligible": false, "reason": "interim_not_eligible", "minimum_interval_ms_baseline": null, "wait_until": null }, "manual_priority": { "bypasses_automatic_wait": false, "intent_sequence": null, "supersedes_older_automatic_basis": false } }, "lanes": { "recording_blocked": false, "finalized_asr_blocked": false, "director_status": "idle", "p1_background_status": "idle", "p2_background_status": "idle", "background_blocks_director": false, "background_blocks_recording": false }, "generation": null, "terminal": { "state": "not_started", "decision_outcome": "not_started", "generation_outcome": "NOT_STARTED", "error_code": null, "publication_outcome": null }, "trace": { "trace_id": "00000000-0000-4000-8000-000000009203", "request_id": "00000000-0000-4000-8000-000000009204", "generation_id": "00000000-0000-4000-8000-000000009205", "attempt_id": null, "ai_job_id": null, "trace_kind": "question_orchestration", "trigger_type": "automatic", "stage": "buffer", "status": "succeeded", "decision_outcome": "continue_listening", "deadline_state": "not_started", "error_code": null, "publication_outcome": "not_applicable", "references": { "trigger_event_id": "00000000-0000-4000-8000-000000009202", "generation_id": "00000000-0000-4000-8000-000000009205", "request_id": "00000000-0000-4000-8000-000000009204", "attempt_id": null, "ai_job_id": null, "basis_presentation_revision": 0, "current_presentation_revision": 0, "deadline_at": null } }, "provider_payload": { "raw": true } }
+    }
+  ]
+}
