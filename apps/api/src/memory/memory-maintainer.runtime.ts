@@ -713,55 +713,72 @@ export class MemoryMaintainerRuntime implements OnModuleInit, OnModuleDestroy {
       ...batch.overlapSegments.map((segment) => [segment.id, 'overlap'] as const),
       ...batch.newSegments.map((segment) => [segment.id, 'new'] as const),
     ]);
-    const job = await this.jobs.freeze({
-      actorId: batch.actorId,
-      contextBuilderVersion: CONTRACT_VERSION,
-      exactSegmentIds: ordered.map(({ id }) => id),
-      expiresAt: new Date(this.clock.now().getTime() + RETENTION_MS),
-      jobType: 'working_memory_maintain',
-      memoryResolutionIds: currentResolutionIds,
-      projectId: batch.projectId,
-      requestId,
-      ...(prior === null ? {} : { retryOfJobId: prior.id }),
-      sessionIds: [batch.sessionId],
-      triggerDedupeKey: triggerIdentity,
-      trustedRole: 'elder',
-      trustedRoles: ['elder', 'interviewer'],
-      afterFreeze: async (tx, frozen) => {
-        for (const [inputOrder, segment] of frozen.segments.entries()) {
-          const membershipKind = kindBySegment.get(segment.segmentId);
-          if (membershipKind === undefined) throw new Error('MEMORY_INPUT_MEMBERSHIP_MISSING');
-          await tx.memoryMaintenanceInputSegment.create({
-            data: {
-              aiJobId: frozen.id,
-              aiJobInputSegmentId: segment.inputSegmentId,
-              id: randomUUID(),
-              inputOrder,
-              membershipKind,
-              transcriptSegmentId: segment.segmentId,
-            },
+    let job: FrozenAiJob;
+    try {
+      job = await this.jobs.freeze({
+        actorId: batch.actorId,
+        contextBuilderVersion: CONTRACT_VERSION,
+        exactSegmentIds: ordered.map(({ id }) => id),
+        expiresAt: new Date(this.clock.now().getTime() + RETENTION_MS),
+        jobType: 'working_memory_maintain',
+        memoryResolutionIds: currentResolutionIds,
+        projectId: batch.projectId,
+        requestId,
+        ...(prior === null ? {} : { retryOfJobId: prior.id }),
+        sessionIds: [batch.sessionId],
+        triggerDedupeKey: triggerIdentity,
+        trustedRole: 'elder',
+        trustedRoles: ['elder', 'interviewer'],
+        afterFreeze: async (tx, frozen) => {
+          for (const [inputOrder, segment] of frozen.segments.entries()) {
+            const membershipKind = kindBySegment.get(segment.segmentId);
+            if (membershipKind === undefined) throw new Error('MEMORY_INPUT_MEMBERSHIP_MISSING');
+            await tx.memoryMaintenanceInputSegment.create({
+              data: {
+                aiJobId: frozen.id,
+                aiJobInputSegmentId: segment.inputSegmentId,
+                id: randomUUID(),
+                inputOrder,
+                membershipKind,
+                transcriptSegmentId: segment.segmentId,
+              },
+            });
+          }
+          const triggerObservation = memoryTriggerObservation(
+            frozen,
+            batch,
+            triggerIdentity,
+            this.config.minimumUsefulCharacters,
+          );
+          const activeThread = await tx.memoryThreadRevision.findFirst({
+            select: { threadId: true },
+            where: { sourceSessionId: batch.sessionId, status: 'active', supersededAt: null },
           });
-        }
-        const triggerObservation = memoryTriggerObservation(
-          frozen,
-          batch,
-          triggerIdentity,
-          this.config.minimumUsefulCharacters,
-        );
-        const activeThread = await tx.memoryThreadRevision.findFirst({
-          select: { threadId: true },
-          where: { sourceSessionId: batch.sessionId, status: 'active', supersededAt: null },
+          await this.traces.beginInTransaction(
+            tx,
+            memoryDecisionTraceInput(frozen, batch.sessionId, triggerObservation, {
+              activeThreadId: activeThread?.threadId ?? null,
+              decisionOutcome: 'continue_listening',
+              stage: 'prepare',
+            }),
+          );
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'AI_REQUEST_IDENTITY_CONFLICT') {
+        const activeJob = await this.prisma.aiJob.findFirst({
+          orderBy: { attemptNo: 'desc' },
+          select: { status: true },
+          where: {
+            jobType: 'working_memory_maintain',
+            status: { in: ['pending', 'running', 'succeeded'] },
+            triggerDedupeKey: triggerIdentity,
+          },
         });
-        await this.traces.beginInTransaction(
-          tx,
-          memoryDecisionTraceInput(frozen, batch.sessionId, triggerObservation, {
-            activeThreadId: activeThread?.threadId ?? null,
-            decisionOutcome: 'continue_listening',
-            stage: 'prepare',
-          }),
-        );
-      },
-    });
+        if (activeJob !== null) return;
+      }
+      throw error;
+    }
     if (job.replayed) return;
     const triggerObservation = memoryTriggerObservation(
       job,

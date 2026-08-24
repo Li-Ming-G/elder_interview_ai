@@ -1213,7 +1213,7 @@ describe('MEMORY-T2-T4-RUNTIME-001 P1 opening provenance', () => {
           ingestKey: `p1-opening-elder-${basisSessionId}`,
           originalRoleAuthority: 'user_confirmed',
           originalSpeakerRole: 'elder',
-          originalText: mode === 'succeeded' ? '工作记忆[fact:place:opening.home]=苏州' : '嗯',
+          originalText: mode === 'succeeded' ? '工作记忆[episode:place:opening.home]=苏州' : '嗯',
           sessionId: basisSessionId,
           source: 'fixture',
           speakerRoleRevision: 1,
