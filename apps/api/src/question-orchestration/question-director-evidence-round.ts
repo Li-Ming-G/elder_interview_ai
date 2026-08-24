@@ -36,6 +36,7 @@ export interface QuestionDirectorEvidenceRoundInput {
     ): Promise<EvidenceResultEnvelope | EvidenceErrorEnvelope>;
   };
   generationId: string;
+  deadlineAt: number;
   p4Context: P4ContextV2;
   prompt: QuestionDirectorRequest['prompt'];
   requestId: string;
@@ -67,6 +68,7 @@ export async function runQuestionDirectorEvidenceRound(
   const roundState = input.roundState ?? { evidenceRoundCount: 0 };
   const first = await input.director.generate({
     context: input.context,
+    deadlineAt: input.deadlineAt,
     prompt: input.prompt,
   });
   const request = asEvidenceRequest(first);
@@ -123,6 +125,7 @@ export async function runQuestionDirectorEvidenceRound(
 
   const final = await input.director.generate({
     context: input.context,
+    deadlineAt: input.deadlineAt,
     evidence: result,
     prompt: input.prompt,
   });

@@ -785,6 +785,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
               actorId: prepared.actorId,
               context,
               director: this.director,
+              deadlineAt: prepared.deadlineAt,
               evidence: this.evidenceDrilldown,
               generationId: prepared.generationId,
               onEvidenceCall: async (call) => {

@@ -197,6 +197,7 @@ function run(
     requestId: ids.actor,
     roundState,
     scopeSessionIds: [ids.session],
+    deadlineAt: Date.now() + 10_000,
   });
 }
 

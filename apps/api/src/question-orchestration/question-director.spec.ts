@@ -5,10 +5,13 @@ import { LocalTestQuestionDirector } from './question-director.js';
 
 describe('LocalTestQuestionDirector', () => {
   const director = new LocalTestQuestionDirector();
+  const deadlineAt = Date.now() + 1_000;
   const prompt = { system: 'system', task: 'task' };
 
   it('continues listening when both conversation context and references are empty', async () => {
-    await expect(director.generate({ context: context(), prompt })).resolves.toMatchObject({
+    await expect(
+      director.generate({ context: context(), deadlineAt, prompt }),
+    ).resolves.toMatchObject({
       continue_reason_code: 'insufficient_context',
       decision: 'continue_listening',
       question: null,
@@ -28,6 +31,7 @@ describe('LocalTestQuestionDirector', () => {
           },
         ],
       }),
+      deadlineAt,
       prompt,
     });
 
@@ -52,6 +56,7 @@ describe('LocalTestQuestionDirector', () => {
           },
         ],
       }),
+      deadlineAt,
       prompt,
     });
 
@@ -77,6 +82,7 @@ describe('LocalTestQuestionDirector', () => {
           },
         ],
       }),
+      deadlineAt,
       prompt,
     });
 

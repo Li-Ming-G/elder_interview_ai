@@ -16,6 +16,7 @@ export type QuestionDirectorEvidenceRequest = {
 
 export interface QuestionDirectorRequest {
   context: InterviewDirectorContextV1;
+  deadlineAt: number;
   prompt: { system: string; task: string };
   evidence?: EvidenceResultEnvelope;
 }

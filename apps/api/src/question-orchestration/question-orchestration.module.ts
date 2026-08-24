@@ -2,6 +2,11 @@ import type { ApiConfig } from '@elder-interview/config';
 import { type DynamicModule, Module } from '@nestjs/common';
 
 import { API_CONFIG } from '../api-config.js';
+import {
+  OPENROUTER_FETCH,
+  OpenRouterQuestionDirector,
+  type OpenRouterFetch,
+} from './openrouter-question-director.js';
 import { QuestionDirectorContract } from './question-director-contract.js';
 import {
   LocalTestQuestionDirector,
@@ -27,6 +32,12 @@ export function createQuestionOrchestrationModule(
   evidenceDrilldownModule: DynamicModule,
 ): DynamicModule {
   const localOrTest = ['local', 'test'].includes(config.appEnv);
+  const director =
+    config.checkpointA.mode === 'checkpoint_a'
+      ? OpenRouterQuestionDirector
+      : localOrTest
+        ? LocalTestQuestionDirector
+        : UnavailableQuestionDirector;
   return {
     controllers: [QuestionController],
     exports: [QuestionOrchestrationService],
@@ -42,10 +53,11 @@ export function createQuestionOrchestrationModule(
     module: QuestionOrchestrationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },
-      localOrTest ? LocalTestQuestionDirector : UnavailableQuestionDirector,
+      { provide: OPENROUTER_FETCH, useValue: globalOpenRouterFetch },
+      director,
       {
         provide: QuestionDirector,
-        useExisting: localOrTest ? LocalTestQuestionDirector : UnavailableQuestionDirector,
+        useExisting: director,
       },
       QuestionOrchestrationService,
       QuestionDirectorContract,
@@ -53,3 +65,5 @@ export function createQuestionOrchestrationModule(
     ],
   };
 }
+
+const globalOpenRouterFetch: OpenRouterFetch = (input, init) => globalThis.fetch(input, init);
