@@ -141,16 +141,16 @@
     },
     {
       "id": "P6R-02",
-      "status": "READY",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P6R-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["P6R-01"],
-      "pr": null,
+      "pr": 100,
       "next_task": "P6R-03"
     },
     {
       "id": "P6R-03",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/P6R-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["P6R-02"],
