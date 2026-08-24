@@ -2306,7 +2306,7 @@ class MatrixProvider extends MemoryMaintainerProvider {
                   ],
                   memory_tag: 'event',
                   resolution_kind: uncertain ? 'unknown' : 'single',
-                  semantic_kind: creates ? 'episode' : 'fact',
+                  semantic_kind: creates ? 'episode' : (target?.semantic_kind ?? 'fact'),
                   semantic_status: uncertain ? 'uncertain' : 'current',
                   value: uncertain ? 'unknown' : kind.toLowerCase(),
                   value_kind: uncertain ? 'unknown' : 'exact',
