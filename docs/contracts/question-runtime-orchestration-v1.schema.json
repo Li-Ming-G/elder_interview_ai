@@ -320,72 +320,66 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "authority",
         "trace_id",
         "request_id",
         "generation_id",
         "attempt_id",
         "ai_job_id",
-        "trace_kind",
-        "trigger_type",
-        "stage",
-        "status",
-        "decision_outcome",
-        "deadline_state",
-        "error_code",
-        "publication_outcome",
-        "references"
+        "director_invoked",
+        "trigger_event_id",
+        "basis_presentation_revision",
+        "current_presentation_revision",
+        "deadline_at",
+        "orchestration_projection"
       ],
       "properties": {
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract", "accepted_identity"],
+          "properties": {
+            "contract": { "const": "decision-trace-v1" },
+            "accepted_identity": {
+              "const": "40cc61e12ef63096474fe63b69463920f2d6a7c4"
+            }
+          }
+        },
         "trace_id": { "$ref": "#/$defs/uuid" },
         "request_id": { "$ref": "#/$defs/uuid" },
         "generation_id": { "$ref": "#/$defs/uuid" },
         "attempt_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
         "ai_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
-        "trace_kind": { "const": "question_orchestration" },
-        "trigger_type": { "enum": ["automatic", "manual_next", "second_session_opening", "recovery"] },
-        "stage": { "enum": ["buffer", "automatic_gate", "director", "publication", "deadline", "replay", "restart"] },
-        "status": { "enum": ["running", "succeeded", "failed", "cancelled", "stale", "unavailable"] },
-        "decision_outcome": { "enum": ["question", "continue_listening", "system_error", "unavailable"] },
-        "deadline_state": { "enum": ["not_started", "pending", "within_deadline", "expired"] },
-        "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] },
-        "publication_outcome": {
-          "anyOf": [
-            {
-              "enum": [
-                "published",
-                "not_better",
-                "duplicate_filtered",
-                "stale_basis",
-                "superseded_by_manual",
-                "policy_blocked",
-                "not_applicable"
-              ]
-            },
-            { "type": "null" }
-          ]
-        },
-        "references": {
+        "director_invoked": { "type": "boolean" },
+        "trigger_event_id": { "$ref": "#/$defs/uuid" },
+        "basis_presentation_revision": { "type": "integer", "minimum": 0 },
+        "current_presentation_revision": { "type": "integer", "minimum": 0 },
+        "deadline_at": { "anyOf": [{ "$ref": "#/$defs/date_time" }, { "type": "null" }] },
+        "orchestration_projection": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "trigger_event_id",
-            "generation_id",
-            "request_id",
-            "attempt_id",
-            "ai_job_id",
-            "basis_presentation_revision",
-            "current_presentation_revision",
-            "deadline_at"
-          ],
+          "required": ["outcome_kind", "stage", "deadline_state", "error_code", "publication_outcome"],
           "properties": {
-            "trigger_event_id": { "$ref": "#/$defs/uuid" },
-            "generation_id": { "$ref": "#/$defs/uuid" },
-            "request_id": { "$ref": "#/$defs/uuid" },
-            "attempt_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
-            "ai_job_id": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
-            "basis_presentation_revision": { "type": "integer", "minimum": 0 },
-            "current_presentation_revision": { "type": "integer", "minimum": 0 },
-            "deadline_at": { "anyOf": [{ "$ref": "#/$defs/date_time" }, { "type": "null" }] }
+            "outcome_kind": { "enum": ["gate_only", "director_result", "system_error", "unavailable", "fenced"] },
+            "stage": { "enum": ["buffer", "automatic_gate", "director", "publication", "deadline", "replay", "restart"] },
+            "deadline_state": { "enum": ["not_started", "pending", "within_deadline", "expired"] },
+            "error_code": { "anyOf": [{ "$ref": "#/$defs/error_code" }, { "type": "null" }] },
+            "publication_outcome": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "published",
+                    "not_better",
+                    "duplicate_filtered",
+                    "stale_basis",
+                    "superseded_by_manual",
+                    "policy_blocked",
+                    "not_applicable"
+                  ]
+                },
+                { "type": "null" }
+              ]
+            }
           }
         }
       }
@@ -405,6 +399,35 @@
             "properties": {
               "generation_outcome": { "const": "NOT_STARTED" },
               "decision_outcome": { "const": "not_started" }
+            }
+          },
+          "trace": {
+            "properties": {
+              "attempt_id": { "type": "null" },
+              "ai_job_id": { "type": "null" },
+              "director_invoked": { "const": false },
+              "orchestration_projection": { "properties": { "outcome_kind": { "const": "gate_only" } } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "generation": { "const": null } } },
+      "then": {
+        "properties": {
+          "terminal": {
+            "properties": {
+              "generation_outcome": { "const": "NOT_STARTED" },
+              "decision_outcome": { "const": "not_started" }
+            }
+          },
+          "trace": {
+            "properties": {
+              "attempt_id": { "type": "null" },
+              "ai_job_id": { "type": "null" },
+              "director_invoked": { "const": false },
+              "orchestration_projection": { "properties": { "outcome_kind": { "const": "gate_only" } } }
             }
           }
         }

@@ -88,14 +88,26 @@ describe('P6 Runtime Orchestration V1 contract', () => {
         const fence = objectAt(generation.fence);
         const publication = objectAt(generation.publication);
         const result = objectAt(generation.result);
-        const references = objectAt(trace.references);
+        const authority = objectAt(trace.authority);
+        const projection = objectAt(trace.orchestration_projection);
 
         expect(stringAt(trace.trace_id), fixture.name).toBe(stringAt(generation.trace_id));
         expect(stringAt(trace.request_id), fixture.name).toBe(stringAt(generation.request_id));
-        expect(stringAt(references.generation_id), fixture.name).toBe(
+        expect(authority.contract, fixture.name).toBe('decision-trace-v1');
+        expect(authority.accepted_identity, fixture.name).toBe(
+          '40cc61e12ef63096474fe63b69463920f2d6a7c4',
+        );
+        expect(stringAt(trace.generation_id), fixture.name).toBe(
           stringAt(generation.generation_id),
         );
-        expect(stringAt(references.request_id), fixture.name).toBe(stringAt(generation.request_id));
+        expect(stringAt(trace.trigger_event_id), fixture.name).toBe(
+          stringAt(trigger.source_event_id),
+        );
+        expect(trace.director_invoked, fixture.name).toBe(result.director_invoked);
+        expect(projection.outcome_kind, fixture.name).not.toBe('gate_only');
+        expect(trace, fixture.name).not.toHaveProperty('status');
+        expect(trace, fixture.name).not.toHaveProperty('decision_outcome');
+        expect(trace, fixture.name).not.toHaveProperty('trigger_type');
 
         if (generation.replayed === true) {
           const replayOf = objectAt(generation.replay_of);
@@ -128,6 +140,17 @@ describe('P6 Runtime Orchestration V1 contract', () => {
           expect(result.error_code, fixture.name).toBeNull();
           expect(generation.lifecycle_status, fixture.name).toBe('succeeded');
         }
+      } else {
+        const authority = objectAt(trace.authority);
+        const projection = objectAt(trace.orchestration_projection);
+        expect(trace.attempt_id, fixture.name).toBeNull();
+        expect(trace.ai_job_id, fixture.name).toBeNull();
+        expect(trace.director_invoked, fixture.name).toBe(false);
+        expect(authority.contract, fixture.name).toBe('decision-trace-v1');
+        expect(projection.outcome_kind, fixture.name).toBe('gate_only');
+        expect(terminal.decision_outcome, fixture.name).toBe('not_started');
+        expect(terminal.generation_outcome, fixture.name).toBe('NOT_STARTED');
+        expect(trace, fixture.name).not.toHaveProperty('decision_outcome');
       }
 
       const serialized = JSON.stringify(record);
@@ -154,6 +177,37 @@ describe('P6 Runtime Orchestration V1 contract', () => {
         'P2 failure does not block the Director lane',
         'restart reuses the existing durable generation authority',
       ]),
+    );
+  });
+
+  it('distinguishes gate-only NOT_STARTED from successful Director CONTINUE_LISTENING', async () => {
+    const fixtures = (await readJson(
+      'docs/contracts/fixtures/question-runtime-orchestration-v1/fixtures.json',
+    )) as FixtureDocument;
+    const gate = fixtures.valid.find(({ name }) => name === 'interim ASR is observational only');
+    const success = fixtures.valid.find(
+      ({ name }) => name === 'genuine continue-listening remains a successful semantic decision',
+    );
+    expect(gate).toBeDefined();
+    expect(success).toBeDefined();
+
+    const gateRecord = gate?.record;
+    const successfulRecord = success?.record;
+    expect(gateRecord?.generation).toBeNull();
+    expect(objectAt(gateRecord?.trace).director_invoked).toBe(false);
+    expect(objectAt(objectAt(gateRecord?.trace).orchestration_projection).outcome_kind).toBe(
+      'gate_only',
+    );
+    expect(objectAt(gateRecord?.terminal).generation_outcome).toBe('NOT_STARTED');
+    expect(objectAt(gateRecord?.trace)).not.toHaveProperty('decision_outcome');
+
+    const successfulGeneration = objectAt(successfulRecord?.generation);
+    const successfulResult = objectAt(successfulGeneration.result);
+    expect(successfulResult.director_invoked).toBe(true);
+    expect(successfulResult.generation_outcome).toBe('CONTINUE_LISTENING');
+    expect(objectAt(successfulRecord?.trace).director_invoked).toBe(true);
+    expect(objectAt(objectAt(successfulRecord?.trace).orchestration_projection).outcome_kind).toBe(
+      'director_result',
     );
   });
 });

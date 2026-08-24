@@ -10,7 +10,9 @@ The existing `AiJob`, `QuestionGenerationAttempt`, `QuestionPresentation`/presen
 
 The record is reference-oriented. It may contain IDs, revisions, hashes, safe status/error codes, timing/deadline facts and publication outcomes. It must not contain interim/final transcript text, prompt/context bodies, evidence bodies, provider payloads, secrets, model selection, or raw personal data.
 
-`trace.generation_id` is the stable orchestration correlation ID required by the accepted Decision Trace surface. When the automatic gate does not start a Director generation, `generation` is `null` and the trace may still record the bounded gate decision; no `AiJob`/attempt is implied by that trace reference.
+This contract does not redefine the accepted T0 Decision Trace V1 shape. `trace.authority` names `decision-trace-v1` and its accepted identity; `trace.trace_id`, request/job/attempt IDs, trigger event, basis revisions and the small `orchestration_projection` are only references/projections used to connect this contract to the canonical trace row. The canonical row remains governed by [`decision-trace-v1.schema.json`](decision-trace-v1.schema.json) and its accepted authority.
+
+The accepted T0 shape requires a `generation_id`. In a gate-only observation, `trace.generation_id` is a trace correlation ID only; it is not a generation identity and is not evidence that Director started. Gate-only records mechanically preserve `generation=null`, `trace.attempt_id=null`, `trace.ai_job_id=null`, `trace.director_invoked=false`, `trace.orchestration_projection.outcome_kind=gate_only`, and terminal `NOT_STARTED`.
 
 ## 2. Trigger, buffering and automatic gate
 
@@ -30,7 +32,7 @@ When manual-next starts from a newer accepted presentation basis, older automati
 
 Every actual generation carries one stable `generation_id`, `request_id`, `attempt_id`, `ai_job_id`, and `trace_id`. Retries/restarts must reuse the existing durable identity when replaying an existing attempt; they must not create a parallel orchestration truth. A replay record sets `replayed=true`, identifies the prior durable IDs, and uses the same identity values in the trace references.
 
-Idempotency is checked against the existing `AiJob`/attempt/trace authority. A duplicate request returns or reconciles the existing winner. Original audio, transcript, evidence and trace records are never overwritten.
+Idempotency is checked against the existing `AiJob`/attempt/trace authority. A duplicate request returns or reconciles the existing winner. Original audio, transcript, evidence and trace records are never overwritten. For a real generation, the orchestration references in `trace` match the existing durable identity; for a gate-only observation, only the T0 trace correlation ID is present.
 
 ## 5. Deadline, failure and semantic outcome
 
@@ -50,7 +52,7 @@ Only the existing presentation revision/snapshot authority can accept a publicat
 
 P1 and P2 are background lanes. `recording_blocked`, `finalized_asr_blocked`, `background_blocks_director`, and `background_blocks_recording` are fixed false in this contract. P1/P2 pending, failed or unavailable states are observable and may affect memory availability, but do not block recording, finalized ASR, manual-next, or the Director live lane. Memory failure cannot change question publication authority.
 
-Decision Trace remains append-only/reference-oriented. Each record references the trigger, generation/request/attempt/job identity when present, basis/fence revisions, deadline, stage, safe error and publication outcome. It does not copy transcript, prompt, context, evidence or provider payloads.
+Decision Trace remains append-only/reference-oriented under the accepted T0 contract. P6R-01 records only the canonical trace identity plus the minimal orchestration projection needed to connect trigger, basis/fence revisions, deadline, stage, safe error and publication outcome. It does not create a second trace schema or copy transcript, prompt, context, evidence or provider payloads. Gate-only `NOT_STARTED` is distinct from a successful Director `continue_listening`: the former has no generation/attempt/job and `director_invoked=false`; the latter requires a durable generation, `director_invoked=true`, successful lifecycle, and `generation_outcome=CONTINUE_LISTENING`.
 
 ## 8. Explicit non-goals
 
