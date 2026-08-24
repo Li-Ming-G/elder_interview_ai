@@ -42,6 +42,7 @@ P6 accepted path:
 
 - P6R-01: PR #99, accepted head `233ef14b68c42571217f95126e60763daf12456`, merge/main `5388bdc117b550d66388aec7acb9a79a934d92d7`;
 - P6R-02: PR #100, accepted head `e0d20f167d1a52686efd3f1dcea5ab5028d6f3a5`, merge/main `8c103ef631851b833a57efebe3c1b3ddc8dcadd8`, main CI run `32691042422` SUCCESS.
+- P6R-03: PR #101, accepted head `8a0b0f433b8cec1abb12497e655f61342b121be2`, merge/main `35c8b869f819ea3bc6a0f1e1d89cbadd1fa88c70`, main CI run `32695474272` SUCCESS.
 
 ## P6 canonical queue
 
@@ -53,7 +54,7 @@ P6R-01  T18–T24 Runtime Orchestration V1 contract
   → P6R-05  integrated runtime / Decision Trace closeout
 ```
 
-`P6R-01` and `P6R-02` are complete through PR #100; `P6R-03` is now `READY`. Later successors remain `DEFERRED` and may be unlocked only by the canonical Dispatcher after predecessor external Architect `PASS`, merge and successful main verification.
+`P6R-01`, `P6R-02` and `P6R-03` are complete through PR #101; `P6R-04` is now `READY`. Later successors remain `DEFERRED` and may be unlocked only by the canonical Dispatcher after predecessor external Architect `PASS`, merge and successful main verification.
 
 The owner-issued planning source is `docs/agent/tasks/P6-DEVELOPMENT-PACK.md`.
 
@@ -82,10 +83,10 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: `P6R-03` only.
+- `READY`: `P6R-04` only.
 - `IN_PROGRESS`: none at pack issuance time.
 - `REVIEW`: none at pack issuance time.
-- `DEFERRED`: `P6R-04`, `P6R-05`, P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
+- `DEFERRED`: `P6R-05`, P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
 - P5: closed / DONE.
 
 ## Worker prohibitions
@@ -98,4 +99,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-After PR #100 is verified on refreshed `main`, Dispatcher sees `P6R-03 = READY`, persists `READY → IN_PROGRESS`, and launches the declared `luna-high` Worker. Later P6 successors remain deferred until the accepted lifecycle unlocks them.
+After PR #101 is verified on refreshed `main`, Dispatcher sees `P6R-04 = READY`, persists `READY → IN_PROGRESS`, and launches the declared `luna-high` Worker. Later P6 successors remain deferred until the accepted lifecycle unlocks them.
