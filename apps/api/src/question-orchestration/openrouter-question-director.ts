@@ -12,6 +12,10 @@ import {
 
 export const OPENROUTER_FETCH = Symbol('OPENROUTER_FETCH');
 
+export const OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION = `Output schema instruction: return exactly one JSON object matching InterviewDirectorOutputV1 (${DIRECTOR_OUTPUT_SCHEMA_VERSION}), or the exact bounded internal request_evidence envelope. The request_evidence envelope must be exactly {"decision":"request_evidence","evidence":{"operation":"get_memory_evidence"|"search_transcript","request":{"memory_id":"UUID"}|{"query":"1-240 character string"}}} with no additional fields; memory_id must be a UUID and query must be 1-240 characters. Do not include Markdown or explanatory text outside the JSON object.`;
+
+export const OPENROUTER_EVIDENCE_CALL_SCHEMA_INSTRUCTION = `Output schema instruction: this call carries one accepted P5 evidence result; return exactly one JSON object matching InterviewDirectorOutputV1 (${DIRECTOR_OUTPUT_SCHEMA_VERSION}) only. The request_evidence envelope is not permitted on this call. Do not include Markdown or explanatory text outside the JSON object.`;
+
 export interface OpenRouterResponse {
   readonly ok: boolean;
   readonly status: number;
@@ -108,7 +112,9 @@ function buildRequestBody(
       { content: request.prompt.task, role: 'user' },
       {
         content: [
-          `Output schema instruction: return exactly one JSON object matching InterviewDirectorOutputV1 (${DIRECTOR_OUTPUT_SCHEMA_VERSION}). Do not include Markdown or explanatory text outside the JSON object.`,
+          request.evidence === undefined
+            ? OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION
+            : OPENROUTER_EVIDENCE_CALL_SCHEMA_INSTRUCTION,
           `Context JSON: ${canonicalJson(request.context)}`,
           `P5 evidence JSON: ${request.evidence === undefined ? 'none' : canonicalJson(request.evidence)}`,
         ].join('\n\n'),
@@ -117,7 +123,7 @@ function buildRequestBody(
     ],
     model: config.model,
     provider: {
-      allow_fallback: config.allowFallback,
+      allow_fallbacks: config.allowFallback,
       require_parameters: config.requireParameters,
     },
     response_format: { type: config.responseFormat },
