@@ -1,6 +1,39 @@
 # AI development role entry
 
-This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `DISPATCHER` or `IMPLEMENTATION_WORKER`. If neither role matches the assignment, stop and report.
+This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `ARCHITECT`, `DISPATCHER`, or `IMPLEMENTATION_WORKER`. If none of these roles matches the assignment, stop and report.
+
+## ARCHITECT
+
+The Architect may read only the material needed for the current planning or review assignment, including:
+
+1. `AGENTS.md`;
+2. `AI-DEVELOPMENT-CURRENT.md`;
+3. `docs/agent/00-task-board.md`;
+4. `docs/agent/dispatcher/**`;
+5. Task Cards relevant to the current planning or review assignment;
+6. exact Accepted Contracts relevant to that assignment;
+7. code and PR evidence directly relevant to planning or exact-head review.
+
+The Architect may:
+
+- plan a Development Pack and split it into bounded Task Cards;
+- define each task's `depends_on` and predefined `next_task`;
+- create or update the canonical queue, marking only the first eligible task `READY` and keeping later tasks `DEFERRED`;
+- perform external exact-current-head PR review;
+- publish `ARCHITECT_VERDICT_V1` and `ARCHITECT_RECOVERY_V1`;
+- decide `PASS`, `REQUEST_CHANGES`, or `PRODUCT_AMBIGUITY` from the authorized product goal, Accepted Contracts, Task Card and durable evidence;
+- stop at an Owner Checkpoint and request Product Owner acceptance.
+
+The Architect must not:
+
+- implement business code or act as the Implementation Worker;
+- bypass the Dispatcher to execute a complete Development Pack;
+- merge an implementation PR, mark an implementation task `DONE`, or launch a luna-high Worker;
+- change product meaning without Product Owner authorization;
+- choose a deferred production provider, model, embedding, budget or data policy without an Accepted Contract or Product Owner decision;
+- infer or create a successor after `next_task: null` without a newly authorized Development Pack.
+
+The Architect plans and reviews; it does not perform the Dispatcher's mechanical lifecycle or the Worker's implementation.
 
 ## DISPATCHER
 
@@ -12,11 +45,31 @@ Read only:
 4. `docs/agent/dispatcher/dispatcher-state.json` and `transition-contract.md`;
 5. the selected Task Card.
 
-Assume one Dispatcher and one sequential queue. The Dispatcher mechanically starts the first eligible `READY` task and launches the Task Card's worker profile. When the worker reports a PR number, store that number, set `REVIEW` and stop. The external Architect performs the actual PR review. On external `PASS`, mark current `DONE`, then mark only its predefined `next_task` `READY`; on `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
+Assume one Dispatcher and one sequential queue. The Dispatcher's mechanical behavior is governed by `docs/agent/dispatcher/transition-contract.md`; this summary never overrides or weakens that Accepted durable contract.
 
-The Dispatcher does not validate reviewer identity, review URL/id, GitHub review state, PR exact head or CI evidence. It has no revision, compare-and-swap or transactional/atomic queue semantics.
+In particular, the Dispatcher must:
+
+- fresh-read `origin/main` before canonical queue and Task Card decisions;
+- prefer GitHub durable facts over a stale local projection;
+- reconcile against the exact current PR head and the latest valid current-head `ARCHITECT_VERDICT_V1`;
+- on `PASS`, merge and verify successful main CI before marking the task `DONE`;
+- on `REQUEST_CHANGES`, return the same task and PR to bounded repair;
+- unlock only a predefined `next_task`;
+- leave Architect review to the external Architect.
+
+The Dispatcher does not validate reviewer identity, review URL/id or GitHub native review state and has no revision, compare-and-swap or transactional/atomic queue semantics. These omissions do not waive exact-head, durable-verdict, merge or main-verification requirements in `transition-contract.md`.
+
+The Dispatcher mechanically starts the first eligible `READY` task and launches the Task Card's worker profile. When durable Worker handoff identifies a PR, it binds the PR, enters `REVIEW` and stops for external Architect review. It consumes the Architect's verdict only through the accepted transition contract.
 
 The Dispatcher must not design or split tasks, change architecture or product behavior, edit an Accepted Contract, choose a deferred item, expand scope, infer an ambiguous transition, or approve a review gate.
+
+## Role sequence
+
+The normal role sequence is:
+
+1. `ARCHITECT` plans the Development Pack and Task Cards, predefines queue topology, and marks only the first eligible task `READY`.
+2. `DISPATCHER` mechanically executes `READY`, launches the declared `IMPLEMENTATION_WORKER`, binds its PR/handoff, enters `REVIEW`, consumes external `ARCHITECT_VERDICT_V1`, merges and verifies main, synchronizes stage state, and advances only the predefined `next_task`.
+3. `IMPLEMENTATION_WORKER` implements only the current Task Card, hands off its PR at `REVIEW`, and does not plan, approve or merge.
 
 ## IMPLEMENTATION_WORKER
 
@@ -54,7 +107,7 @@ Authority is role-scoped rather than a licence for one file to overwrite another
 4. Stable product/architecture specs (`00`–`10`) provide broader reference.
 5. Historical tasks, PRs, reviews and handoffs are evidence only.
 
-Any contradiction among levels 1–4 that cannot be resolved mechanically is `BLOCKED / PRODUCT_AMBIGUITY`. The worker and Dispatcher stop and report the exact files/identities; they do not choose the convenient interpretation.
+Any contradiction among levels 1–4 that cannot be resolved mechanically is `BLOCKED / PRODUCT_AMBIGUITY`. The Architect, Worker and Dispatcher stop and report the exact files/identities within their respective authority; they do not choose the convenient interpretation.
 
 ## Non-negotiable repository safeguards
 
@@ -67,6 +120,6 @@ Any contradiction among levels 1–4 that cannot be resolved mechanically is `BL
 
 ## Review and governance cadence
 
-Normal work reaches `REVIEW` when the worker reports a PR number, then stops for external Architect review. `REQUEST_CHANGES` returns the same task to the same bounded scope. Only external Architect `PASS` can produce `DONE` and then unlock a predefined `next_task`.
+Normal work reaches `REVIEW` when the Worker reports a PR number, then stops for external Architect exact-head review. `REQUEST_CHANGES` returns the same task and PR to the same bounded scope. An external Architect `PASS` authorizes the Dispatcher to merge and verify main; only successful merge and main verification can produce `DONE` and then unlock a predefined `next_task`.
 
 Do not create a per-task REV file, handoff file, traceability update, conflict-history update or ADR by default. Use Task Card + PR as the handoff. Update ADR only for a real architecture decision; maintain current open conflicts separately; batch traceability and historical indexes at stage end.
