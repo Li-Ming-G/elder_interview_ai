@@ -177,7 +177,7 @@
     },
     {
       "id": "CPA-01",
-      "status": "READY",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/CPA-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
@@ -185,12 +185,12 @@
         "CHECKPOINT-A-DEVELOPMENT-PACK",
         "checkpoint-a-openrouter-director-v1"
       ],
-      "pr": null,
+      "pr": 105,
       "next_task": "CPA-02"
     },
     {
       "id": "CPA-02",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/CPA-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["CPA-01"],

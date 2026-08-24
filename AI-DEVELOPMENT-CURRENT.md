@@ -45,6 +45,7 @@ P6 accepted path:
 - P6R-03: PR #101, accepted head `8a0b0f433b8cec1abb12497e655f61342b121be2`, merge/main `35c8b869f819ea3bc6a0f1e1d89cbadd1fa88c70`, main CI run `32695474272` SUCCESS.
 - P6R-04: PR #102, accepted head `7d45756b671172dc5d67e724c68baed9ff34f9f2`, merge/main `272bc89782b38f356082fb0c21a30646b6c302bf`, main CI run `32701819747` SUCCESS.
 - P6R-05: PR #103, accepted head `74cd8b263c7c65971ca229c3521c49cf64a2796f`, merge/main `045b041445eec2e73060afa5bbbe0e15c82cc51e`, main CI run `32711482477` SUCCESS.
+- CPA-01: PR #105, accepted head `7809993d6cb7d59e4e6994bacdcf375d68246735`, merge/main `67a44562689e06c5bf007a1c0c8051d3c5e03208`, main CI run `32723843529` SUCCESS.
 
 ## P6 canonical queue
 
@@ -120,10 +121,10 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: `CPA-01` only.
-- `IN_PROGRESS`: none at pack issuance time.
-- `REVIEW`: none at pack issuance time.
-- `DEFERRED`: `CPA-02` through `CPA-05`; CPA-04 additionally awaits the Owner Prompt artifact;
+- `READY`: `CPA-02` only.
+- `IN_PROGRESS`: none.
+- `REVIEW`: none.
+- `DEFERRED`: `CPA-03` through `CPA-05`; CPA-04 additionally awaits the Owner Prompt artifact;
   P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
 - P5: closed / DONE.
 
@@ -137,7 +138,7 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-Dispatcher may start only `CPA-01` after fresh-reading the merged Checkpoint A Development Pack
-from `origin/main`. It must advance only the predefined queue. CPA-04 cannot become eligible until
+Dispatcher may start only `CPA-02` after fresh-reading the merged Checkpoint A Development Pack
+from `origin/main` and verifying CPA-01 main CI success. It must advance only the predefined queue. CPA-04 cannot become eligible until
 the Architect records the Owner Prompt artifact identity. CPA-05 ends at the Owner acceptance gate
 with `next_task: null`.

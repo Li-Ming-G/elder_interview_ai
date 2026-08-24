@@ -25,8 +25,8 @@
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
 | `P6R-04` | `DONE` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
 | `P6R-05` | `DONE` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
-| `CPA-01` | `READY` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `null` | `CPA-02` |
-| `CPA-02` | `DEFERRED` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `null` | `CPA-03` |
+| `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
+| `CPA-02` | `READY` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `null` | `CPA-03` |
 | `CPA-03` | `DEFERRED` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `null` | `CPA-04` |
 | `CPA-04` | `DEFERRED` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT` identity recorded by Architect | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
 | `CPA-05` | `DEFERRED` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `null` | `null` |
@@ -40,7 +40,7 @@ P6 Runtime / T18–T24 is closed:
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
 No task in the P6 runtime pack is READY. The active stage is now the Owner Checkpoint A pack
-defined below, with `CPA-01` as its only READY task.
+defined below, with `CPA-02` as its only READY task.
 
 ## P6 stage intent
 
@@ -67,7 +67,7 @@ The next active pack is:
 
 `CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05`.
 
-Only `CPA-01` is READY. This pack authorizes local OpenRouter `stealth/ox-alpha` only for
+Only `CPA-02` is READY. This pack authorizes local OpenRouter `stealth/ox-alpha` only for
 deliberately selected public, non-sensitive material and binds only `QuestionDirector`.
 `StructuredAiProvider`, P2-D, real embeddings, production provider choice and T26-T27 remain
 deferred.
