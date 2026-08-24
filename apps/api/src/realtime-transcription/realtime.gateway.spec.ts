@@ -13,7 +13,17 @@ import {
 import { WS_AUTH, type AuthenticatedUpgradeRequest } from './realtime-auth.js';
 import { RealtimeRuntimeService } from './realtime-runtime.service.js';
 import { RealtimeTranscriptionGateway } from './realtime.gateway.js';
-import { DeterministicStreamingAsrFake, StreamingAsrAdapter } from './streaming-asr.js';
+import {
+  DeterministicStreamingAsrFake,
+  StreamingAsrAdapter,
+  type StreamingAsrOpenContext,
+  type StreamingAsrResult,
+  type StreamingAcceptReceipt,
+} from './streaming-asr.js';
+import type {
+  NormalizedAsrResult,
+  TranscriptSegmentView,
+} from '../transcription/transcription.types.js';
 
 const actor: AuthPrincipal = {
   displayName: '虚构测试倾听员',
@@ -306,6 +316,38 @@ describe('RealtimeTranscriptionGateway serialization', () => {
     expect(client.sent.some(({ type }) => type === 'error')).toBe(false);
   });
 
+  it('routes captured audio through the real adapter seam to finalized events without storing media', async () => {
+    const adapter = new AudioDependentRealtimeAdapter();
+    const finalizedTexts: string[] = [];
+    const gateway = createGateway(adapter, 'produce', new RealtimeRuntimeService(), (result) => {
+      if (result.kind === 'final') {
+        finalizedTexts.push(result.text);
+        return Promise.resolve({
+          kind: 'final',
+          persisted: true,
+          segment: segmentFromResult(result),
+        });
+      }
+      return Promise.resolve({ contentKind: 'conversation', kind: 'interim', persisted: false });
+    });
+    const client = new FakeSocket();
+    const sessionId = randomUUID();
+    const audioStreamId = randomUUID();
+    gateway.handleConnection(client as unknown as WebSocket, request());
+    client.receive(join(sessionId, audioStreamId));
+    await waitFor(() => client.sent.some(({ type }) => type === 'session.ready'));
+    client.receive(frame(sessionId, audioStreamId, 0, 7));
+    client.receive(frame(sessionId, audioStreamId, 1, 8));
+    await waitFor(() => client.sent.filter(({ type }) => type === 'asr.final').length === 2);
+
+    expect(adapter.forwardedAudioDigests).toHaveLength(2);
+    expect(finalizedTexts).toHaveLength(2);
+    expect(finalizedTexts[0]).not.toBe(finalizedTexts[1]);
+    expect(client.sent.filter(({ type }) => type === 'asr.final')).toHaveLength(2);
+    expect(client.sent.some(({ type }) => type === 'error')).toBe(false);
+    client.close(1000);
+  });
+
   it('marks sticky evidence loss when a runtime is rebuilt after persisted PCM acceptance', async () => {
     const adapter = new CountingAdapter();
     const gateway = createGateway(
@@ -461,7 +503,7 @@ function createGateway(
   adapter: StreamingAsrAdapter,
   mode: RealtimeSessionMode,
   runtimes = new RealtimeRuntimeService(),
-  ingest: () => Promise<unknown> = () =>
+  ingest: (result: NormalizedAsrResult) => Promise<unknown> = () =>
     Promise.resolve({ contentKind: 'conversation', kind: 'interim', persisted: false }),
   assertActiveConnection: () => Promise<RealtimeSessionMode> = () => Promise.resolve('produce'),
   assertJoin: () => Promise<RealtimeJoinAccess> = () =>
@@ -591,6 +633,78 @@ class CountingAdapter extends StreamingAsrAdapter {
   }
 }
 
+class AudioDependentRealtimeAdapter extends StreamingAsrAdapter {
+  public readonly forwardedAudioDigests: string[] = [];
+  private context: StreamingAsrOpenContext | null = null;
+  private readonly identity = {
+    attemptId: '00000000-0000-4000-8000-000000000101',
+    providerNamespaceId: 'real-seam-namespace',
+    providerRequestId: 'real-seam-request',
+    speakerStreamId: '00000000-0000-4000-8000-000000000102',
+  };
+
+  public async open(context: StreamingAsrOpenContext): Promise<void> {
+    this.context = context;
+    await context.onAttempt(this.identity);
+  }
+
+  public async accept({
+    frame,
+    sessionId,
+  }: Parameters<StreamingAsrAdapter['accept']>[0]): Promise<StreamingAcceptReceipt> {
+    if (this.context === null) throw new Error('REAL_SEAM_NOT_OPEN');
+    this.forwardedAudioDigests.push(frame.pcm_sha256);
+    const result: StreamingAsrResult = {
+      ...this.identity,
+      endMs: frame.end_ms,
+      ingestKey: `real-seam:${sessionId}:${String(frame.sequence_no)}`,
+      kind: 'final',
+      providerSegmentId: String(frame.sequence_no),
+      sessionId,
+      source: 'realtime',
+      speakerProviderId: null,
+      startMs: frame.start_ms,
+      text: `audio-${frame.pcm_sha256.slice(0, 12)}`,
+    };
+    await this.context.onResult(result);
+    return {
+      ...this.identity,
+      acceptedThroughSequence: frame.sequence_no,
+      scope: 'attempt' as const,
+    };
+  }
+
+  public cancel(): Promise<void> {
+    this.context = null;
+    return Promise.resolve();
+  }
+
+  public completeness(): ReturnType<StreamingAsrAdapter['completeness']> {
+    return {
+      clearAuthority: 'HARDEN-ASR-001',
+      completeCaptureCoverageProven: true,
+      scope: 'session_capture',
+      status: 'no_known_gap',
+      stickyDegraded: false,
+      unbackfilledGaps: [],
+    };
+  }
+
+  public drainAndClose(): ReturnType<StreamingAsrAdapter['drainAndClose']> {
+    return Promise.resolve({
+      ...this.identity,
+      acceptedThroughSequence: this.forwardedAudioDigests.length - 1,
+      completedAt: new Date().toISOString(),
+      providerFinalObserved: true,
+      resultsIngested: true,
+      scope: 'attempt' as const,
+      terminalThroughSequence: this.forwardedAudioDigests.length - 1,
+    });
+  }
+
+  public markCoverageGap(): void {}
+}
+
 class FakeSocket extends EventEmitter {
   public readonly OPEN = 1;
   public readyState = this.OPEN;
@@ -702,6 +816,29 @@ function frame(
     schema_version: '1.1',
     session_id: sessionId,
     type: 'audio.frame',
+  };
+}
+
+function segmentFromResult(result: NormalizedAsrResult): TranscriptSegmentView {
+  return {
+    contentKind: 'conversation' as const,
+    correctedAt: null,
+    correctedSpeakerRole: null,
+    correctedText: null,
+    createdAt: new Date(0),
+    endMs: result.endMs,
+    id: randomUUID(),
+    ingestKey: result.ingestKey,
+    originalRoleAuthority: 'unconfirmed' as const,
+    originalSpeakerRole: 'unknown' as const,
+    originalText: result.text,
+    providerSegmentId: result.providerSegmentId ?? null,
+    sessionId: result.sessionId,
+    source: result.source,
+    speakerProviderId: result.speakerProviderId ?? null,
+    speakerRoleRevision: 0,
+    speakerStreamId: result.speakerStreamId ?? '00000000-0000-4000-8000-000000000102',
+    startMs: result.startMs,
   };
 }
 
