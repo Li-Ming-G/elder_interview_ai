@@ -25,16 +25,22 @@
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
 | `P6R-04` | `DONE` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
 | `P6R-05` | `DONE` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
+| `CPA-01` | `READY` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `null` | `CPA-02` |
+| `CPA-02` | `DEFERRED` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `null` | `CPA-03` |
+| `CPA-03` | `DEFERRED` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `null` | `CPA-04` |
+| `CPA-04` | `DEFERRED` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT` identity recorded by Architect | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
+| `CPA-05` | `DEFERRED` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
 P5 / T13–T17 is closed through PR #97. P5C-02 accepted head is `888d029b08e5330f4c68dc484cf42d487e16ecd6`, merge/main is `7cbd5d077352ed9b6c313207788c4d1ec6e8ac36`, and main CI run `32677630940` succeeded.
 
-The active development stage is now P6 Runtime / T18–T24:
+P6 Runtime / T18–T24 is closed:
 
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
-No task in the current P6 runtime pack is READY. The P6 pack is complete after P6R-05 external PASS, merge, successful main verification and refreshed-main reconciliation.
+No task in the P6 runtime pack is READY. The active stage is now the Owner Checkpoint A pack
+defined below, with `CPA-01` as its only READY task.
 
 ## P6 stage intent
 
@@ -50,7 +56,28 @@ P6R-05 is accepted through PR #103, merge/main `045b041445eec2e73060afa5bbbe0e15
 
 P6R-02 is accepted through PR #100, merge/main `8c103ef631851b833a57efebe3c1b3ddc8dcadd8`, with main CI run `32691042422` SUCCESS.
 
-T25 Prompt, T26–T27 Evaluation, real provider/model/tokenizer/embedding choices, P4 production numeric budget, P2-D, real data and public deployment remain deferred.
+The original P6 pack did not activate T25 or provider work. The separate Owner Checkpoint A pack
+now authorizes only its bounded local Prompt and OpenRouter/Ox seams. T26–T27, production provider
+and model choice, tokenizer/embedding choices, P4 production numeric budget, P2-D, ordinary real
+interview data and public deployment remain deferred.
+
+## Owner Checkpoint A pack
+
+The next active pack is:
+
+`CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05`.
+
+Only `CPA-01` is READY. This pack authorizes local OpenRouter `stealth/ox-alpha` only for
+deliberately selected public, non-sensitive material and binds only `QuestionDirector`.
+`StructuredAiProvider`, P2-D, real embeddings, production provider choice and T26-T27 remain
+deferred.
+
+CPA-04 has an additional Owner Prompt artifact entry gate. It remains DEFERRED until the Architect
+records the exact artifact identity; Dispatcher must not use `v2-draft` or invent prompt content.
+
+CPA-05 ends with `next_task = null` and the mandatory `OWNER_CHECKPOINT_A_READY: YES` STOP gate.
+No scoring popup, evaluation dashboard, model-comparison page or new test UI may be started without
+the Owner's explicit post-checkpoint instruction.
 
 ## Maintenance
 

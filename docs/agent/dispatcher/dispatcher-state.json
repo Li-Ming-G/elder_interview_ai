@@ -174,6 +174,55 @@
       "depends_on": ["P6R-04"],
         "pr": 103,
       "next_task": null
+    },
+    {
+      "id": "CPA-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/CPA-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "P6R-05",
+        "CHECKPOINT-A-DEVELOPMENT-PACK",
+        "checkpoint-a-openrouter-director-v1"
+      ],
+      "pr": null,
+      "next_task": "CPA-02"
+    },
+    {
+      "id": "CPA-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/CPA-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CPA-01"],
+      "pr": null,
+      "next_task": "CPA-03"
+    },
+    {
+      "id": "CPA-03",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/CPA-03.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CPA-02"],
+      "pr": null,
+      "next_task": "CPA-04"
+    },
+    {
+      "id": "CPA-04",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/CPA-04.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CPA-03", "OWNER_DIRECTOR_PROMPT_ARTIFACT"],
+      "pr": null,
+      "next_task": "CPA-05"
+    },
+    {
+      "id": "CPA-05",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/CPA-05.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CPA-04"],
+      "pr": null,
+      "next_task": null
     }
   ]
 }

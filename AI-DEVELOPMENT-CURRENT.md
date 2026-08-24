@@ -13,13 +13,13 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P3 | PostgreSQL + pgvector retrieval, provider-neutral embeddings, minimal continuation/branch/related graph | Complete through PR #86, final main identity `18c4320f417fbfa90e41924ac7b049ea72b82379`; real embedding model deferred |
 | P4 | Programmatic Context V2, priority, configurable budget and frozen membership/digest | Complete through PR #88–#92; final consumer merge `8b1195d185bc07622c446bdd9023ab1cf6a6fcb0`; production numeric budget remains deferred |
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97; final merge/main `7cbd5d077352ed9b6c313207788c4d1ec6e8ac36` |
-| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | Current active runtime pack: T18–T24 via `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`; T25–T27 remain deferred |
+| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 runtime pack complete through PR #103; Owner Checkpoint A provider/prompt integration is now planned as `CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05`; T26–T27 remain deferred |
 
 Foundation/Observability T0 reference-only Decision Trace is accepted at `40cc61e12ef63096474fe63b69463920f2d6a7c4`. T0–T27 mapping remains defined by `docs/agent/tasks/SPEC-MEMORY-SYSTEM-V1.md`; every new task states both T and P/Foundation mapping.
 
 ## Current phase and real progress
 
-Current phase: `P6 / T18–T24 RUNTIME ORCHESTRATION`.
+Current phase: `OWNER CHECKPOINT A / REAL DIRECTOR INTEGRATION`.
 
 Accepted and merged stages:
 
@@ -60,6 +60,38 @@ P6R-01  T18–T24 Runtime Orchestration V1 contract
 
 The owner-issued planning source is `docs/agent/tasks/P6-DEVELOPMENT-PACK.md`.
 
+## Owner Checkpoint A canonical queue
+
+The Product Owner has authorized one local, non-production real-Director checkpoint:
+
+```text
+CPA-01  Checkpoint A server configuration authority
+  → CPA-02  OpenRouter QuestionDirector adapter
+  → CPA-03  existing real-ASR / audio-dependent readiness
+  → CPA-04  Owner Prompt acceptance + version/digest/loader
+  → CPA-05  formal Workbench integration + Owner Checkpoint A readiness
+```
+
+Planning source: `docs/agent/tasks/CHECKPOINT-A-DEVELOPMENT-PACK.md`.
+Accepted bounded contract: `docs/contracts/checkpoint-a-openrouter-director-v1.md`.
+
+Frozen Checkpoint A facts:
+
+- OpenRouter `https://openrouter.ai/api/v1` and requested model `stealth/ox-alpha` are authorized
+  only for local Checkpoint A with deliberately selected public, non-sensitive material.
+- The only new external Director binding is `QuestionDirector`; `StructuredAiProvider`, P2-D and
+  real embeddings remain unavailable/deferred.
+- Ox Alpha uses JSON-object transport followed by existing local schema/reference validation; it
+  must not be represented as provider-enforced JSON Schema.
+- The anonymous model provider retains prompts/completions and states they are not used for
+  training. This is accepted only inside the bounded public-material checkpoint.
+- The Owner's prior complete Interview Director Prompt is required for CPA-04. Agents must not
+  invent a replacement; CPA-04 remains ineligible until the artifact identity is recorded.
+- Checkpoint A requires the already accepted real ASR path. Deterministic fixture transcript cannot
+  prove that played audio reached the Director.
+- After CPA-05 PASS, merge and successful main CI, report `OWNER_CHECKPOINT_A_READY: YES` and stop
+  for Owner hands-on acceptance. No scoring/evaluation UI may start automatically.
+
 ## Frozen P6 runtime decisions for this pack
 
 - Existing finalized-ASR → question orchestration behavior is a compatibility baseline, not a mandate to preserve accidental implementation details.
@@ -71,7 +103,10 @@ The owner-issued planning source is `docs/agent/tasks/P6-DEVELOPMENT-PACK.md`.
 - Genuine `CONTINUE_LISTENING` remains a successful Director semantic decision.
 - P2/background memory work must not block recording, finalized ASR, manual-next or the Director live lane.
 - P1–P5 semantic/data ownership remains unchanged; no second Director, second semantic memory authority or agent framework.
-- T25 prompt activation, T26–T27 evaluation, real provider/model/region/secret, real embedding model, tokenizer, production P4 numeric budget, P2-D, real data and deployment remain deferred.
+- The original P6 pack did not activate T25/provider work. The separate Owner-authorized
+  Checkpoint A pack now permits only its bounded local Prompt and OpenRouter/Ox seams; T26–T27,
+  production provider/model/region, real embeddings, tokenizer, production P4 numeric budget,
+  P2-D, ordinary real interview data and deployment remain deferred.
 
 ## Governance
 
@@ -85,10 +120,11 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: none in the current P6 pack.
+- `READY`: `CPA-01` only.
 - `IN_PROGRESS`: none at pack issuance time.
 - `REVIEW`: none at pack issuance time.
-- `DEFERRED`: P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
+- `DEFERRED`: `CPA-02` through `CPA-05`; CPA-04 additionally awaits the Owner Prompt artifact;
+  P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
 - P5: closed / DONE.
 
 ## Worker prohibitions
@@ -101,4 +137,7 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-After PR #103 is verified on refreshed `main`, the P6 Runtime / T18–T24 pack is complete. No successor is predefined in the current queue; later work remains deferred until explicitly issued.
+Dispatcher may start only `CPA-01` after fresh-reading the merged Checkpoint A Development Pack
+from `origin/main`. It must advance only the predefined queue. CPA-04 cannot become eligible until
+the Architect records the Owner Prompt artifact identity. CPA-05 ends at the Owner acceptance gate
+with `next_task: null`.
