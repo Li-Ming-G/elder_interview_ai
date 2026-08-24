@@ -86,6 +86,10 @@ export class FinalizedTranscriptBuffer {
     this.segments.set(sessionId, pending);
   }
 
+  public appendAll(sessionId: string, segmentIds: readonly string[]): void {
+    for (const segmentId of segmentIds) this.append(sessionId, segmentId);
+  }
+
   public has(sessionId: string): boolean {
     return (this.segments.get(sessionId)?.size ?? 0) > 0;
   }
@@ -328,26 +332,28 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   private async runAutomatic(sessionId: string): Promise<void> {
     if (!this.finalizedBuffer.has(sessionId)) return;
     if (this.automaticInFlight.has(sessionId)) return;
-    const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
-    if (session === null || session.status !== 'recording') {
-      this.finalizedBuffer.clear(sessionId);
-      return;
-    }
-    const waitMs = await this.automaticProviderWaitMs(sessionId);
-    if (waitMs > 0) {
-      this.scheduleAutomatic(sessionId, waitMs);
-      return;
-    }
-    const segmentIds = this.finalizedBuffer.drain(sessionId);
-    if (segmentIds.length === 0) return;
-    const requestId = automaticRequestId(sessionId, segmentIds);
-    const existingAttempt = await this.prisma.questionGenerationAttempt.findUnique({
-      select: { id: true },
-      where: { requestId },
-    });
-    if (existingAttempt !== null) return;
     this.automaticInFlight.add(sessionId);
+    const segmentIds = this.finalizedBuffer.drain(sessionId);
     try {
+      const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
+      if (session === null || session.status !== 'recording') {
+        this.finalizedBuffer.clear(sessionId);
+        return;
+      }
+      const waitMs = await this.automaticProviderWaitMs(sessionId);
+      if (waitMs > 0) {
+        this.finalizedBuffer.appendAll(sessionId, segmentIds);
+        this.scheduleAutomatic(sessionId, waitMs);
+        this.automaticInFlight.delete(sessionId);
+        return;
+      }
+      if (segmentIds.length === 0) return;
+      const requestId = automaticRequestId(sessionId, segmentIds);
+      const existingAttempt = await this.prisma.questionGenerationAttempt.findUnique({
+        select: { id: true },
+        where: { requestId },
+      });
+      if (existingAttempt !== null) return;
       const state = await this.presentations.generationContext(sessionId);
       const prepared = await this.prepare(session.createdBy, sessionId, 'automatic', requestId, {
         presentationRevision: state.presentationRevision,
@@ -355,8 +361,9 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       });
       if (!prepared.replayed) await this.complete(prepared);
     } finally {
-      this.automaticInFlight.delete(sessionId);
-      if (this.finalizedBuffer.has(sessionId)) this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
+      if (this.automaticInFlight.delete(sessionId) && this.finalizedBuffer.has(sessionId)) {
+        this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
+      }
     }
   }
 

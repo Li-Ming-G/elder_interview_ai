@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { FrozenAiJob } from '../ai-runtime/ai-job-coordinator.service.js';
 import {
   FinalizedTranscriptBuffer,
+  QuestionOrchestrationService,
   directorMemoryType,
   inferDirectorJourneySignals,
 } from './question-orchestration.service.js';
@@ -30,6 +31,69 @@ describe('FinalizedTranscriptBuffer', () => {
 
     expect(buffer.has('session-1')).toBe(false);
     expect(buffer.drain('session-2')).toEqual(['segment-2']);
+  });
+});
+
+describe('QuestionOrchestrationService automatic lane reservation', () => {
+  it('does not overlap a second debounce while the first gate read is pending', async () => {
+    const gateRead = deferred<readonly never[]>();
+    const findMany = vi.fn().mockReturnValueOnce(gateRead.promise).mockResolvedValue([]);
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const prepare = vi.fn().mockResolvedValue({ replayed: false });
+    const complete = vi.fn().mockResolvedValue(undefined);
+    const service = Object.create(
+      QuestionOrchestrationService.prototype,
+    ) as QuestionOrchestrationService;
+    const internals = service as unknown as {
+      automaticInFlight: Set<string>;
+      complete: typeof complete;
+      finalizedBuffer: FinalizedTranscriptBuffer;
+      prepare: typeof prepare;
+      prisma: {
+        aiProviderCall: { findFirst: typeof findUnique };
+        interviewSession: { findUnique: typeof findUnique };
+        questionGenerationAttempt: { findMany: typeof findMany; findUnique: typeof findUnique };
+      };
+      presentations: { generationContext: typeof findUnique };
+      timers: Map<string, ReturnType<typeof setTimeout>>;
+    };
+    internals.automaticInFlight = new Set();
+    internals.complete = complete;
+    internals.finalizedBuffer = new FinalizedTranscriptBuffer();
+    internals.prepare = prepare;
+    internals.prisma = {
+      aiProviderCall: { findFirst: findUnique },
+      interviewSession: {
+        findUnique: vi.fn().mockResolvedValue({ createdBy: 'actor-1', status: 'recording' }),
+      },
+      questionGenerationAttempt: { findMany, findUnique },
+    };
+    internals.presentations = {
+      generationContext: vi.fn().mockResolvedValue({
+        currentSnapshotId: null,
+        presentationRevision: 0,
+      }),
+    };
+    internals.timers = new Map();
+
+    internals.finalizedBuffer.append('session-1', 'segment-1');
+    const first = serviceRunAutomatic(service, 'session-1');
+    await vi.waitFor(() => {
+      expect(findMany).toHaveBeenCalledTimes(1);
+    });
+
+    internals.finalizedBuffer.append('session-1', 'segment-2');
+    await serviceRunAutomatic(service, 'session-1');
+    expect(prepare).not.toHaveBeenCalled();
+    expect(internals.finalizedBuffer.ids('session-1')).toEqual(['segment-2']);
+
+    gateRead.resolve([]);
+    await first;
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(internals.finalizedBuffer.ids('session-1')).toEqual(['segment-2']);
+
+    service.onModuleDestroy();
   });
 });
 
@@ -101,4 +165,24 @@ function segment(
     text,
     trustedRole,
   };
+}
+
+function serviceRunAutomatic(
+  service: QuestionOrchestrationService,
+  sessionId: string,
+): Promise<void> {
+  return (service as unknown as { runAutomatic(id: string): Promise<void> }).runAutomatic(
+    sessionId,
+  );
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
