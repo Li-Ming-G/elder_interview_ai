@@ -17,6 +17,7 @@ import { QuestionPresentationService } from '../../apps/api/src/question-evidenc
 import { QuestionOrchestrationService } from '../../apps/api/src/question-orchestration/question-orchestration.service.js';
 import { QuestionDirector } from '../../apps/api/src/question-orchestration/question-director.js';
 import { QuestionBankImportService } from '../../apps/api/src/question-bank/question-bank.service.js';
+import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
 
 describe('DEV-007B constrained question publication', () => {
   let app: INestApplication;
@@ -30,6 +31,7 @@ describe('DEV-007B constrained question publication', () => {
   let decisionTraces: DecisionTraceService;
   let decisionTraceReader: DecisionTraceReader;
   let retention: AiRetentionService;
+  let realtime: RealtimeRuntimeService;
   let releaseId: string;
   const speakerStreamId = randomUUID();
 
@@ -68,6 +70,7 @@ describe('DEV-007B constrained question publication', () => {
     decisionTraces = app.get(DecisionTraceService);
     decisionTraceReader = app.get(DecisionTraceReader);
     retention = app.get(AiRetentionService);
+    realtime = app.get(RealtimeRuntimeService);
 
     for (const release of await prisma.questionBankRelease.findMany({
       where: { environmentScope: 'internal_demo', status: 'active' },
@@ -601,6 +604,203 @@ describe('DEV-007B constrained question publication', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(automaticGenerate).toHaveBeenCalledTimes(1);
     automaticGenerate.mockRestore();
+  });
+
+  it('closes the synthetic finalized-event runtime path without blocking the live lane', async () => {
+    const eventSessionId = randomUUID();
+    const eventStreamId = randomUUID();
+    await createSession(eventSessionId, eventStreamId, 30);
+    const eventSegments = [
+      transcript(eventSessionId, eventStreamId, 0, '您小时候最常和谁一起玩？', 'interviewer'),
+      transcript(
+        eventSessionId,
+        eventStreamId,
+        1_000,
+        '我小时候住在河边，那是我一直记得的地方。',
+        'elder',
+      ),
+      transcript(eventSessionId, eventStreamId, 2_000, '后来院子里还有一棵桂花树。', 'elder'),
+    ];
+    await prisma.transcriptSegment.createMany({ data: eventSegments });
+
+    const generate = vi.spyOn(director, 'generate').mockResolvedValue({
+      continue_reason_code: null,
+      decision: 'suggest',
+      declared_bank_references: [],
+      grounding: [{ id: eventSegments[1]?.id ?? '', kind: 'segment' }],
+      purpose: 'scene',
+      question: '那条河边给您留下了什么印象？',
+      reason: '从刚才提到的童年地点继续了解具体感受。',
+      risk: 'low',
+    });
+
+    // This is the same event surface used by the realtime gateway after a
+    // finalized transcript is persisted. It must return synchronously; the
+    // bounded debounce and Director work run after the recording lane returns.
+    for (const segment of eventSegments) {
+      realtime.notifyFinalized({ segmentId: segment.id, sessionId: eventSessionId });
+    }
+    const automatic = await waitForAutomaticTerminal(eventSessionId);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(automatic).toMatchObject({
+      attempt_kind: 'automatic',
+      publication_outcome: 'published',
+      result_kind: 'suggestion',
+      status: 'succeeded',
+    });
+    const automaticTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { p4Memberships: true, transcriptMemberships: true },
+      where: { requestId: automatic.request_id },
+    });
+    expect(automaticTrace).toMatchObject({
+      attemptId: automatic.attempt_id,
+      directorInvoked: true,
+      stage: 'publication',
+      status: 'succeeded',
+    });
+    expect(automaticTrace.transcriptMemberships).toHaveLength(eventSegments.length);
+    expect(automaticTrace.p4Memberships.length).toBeGreaterThan(0);
+    expect(JSON.stringify(automaticTrace)).not.toMatch(/我小时候|prompt|provider_payload/iu);
+
+    // The optional P5 round uses the same generation/trace authority and is
+    // reference-only at the trace boundary.
+    const evidenceSessionId = randomUUID();
+    const evidenceStreamId = randomUUID();
+    await createSession(evidenceSessionId, evidenceStreamId, 33);
+    const evidenceSegment = transcript(
+      evidenceSessionId,
+      evidenceStreamId,
+      0,
+      '我小时候住在河边。',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: evidenceSegment });
+    generate.mockReset();
+    generate
+      .mockResolvedValueOnce({
+        decision: 'request_evidence',
+        evidence: { operation: 'search_transcript', request: { query: '河边' } },
+      })
+      .mockResolvedValueOnce({
+        continue_reason_code: null,
+        decision: 'suggest',
+        declared_bank_references: [],
+        grounding: [{ id: evidenceSegment.id, kind: 'segment' }],
+        purpose: 'scene',
+        question: '那条河边给您留下了什么记忆？',
+        reason: '沿着被证据重新确认的线索继续。',
+        risk: 'low',
+      });
+    const evidenceRequestId = randomUUID();
+    await orchestration.requestManualNext(actor, evidenceSessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId: evidenceRequestId,
+    });
+    const evidenceOutcome = await waitForTerminal(evidenceRequestId, evidenceSessionId);
+    expect(evidenceOutcome).toMatchObject({
+      publication_outcome: 'published',
+      status: 'succeeded',
+    });
+    const evidenceTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      include: { evidenceCalls: true },
+      where: { requestId: evidenceRequestId },
+    });
+    expect(evidenceTrace.evidenceCalls).toHaveLength(1);
+    expect(evidenceTrace.evidenceCalls[0]).toMatchObject({
+      invocationNo: 1,
+      status: 'succeeded',
+      targetType: 'transcript',
+      tool: 'search_transcript',
+    });
+    expect(evidenceTrace.evidenceCalls[0]?.resultIds).toContain(evidenceSegment.id);
+    expect(JSON.stringify(evidenceTrace)).not.toContain('我小时候住在河边');
+
+    // A finalized event with a continuing-narration answer is a successful
+    // semantic terminal result, not a Director failure or a fallback question.
+    const continueSessionId = randomUUID();
+    const continueStreamId = randomUUID();
+    await createSession(continueSessionId, continueStreamId, 31);
+    const continueSegment = transcript(
+      continueSessionId,
+      continueStreamId,
+      0,
+      '我小时候住在河边，后来院子里种了桂花树，然后每年秋天还有很多事情可以慢慢讲。',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: continueSegment });
+    generate.mockReset();
+    generate.mockResolvedValue({
+      continue_reason_code: null,
+      decision: 'suggest',
+      declared_bank_references: [],
+      grounding: [{ id: continueSegment.id, kind: 'segment' }],
+      purpose: 'scene',
+      question: '那段经历后来怎么样了？',
+      reason: '从刚才提到的故事继续了解。',
+      risk: 'low',
+    });
+    realtime.notifyFinalized({ segmentId: continueSegment.id, sessionId: continueSessionId });
+    const continued = await waitForAutomaticTerminal(continueSessionId);
+    expect(generate).not.toHaveBeenCalled();
+    expect(continued).toMatchObject({
+      attempt_kind: 'automatic',
+      publication_outcome: 'not_applicable',
+      result_kind: 'continue_listening',
+      status: 'succeeded',
+    });
+    const continuedTrace = await prisma.decisionTrace.findUniqueOrThrow({
+      where: { requestId: continued.request_id },
+    });
+    expect(continuedTrace).toMatchObject({
+      decisionOutcome: 'continue_listening',
+      directorInvoked: false,
+      publicationOutcome: 'not_applicable',
+      status: 'succeeded',
+    });
+    // Manual-next cancels the still-pending automatic gate and uses the same
+    // durable presentation authority immediately.
+    const manualSessionId = randomUUID();
+    const manualStreamId = randomUUID();
+    await createSession(manualSessionId, manualStreamId, 32);
+    const manualSegment = transcript(
+      manualSessionId,
+      manualStreamId,
+      0,
+      '我小时候住在河边，那是我一直记得的地方。',
+      'elder',
+    );
+    await prisma.transcriptSegment.create({ data: manualSegment });
+    generate.mockReset();
+    generate.mockResolvedValue({
+      continue_reason_code: null,
+      decision: 'suggest',
+      declared_bank_references: [],
+      grounding: [{ id: manualSegment.id, kind: 'segment' }],
+      purpose: 'scene',
+      question: '那段经历后来怎么样了？',
+      reason: '从刚才提到的故事继续了解。',
+      risk: 'low',
+    });
+    realtime.notifyFinalized({ segmentId: manualSegment.id, sessionId: manualSessionId });
+    const manualRequestId = randomUUID();
+    await orchestration.requestManualNext(actor, manualSessionId, {
+      expectedPresentationRevision: 0,
+      expectedSnapshotId: null,
+      requestId: manualRequestId,
+    });
+    const manual = await waitForTerminal(manualRequestId, manualSessionId);
+    expect(manual).toMatchObject({
+      attempt_kind: 'manual_next',
+      publication_outcome: 'published',
+      status: 'succeeded',
+    });
+    expect(
+      await prisma.questionGenerationAttempt.count({
+        where: { attemptKind: 'automatic', sessionId: manualSessionId },
+      }),
+    ).toBe(0);
+    generate.mockRestore();
   });
 
   it('records pre-call timeout and policy drift without claiming Director invocation', async () => {
@@ -1248,6 +1448,23 @@ describe('DEV-007B constrained question publication', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('Decision trace did not settle');
+  }
+
+  async function waitForAutomaticTerminal(
+    targetSessionId: string,
+  ): Promise<Awaited<ReturnType<QuestionPresentationService['status']>>> {
+    for (let index = 0; index < 250; index += 1) {
+      const attempt = await prisma.questionGenerationAttempt.findFirst({
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        where: { attemptKind: 'automatic', sessionId: targetSessionId },
+      });
+      if (attempt !== null) {
+        const result = await presentations.status(actor, targetSessionId, attempt.requestId);
+        if (['succeeded', 'failed', 'cancelled'].includes(result.status)) return result;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('Automatic suggestion request did not settle');
   }
 
   async function ageManualFence(targetSessionId = sessionId): Promise<void> {
