@@ -199,11 +199,11 @@
     },
     {
       "id": "CPA-03",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/CPA-03.md",
       "worker_profile": "luna-high",
       "depends_on": ["CPA-02"],
-      "pr": null,
+      "pr": 107,
       "next_task": "CPA-04"
     },
     {
