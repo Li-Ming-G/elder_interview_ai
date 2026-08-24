@@ -713,7 +713,7 @@ describe('DEV-007B constrained question publication', () => {
       expect(evidenceTrace.evidenceCalls[0]).toMatchObject({
         invocationNo: 1,
         status: 'succeeded',
-        targetType: 'transcript',
+        targetType: 'search_transcript',
         tool: 'search_transcript',
       });
       expect(evidenceTrace.evidenceCalls[0]?.resultIds).toContain(evidenceSegment.id);
