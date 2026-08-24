@@ -20,8 +20,8 @@
 | `P5E-03` | `DONE` | P5E-02 accepted/merged/main-verified | [`tasks/P5E-03.md`](tasks/P5E-03.md) | `luna-high` | `95` | `P5C-01` |
 | `P5C-01` | `DONE` | P5E-03 accepted/merged/main-verified | [`tasks/P5C-01.md`](tasks/P5C-01.md) | `luna-high` | `96` | `P5C-02` |
 | `P5C-02` | `DONE` | P5C-01 accepted/merged/main-verified | [`tasks/P5C-02.md`](tasks/P5C-02.md) | `luna-high` | `97` | `P6R-01` |
-| `P6R-01` | `READY` | P5 complete through P5C-02; Owner-issued P6 Development Pack | [`tasks/P6R-01.md`](tasks/P6R-01.md) | `luna-high` | `null` | `P6R-02` |
-| `P6R-02` | `DEFERRED` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `null` | `P6R-03` |
+| `P6R-01` | `DONE` | P5 complete through P5C-02; Owner-issued P6 Development Pack | [`tasks/P6R-01.md`](tasks/P6R-01.md) | `luna-high` | `99` | `P6R-02` |
+| `P6R-02` | `READY` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `null` | `P6R-03` |
 | `P6R-03` | `DEFERRED` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `null` | `P6R-04` |
 | `P6R-04` | `DEFERRED` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `null` | `P6R-05` |
 | `P6R-05` | `DEFERRED` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `null` | `null` |
@@ -34,7 +34,7 @@ The active development stage is now P6 Runtime / T18–T24:
 
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
-Only `P6R-01` is READY. Dispatcher may unlock exactly one predefined successor only after current external Architect `PASS`, merge, successful main verification and refreshed-main reconciliation.
+Only `P6R-02` is READY. Dispatcher may unlock exactly one predefined successor only after current external Architect `PASS`, merge, successful main verification and refreshed-main reconciliation.
 
 ## P6 stage intent
 

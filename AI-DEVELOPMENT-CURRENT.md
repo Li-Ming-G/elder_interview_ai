@@ -48,7 +48,7 @@ P6R-01  T18–T24 Runtime Orchestration V1 contract
   → P6R-05  integrated runtime / Decision Trace closeout
 ```
 
-Only `P6R-01` is initially `READY`; all successors are `DEFERRED` and may be unlocked only by the canonical Dispatcher after predecessor external Architect `PASS`, merge and successful main verification.
+`P6R-01` is complete through PR #99; `P6R-02` is now `READY`. Later successors remain `DEFERRED` and may be unlocked only by the canonical Dispatcher after predecessor external Architect `PASS`, merge and successful main verification.
 
 The owner-issued planning source is `docs/agent/tasks/P6-DEVELOPMENT-PACK.md`.
 
@@ -77,10 +77,10 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: `P6R-01` only.
+- `READY`: `P6R-02` only.
 - `IN_PROGRESS`: none at pack issuance time.
 - `REVIEW`: none at pack issuance time.
-- `DEFERRED`: `P6R-02`, `P6R-03`, `P6R-04`, `P6R-05`, P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
+- `DEFERRED`: `P6R-03`, `P6R-04`, `P6R-05`, P2-D, T25, T26–T27 and real provider/model/budget/data/deployment decisions.
 - P5: closed / DONE.
 
 ## Worker prohibitions
@@ -93,4 +93,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-After this Owner-issued Development Pack is merged to `main`, Dispatcher fresh-reads durable GitHub/main, sees `P6R-01 = READY`, persists `READY → IN_PROGRESS`, and launches the declared `luna-high` Worker. P6 successors remain deferred until the accepted lifecycle unlocks them.
+After PR #99 is verified on refreshed `main`, Dispatcher sees `P6R-02 = READY`, persists `READY → IN_PROGRESS`, and launches the declared `luna-high` Worker. Later P6 successors remain deferred until the accepted lifecycle unlocks them.
