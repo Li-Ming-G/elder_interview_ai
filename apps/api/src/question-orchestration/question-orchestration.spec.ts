@@ -2,9 +2,36 @@ import { describe, expect, it } from 'vitest';
 
 import type { FrozenAiJob } from '../ai-runtime/ai-job-coordinator.service.js';
 import {
+  FinalizedTranscriptBuffer,
   directorMemoryType,
   inferDirectorJourneySignals,
 } from './question-orchestration.service.js';
+
+describe('FinalizedTranscriptBuffer', () => {
+  it('coalesces rapid finalized segments into one deterministic batch', () => {
+    const buffer = new FinalizedTranscriptBuffer();
+
+    buffer.append('session-1', 'segment-2');
+    buffer.append('session-1', 'segment-1');
+    buffer.append('session-1', 'segment-2');
+
+    expect(buffer.has('session-1')).toBe(true);
+    expect(buffer.ids('session-1')).toEqual(['segment-1', 'segment-2']);
+    expect(buffer.drain('session-1')).toEqual(['segment-1', 'segment-2']);
+    expect(buffer.has('session-1')).toBe(false);
+  });
+
+  it('keeps buffers isolated by session and supports manual cancellation', () => {
+    const buffer = new FinalizedTranscriptBuffer();
+
+    buffer.append('session-1', 'segment-1');
+    buffer.append('session-2', 'segment-2');
+    buffer.clear('session-1');
+
+    expect(buffer.has('session-1')).toBe(false);
+    expect(buffer.drain('session-2')).toEqual(['segment-2']);
+  });
+});
 
 describe('inferDirectorJourneySignals', () => {
   it('makes reluctance, continuous narration and willingness reachable from runtime input', () => {

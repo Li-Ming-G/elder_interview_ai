@@ -77,9 +77,43 @@ const DEBOUNCE_MS = 1_500;
 const DEADLINE_MS = 8_000;
 const AUTO_MIN_INTERVAL_MS = 20_000;
 
+export class FinalizedTranscriptBuffer {
+  private readonly segments = new Map<string, Set<string>>();
+
+  public append(sessionId: string, segmentId: string): void {
+    const pending = this.segments.get(sessionId) ?? new Set<string>();
+    pending.add(segmentId);
+    this.segments.set(sessionId, pending);
+  }
+
+  public has(sessionId: string): boolean {
+    return (this.segments.get(sessionId)?.size ?? 0) > 0;
+  }
+
+  public ids(sessionId: string): readonly string[] {
+    return [...(this.segments.get(sessionId) ?? [])].sort();
+  }
+
+  public drain(sessionId: string): readonly string[] {
+    const ids = this.ids(sessionId);
+    this.segments.delete(sessionId);
+    return ids;
+  }
+
+  public clear(sessionId: string): void {
+    this.segments.delete(sessionId);
+  }
+
+  public clearAll(): void {
+    this.segments.clear();
+  }
+}
+
 @Injectable()
 export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestroy {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly finalizedBuffer = new FinalizedTranscriptBuffer();
+  private readonly automaticInFlight = new Set<string>();
   private unsubscribeFinal: (() => void) | null = null;
 
   public constructor(
@@ -102,7 +136,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
 
   public onModuleInit(): void {
     this.unsubscribeFinal = this.realtime.onFinalized(({ segmentId, sessionId }) => {
-      this.scheduleAutomatic(sessionId, segmentId, DEBOUNCE_MS);
+      this.finalizedBuffer.append(sessionId, segmentId);
+      this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
     });
   }
 
@@ -110,6 +145,8 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     this.unsubscribeFinal?.();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    this.finalizedBuffer.clearAll();
+    this.automaticInFlight.clear();
   }
 
   public async requestManualNext(
@@ -128,6 +165,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       input.expectedPresentationRevision,
       input.expectedSnapshotId,
     );
+    this.cancelPendingAutomatic(sessionId);
     const prepared = await this.prepare(actor.id, sessionId, 'manual_next', input.requestId, {
       presentationRevision: input.expectedPresentationRevision,
       snapshotId: input.expectedSnapshotId,
@@ -287,21 +325,39 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     await this.presentations.failAttempt(attemptId, 'SYSTEM_COORDINATOR_RESTARTED');
   }
 
-  private async runAutomatic(sessionId: string, segmentId: string): Promise<void> {
+  private async runAutomatic(sessionId: string): Promise<void> {
+    if (!this.finalizedBuffer.has(sessionId)) return;
+    if (this.automaticInFlight.has(sessionId)) return;
     const session = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
-    if (session === null || session.status !== 'recording') return;
-    const waitMs = await this.automaticProviderWaitMs(sessionId);
-    if (waitMs > 0) {
-      this.scheduleAutomatic(sessionId, segmentId, waitMs);
+    if (session === null || session.status !== 'recording') {
+      this.finalizedBuffer.clear(sessionId);
       return;
     }
-    const requestId = stableUuid(`auto:${sessionId}:${segmentId}`);
-    const state = await this.presentations.generationContext(sessionId);
-    const prepared = await this.prepare(session.createdBy, sessionId, 'automatic', requestId, {
-      presentationRevision: state.presentationRevision,
-      snapshotId: state.currentSnapshotId,
+    const waitMs = await this.automaticProviderWaitMs(sessionId);
+    if (waitMs > 0) {
+      this.scheduleAutomatic(sessionId, waitMs);
+      return;
+    }
+    const segmentIds = this.finalizedBuffer.drain(sessionId);
+    if (segmentIds.length === 0) return;
+    const requestId = automaticRequestId(sessionId, segmentIds);
+    const existingAttempt = await this.prisma.questionGenerationAttempt.findUnique({
+      select: { id: true },
+      where: { requestId },
     });
-    if (!prepared.replayed) await this.complete(prepared);
+    if (existingAttempt !== null) return;
+    this.automaticInFlight.add(sessionId);
+    try {
+      const state = await this.presentations.generationContext(sessionId);
+      const prepared = await this.prepare(session.createdBy, sessionId, 'automatic', requestId, {
+        presentationRevision: state.presentationRevision,
+        snapshotId: state.currentSnapshotId,
+      });
+      if (!prepared.replayed) await this.complete(prepared);
+    } finally {
+      this.automaticInFlight.delete(sessionId);
+      if (this.finalizedBuffer.has(sessionId)) this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
+    }
   }
 
   private async prepare(
@@ -945,7 +1001,7 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     };
   }
 
-  private scheduleAutomatic(sessionId: string, segmentId: string, delayMs: number): void {
+  private scheduleAutomatic(sessionId: string, delayMs: number): void {
     const existing = this.timers.get(sessionId);
     if (existing !== undefined) clearTimeout(existing);
     this.timers.set(
@@ -953,11 +1009,20 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
       setTimeout(
         () => {
           this.timers.delete(sessionId);
-          void this.runAutomatic(sessionId, segmentId).catch(() => undefined);
+          void this.runAutomatic(sessionId).catch(() => {
+            if (this.finalizedBuffer.has(sessionId)) this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
+          });
         },
         Math.max(0, delayMs),
       ),
     );
+  }
+
+  private cancelPendingAutomatic(sessionId: string): void {
+    const timer = this.timers.get(sessionId);
+    if (timer !== undefined) clearTimeout(timer);
+    this.timers.delete(sessionId);
+    this.finalizedBuffer.clear(sessionId);
   }
 
   private async automaticProviderWaitMs(sessionId: string): Promise<number> {
@@ -976,6 +1041,10 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     if (latestCall === null) return 0;
     return Math.max(0, latestCall.startedAt.getTime() + AUTO_MIN_INTERVAL_MS - Date.now());
   }
+}
+
+function automaticRequestId(sessionId: string, segmentIds: readonly string[]): string {
+  return stableUuid(`auto:${sessionId}:${segmentIds.join(',')}`);
 }
 
 interface PreparedQuestionAttempt {
