@@ -94,15 +94,21 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     requestId: string,
   ): Promise<QuestionAttemptReceipt> {
     const actorId = actorIdOf(actorOrSystem, command.job.requestedBy);
+    if (actorId !== command.job.requestedBy) throw conflict('IDEMPOTENCY_KEY_REUSED');
     return this.prisma.$transaction(async (tx) => {
       await lock(tx, `request:${requestId}`);
       await lock(tx, `project:${command.job.projectId}`);
       await lock(tx, `session:${command.sessionId}`);
       const replay = await tx.questionGenerationAttempt.findUnique({ where: { requestId } });
       if (replay !== null) {
+        const replayJob = await tx.aiJob.findUnique({ where: { id: replay.aiJobId } });
         if (
+          replayJob === null ||
+          replayJob.requestId !== requestId ||
+          replayJob.requestedBy !== actorId ||
           replay.aiJobId !== command.job.id ||
           replay.sessionId !== command.sessionId ||
+          replay.attemptKind !== command.attemptKind ||
           replay.basisPresentationRevision !== command.basisPresentationRevision ||
           replay.basisSnapshotId !== command.basisSnapshotId ||
           replay.interviewContextSnapshotId !== command.interviewContextSnapshotId
@@ -275,9 +281,16 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       await lock(tx, `session:${command.sessionId}`);
       const replay = await tx.questionGenerationAttempt.findUnique({ where: { requestId } });
       if (replay !== null) {
+        const replayJob = await tx.aiJob.findUnique({ where: { id: replay.aiJobId } });
         if (
+          replayJob === null ||
+          replayJob.requestId !== requestId ||
+          replayJob.requestedBy !== command.job.requestedBy ||
           replay.sessionId !== command.sessionId ||
           replay.aiJobId !== command.job.id ||
+          replay.attemptKind !== command.attemptKind ||
+          replay.basisPresentationRevision !== command.basisPresentationRevision ||
+          replay.basisSnapshotId !== command.basisSnapshotId ||
           replay.interviewContextSnapshotId !== command.interviewContextSnapshotId
         ) {
           throw conflict('IDEMPOTENCY_KEY_REUSED');
@@ -369,23 +382,45 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
       const attempt = await tx.questionGenerationAttempt.findUniqueOrThrow({
         where: { id: command.attemptId },
       });
+      assertQuestionGenerationBinding({
+        actorId,
+        attempt,
+        jobId: command.job.id,
+        jobRequestedBy: command.job.requestedBy,
+        requestId,
+        sessionId: command.sessionId,
+      });
       const state = await ensureState(tx, command.sessionId, command.job.policyRevision);
-      const staleBasis =
-        state.presentationRevision !== attempt.basisPresentationRevision ||
-        state.currentSnapshotId !== attempt.basisSnapshotId;
-      const supersededByManual =
-        attempt.attemptKind === 'automatic' &&
-        state.manualIntentSequence !== attempt.manualIntentSequence;
-      if (staleBasis || supersededByManual) {
-        const publicationOutcome = supersededByManual ? 'superseded_by_manual' : 'stale_basis';
-        await tx.questionGenerationAttempt.update({
+      if (!['pending', 'running'].includes(attempt.status)) {
+        if (
+          attempt.status === 'succeeded' &&
+          attempt.resultKind !== null &&
+          attempt.resultKind !== command.resultKind
+        ) {
+          throw conflict('IDEMPOTENCY_KEY_REUSED');
+        }
+        return {
+          change: null,
+          publicationOutcome: (attempt.publicationOutcome ?? 'not_applicable') as
+            | 'published'
+            | 'not_better'
+            | 'duplicate_filtered'
+            | 'stale_basis'
+            | 'superseded_by_manual'
+            | 'policy_blocked'
+            | 'not_applicable',
+        } as const;
+      }
+      const publicationOutcome = questionPublicationFence(attempt, state);
+      if (publicationOutcome !== null) {
+        await tx.questionGenerationAttempt.updateMany({
           data: {
             completedAt: new Date(),
             publicationOutcome,
-            resultKind: command.resultKind,
+            resultKind: 'unavailable',
             status: 'cancelled',
           },
-          where: { id: attempt.id },
+          where: { id: attempt.id, status: { in: ['pending', 'running'] } },
         });
         return { change: null, publicationOutcome } as const;
       }
@@ -847,7 +882,8 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
     });
     if (attempt === null || !['pending', 'running'].includes(attempt.status)) return;
     await this.prisma.$transaction(async (tx) => {
-      await tx.questionGenerationAttempt.update({
+      await lock(tx, `session:${attempt.sessionId}`);
+      const updated = await tx.questionGenerationAttempt.updateMany({
         data: {
           completedAt: new Date(),
           failureCode: code,
@@ -855,8 +891,9 @@ export class QuestionPresentationService extends QuestionEvidenceWriter {
           resultKind: 'unavailable',
           status: 'failed',
         },
-        where: { id: attemptId },
+        where: { id: attemptId, status: { in: ['pending', 'running'] } },
       });
+      if (updated.count !== 1) return;
       await createEvent(tx, {
         actorId: null,
         aiJobId: attempt.aiJobId,
@@ -1513,6 +1550,47 @@ async function ensureState(
     update: {},
     where: { sessionId },
   });
+}
+
+export function questionPublicationFence(
+  attempt: Pick<
+    QuestionGenerationAttempt,
+    'attemptKind' | 'basisPresentationRevision' | 'basisSnapshotId' | 'manualIntentSequence'
+  >,
+  state: Pick<
+    QuestionDisplayState,
+    'manualIntentSequence' | 'presentationRevision' | 'currentSnapshotId'
+  >,
+): 'stale_basis' | 'superseded_by_manual' | null {
+  const staleBasis =
+    state.presentationRevision !== attempt.basisPresentationRevision ||
+    state.currentSnapshotId !== attempt.basisSnapshotId;
+  const supersededByManual =
+    attempt.attemptKind === 'automatic' &&
+    state.manualIntentSequence !== attempt.manualIntentSequence;
+  if (supersededByManual) return 'superseded_by_manual';
+  if (staleBasis) return 'stale_basis';
+  return null;
+}
+
+export function assertQuestionGenerationBinding(input: {
+  actorId: string;
+  attempt: Pick<QuestionGenerationAttempt, 'aiJobId' | 'attemptKind' | 'requestId' | 'sessionId'>;
+  attemptKind?: string;
+  jobId: string;
+  jobRequestedBy: string;
+  requestId: string;
+  sessionId: string;
+}): void {
+  if (
+    input.actorId !== input.jobRequestedBy ||
+    input.attempt.aiJobId !== input.jobId ||
+    input.attempt.requestId !== input.requestId ||
+    input.attempt.sessionId !== input.sessionId ||
+    (input.attemptKind !== undefined && input.attempt.attemptKind !== input.attemptKind)
+  ) {
+    throw conflict('IDEMPOTENCY_KEY_REUSED');
+  }
 }
 
 async function createEvent(

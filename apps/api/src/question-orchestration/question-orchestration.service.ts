@@ -380,22 +380,29 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   ): Promise<PreparedQuestionAttempt> {
     const replay = await this.prisma.questionGenerationAttempt.findUnique({ where: { requestId } });
     if (replay !== null) {
-      const replayTrace = await this.prisma.decisionTrace.findUnique({
-        select: { generationId: true, id: true },
-        where: { requestId },
-      });
-      const replayTraceId =
-        replayTrace === null ? await this.decisionTrace.recoverAttempt(replay.id) : replayTrace.id;
       const replayJob = await this.prisma.aiJob.findUnique({ where: { id: replay.aiJobId } });
+      const expectedTriggerDedupeKey =
+        options.triggerDedupeKey ??
+        (attemptKind === 'automatic' ? `question:${sessionId}:${requestId}` : null);
       if (
         replay.sessionId !== sessionId ||
-        replayJob?.requestedBy !== actorId ||
+        replay.attemptKind !== attemptKind ||
+        replayJob === null ||
+        replayJob.requestedBy !== actorId ||
+        replayJob.requestId !== requestId ||
+        replayJob.triggerDedupeKey !== expectedTriggerDedupeKey ||
         replay.basisPresentationRevision !== basis.presentationRevision ||
         replay.basisSnapshotId !== basis.snapshotId ||
         replay.interviewContextSnapshotId !== (options.interviewContextSnapshotId ?? null)
       ) {
         throw new Error('IDEMPOTENCY_KEY_REUSED');
       }
+      const replayTrace = await this.prisma.decisionTrace.findUnique({
+        select: { generationId: true, id: true },
+        where: { requestId },
+      });
+      const replayTraceId =
+        replayTrace === null ? await this.decisionTrace.recoverAttempt(replay.id) : replayTrace.id;
       return {
         actorId,
         attemptId: replay.id,
