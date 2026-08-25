@@ -239,7 +239,7 @@ test('synthetic Chromium audio survives IndexedDB then uploads and completes thr
   });
   const bufferSessionId = `synthetic-${crypto.randomUUID()}`;
   await page.goto(
-    `/?audio_harness=1&project_id=${encodeURIComponent(projectId)}&session_id=${encodeURIComponent(bufferSessionId)}`,
+    `/engineering-harness.html?audio_harness=1&project_id=${encodeURIComponent(projectId)}&session_id=${encodeURIComponent(bufferSessionId)}`,
   );
   await page.getByTestId('start-recording').click();
   await expect
@@ -350,7 +350,9 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
     });
   }, audioStreamId);
 
-  await page.goto(`/?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`);
+  await page.goto(
+    `/engineering-harness.html?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`,
+  );
   await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
   await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
   await expect.poll(() => webSocketEvents).toContain('received:asr.interim');

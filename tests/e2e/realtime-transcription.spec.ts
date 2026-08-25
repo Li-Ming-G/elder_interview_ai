@@ -68,7 +68,9 @@ test('mock WebSocket stops at twenty unacknowledged PCM frames', async ({ page }
     Object.defineProperty(window, 'WebSocket', { configurable: true, value: MockWebSocket });
   });
 
-  await page.goto('/?realtime_harness=1&session_id=10000000-0000-4000-8000-000000000001');
+  await page.goto(
+    '/engineering-harness.html?realtime_harness=1&session_id=10000000-0000-4000-8000-000000000001',
+  );
   await expect
     .poll(() =>
       page.evaluate(
