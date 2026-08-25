@@ -105,7 +105,7 @@ describe('QuestionDirectorContract', () => {
     expect(checkpoint.promptBundleVersion).toBe(CHECKPOINT_A_DIRECTOR_PROMPT_BUNDLE_VERSION);
     expect(checkpoint.prompt.system).toBe(owner);
     expect(checkpoint.promptBundleDigest).toBe(
-      '92ff398f95474b31fff7dee00b06575447cbb244e89b9ac3ff6cb02a7523de95',
+      'ad94e07bb8e0ce43f0046cc0b7f103831bd134ca8c80e5e499cb068e2decd673',
     );
     expect(checkpoint.modelConfigVersion).toBe(CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION);
     expect(checkpoint.modelConfigDigest).toMatch(/^[a-f0-9]{64}$/);

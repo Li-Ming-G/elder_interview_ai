@@ -3,7 +3,7 @@
   "status": "formal",
   "system_file": "system.md",
   "task_file": "task.md",
-  "prompt_bundle_digest": "92ff398f95474b31fff7dee00b06575447cbb244e89b9ac3ff6cb02a7523de95",
+  "prompt_bundle_digest": "ad94e07bb8e0ce43f0046cc0b7f103831bd134ca8c80e5e499cb068e2decd673",
   "owner_artifact": {
     "path": "docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md",
     "durable_commit": "22760af1adc5d08f51f5dd3ed0aebca5f3c7d984",
