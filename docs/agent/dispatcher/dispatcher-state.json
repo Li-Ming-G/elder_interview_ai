@@ -242,7 +242,7 @@
       "task_card": "docs/agent/tasks/REAL-RUNTIME-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["REAL-IDENTITY-01"],
-      "pr": null,
+      "pr": 113,
       "next_task": null
     }
   ]
