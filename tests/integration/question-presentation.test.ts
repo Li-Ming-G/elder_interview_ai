@@ -15,6 +15,7 @@ import type { Prisma } from '../../apps/api/src/generated/prisma/client.js';
 import { ActualAskedReader } from '../../apps/api/src/question-evidence/question-evidence.service.js';
 import { QuestionPresentationService } from '../../apps/api/src/question-evidence/question-presentation.service.js';
 import { QuestionOrchestrationService } from '../../apps/api/src/question-orchestration/question-orchestration.service.js';
+import { QuestionDirectorContract } from '../../apps/api/src/question-orchestration/question-director-contract.js';
 import { QuestionDirector } from '../../apps/api/src/question-orchestration/question-director.js';
 import { QuestionBankImportService } from '../../apps/api/src/question-bank/question-bank.service.js';
 import { RealtimeRuntimeService } from '../../apps/api/src/realtime-transcription/realtime-runtime.service.js';
@@ -28,6 +29,7 @@ describe('DEV-007B constrained question publication', () => {
   let deletion: LocalTestDeletionScopeFixtureReader;
   let imports: QuestionBankImportService;
   let director: QuestionDirector;
+  let directorContract: QuestionDirectorContract;
   let decisionTraces: DecisionTraceService;
   let decisionTraceReader: DecisionTraceReader;
   let retention: AiRetentionService;
@@ -67,6 +69,7 @@ describe('DEV-007B constrained question publication', () => {
     deletion = app.get(LocalTestDeletionScopeFixtureReader);
     imports = app.get(QuestionBankImportService);
     director = app.get(QuestionDirector);
+    directorContract = app.get(QuestionDirectorContract);
     decisionTraces = app.get(DecisionTraceService);
     decisionTraceReader = app.get(DecisionTraceReader);
     retention = app.get(AiRetentionService);
@@ -647,10 +650,16 @@ describe('DEV-007B constrained question publication', () => {
       });
       expect(automaticAttempt).toMatchObject({
         attemptKind: 'automatic',
+        contextBuilderDigest: directorContract.contextBuilderDigest,
+        contextSchemaDigest: directorContract.contextSchemaDigest,
+        modelConfigDigest: directorContract.modelConfigDigest,
         publicationOutcome: 'published',
+        outputSchemaDigest: directorContract.outputSchemaDigest,
+        promptBundleDigest: directorContract.promptBundleDigest,
         requestId: automatic.request_id,
         status: 'succeeded',
       });
+      await waitForTraceTerminal(automatic.request_id);
       const automaticTrace = await prisma.decisionTrace.findUniqueOrThrow({
         include: { p4Memberships: true, transcriptMemberships: true },
         where: { requestId: automatic.request_id },
