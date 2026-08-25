@@ -28,7 +28,7 @@
 | `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
 | `CPA-03` | `DONE` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
-| `CPA-04` | `READY` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT@6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46` | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
+| `CPA-04` | `READY` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT@be85543b28d0862fb6c078af686793e6ebcee82b` | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
 | `CPA-05` | `DEFERRED` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
@@ -76,10 +76,11 @@ deliberately selected public, non-sensitive material and binds only `QuestionDir
 `StructuredAiProvider`, P2-D, real embeddings, production provider choice and T26-T27 remain
 deferred.
 
-CPA-04 Owner Prompt artifact gate is satisfied by the exact Owner-provided artifact at
-`docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`, source
-commit `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`, SHA-256
-`d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
+CPA-04 Owner Prompt artifact gate is satisfied by the exact Owner-provided transport archive at
+`docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md.gz.b64`,
+archive commit `be85543b28d0862fb6c078af686793e6ebcee82b`, blob
+`b35ff7f386f674e5e01046c23447c03ef6801985`. Decode as Base64 then gzip; the decoded prompt must
+be exactly `22071` bytes with SHA-256 `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
 Dispatcher must use that identity and may not substitute `v2-draft` or invent prompt content.
 
 CPA-05 ends with `next_task = null` and the mandatory `OWNER_CHECKPOINT_A_READY: YES` STOP gate.
