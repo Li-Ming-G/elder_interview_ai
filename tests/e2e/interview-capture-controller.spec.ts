@@ -8,7 +8,7 @@ test('formal controller preserves one stream, archive, delivery, refresh recover
   page,
 }) => {
   const server = await installCaptureApi(page);
-  const harnessUrl = `/?interview_controller_harness=1&project_id=${PROJECT_ID}&session_id=${SESSION_ID}`;
+  const harnessUrl = `/engineering-harness.html?interview_controller_harness=1&project_id=${PROJECT_ID}&session_id=${SESSION_ID}`;
   await page.goto(harnessUrl);
   await expect(page.getByTestId('interview-controller-harness')).toBeVisible();
 

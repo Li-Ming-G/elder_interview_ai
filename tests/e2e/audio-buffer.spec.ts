@@ -5,7 +5,7 @@ test('native MediaRecorder and IndexedDB preserve audio queue progress across re
   page,
 }) => {
   const sessionId = `synthetic-audio-${Date.now().toString()}`;
-  const harnessUrl = `/?audio_harness=1&session_id=${encodeURIComponent(sessionId)}`;
+  const harnessUrl = `/engineering-harness.html?audio_harness=1&session_id=${encodeURIComponent(sessionId)}`;
 
   await page.goto(harnessUrl);
   await expect(page.getByTestId('audio-browser-harness')).toBeVisible();
@@ -66,7 +66,7 @@ test('single injected stream drives archive and 3200-byte PCM while dirty recove
   page,
 }) => {
   const sessionId = `capture-core-${Date.now().toString()}`;
-  const harnessUrl = `/?capture_core_harness=1&session_id=${encodeURIComponent(sessionId)}`;
+  const harnessUrl = `/engineering-harness.html?capture_core_harness=1&session_id=${encodeURIComponent(sessionId)}`;
 
   await page.goto(harnessUrl);
   await expect(page.getByTestId('capture-core-harness')).toBeVisible();
@@ -205,7 +205,7 @@ test('persistent upload job retries the same chunk request after response loss a
     });
   });
 
-  const harnessUrl = `/?audio_harness=1&session_id=${encodeURIComponent(sessionId)}&project_id=${projectId}`;
+  const harnessUrl = `/engineering-harness.html?audio_harness=1&session_id=${encodeURIComponent(sessionId)}&project_id=${projectId}`;
   await page.goto(harnessUrl);
   await recordSyntheticAudio(page);
   const frozenChunkCount = await page.getByTestId('audio-chunk').count();

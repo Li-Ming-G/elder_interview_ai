@@ -28,7 +28,7 @@ export default defineConfig({
       url: `http://127.0.0.1:${String(apiPort)}/api/v1/health`,
     },
     {
-      command: `node apps/web/node_modules/vite/bin/vite.js preview apps/web --host 127.0.0.1 --port ${String(webPort)} --strictPort`,
+      command: `node apps/web/node_modules/vite/bin/vite.js apps/web --host 127.0.0.1 --port ${String(webPort)} --strictPort`,
       reuseExistingServer: false,
       timeout: 60_000,
       url: baseURL,

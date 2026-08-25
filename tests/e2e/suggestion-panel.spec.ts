@@ -4,7 +4,7 @@ test('one-question director UI keeps history across refresh and remains usable o
   page,
 }) => {
   await page.setViewportSize({ height: 844, width: 390 });
-  await page.goto('/?suggestion_harness=1');
+  await page.goto('/engineering-harness.html?suggestion_harness=1');
 
   const panel = page.getByTestId('suggestion-panel');
   await expect(panel).toContainText('下一步');
