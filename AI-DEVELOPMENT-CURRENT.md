@@ -129,7 +129,8 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 - `READY`: none.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `CPA-05` (PR #111, current head `24f741ba0cf0652db677f355d7e081cb4a41e366`).
+- `REVIEW`: none.
+- `DONE`: `CPA-05` (PR #111; accepted head `24f741ba0cf0652db677f355d7e081cb4a41e366`; merged main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS).
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
 - P5: closed / DONE.
 
@@ -146,5 +147,5 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 Dispatcher has fresh-read `origin/main`, confirmed CPA-03 is DONE, confirmed the exact Owner Prompt artifact identity
 `docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984`,
 and dispatched the predefined task `CPA-04` with worker profile `luna-high`; it is now DONE after merge and successful main verification.
-The predefined successor `CPA-05` is now in REVIEW after bounded repair on PR #111; no later task is unlocked.
-CPA-05 ends at the Owner acceptance gate with `next_task: null`.
+The predefined task `CPA-05` is DONE after exact-head Architect PASS, merge, and successful main verification; no later task is unlocked.
+`OWNER_CHECKPOINT_A_READY: YES` is now the active Owner acceptance gate. CPA-05 ends with `next_task: null`.
