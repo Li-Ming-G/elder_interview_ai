@@ -25,7 +25,7 @@ This proves only native launch/profile acceptance and REVIEW-stop behavior. `SYN
 
 ## Completion hand-back
 
-The worker runs the tests named by its Task Card and reports a PR number. Dispatcher stores that number, sets `REVIEW` and stops. It does not validate the PR, reviewer, review URL, exact head or CI evidence; the external Architect owns the actual PR review and outcome.
+The worker runs the tests named by its Task Card, reports a PR number and prepares the factual exact-head `ARCHITECT_REVIEW_CONTEXT_V1` required by the Task Card. Dispatcher stores the PR number, sets `REVIEW` and stops. The context is not a verdict and cannot authorize repair or merge. The Dispatcher does not validate the PR, reviewer, review URL, exact head or CI evidence; the external ChatGPT Architect owns the actual PR review and is the sole verdict producer.
 
 For an ordinary Implementation Task, do not add iteration-coach or another internal Reviewer by default. Upgrade only when the Product Owner or Architect explicitly requests it.
 

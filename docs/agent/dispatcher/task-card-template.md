@@ -44,12 +44,12 @@ Exact commands the worker must run before reporting a PR number. State any inten
 
 ## Completion Criteria
 
-Mechanical conditions for worker completion, including the reported PR number. Worker completion does not mean review acceptance.
+Mechanical conditions for worker completion, including the reported PR number and factual `ARCHITECT_REVIEW_CONTEXT_V1` packet. Worker or Codex context completion does not mean review acceptance and must not contain a verdict.
 
 ## Review Gate
 
-External Architect PR review and explicit `STOP` at `REVIEW`. The Dispatcher stores only the worker-reported PR number and does not verify the review. Only the external Architect's `PASS` can close the gate. Ordinary tasks do not add iteration-coach or another internal Reviewer unless the Product Owner or Architect explicitly requests it.
+External ChatGPT Architect PR review and explicit `STOP` at `REVIEW`. The Dispatcher stores only the worker-reported PR number and treats `ARCHITECT_REVIEW_CONTEXT_V1` as factual input, never as a decision. Only the external ChatGPT Architect's exact-current-head `PASS` can close the gate. Codex must not add an internal verdict producer or another review gate. Ordinary tasks do not add iteration-coach or another internal Reviewer unless the Product Owner or external ChatGPT Architect explicitly requests it.
 
 ## Next Task
 
-Exactly one predefined task ID or `null`. Dispatcher may unlock only this value and only after external `PASS`.
+Exactly one predefined task ID or `null`. Dispatcher may unlock only this value and only after external ChatGPT Architect `PASS`, merge and successful main verification.
