@@ -17,13 +17,14 @@ it selectable by the runtime without rewriting its interviewing strategy.
 ## Entry gate and inputs
 
 - CPA-03 external PASS + merge + successful main verification;
-- `OWNER_DIRECTOR_PROMPT_ARTIFACT`: supplied and recorded by Architect as:
-  - durable path: `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`;
-  - source commit: `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`;
-  - Git blob: `269ba22e3cf3dc39e70fb4751fa4245d15b935ef`;
-  - SHA-256: `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`;
-  - byte length: `22071`;
-- the exact artifact bytes above are the Owner's primary product prompt source for this task;
+- `OWNER_DIRECTOR_PROMPT_ARTIFACT`: supplied and recorded by Architect as an exact transport archive:
+  - durable path: `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md.gz.b64`;
+  - archive commit: `be85543b28d0862fb6c078af686793e6ebcee82b`;
+  - archive Git blob: `b35ff7f386f674e5e01046c23447c03ef6801985`;
+  - decoding: UTF-8 ASCII file → Base64 decode → gzip decompress;
+  - decoded Owner artifact SHA-256: `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`;
+  - decoded byte length: `22071`;
+- the decoded bytes above are the Owner's exact primary product prompt source for this task;
 - existing formal v1 and `v2-draft` are reference inputs, not substitutes for the Owner artifact.
 
 ## Allowed files / areas
@@ -40,20 +41,21 @@ it selectable by the runtime without rewriting its interviewing strategy.
 - `docs/contracts/interview-director-context.schema.json`;
 - `docs/contracts/interview-director-output.schema.json`;
 - `docs/contracts/evidence-drilldown-v1.md`;
-- Owner Prompt artifact at commit `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`, path `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`, SHA-256 `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
+- Owner Prompt transport archive at commit `be85543b28d0862fb6c078af686793e6ebcee82b`, path `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md.gz.b64`, blob `b35ff7f386f674e5e01046c23447c03ef6801985`, decoding to SHA-256 `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b` and `22071` bytes.
 
 ## Required behavior
 
-1. Preserve the Owner artifact as primary product input; do not invent or substantially rewrite
+1. Decode the recorded transport archive and verify both decoded SHA-256 and byte length before use.
+2. Preserve the decoded Owner artifact as primary product input; do not invent or substantially rewrite
    interview strategy.
-2. Adapt only mechanical wrapping required for current system/task split, immutable versioning,
+3. Adapt only mechanical wrapping required for current system/task split, immutable versioning,
    JSON-only output and current schema/evidence compatibility.
-3. Any material semantic mismatch returns `PRODUCT_AMBIGUITY` to Owner.
-4. Create a new immutable formal bundle; never overwrite v1 or activate `v2-draft` by renaming.
-5. Compute digest from exact loaded system/task bytes using existing canonical hashing.
-6. Runtime-selected version/digest must match persisted attempt provenance.
-7. Draft or missing bundle fails closed; no fallback to a different prompt under the same version.
-8. Tests may use synthetic contexts only and do not call a live model.
+4. Any material semantic mismatch returns `PRODUCT_AMBIGUITY` to Owner.
+5. Create a new immutable formal bundle; never overwrite v1 or activate `v2-draft` by renaming.
+6. Compute digest from exact loaded system/task bytes using existing canonical hashing.
+7. Runtime-selected version/digest must match persisted attempt provenance.
+8. Draft or missing bundle fails closed; no fallback to a different prompt under the same version.
+9. Tests may use synthetic contexts only and do not call a live model.
 
 ## Explicit non-goals
 
@@ -65,7 +67,8 @@ it selectable by the runtime without rewriting its interviewing strategy.
 
 ## Tests
 
-- exact bytes produce stable version/digest;
+- archive decodes to exact Owner SHA-256 and byte length;
+- exact loaded prompt bytes produce stable version/digest;
 - mutation changes digest and cannot retain identity;
 - missing/draft/unknown bundle fails closed;
 - accepted synthetic suggest/continue outputs validate;
@@ -81,7 +84,7 @@ it selectable by the runtime without rewriting its interviewing strategy.
 
 ## Review gate
 
-External Architect reviews exact prompt source correspondence as well as code. PASS + merge +
+External Architect reviews exact decoded prompt source correspondence as well as code. PASS + merge +
 successful main verification is required before CPA-05 becomes READY.
 
 ## Next task
