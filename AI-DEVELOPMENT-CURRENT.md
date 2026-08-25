@@ -86,8 +86,10 @@ Frozen Checkpoint A facts:
   must not be represented as provider-enforced JSON Schema.
 - The anonymous model provider retains prompts/completions and states they are not used for
   training. This is accepted only inside the bounded public-material checkpoint.
-- The Owner's prior complete Interview Director Prompt is required for CPA-04. Agents must not
-  invent a replacement; CPA-04 remains ineligible until the artifact identity is recorded.
+- The Owner's prior complete Interview Director Prompt is now durably recorded at
+  `docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984`.
+  It is the primary product input for CPA-04; Agents must preserve its interview strategy and only
+  perform mechanical adaptation required by the current contracts/runtime.
 - Checkpoint A requires the already accepted real ASR path. Deterministic fixture transcript cannot
   prove that played audio reached the Director.
 - After CPA-05 PASS, merge and successful main CI, report `OWNER_CHECKPOINT_A_READY: YES` and stop
@@ -125,16 +127,15 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: none; CPA-04 is gated on the Owner Prompt artifact.
+- `READY`: `CPA-04` only.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `DEFERRED`: `CPA-04` through `CPA-05`; CPA-04 additionally awaits the Owner Prompt artifact;
-  P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
+- `DEFERRED`: `CPA-05`; P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
 - P5: closed / DONE.
 
 ## Worker prohibitions
 
-Do not choose deferred provider/model/tokenizer/embedding/budget values, alter P1–P6 ownership, create a second semantic memory or presentation authority, add an agent framework/tool loop, use real data, alter Accepted Contracts, activate T25 prompt work, start T26–T27 evaluation, or claim review acceptance unless the current Task Card explicitly authorizes that scope.
+Do not choose deferred provider/model/tokenizer/embedding/budget values, alter P1–P6 ownership, create a second semantic memory or presentation authority, add an agent framework/tool loop, use real data, alter Accepted Contracts, activate T26–T27 evaluation, or claim review acceptance unless the current Task Card explicitly authorizes that scope. CPA-04 is the only currently authorized T25/Prompt adaptation task and is bounded by the Owner Prompt artifact.
 
 ## Authority order
 
@@ -142,7 +143,8 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-Dispatcher must not start CPA-04 until fresh-reading the merged Checkpoint A Development Pack
-from `origin/main`, verifying CPA-03 main CI success, and confirming the Architect-recorded Owner Prompt artifact identity. It must advance only the predefined queue. CPA-04 cannot become eligible until
-the Architect records the Owner Prompt artifact identity. CPA-05 ends at the Owner acceptance gate
-with `next_task: null`.
+Dispatcher should fresh-read `origin/main`, confirm CPA-03 is DONE, confirm the exact Owner Prompt artifact identity
+`docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984`,
+and dispatch only the predefined READY task `CPA-04` with worker profile `luna-high`.
+CPA-05 remains DEFERRED until CPA-04 receives external Architect PASS, merge and successful main verification.
+CPA-05 ends at the Owner acceptance gate with `next_task: null`.
