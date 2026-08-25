@@ -226,6 +226,24 @@
       "depends_on": ["CPA-04"],
       "pr": 111,
       "next_task": null
+    },
+    {
+      "id": "REAL-IDENTITY-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/REAL-IDENTITY-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CPA-05", "REAL-FLOW-CLEANUP-DEVELOPMENT-PACK"],
+      "pr": null,
+      "next_task": "REAL-RUNTIME-02"
+    },
+    {
+      "id": "REAL-RUNTIME-02",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/REAL-RUNTIME-02.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["REAL-IDENTITY-01"],
+      "pr": null,
+      "next_task": null
     }
   ]
 }
