@@ -42,7 +42,7 @@ REAL-IDENTITY-01  ordinary persisted local application identity path
 
 ## Real-flow cleanup frozen facts
 
-- `REAL-IDENTITY-01` is the only current `READY` task.
+- `REAL-IDENTITY-01` is the current `IN_PROGRESS` task.
 - `REAL-RUNTIME-02` is `DEFERRED` until `REAL-IDENTITY-01` receives external Architect PASS, is merged, main CI succeeds, and stage state is synchronized.
 - Existing `apps/api/src/cli/user-cli.ts` and `apps/api/package.json` already provide operator-managed `user:create`, `user:set-password`, `user:disable`, and `user:enable` commands.
 - Secret input for the existing user CLI is interactive/hidden and command-argument secret input is rejected; this safety invariant must not be weakened.
@@ -74,8 +74,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `REAL-IDENTITY-01`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `REAL-IDENTITY-01`.
 - `REVIEW`: none.
 - `DONE`: Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
 - `DEFERRED`: `REAL-RUNTIME-02`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
@@ -90,4 +90,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-Dispatcher must fresh-read `origin/main`, select `REAL-IDENTITY-01`, launch its `luna-high` Implementation Worker, bind the resulting PR, and stop at `REVIEW` for external Architect exact-head review. `REAL-RUNTIME-02` must remain `DEFERRED` until the accepted transition contract permits successor unlock.
+Dispatcher launched `REAL-IDENTITY-01` with its `luna-high` Implementation Worker; bind the resulting PR and stop at `REVIEW` for external Architect exact-head review. `REAL-RUNTIME-02` must remain `DEFERRED` until the accepted transition contract permits successor unlock.

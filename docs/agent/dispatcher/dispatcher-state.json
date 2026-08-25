@@ -229,7 +229,7 @@
     },
     {
       "id": "REAL-IDENTITY-01",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/REAL-IDENTITY-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["CPA-05", "REAL-FLOW-CLEANUP-DEVELOPMENT-PACK"],
