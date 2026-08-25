@@ -29,7 +29,7 @@
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
 | `CPA-03` | `DONE` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
 | `CPA-04` | `DONE` | Architect PASS; merged PR #109 at `db7d6f713dba6fb6d2e73483df7279e043061865`; main `28e3f89c3fa4995dd875ed1d915075e4a19efccd`; main CI SUCCESS | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
-| `CPA-05` | `IN_PROGRESS` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `null` | `null` |
+| `CPA-05` | `REVIEW` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 
 ## Current phase
 
@@ -40,7 +40,7 @@ P6 Runtime / T18–T24 is closed:
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
 No task in the P6 runtime pack is READY. The active stage is now the Owner Checkpoint A pack.
-`CPA-04` is DONE after Architect PASS, merge, and successful main verification. `CPA-05` is now IN_PROGRESS as the sole eligible successor.
+`CPA-04` is DONE after Architect PASS, merge, and successful main verification. `CPA-05` is now REVIEW on PR #111.
 
 ## P6 stage intent
 
@@ -77,7 +77,7 @@ This pack authorizes local OpenRouter `stealth/ox-alpha` only for deliberately s
 non-sensitive material and binds only `QuestionDirector`. `StructuredAiProvider`, P2-D, real
 embeddings, production provider choice and T26-T27 remain deferred.
 
-CPA-05 is the final task with `next_task = null` and the mandatory `OWNER_CHECKPOINT_A_READY: YES` STOP gate.
+CPA-05 is the final task with `next_task = null` and the mandatory `OWNER_CHECKPOINT_A_READY: YES` STOP gate after external Architect PASS, merge, and successful main verification.
 No scoring popup, evaluation dashboard, model-comparison page or new test UI may be started without
 the Owner's explicit post-checkpoint instruction.
 
