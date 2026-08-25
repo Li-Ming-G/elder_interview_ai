@@ -27,8 +27,22 @@ The command builds the current workspace, starts the API in explicit `--checkpoi
 `.env.local` into the server process without printing its values. Stop both processes with
 `Ctrl-C`.
 
-Log in using the existing local synthetic account, open the formal Workbench, and play the
-selected public audio. The visible path is:
+Before the first checkpoint run, create the ordinary persisted local application user that the
+Owner will use to log in. With `DATABASE_URL` set to the local PostgreSQL database and after the
+existing migrations are applied, run the existing operator-managed CLI from the repository root:
+
+```text
+pnpm --filter @elder-interview/api user:create -- --operator-ref local-owner-setup --email "owner@example.invalid" --display-name "Owner display name" --role interviewer
+```
+
+Replace the example email and display name with the Owner-chosen values. The command prompts for
+the password and confirmation through hidden interactive input; never add a password or other
+secret as a command argument. This creates a normal persisted `User` record used by the existing
+login endpoint and session flow. Use that email and password to log in, open the formal Workbench,
+and play the selected public audio. Synthetic identities such as `listener-a@example.test` and
+`seed-test-users.ts` remain available for automated tests only.
+
+The visible path is:
 
 ```text
 audio -> real finalized ASR transcript -> accepted P1-P6 runtime -> Owner Prompt -> OpenRouter/Ox
