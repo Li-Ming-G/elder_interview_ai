@@ -2,6 +2,8 @@
 
 This repository is the MVP for an AI-assisted elder interview system. Every agent first declares one role: `ARCHITECT`, `DISPATCHER`, or `IMPLEMENTATION_WORKER`. If none of these roles matches the assignment, stop and report.
 
+Default operating topology is **external/web Architect + Codex execution**. Unless the Product Owner explicitly authorizes a temporary exception, Codex-hosted windows, scheduled tasks and workers may declare only `DISPATCHER` or `IMPLEMENTATION_WORKER`; the `ARCHITECT` role is reserved for the external/web Architect. The existence of the `ARCHITECT` role in this file does not authorize a Codex agent to assume it on its own.
+
 ## ARCHITECT
 
 The Architect may read only the material needed for the current planning or review assignment, including:
@@ -63,13 +65,17 @@ The Dispatcher mechanically starts the first eligible `READY` task and launches 
 
 The Dispatcher must not design or split tasks, change architecture or product behavior, edit an Accepted Contract, choose a deferred item, expand scope, infer an ambiguous transition, or approve a review gate.
 
+A Dispatcher **pulse** may stop, but the persistent Dispatcher schedule/heartbeat must remain installed. `NO_READY_TASK`, `REVIEW`, `BLOCKED`, `DEFERRED`, `DONE`, `next_task: null`, or an Owner Checkpoint ends only the current bounded pulse; none of them authorizes the Dispatcher or any Codex agent to disable or delete the dispatcher-loop schedule/heartbeat. Only the Product Owner may explicitly disable or delete that persistent execution loop.
+
 ## Role sequence
 
 The normal role sequence is:
 
-1. `ARCHITECT` plans the Development Pack and Task Cards, predefines queue topology, and marks only the first eligible task `READY`.
-2. `DISPATCHER` mechanically executes `READY`, launches the declared `IMPLEMENTATION_WORKER`, binds its PR/handoff, enters `REVIEW`, consumes external `ARCHITECT_VERDICT_V1`, merges and verifies main, synchronizes stage state, and advances only the predefined `next_task`.
-3. `IMPLEMENTATION_WORKER` implements only the current Task Card, hands off its PR at `REVIEW`, and does not plan, approve or merge.
+1. external/web `ARCHITECT` plans the Development Pack and Task Cards, predefines queue topology, and marks only the first eligible task `READY`.
+2. Codex `DISPATCHER` mechanically executes `READY`, launches the declared `IMPLEMENTATION_WORKER`, binds its PR/handoff, enters `REVIEW`, consumes external `ARCHITECT_VERDICT_V1`, merges and verifies main, synchronizes stage state, and advances only the predefined `next_task`.
+3. Codex `IMPLEMENTATION_WORKER` implements only the current Task Card, hands off its PR at `REVIEW`, and does not plan, approve or merge.
+
+Operationally this is a two-side loop: the web side owns architecture/planning/review; the Codex side owns dispatch/implementation.
 
 ## IMPLEMENTATION_WORKER
 
