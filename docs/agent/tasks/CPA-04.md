@@ -1,6 +1,6 @@
 # CPA-04 — Owner Prompt acceptance, version, digest and loader
 
-Status: `DEFERRED / OWNER_INPUT_REQUIRED`
+Status: `READY`
 
 ## Goal
 
@@ -17,11 +17,14 @@ it selectable by the runtime without rewriting its interviewing strategy.
 ## Entry gate and inputs
 
 - CPA-03 external PASS + merge + successful main verification;
-- `OWNER_DIRECTOR_PROMPT_ARTIFACT`: not yet supplied;
-- before this task becomes READY, Architect must record the artifact's exact durable path/commit
-  identity here and in the planning queue without changing task meaning;
-- existing formal v1 and `v2-draft` are reference inputs, not substitutes for the missing Owner
-  artifact.
+- `OWNER_DIRECTOR_PROMPT_ARTIFACT`: supplied and recorded by Architect as:
+  - durable path: `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`;
+  - source commit: `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`;
+  - Git blob: `269ba22e3cf3dc39e70fb4751fa4245d15b935ef`;
+  - SHA-256: `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`;
+  - byte length: `22071`;
+- the exact artifact bytes above are the Owner's primary product prompt source for this task;
+- existing formal v1 and `v2-draft` are reference inputs, not substitutes for the Owner artifact.
 
 ## Allowed files / areas
 
@@ -37,7 +40,7 @@ it selectable by the runtime without rewriting its interviewing strategy.
 - `docs/contracts/interview-director-context.schema.json`;
 - `docs/contracts/interview-director-output.schema.json`;
 - `docs/contracts/evidence-drilldown-v1.md`;
-- Owner-provided Prompt artifact once its exact identity is recorded.
+- Owner Prompt artifact at commit `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`, path `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`, SHA-256 `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
 
 ## Required behavior
 
