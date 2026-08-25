@@ -127,10 +127,10 @@ Dispatcher never invents Task Cards or task IDs, never self-reviews, never advan
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `CPA-05`.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `CPA-04` (PR #109).
-- `DEFERRED`: `CPA-05`; P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
+- `REVIEW`: none.
+- `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions remain deferred.
 - P5: closed / DONE.
 
 ## Worker prohibitions
@@ -145,6 +145,6 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 Dispatcher has fresh-read `origin/main`, confirmed CPA-03 is DONE, confirmed the exact Owner Prompt artifact identity
 `docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984`,
-and dispatched the predefined task `CPA-04` with worker profile `luna-high`; it is now in `REVIEW` on PR #109 for a fresh Architect exact-head verdict.
-CPA-05 remains DEFERRED until CPA-04 receives external Architect PASS, merge and successful main verification.
+and dispatched the predefined task `CPA-04` with worker profile `luna-high`; it is now DONE after merge and successful main verification.
+The predefined successor `CPA-05` is now READY; no later task is unlocked.
 CPA-05 ends at the Owner acceptance gate with `next_task: null`.
