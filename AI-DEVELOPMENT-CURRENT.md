@@ -42,8 +42,8 @@ REAL-IDENTITY-01  ordinary persisted local application identity path
 
 ## Real-flow cleanup frozen facts
 
-- `REAL-IDENTITY-01` is now in `REVIEW` on PR #112 at exact head `7ababe69121d060904e6b0f9e87770181a3be81b`.
-- `REAL-RUNTIME-02` is `DEFERRED` until `REAL-IDENTITY-01` receives external Architect PASS, is merged, main CI succeeds, and stage state is synchronized.
+- `REAL-IDENTITY-01` is DONE after exact-head Architect PASS, merge, and successful main verification on main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`.
+- `REAL-RUNTIME-02` is now the predefined successor and only READY task.
 - Existing `apps/api/src/cli/user-cli.ts` and `apps/api/package.json` already provide operator-managed `user:create`, `user:set-password`, `user:disable`, and `user:enable` commands.
 - Secret input for the existing user CLI is interactive/hidden and command-argument secret input is rejected; this safety invariant must not be weakened.
 - Synthetic identities and `seed-test-users.ts` remain for automated tests only.
@@ -74,9 +74,9 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `REAL-RUNTIME-02`.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `REAL-IDENTITY-01` (PR #112).
+- `REVIEW`: none.
 - `DONE`: Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
 - `DEFERRED`: `REAL-RUNTIME-02`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 
@@ -90,4 +90,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-`REAL-IDENTITY-01` is bound to PR #112 and stopped at `REVIEW` for external Architect exact-head review. `REAL-RUNTIME-02` must remain `DEFERRED` until the accepted transition contract permits successor unlock.
+`REAL-IDENTITY-01` is DONE after exact-head Architect PASS, merge, and successful main verification. The Dispatcher may now mechanically dispatch the predefined successor `REAL-RUNTIME-02`.
