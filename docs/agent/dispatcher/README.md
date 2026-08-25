@@ -2,13 +2,15 @@
 
 This directory implements a deliberately small governance path:
 
-`Single Dispatcher → Sequential Task Queue → Implementation Worker → External Architect PR Review`.
+`Single Dispatcher → Sequential Task Queue → Implementation Worker → PR + factual Review Context → external ChatGPT Architect PR Review`.
+
+The authority path is singular: `external ChatGPT Architect → ARCHITECT_VERDICT_V1 → Dispatcher`. Codex may collect facts and prepare `ARCHITECT_REVIEW_CONTEXT_V1` only through its existing Dispatcher or Worker assignment; it is not a second Architect or decision source.
 
 ## Authority and state semantics
 
 Canonical Task Card IDs, dependencies, and `next_task` topology come from the
 queue and Task Cards on refreshed `main`. GitHub is authoritative for durable
-runtime facts: matching PR, current head, top-level Architect verdict, merge
+runtime facts: matching PR, current head, top-level external ChatGPT Architect verdict, merge
 state, and CI. `dispatcher-state.json` is not the sole runtime truth. It stores
 the canonical queue topology plus a last-known/reconstructable local
 projection, including temporary pre-PR in-flight state. A stale status or PR
@@ -22,7 +24,7 @@ candidates fail closed as `PRODUCT_AMBIGUITY`.
 
 ## Architect Verdict Protocol V1
 
-GitHub PR is the communication bus between the external Architect and Dispatcher. The Dispatcher does not rely on GitHub native `APPROVED` state or ordinary natural-language comments.
+GitHub PR is the communication bus between the external ChatGPT Architect and Dispatcher. The external ChatGPT Architect is the sole verdict author. The Dispatcher does not rely on GitHub native `APPROVED` state or ordinary natural-language comments.
 
 Only a top-level conversation comment containing `<!-- ARCHITECT_VERDICT_V1 -->`
 is actionable, with fields:
@@ -43,6 +45,12 @@ stale and ignored. For multiple valid verdicts on the same head, the latest
 valid verdict wins. Malformed or conflicting current-head evidence fails closed
 as `PRODUCT_AMBIGUITY`. If no valid current-head verdict exists, an open PR is
 still projected as `REVIEW`; no merge is eligible.
+
+`ARCHITECT_REVIEW_CONTEXT_V1` is a factual input packet, not an approval or a
+review result. A Codex Worker or Dispatcher may assemble it from the exact PR,
+diff, Task Card, Accepted Contracts and observed checks. It must not contain or
+imply `PASS`, `REQUEST_CHANGES`, `PRODUCT_AMBIGUITY`, merge eligibility or a new
+governance decision. Producing or refreshing context adds no actor and no gate.
 
 - `REQUEST_CHANGES`: return the same task to `IN_PROGRESS`, continue/relaunch the same Worker, retain Task Card and PR, and repair only the findings.
 - `PRODUCT_AMBIGUITY`: set the task `BLOCKED`, stop, and surface the ambiguity; do not choose a direction.
@@ -104,7 +112,7 @@ eligible only after another fresh exact-head recheck. Merged PRs skip merge and
 continue through main verification. GitHub PR facts, not Worker chat, are the
 discovery authority.
 
-- A PR's existence, non-draft state, completed PR CI, or stable head does not prove PASS or merge safety. Formal PRs must include `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds the task in `REVIEW`.
+- A PR's existence, non-draft state, completed PR CI, stable head or factual review context does not prove PASS or merge safety. Formal PRs must include `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds the task in `REVIEW` mechanically, while only the external ChatGPT Architect decides the outcome.
 - If a PASS PR is already merged, do not merge again; proceed to main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
 - Pending or temporarily missing main CI is not an error: retain `REVIEW`, record a wait/no-op detail, and retry next cadence. GitHub API/network/rate-limit/auth/service failures are also retriable no-ops. Only confirmed main CI failure yields `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`.
 - Before syncing main, verify repository identity and a safe clean/savable working tree. If local sync could overwrite uncommitted work, stop with `BLOCKED / TASK_BLOCKED` and reason `LOCAL_SYNC_UNSAFE`; never force-reset or overwrite unknown changes.
@@ -135,7 +143,7 @@ main CI never produces `DONE` or a successor `READY`.
 2. Validate the active ID; recover only to an existing canonical ID and bind a unique matching PR.
 3. For a `READY` task, persist `IN_PROGRESS` before launching its declared worker profile.
 4. When an open PR exists, project `REVIEW` unless the fresh current-head verdict is `REQUEST_CHANGES`; retain the same PR for repair.
-5. The external Architect performs the actual PR review.
+5. The external ChatGPT Architect performs the actual PR review and is the only verdict producer.
 6. On external `PASS`, do not unlock `next_task` until the current PR is merged into `main`; refresh/sync local `main` and verify it contains the accepted task.
 7. Then, after fresh main verification, set current `DONE` and only the predefined `next_task` `READY`. On `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
 8. Worker failure, product/architecture ambiguity or another blocker sets `BLOCKED` and stops.
@@ -144,7 +152,7 @@ main CI never produces `DONE` or a successor `READY`.
 
 `PASS` alone never unlocks a downstream task. The mandatory sequence is:
 
-`Architect PASS → current PR MERGED into main → refresh/sync main → verify accepted task is in main → current DONE → predefined next_task READY → next Worker branches from refreshed main`.
+`external ChatGPT Architect PASS → current PR MERGED into main → refresh/sync main → verify accepted task is in main → current DONE → predefined next_task READY → next Worker branches from refreshed main`.
 
 A downstream Worker must not start from a `main` that does not contain its accepted predecessor.
 
@@ -156,6 +164,6 @@ and entry; an exact Accepted Contract controls behavior and invariants.
 
 ## Ordinary-task review policy
 
-For an ordinary Implementation Task, do not start iteration-coach or an additional internal Reviewer by default. The external Architect's PR review is the default independent review. Upgrade only when the Product Owner or Architect explicitly requires it.
+For an ordinary Implementation Task, do not start iteration-coach or an additional internal Reviewer by default. The external ChatGPT Architect's PR review is the default independent review. Upgrade only when the Product Owner or external ChatGPT Architect explicitly requires it.
 
 Use Task Card + PR as the normal handoff. Do not generate per-task REV, handoff, traceability, conflict-history or ADR files; batch stage records at stage end, except when a real architecture decision explicitly requires an ADR.

@@ -29,7 +29,8 @@ One clear candidate may recover; equal candidates are `PRODUCT_AMBIGUITY`.
 
 ## Architect Verdict Protocol V1
 
-The actionable review result is the latest valid top-level GitHub PR
+The external ChatGPT Architect is the sole verdict author. The actionable
+review result is the latest valid top-level GitHub PR
 conversation comment containing `<!-- ARCHITECT_VERDICT_V1 -->` and the
 required TASK, PR, REVIEWED_HEAD, VERDICT, P0, P1 and P2 fields. GitHub native
 `APPROVED` and ordinary comments are not architecture gates. `REVIEWED_HEAD`
@@ -37,6 +38,14 @@ must equal a fresh current PR head SHA; old-head verdicts are stale and
 ignored. Multiple valid verdicts on one head use the latest valid comment;
 malformed or conflicting current-head evidence is `PRODUCT_AMBIGUITY`. No
 current-head verdict leaves an open PR in `REVIEW`.
+
+Codex does not independently author this verdict or any review decision. Codex
+may only prepare factual `ARCHITECT_REVIEW_CONTEXT_V1` material through its
+existing Dispatcher or Implementation Worker assignment. That context, CI
+status, PR state and factual analysis are never a verdict and never authorize
+repair, merge, `DONE` or successor unlock. Source exclusivity is a governance
+boundary: the Dispatcher retains the existing exact-head protocol and does not
+add reviewer-identity or GitHub-native-review validation.
 
 ## Closed transitions
 
@@ -51,7 +60,7 @@ current-head verdict leaves an open PR in `REVIEW`.
 
 There is no transaction, revision, compare-and-swap, reviewer-identity
 validation, review-URL validation, or GitHub native-review validation in the
-Dispatcher. The external Architect owns actual PR inspection and review.
+Dispatcher. The external ChatGPT Architect owns actual PR inspection and review.
 
 ## Stop rules
 
@@ -74,7 +83,7 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 - Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.
 - If local `pr` is null or status is stale, fresh-query `Li-Ming-G/elder_interview_ai` across open and merged PRs. Use combined canonical Task Card, title/body, branch, predecessor/`next_task`, and phase evidence; no one marker is mandatory. Zero candidates is a no-op; one clear candidate is persisted and reconciled; equal candidates are `PRODUCT_AMBIGUITY`.
 - Open + current-head `REQUEST_CHANGES` is same canonical task `IN_PROGRESS`; open + no current-head verdict is `REVIEW`; open + current-head `PASS` requires a fresh exact-head recheck before merge. Merged PRs skip merge and continue through main verification.
-- Formal REVIEW requires `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` and is not a verdict.
+- Formal REVIEW requires factual `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` mechanically and is not a verdict. A Codex Worker or Dispatcher may assemble or refresh this packet, but cannot decide its review outcome.
 - If an already-accepted PR is merged, skip merge and perform main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
 - Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are wait/no-op conditions retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`, main SHA, and CI run recorded.
 - Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / TASK_BLOCKED` with reason `LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
@@ -85,7 +94,7 @@ Dispatcher. The external Architect owns actual PR inspection and review.
 
 Every completed development stage follows this mechanical sequence:
 
-`Architect PASS → merge accepted PR → refresh latest main → verify accepted exact head landed → mark completed task/stage DONE → synchronize current-state files → unlock only predefined next task`.
+`external ChatGPT Architect PASS → merge accepted PR → refresh latest main → verify accepted exact head landed → mark completed task/stage DONE → synchronize current-state files → unlock only predefined next task`.
 
 The synchronization must update exactly:
 
@@ -98,7 +107,7 @@ historical archives, alter Accepted Contracts, invent product or architecture
 decisions, or change business code during state synchronization. If these
 files disagree with accepted merged repository facts, the merged facts are
 authoritative; repair the files before further development starts. Architect
-`PASS` alone does not advance stage state.
+The external ChatGPT Architect's `PASS` alone does not advance stage state.
 
 ## Stable errors
 
@@ -108,6 +117,6 @@ Only these codes are valid:
 | --- | --- |
 | `NO_READY_TASK` | No queue item is eligible to start |
 | `WORKER_FAILED` | Worker could not complete and report a PR number |
-| `REVIEW_REQUIRED` | A PR number was reported; external Architect review is required |
+| `REVIEW_REQUIRED` | A PR number was reported; external ChatGPT Architect review is required |
 | `PRODUCT_AMBIGUITY` | Product, architecture, identity, or evidence meaning needs an external decision |
 | `TASK_BLOCKED` | The current task cannot proceed |
