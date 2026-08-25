@@ -88,11 +88,11 @@ Frozen Checkpoint A facts:
   training. This is accepted only inside the bounded public-material checkpoint.
 - The Owner's prior complete Interview Director Prompt is required for CPA-04. Agents must not
   invent a replacement.
-- `OWNER_DIRECTOR_PROMPT_ARTIFACT` is now satisfied by the exact Owner-provided artifact at
-  `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`, source
-  commit `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`, Git blob
-  `269ba22e3cf3dc39e70fb4751fa4245d15b935ef`, SHA-256
-  `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`, byte length `22071`.
+- `OWNER_DIRECTOR_PROMPT_ARTIFACT` is now satisfied by the exact Owner-provided transport archive at
+  `docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md.gz.b64`,
+  archive commit `be85543b28d0862fb6c078af686793e6ebcee82b`, Git blob
+  `b35ff7f386f674e5e01046c23447c03ef6801985`; decoding is Base64 then gzip, producing exactly
+  `22071` bytes with SHA-256 `d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
 - Checkpoint A requires the already accepted real ASR path. Deterministic fixture transcript cannot
   prove that played audio reached the Director.
 - After CPA-05 PASS, merge and successful main CI, report `OWNER_CHECKPOINT_A_READY: YES` and stop
