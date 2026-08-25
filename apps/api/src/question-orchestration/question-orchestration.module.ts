@@ -60,7 +60,14 @@ export function createQuestionOrchestrationModule(
         useExisting: director,
       },
       QuestionOrchestrationService,
-      QuestionDirectorContract,
+      {
+        provide: QuestionDirectorContract,
+        useFactory: () =>
+          new QuestionDirectorContract({
+            modelConfig: config.checkpointA,
+            promptBundle: config.checkpointA.mode === 'checkpoint_a' ? 'checkpoint_a' : 'v1',
+          }),
+      },
       QuestionRequestActorService,
     ],
   };
