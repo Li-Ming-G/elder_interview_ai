@@ -28,7 +28,7 @@
 | `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
 | `CPA-03` | `DONE` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
-| `CPA-04` | `DEFERRED` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT` identity recorded by Architect | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
+| `CPA-04` | `READY` | CPA-03 external PASS + merge + main verification; `OWNER_DIRECTOR_PROMPT_ARTIFACT@6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46` | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `null` | `CPA-05` |
 | `CPA-05` | `DEFERRED` | CPA-04 external PASS + merge + main verification | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
@@ -40,7 +40,7 @@ P6 Runtime / T18–T24 is closed:
 `P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
 
 No task in the P6 runtime pack is READY. The active stage is now the Owner Checkpoint A pack
-defined below, with no task READY until the CPA-04 Owner Prompt artifact gate is satisfied.
+defined below, with `CPA-04` as its only READY task after the Owner Prompt artifact gate was satisfied.
 
 ## P6 stage intent
 
@@ -71,13 +71,16 @@ The next active pack is:
 
 `CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05`.
 
-No task is READY. This pack authorizes local OpenRouter `stealth/ox-alpha` only for
+Only `CPA-04` is READY. This pack authorizes local OpenRouter `stealth/ox-alpha` only for
 deliberately selected public, non-sensitive material and binds only `QuestionDirector`.
 `StructuredAiProvider`, P2-D, real embeddings, production provider choice and T26-T27 remain
 deferred.
 
-CPA-04 has an additional Owner Prompt artifact entry gate. It remains DEFERRED until the Architect
-records the exact artifact identity; Dispatcher must not use `v2-draft` or invent prompt content.
+CPA-04 Owner Prompt artifact gate is satisfied by the exact Owner-provided artifact at
+`docs/prompts/interview-director/owner-inputs/checkpoint-a/Interview_Director_System_v2.md`, source
+commit `6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46`, SHA-256
+`d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b`.
+Dispatcher must use that identity and may not substitute `v2-draft` or invent prompt content.
 
 CPA-05 ends with `next_task = null` and the mandatory `OWNER_CHECKPOINT_A_READY: YES` STOP gate.
 No scoring popup, evaluation dashboard, model-comparison page or new test UI may be started without
