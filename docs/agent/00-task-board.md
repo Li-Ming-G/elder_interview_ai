@@ -30,56 +30,25 @@
 | `CPA-03` | `DONE` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
 | `CPA-04` | `DONE` | Architect PASS; merged PR #109 at `db7d6f713dba6fb6d2e73483df7279e043061865`; main `28e3f89c3fa4995dd875ed1d915075e4a19efccd`; main CI SUCCESS | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
+| `REAL-IDENTITY-01` | `READY` | Product Owner real-flow cleanup authorization; CPA-05 DONE | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `null` | `REAL-RUNTIME-02` |
+| `REAL-RUNTIME-02` | `DEFERRED` | `REAL-IDENTITY-01` external PASS + merge + successful main verification | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-P5 / T13–T17 is closed through PR #97. P5C-02 accepted head is `888d029b08e5330f4c68dc484cf42d487e16ecd6`, merge/main is `7cbd5d077352ed9b6c313207788c4d1ec6e8ac36`, and main CI run `32677630940` succeeded.
+Owner Checkpoint A is complete through `CPA-05` / PR #111. The active stage is now the Product Owner-authorized Real-Flow Cleanup pack:
 
-P6 Runtime / T18–T24 is closed:
+`REAL-IDENTITY-01 → REAL-RUNTIME-02 → null`.
 
-`P6R-01 → P6R-02 → P6R-03 → P6R-04 → P6R-05`.
+Only `REAL-IDENTITY-01` is `READY`. `REAL-RUNTIME-02` remains `DEFERRED` until the accepted Dispatcher lifecycle closes the predecessor.
 
-No task in the P6 runtime pack is READY. The active stage is now the Owner Checkpoint A pack.
-`CPA-04` is DONE after Architect PASS, merge, and successful main verification. `CPA-05` is DONE after exact-head Architect PASS, merge, and successful main verification on main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`.
+## Real-Flow Cleanup intent
 
-## P6 stage intent
+- `REAL-IDENTITY-01`: stop requiring the Owner to use a synthetic `.test` account for normal local login; use the existing operator-managed persisted application-user path without introducing a new auth system.
+- `REAL-RUNTIME-02`: remove query-parameter harness switching from the ordinary web entry while preserving explicit automated/local engineering harness access.
 
-- P6R-01: freeze provider-neutral Runtime Orchestration V1 contract for trigger/manual-next/fence/deadline/error/background isolation.
-- P6R-02: implement finalized transcript buffering and automatic/manual generation gate.
-- P6R-03: enforce generation/publication authority so stale/late work cannot overwrite newer state.
-- P6R-04: enforce deadline/error semantics and isolate P2/background work from the live interview lane.
-- P6R-05: end-to-end synthetic integration and Decision Trace closeout for T18–T24.
+P1-P6 semantics, Owner Prompt, OpenRouter/Ox, Tencent ASR, memory/evidence rules, scoring/evaluation boundaries and production provider/model/data decisions are unchanged.
 
-P6R-03 is accepted through PR #101, merge/main `35c8b869f819ea3bc6a0f1e1d89cbadd1fa88c70`, with main CI run `32695474272` SUCCESS.
-P6R-04 is accepted through PR #102, merge/main `272bc89782b38f356082fb0c21a30646b6c302bf`, with main CI run `32701819747` SUCCESS.
-P6R-05 is accepted through PR #103, merge/main `045b041445eec2e73060afa5bbbe0e15c82cc51e`, with main CI run `32711482477` SUCCESS.
-
-CPA-02 is accepted through PR #106, accepted head `bde59361ff4ce4ed76e72164597df324d7caf2a5`, merge/main `74882ef57fb932f673ccbc5890a08b97bf2de6fe`, with main CI run `32729016596` SUCCESS.
-
-CPA-03 is accepted through PR #107, accepted head `72338b8c7acab11b714bdc92bd11f60d568c7dd6`, merge/main `8a531f527bc90770ee2ead622a48983498d2fbfe`, with main CI run `32746977248` SUCCESS.
-
-P6R-02 is accepted through PR #100, merge/main `8c103ef631851b833a57efebe3c1b3ddc8dcadd8`, with main CI run `32691042422` SUCCESS.
-
-The original P6 pack did not activate T25 or provider work. The separate Owner Checkpoint A pack
-now authorizes only its bounded local Prompt and OpenRouter/Ox seams. T26–T27, production provider
-and model choice, tokenizer/embedding choices, P4 production numeric budget, P2-D, ordinary real
-interview data and public deployment remain deferred.
-
-## Owner Checkpoint A pack
-
-The active pack is:
-
-`CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05`.
-
-`CPA-04` is DONE on merged PR #109. The Owner Prompt artifact is durably recorded at
-`docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984`.
-This pack authorizes local OpenRouter `stealth/ox-alpha` only for deliberately selected public,
-non-sensitive material and binds only `QuestionDirector`. `StructuredAiProvider`, P2-D, real
-embeddings, production provider choice and T26-T27 remain deferred.
-
-CPA-05 is the final task with `next_task = null`. `OWNER_CHECKPOINT_A_READY: YES` is now the active STOP gate after external Architect PASS, merge, and successful main verification.
-No scoring popup, evaluation dashboard, model-comparison page or new test UI may be started without
-the Owner's explicit post-checkpoint instruction.
+Open PRs #25, #43, #45, #62 and #110 are outside this pack and must not be acted on by either task.
 
 ## Maintenance
 
