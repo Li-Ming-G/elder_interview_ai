@@ -38,36 +38,56 @@ ignored. Multiple valid verdicts on one head use the latest valid comment;
 malformed or conflicting current-head evidence is `PRODUCT_AMBIGUITY`. No
 current-head verdict leaves an open PR in `REVIEW`.
 
+`ARCHITECT_RECOVERY_V1` is recovery guidance, not an extra approval gate. A
+missing, stale or malformed recovery comment must never block a transition that
+is already mechanically authorized by the canonical Task Card, durable GitHub
+facts and a valid current-head `ARCHITECT_VERDICT_V1`. Recovery metadata may
+help resolve a mechanical stall, but it does not supersede or add prerequisites
+to the closed transition table below.
+
 ## Closed transitions
 
 | From | Event | To | Mechanical effect |
 | --- | --- | --- | --- |
 | `READY` | start | `IN_PROGRESS` | Persist before launching the declared worker |
 | `IN_PROGRESS` | reconciliation finds unique PR | `REVIEW` or `IN_PROGRESS` | Bind canonical PR; open/no verdict is `REVIEW`, current-head `REQUEST_CHANGES` is same-PR `IN_PROGRESS` |
-| `IN_PROGRESS` | worker failed | `BLOCKED` | Stop |
+| `IN_PROGRESS` | worker failed | `BLOCKED` | Stop current pulse |
 | `REVIEW` | current-head `PASS`, fresh exact-head recheck, merge, refreshed main CI succeeds | `DONE` | Verify main, mark current `DONE`, then only predefined `next_task` becomes `READY` |
 | `REVIEW` | current-head `REQUEST_CHANGES` | `IN_PROGRESS` | Return the same canonical task and PR to implementation |
-| any active state | product or architecture ambiguity | `BLOCKED` | Stop and request a decision |
+| any active state | product or architecture ambiguity | `BLOCKED` | Stop current pulse and request a decision |
 
 There is no transaction, revision, compare-and-swap, reviewer-identity
 validation, review-URL validation, or GitHub native-review validation in the
 Dispatcher. The external Architect owns actual PR inspection and review.
 
+## Persistent scheduler / heartbeat invariant
+
+The Dispatcher is a persistent scheduled executor made of bounded pulses.
+Ending a pulse is never permission to disable or delete the schedule that will
+run future pulses.
+
+- `NO_READY_TASK`, `REVIEW`, `BLOCKED`, `DEFERRED`, `DONE`, `next_task: null`, and an Owner Checkpoint end only the current pulse.
+- When no eligible `READY` task exists, the current pulse performs no implementation action and exits cleanly; the dispatcher-loop heartbeat remains installed and enabled.
+- At an Owner Checkpoint, future pulses may continue to fresh-read and no-op until the external/web Architect publishes a newly Owner-authorized Development Pack with a `READY` task.
+- No Dispatcher, Implementation Worker, or Codex-hosted agent may delete, disable, pause, or replace the persistent dispatcher-loop heartbeat because a queue is empty or a stage is complete.
+- Only an explicit Product Owner instruction may disable or delete the persistent dispatcher-loop schedule.
+
 ## Stop rules
 
-- Stop at `REVIEW`, `BLOCKED`, `DEFERRED` and `DONE`.
-- If no eligible `READY` task exists on freshly fetched `origin/main`, stop.
-- A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch.
+- **Stop means end the current bounded pulse only. It never means stop the persistent scheduler.**
+- Stop the current pulse at `REVIEW`, `BLOCKED`, `DEFERRED` and `DONE`.
+- If no eligible `READY` task exists on freshly fetched `origin/main`, end the current pulse with `NO_READY_TASK` and leave the dispatcher heartbeat untouched.
+- A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch for the current pulse.
 - Synthetic launch evidence proves only that the worker profile can be launched.
 - `PASS` alone does not unlock a downstream task. The current PR must first be merged into `main`; refresh and verify the accepted task on main, then mark `DONE` and unlock only predefined `next_task`.
 - On main CI failure after a valid PASS merge, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure.
 - Pending/missing main CI is retriable and must not produce `DONE` or successor `READY`.
-- On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop for an external decision.
+- On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop the current pulse for an external decision.
 - Never run two READY tasks concurrently or advance beyond predefined `next_task`.
 
 ## Reconciliation and safety gates
 
-- Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required.
+- Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required. The recurring schedule remains enabled for the next pulse.
 - The first external action of every pulse is a safe `git fetch origin main`; only after that may the Dispatcher determine canonical queue/task-card state.
 - Before any side effect, persist the state transition successfully, then perform the external action. In particular, persist `READY → IN_PROGRESS` before launching a Worker.
 - `IN_PROGRESS` is the default wait state only when no durable GitHub fact can advance it. A stale status or missing local PR cannot deny a matching GitHub PR.
@@ -106,7 +126,7 @@ Only these codes are valid:
 
 | Code | Meaning |
 | --- | --- |
-| `NO_READY_TASK` | No queue item is eligible to start |
+| `NO_READY_TASK` | No queue item is eligible to start; end the current pulse only and keep the persistent dispatcher heartbeat enabled |
 | `WORKER_FAILED` | Worker could not complete and report a PR number |
 | `REVIEW_REQUIRED` | A PR number was reported; external Architect review is required |
 | `PRODUCT_AMBIGUITY` | Product, architecture, identity, or evidence meaning needs an external decision |
