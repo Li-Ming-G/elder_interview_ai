@@ -1,12 +1,13 @@
 import 'reflect-metadata';
 
-import { ConfigValidationError, loadApiConfig } from '@elder-interview/config';
+import { ConfigValidationError } from '@elder-interview/config';
 
 import { createApplication } from './create-application.js';
 import { SyntheticConsentContinuationPolicyReader } from './project-foundation/consent-continuation.policy.js';
+import { loadApiConfigForStart } from './start-mode.js';
 
 async function main(): Promise<void> {
-  const config = loadApiConfig(process.env);
+  const config = loadApiConfigForStart(process.env);
   const consentContinuationPolicyReader =
     config.appEnv === 'test' &&
     process.env.TEST_CONSENT_CONTINUATION_POLICY === 'synthetic-fictional-v1'
