@@ -208,14 +208,14 @@
     },
     {
       "id": "CPA-04",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/CPA-04.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "CPA-03",
         "OWNER_DIRECTOR_PROMPT_ARTIFACT@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984"
       ],
-      "pr": null,
+      "pr": 109,
       "next_task": "CPA-05"
     },
     {
