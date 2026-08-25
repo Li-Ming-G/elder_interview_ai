@@ -43,7 +43,7 @@ REAL-IDENTITY-01  ordinary persisted local application identity path
 ## Real-flow cleanup frozen facts
 
 - `REAL-IDENTITY-01` is DONE after exact-head Architect PASS, merge, and successful main verification on main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`.
-- `REAL-RUNTIME-02` is now the predefined successor and only READY task.
+- `REAL-RUNTIME-02` is now the predefined successor and current IN_PROGRESS task.
 - Existing `apps/api/src/cli/user-cli.ts` and `apps/api/package.json` already provide operator-managed `user:create`, `user:set-password`, `user:disable`, and `user:enable` commands.
 - Secret input for the existing user CLI is interactive/hidden and command-argument secret input is rejected; this safety invariant must not be weakened.
 - Synthetic identities and `seed-test-users.ts` remain for automated tests only.
@@ -74,8 +74,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `REAL-RUNTIME-02`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `REAL-RUNTIME-02`.
 - `REVIEW`: none.
 - `DONE`: Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
 - `DEFERRED`: `REAL-RUNTIME-02`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
