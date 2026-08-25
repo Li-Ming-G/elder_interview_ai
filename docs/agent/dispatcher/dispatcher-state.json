@@ -166,13 +166,13 @@
       "pr": 102,
       "next_task": "P6R-05"
     },
-      {
-        "id": "P6R-05",
-        "status": "DONE",
+    {
+      "id": "P6R-05",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/P6R-05.md",
       "worker_profile": "luna-high",
       "depends_on": ["P6R-04"],
-        "pr": 103,
+      "pr": 103,
       "next_task": null
     },
     {
@@ -208,10 +208,13 @@
     },
     {
       "id": "CPA-04",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/CPA-04.md",
       "worker_profile": "luna-high",
-      "depends_on": ["CPA-03", "OWNER_DIRECTOR_PROMPT_ARTIFACT"],
+      "depends_on": [
+        "CPA-03",
+        "OWNER_DIRECTOR_PROMPT_ARTIFACT@6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46"
+      ],
       "pr": null,
       "next_task": "CPA-05"
     },
