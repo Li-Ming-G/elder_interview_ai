@@ -208,7 +208,7 @@
     },
     {
       "id": "CPA-04",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/CPA-04.md",
       "worker_profile": "luna-high",
       "depends_on": [
