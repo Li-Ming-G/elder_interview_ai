@@ -31,7 +31,7 @@
 | `CPA-04` | `DONE` | Architect PASS; merged PR #109 at `db7d6f713dba6fb6d2e73483df7279e043061865`; main `28e3f89c3fa4995dd875ed1d915075e4a19efccd`; main CI SUCCESS | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
-| `REAL-RUNTIME-02` | `REVIEW` | Worker handoff on PR #113 at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; exact-head CI verify SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
+| `REAL-RUNTIME-02` | `BLOCKED` | MAIN_VERIFY_FAILED: merged main `195a0b95a7972e9cc38b34adf3bb07520373ed45` CI run `32879863792` failed in auth E2E (`auth.spec.ts:356`, realtime connection unavailable) | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
 
 ## Current phase
 
@@ -39,7 +39,7 @@ Owner Checkpoint A is complete through `CPA-05` / PR #111. The active stage is n
 
 `REAL-IDENTITY-01 → REAL-RUNTIME-02 → null`.
 
-`REAL-IDENTITY-01` is DONE after Architect PASS, merge, and successful main verification. `REAL-RUNTIME-02` is now in REVIEW on PR #113 for external Architect exact-head review.
+`REAL-IDENTITY-01` is DONE after Architect PASS, merge, and successful main verification. `REAL-RUNTIME-02` is BLOCKED / MAIN_VERIFY_FAILED after merged main CI run `32879863792` failed in the existing auth E2E path; no successor is unlocked.
 
 ## Real-Flow Cleanup intent
 

@@ -238,7 +238,7 @@
     },
     {
       "id": "REAL-RUNTIME-02",
-      "status": "REVIEW",
+      "status": "BLOCKED",
       "task_card": "docs/agent/tasks/REAL-RUNTIME-02.md",
       "worker_profile": "luna-high",
       "depends_on": ["REAL-IDENTITY-01"],
