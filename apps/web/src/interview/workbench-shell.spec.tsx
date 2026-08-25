@@ -18,6 +18,7 @@ import type {
   InterviewCaptureApi,
   PreparationData,
   SpeakerCorrectionApi,
+  SuggestionApi,
 } from './interview-api.js';
 import { InterviewApiError } from './interview-api.js';
 import type {
@@ -38,6 +39,101 @@ afterEach(() => {
 });
 
 describe('WorkbenchShell', () => {
+  it('projects automatic, continue-listening, unavailable and manual outcomes through the formal Workbench', async () => {
+    const automatic = currentSuggestion('suggestion', 'Synthetic automatic question');
+    const continuing = currentSuggestion('continue_listening', null, 3);
+    const unavailable = currentSuggestion('unavailable', null, 4);
+    const manual = currentSuggestion('suggestion', 'Synthetic manual-next question', 5);
+    const suggestionApi = createSuggestionApi();
+    const harness = createHarness(
+      recordingSession(),
+      {
+        realtime: {
+          ...EMPTY_REALTIME,
+          finals: [
+            {
+              contentKind: 'conversation',
+              endMs: 2_000,
+              segmentId: 'synthetic-final-segment',
+              speakerRole: 'elder',
+              startMs: 1_000,
+              text: 'Synthetic finalized transcript remains visible.',
+            },
+          ],
+        },
+      },
+      suggestionApi,
+    );
+    const getCurrentSuggestion = vi
+      .mocked(suggestionApi.getCurrentSuggestion)
+      .mockResolvedValueOnce(automatic)
+      .mockResolvedValueOnce(continuing)
+      .mockResolvedValueOnce(unavailable);
+    vi.mocked(suggestionApi.requestNextSuggestion).mockResolvedValue({
+      accepted_presentation_revision: 4,
+      attempt_id: '44444444-4444-4444-8444-444444444444',
+      request_id: '55555555-5555-4555-8555-555555555555',
+      retry_after_ms: 0,
+      status: 'running',
+    });
+    vi.mocked(suggestionApi.getSuggestionRequest).mockResolvedValue({
+      attempt_id: '44444444-4444-4444-8444-444444444444',
+      current: manual,
+      error_code: null,
+      publication_outcome: 'published',
+      request_id: '55555555-5555-4555-8555-555555555555',
+      result_kind: 'suggestion',
+      status: 'succeeded',
+    });
+
+    renderWorkbench(harness);
+    expect(
+      await screen.findByRole('heading', { name: 'Synthetic automatic question' }),
+    ).toBeTruthy();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: { ...EMPTY_REALTIME, suggestionPresentationRevision: 3 },
+        }),
+      );
+    });
+    expect(await screen.findByRole('heading', { name: '继续倾听' })).toBeTruthy();
+
+    act(() => {
+      harness.emit(
+        snapshot(recordingSession(), {
+          realtime: {
+            ...EMPTY_REALTIME,
+            finals: [
+              {
+                contentKind: 'conversation',
+                endMs: 2_000,
+                segmentId: 'synthetic-final-segment',
+                speakerRole: 'elder',
+                startMs: 1_000,
+                text: 'Synthetic finalized transcript remains visible.',
+              },
+            ],
+            suggestionPresentationRevision: 4,
+          },
+        }),
+      );
+    });
+    expect(await screen.findByRole('heading', { name: '问题建议暂不可用' })).toBeTruthy();
+    expect(screen.getByText('Synthetic finalized transcript remains visible.')).toBeTruthy();
+    expect(screen.getByText('正在采集 · 本浏览器已保存 2 段')).toBeTruthy();
+
+    await waitFor(() => {
+      expect(getCurrentSuggestion).toHaveBeenCalledTimes(3);
+    });
+    fireEvent.click(screen.getByRole('button', { name: '下一个问题' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Synthetic manual-next question' }),
+    ).toBeTruthy();
+    expect(suggestionApi.requestNextSuggestion).toHaveBeenCalledTimes(1);
+  });
+
   it('recovers read-only facts without requesting a microphone or resuming on mount', async () => {
     const harness = createHarness(recordingSession());
     renderWorkbench(harness);
@@ -855,8 +951,9 @@ type ControllerPort = Pick<
 function createHarness(
   serverSession: InterviewSessionResponse,
   overrides: Partial<InterviewCaptureControllerSnapshot> = {},
+  suggestionApi: Partial<SuggestionApi> = {},
 ): {
-  api: MockApi;
+  api: MockApi & Partial<SuggestionApi>;
   controller: ControllerPort;
   emit: (next: InterviewCaptureControllerSnapshot) => void;
 } {
@@ -872,7 +969,7 @@ function createHarness(
         : next;
     for (const listener of listeners) listener(current);
   };
-  const api = createApi(serverSession);
+  const api = Object.assign(createApi(serverSession), suggestionApi);
   const controller: ControllerPort = {
     completeFrozenAudio: vi.fn(() => Promise.resolve(current)),
     flushDelivery: vi.fn(() => Promise.resolve(current.archive.pendingDeliveryCount)),
@@ -967,6 +1064,45 @@ function createApi(serverSession: InterviewSessionResponse): MockApi {
     startSession: vi.fn(),
     stopSession: vi.fn(() => Promise.resolve(endingSession('stopping'))),
     uploadInterviewChunk: vi.fn(),
+  };
+}
+
+function createSuggestionApi(): SuggestionApi {
+  return {
+    getCurrentSuggestion: vi.fn(() => Promise.resolve(currentSuggestion('continue_listening'))),
+    getSuggestionHistory: vi.fn(() =>
+      Promise.resolve({
+        anchor: 'synthetic-anchor',
+        items: [],
+        next_cursor: null,
+        session_id: SESSION_ID,
+      }),
+    ),
+    getSuggestionHistoryItem: vi.fn(),
+    getSuggestionRequest: vi.fn(),
+    requestNextSuggestion: vi.fn(),
+  };
+}
+
+function currentSuggestion(
+  kind: 'suggestion' | 'continue_listening' | 'unavailable',
+  question: string | null = null,
+  presentationRevision = 2,
+): Awaited<ReturnType<SuggestionApi['getCurrentSuggestion']>> {
+  return {
+    display_sequence: kind === 'suggestion' ? presentationRevision : null,
+    displayed_at: '2026-08-25T00:00:00.000Z',
+    history: { has_previous: presentationRevision > 1 },
+    kind,
+    presentation_revision: presentationRevision,
+    question,
+    reason: kind === 'suggestion' ? 'Synthetic reason.' : null,
+    session_id: SESSION_ID,
+    snapshot_id:
+      kind === 'suggestion'
+        ? `${String(presentationRevision).repeat(8)}-4444-4444-8444-444444444444`
+        : null,
+    withdrawal_reason: null,
   };
 }
 

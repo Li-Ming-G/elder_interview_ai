@@ -148,6 +148,32 @@ describe('SuggestionPanel', () => {
     expect(await screen.findByText('自动更新后的问题')).toBeTruthy();
     expect(document.activeElement).toBe(next);
   });
+
+  it.each([
+    ['continue_listening', '继续倾听'],
+    ['unavailable', '问题建议暂不可用'],
+  ] as const)('renders the accepted %s presentation state', async (kind, heading) => {
+    const current: Awaited<ReturnType<SuggestionApi['getCurrentSuggestion']>> =
+      kind === 'continue_listening'
+        ? {
+            ...currentSuggestion(),
+            kind,
+            question: null,
+            reason: '当前信息还不足以提出自然且有帮助的新问题。',
+          }
+        : {
+            ...currentSuggestion(),
+            kind,
+            question: null,
+            reason: null,
+            withdrawal_reason: 'policy_unavailable',
+          };
+    const api = suggestionApi({ getCurrentSuggestion: vi.fn(() => Promise.resolve(current)) });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+  });
 });
 
 function suggestionApi(overrides: Partial<SuggestionApi> = {}): SuggestionApi {
