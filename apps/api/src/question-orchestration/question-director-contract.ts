@@ -10,8 +10,35 @@ import type { QuestionPurpose } from '../question-evidence/question-presentation
 export const DIRECTOR_CONTEXT_SCHEMA_VERSION = 'interview-director-context-v1';
 export const DIRECTOR_OUTPUT_SCHEMA_VERSION = 'interview-director-output-v1';
 export const DIRECTOR_PROMPT_BUNDLE_VERSION = 'interview-director-prompt-v1';
+export const CHECKPOINT_A_DIRECTOR_PROMPT_BUNDLE_VERSION =
+  'interview-director-prompt-checkpoint-a-v1';
 export const DIRECTOR_CONTEXT_BUILDER_VERSION = 'interview-director-context-builder-v1';
 export const DIRECTOR_MODEL_CONFIG_VERSION = 'local-test-director-v1';
+export const CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION = 'checkpoint-a-openrouter-ox-alpha-v1';
+
+export type DirectorPromptBundleSelection = 'v1' | 'checkpoint_a';
+
+export interface DirectorPromptBundle {
+  readonly version: string;
+  readonly status: 'formal';
+  readonly system: string;
+  readonly task: string;
+  readonly digest: string;
+}
+
+export interface QuestionDirectorContractOptions {
+  readonly promptBundle?: DirectorPromptBundleSelection;
+  readonly repositoryRoot?: string;
+  readonly modelConfig?: {
+    readonly allowFallback?: boolean;
+    readonly endpoint?: string;
+    readonly mode?: 'generic' | 'checkpoint_a';
+    readonly model?: string;
+    readonly provider?: string;
+    readonly requireParameters?: boolean;
+    readonly responseFormat?: string;
+  };
+}
 
 export interface InterviewDirectorContextV1 {
   context_schema_version: typeof DIRECTOR_CONTEXT_SCHEMA_VERSION;
@@ -74,17 +101,19 @@ export type InterviewDirectorOutputV1 =
 
 @Injectable()
 export class QuestionDirectorContract {
+  public readonly promptBundleVersion: string;
   public readonly contextSchemaDigest: string;
   public readonly outputSchemaDigest: string;
   public readonly promptBundleDigest: string;
   public readonly contextBuilderDigest = sha256(DIRECTOR_CONTEXT_BUILDER_VERSION);
-  public readonly modelConfigDigest = sha256(DIRECTOR_MODEL_CONFIG_VERSION);
+  public readonly modelConfigVersion: string;
+  public readonly modelConfigDigest: string;
   public readonly prompt: { system: string; task: string };
   private readonly validateContextSchema: ValidateFunction;
   private readonly validateOutputSchema: ValidateFunction;
 
-  public constructor() {
-    const root = findRepositoryRoot();
+  public constructor(options: QuestionDirectorContractOptions = {}) {
+    const root = options.repositoryRoot ?? findRepositoryRoot();
     const contextSchemaText = readFileSync(
       join(root, 'docs/contracts/interview-director-context.schema.json'),
       'utf8',
@@ -93,8 +122,7 @@ export class QuestionDirectorContract {
       join(root, 'docs/contracts/interview-director-output.schema.json'),
       'utf8',
     );
-    const system = readFileSync(join(root, 'docs/prompts/interview-director/v1/system.md'), 'utf8');
-    const task = readFileSync(join(root, 'docs/prompts/interview-director/v1/task.md'), 'utf8');
+    const bundle = loadDirectorPromptBundle(root, options.promptBundle ?? 'v1');
     const AjvConstructor = Ajv2020 as unknown as new (options: {
       allErrors: boolean;
       strict: boolean;
@@ -111,8 +139,12 @@ export class QuestionDirectorContract {
     this.validateOutputSchema = ajv.compile(JSON.parse(outputSchemaText) as object);
     this.contextSchemaDigest = sha256(contextSchemaText);
     this.outputSchemaDigest = sha256(outputSchemaText);
-    this.prompt = { system, task };
-    this.promptBundleDigest = sha256(canonicalJson(this.prompt));
+    this.prompt = { system: bundle.system, task: bundle.task };
+    this.promptBundleVersion = bundle.version;
+    this.promptBundleDigest = bundle.digest;
+    const modelConfig = resolveModelConfig(options);
+    this.modelConfigVersion = modelConfig.version;
+    this.modelConfigDigest = modelConfig.digest;
   }
 
   public assertContext(value: unknown): asserts value is InterviewDirectorContextV1 {
@@ -144,6 +176,159 @@ export class QuestionDirectorContract {
     }
     return output;
   }
+}
+
+const CHECKPOINT_A_PROMPT_BUNDLE_DIGEST =
+  'ad94e07bb8e0ce43f0046cc0b7f103831bd134ca8c80e5e499cb068e2decd673';
+const CHECKPOINT_A_OWNER_PROMPT_DIGEST =
+  'd43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b';
+const CHECKPOINT_A_PROMPT_BUNDLE_MANIFEST =
+  'docs/prompts/interview-director/checkpoint-a-v1/manifest.json';
+const CHECKPOINT_A_MODEL_CONFIG = {
+  allowFallback: false,
+  endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+  model: 'stealth/ox-alpha',
+  provider: 'openrouter',
+  requireParameters: true,
+  responseFormat: 'json_object',
+} as const;
+
+export function loadDirectorPromptBundle(root: string, selection: unknown): DirectorPromptBundle {
+  if (selection === 'v1') {
+    const system = readPromptFile(root, 'docs/prompts/interview-director/v1/system.md');
+    const task = readPromptFile(root, 'docs/prompts/interview-director/v1/task.md');
+    return {
+      digest: sha256(canonicalJson({ system, task })),
+      status: 'formal',
+      system,
+      task,
+      version: DIRECTOR_PROMPT_BUNDLE_VERSION,
+    };
+  }
+  if (selection !== 'checkpoint_a') throw new Error('INTERVIEW_DIRECTOR_PROMPT_BUNDLE_UNKNOWN');
+
+  const manifestPath = join(root, CHECKPOINT_A_PROMPT_BUNDLE_MANIFEST);
+  const manifest = parseCheckpointAManifest(manifestPath);
+  const system = readPromptFile(root, 'docs/prompts/interview-director/checkpoint-a-v1/system.md');
+  const task = readPromptFile(root, 'docs/prompts/interview-director/checkpoint-a-v1/task.md');
+  const owner = readPromptFile(
+    root,
+    'docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md',
+  );
+  const digest = sha256(canonicalJson({ system, task }));
+  if (
+    manifest.bundle_version !== CHECKPOINT_A_DIRECTOR_PROMPT_BUNDLE_VERSION ||
+    manifest.status !== 'formal' ||
+    manifest.system_file !== 'system.md' ||
+    manifest.task_file !== 'task.md' ||
+    manifest.context_schema_version !== DIRECTOR_CONTEXT_SCHEMA_VERSION ||
+    manifest.output_schema_version !== DIRECTOR_OUTPUT_SCHEMA_VERSION ||
+    manifest.evidence_contract_version !== 'evidence-drilldown-v1' ||
+    manifest.runtime_scope !== 'checkpoint_a_only' ||
+    manifest.owner_artifact_sha256 !== CHECKPOINT_A_OWNER_PROMPT_DIGEST ||
+    manifest.prompt_bundle_digest !== CHECKPOINT_A_PROMPT_BUNDLE_DIGEST ||
+    manifest.prompt_bundle_digest !== digest ||
+    sha256(system) !== CHECKPOINT_A_OWNER_PROMPT_DIGEST ||
+    sha256(owner) !== CHECKPOINT_A_OWNER_PROMPT_DIGEST ||
+    system !== owner
+  ) {
+    throw new Error('INTERVIEW_DIRECTOR_PROMPT_BUNDLE_IDENTITY_MISMATCH');
+  }
+  return { digest, status: 'formal', system, task, version: manifest.bundle_version };
+}
+
+function readPromptFile(root: string, relativePath: string): string {
+  try {
+    return readFileSync(join(root, relativePath), 'utf8');
+  } catch {
+    throw new Error('INTERVIEW_DIRECTOR_PROMPT_BUNDLE_NOT_FOUND');
+  }
+}
+
+function parseCheckpointAManifest(path: string): {
+  bundle_version: string;
+  context_schema_version: string;
+  evidence_contract_version: string;
+  owner_artifact_sha256: string;
+  output_schema_version: string;
+  prompt_bundle_digest: string;
+  runtime_scope: string;
+  status: string;
+  system_file: string;
+  task_file: string;
+} {
+  let value: unknown;
+  try {
+    value = JSON.parse(readFileSync(path, 'utf8')) as unknown;
+  } catch {
+    throw new Error('INTERVIEW_DIRECTOR_PROMPT_BUNDLE_NOT_FOUND');
+  }
+  const record = value as Record<string, unknown> | null;
+  const ownerArtifact =
+    record !== null && typeof record === 'object' && !Array.isArray(record)
+      ? (record.owner_artifact as Record<string, unknown> | null)
+      : null;
+  if (
+    record === null ||
+    typeof record !== 'object' ||
+    Array.isArray(record) ||
+    typeof record.bundle_version !== 'string' ||
+    typeof record.context_schema_version !== 'string' ||
+    typeof record.evidence_contract_version !== 'string' ||
+    ownerArtifact === null ||
+    Array.isArray(ownerArtifact) ||
+    typeof ownerArtifact.sha256 !== 'string' ||
+    typeof record.prompt_bundle_digest !== 'string' ||
+    typeof record.output_schema_version !== 'string' ||
+    typeof record.runtime_scope !== 'string' ||
+    typeof record.status !== 'string' ||
+    typeof record.system_file !== 'string' ||
+    typeof record.task_file !== 'string'
+  ) {
+    throw new Error('INTERVIEW_DIRECTOR_PROMPT_BUNDLE_UNKNOWN');
+  }
+  return {
+    bundle_version: record.bundle_version,
+    context_schema_version: record.context_schema_version,
+    evidence_contract_version: record.evidence_contract_version,
+    owner_artifact_sha256: ownerArtifact.sha256,
+    output_schema_version: record.output_schema_version,
+    prompt_bundle_digest: record.prompt_bundle_digest,
+    runtime_scope: record.runtime_scope,
+    status: record.status,
+    system_file: record.system_file,
+    task_file: record.task_file,
+  };
+}
+
+function resolveModelConfig(options: QuestionDirectorContractOptions): {
+  version: string;
+  digest: string;
+} {
+  if (options.promptBundle !== 'checkpoint_a') {
+    return {
+      digest: sha256(DIRECTOR_MODEL_CONFIG_VERSION),
+      version: DIRECTOR_MODEL_CONFIG_VERSION,
+    };
+  }
+  const supplied = options.modelConfig;
+  if (
+    supplied !== undefined &&
+    canonicalJson({
+      allowFallback: supplied.allowFallback,
+      endpoint: supplied.endpoint,
+      model: supplied.model,
+      provider: supplied.provider,
+      requireParameters: supplied.requireParameters,
+      responseFormat: supplied.responseFormat,
+    }) !== canonicalJson(CHECKPOINT_A_MODEL_CONFIG)
+  ) {
+    throw new Error('CHECKPOINT_A_MODEL_CONFIG_MISMATCH');
+  }
+  return {
+    digest: sha256(canonicalJson(CHECKPOINT_A_MODEL_CONFIG)),
+    version: CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION,
+  };
 }
 
 function findRepositoryRoot(): string {

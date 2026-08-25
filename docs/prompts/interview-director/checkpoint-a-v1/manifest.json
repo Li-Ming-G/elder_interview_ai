@@ -1,0 +1,16 @@
+{
+  "bundle_version": "interview-director-prompt-checkpoint-a-v1",
+  "status": "formal",
+  "system_file": "system.md",
+  "task_file": "task.md",
+  "prompt_bundle_digest": "ad94e07bb8e0ce43f0046cc0b7f103831bd134ca8c80e5e499cb068e2decd673",
+  "owner_artifact": {
+    "path": "docs/prompts/interview-director/owner-inputs/Interview_Director_System_v2.md",
+    "durable_commit": "22760af1adc5d08f51f5dd3ed0aebca5f3c7d984",
+    "sha256": "d43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b"
+  },
+  "context_schema_version": "interview-director-context-v1",
+  "output_schema_version": "interview-director-output-v1",
+  "evidence_contract_version": "evidence-drilldown-v1",
+  "runtime_scope": "checkpoint_a_only"
+}
