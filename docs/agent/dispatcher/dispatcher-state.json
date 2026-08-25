@@ -213,7 +213,7 @@
       "worker_profile": "luna-high",
       "depends_on": [
         "CPA-03",
-        "OWNER_DIRECTOR_PROMPT_ARTIFACT@6bbfb5c038cd671eacb51d5c94e2ea0fcdff8f46"
+        "OWNER_DIRECTOR_PROMPT_ARTIFACT@be85543b28d0862fb6c078af686793e6ebcee82b"
       ],
       "pr": null,
       "next_task": "CPA-05"
