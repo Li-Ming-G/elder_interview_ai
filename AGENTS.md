@@ -55,6 +55,8 @@ In particular, the Dispatcher must:
 - prefer GitHub durable facts over a stale local projection;
 - reconcile against the exact current PR head and the latest valid current-head `ARCHITECT_VERDICT_V1`;
 - on `PASS`, merge and verify successful main CI before marking the task `DONE`;
+- if a task is projected `BLOCKED / MAIN_VERIFY_FAILED`, every later pulse must re-check the accepted merged PR, current-main applicability/ancestry, and the latest applicable main CI. A later durable `SUCCESS` mechanically clears that blocker: mark the task `DONE`, perform the required three-file stage-end synchronization, and unlock only its predefined `next_task`. This recovery requires no new Architect verdict, no new `ARCHITECT_RECOVERY_V1`, no Worker commit, no new PR, and no new Product Owner signal;
+- absence, staleness, or malformation of `ARCHITECT_RECOVERY_V1` is never a reason to no-op when the canonical Task Card plus durable GitHub facts already authorize a transition. If main CI is still failed, pending, missing, or task applicability/ancestry cannot be proven, remain blocked/wait and retry on the next pulse;
 - on `REQUEST_CHANGES`, return the same task and PR to bounded repair;
 - unlock only a predefined `next_task`;
 - leave Architect review to the external Architect.
