@@ -257,6 +257,18 @@
       ],
       "pr": 115,
       "next_task": null
+    },
+    {
+      "id": "FIRST-INTERVIEW-START-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/FIRST-INTERVIEW-START-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "LOCAL-DB-PORT-01",
+        "main@7475b5144c816f9e383551bb5948c7a7f71d79cd"
+      ],
+      "pr": null,
+      "next_task": null
     }
   ]
 }
