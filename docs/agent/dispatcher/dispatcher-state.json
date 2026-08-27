@@ -268,6 +268,18 @@
         "main@7475b5144c816f9e383551bb5948c7a7f71d79cd"
       ],
       "pr": 116,
+      "next_task": "DISPATCHER-SAME-TASK-REPAIR-01"
+    },
+    {
+      "id": "DISPATCHER-SAME-TASK-REPAIR-01",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "FIRST-INTERVIEW-START-01",
+        "DISPATCHER-SAME-TASK-REPAIR-PACK"
+      ],
+      "pr": null,
       "next_task": null
     }
   ]
