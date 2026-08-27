@@ -19,7 +19,7 @@ Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership a
 
 ## Current phase and real progress
 
-Current phase: `POST-CHECKPOINT A / REAL-FLOW CLEANUP`.
+Current phase: `POST-CHECKPOINT A / REAL-FLOW CLEANUP COMPLETE`.
 
 Completed baseline:
 
@@ -43,7 +43,7 @@ REAL-IDENTITY-01  ordinary persisted local application identity path
 ## Real-flow cleanup frozen facts
 
 - `REAL-IDENTITY-01` is DONE after exact-head Architect PASS, merge, and successful main verification on main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`.
-- `REAL-RUNTIME-02` is BLOCKED / MAIN_VERIFY_FAILED after merged main `195a0b95a7972e9cc38b34adf3bb07520373ed45` failed CI run `32879863792` in the existing auth E2E path (`auth.spec.ts:356`, realtime connection unavailable).
+- `REAL-RUNTIME-02` is DONE after exact-head Architect PASS on `c57d1172e65d7944137dd83be330e49eb68ceaf5`, accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45`, refreshed descendant main `684f32b558b00ef48d4785315e1d230bc1be1c40`, and exact-main CI run `32914392387` attempt 2 SUCCESS.
 - Existing `apps/api/src/cli/user-cli.ts` and `apps/api/package.json` already provide operator-managed `user:create`, `user:set-password`, `user:disable`, and `user:enable` commands.
 - Secret input for the existing user CLI is interactive/hidden and command-argument secret input is rejected; this safety invariant must not be weakened.
 - Synthetic identities and `seed-test-users.ts` remain for automated tests only.
@@ -77,9 +77,9 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 - `READY`: none.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: `REAL-RUNTIME-02` / `MAIN_VERIFY_FAILED`; no successor unlock.
-- `DONE`: Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
-- `DEFERRED`: `REAL-RUNTIME-02`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
+- `BLOCKED`: none.
+- `DONE`: Real-Flow Cleanup through `REAL-RUNTIME-02` / PR #113; Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
+- `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 
 ## Worker prohibitions
 
@@ -91,4 +91,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-`REAL-IDENTITY-01` is DONE after exact-head Architect PASS, merge, and successful main verification. `REAL-RUNTIME-02` remains BLOCKED / MAIN_VERIFY_FAILED until the accepted recovery path resolves the failed main verification.
+`REAL-IDENTITY-01` and `REAL-RUNTIME-02` are DONE after exact-head Architect PASS, accepted merges, and successful main verification. `REAL-RUNTIME-02` has `next_task: null`; unlock nothing and invent no successor without a newly authorized Development Pack.

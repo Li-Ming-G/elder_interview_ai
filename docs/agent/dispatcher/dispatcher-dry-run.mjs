@@ -138,8 +138,31 @@ function currentVerdict(task, pr) {
   return { kind: 'valid', verdict: valid.at(-1).VERDICT };
 }
 
-function mainVerified(task, github) {
-  return github.main?.status === 'success' && github.main?.verifiedTaskId === task.id;
+function latestApplicableMainCi(main) {
+  if (!main?.sha) return null;
+  const exactMainAttempts = (main.requiredCiAttempts || [])
+    .filter((attempt) => attempt.headSha?.toLowerCase() === main.sha.toLowerCase())
+    .sort(
+      (a, b) =>
+        (b.runAttempt || 0) - (a.runAttempt || 0) ||
+        (b.updatedAt || '').localeCompare(a.updatedAt || '') ||
+        (b.runId || 0) - (a.runId || 0),
+    );
+  return exactMainAttempts[0] || null;
+}
+
+function verifyMergedMain(pr, github) {
+  const main = github.main;
+  if (!main?.sha || !pr.mergeCommitSha) return { kind: 'wait', detail: 'MAIN_CI_PENDING' };
+  const acceptedMergeInAncestry = (main.ancestry || []).some(
+    (sha) => sha.toLowerCase() === pr.mergeCommitSha.toLowerCase(),
+  );
+  if (!acceptedMergeInAncestry) return { kind: 'blocked', detail: 'MAIN_ANCESTRY_UNPROVEN' };
+  const latestAttempt = latestApplicableMainCi(main);
+  if (!latestAttempt || latestAttempt.status !== 'completed')
+    return { kind: 'wait', detail: 'MAIN_CI_PENDING' };
+  if (latestAttempt.conclusion === 'success') return { kind: 'success', latestAttempt };
+  return { kind: 'blocked', detail: 'MAIN_VERIFY_FAILED', latestAttempt };
 }
 
 function projectStatus(task, pr, github) {
@@ -148,17 +171,23 @@ function projectStatus(task, pr, github) {
   if (verdict.kind === 'ambiguous')
     return { status: 'BLOCKED', pr: pr.number, error: 'PRODUCT_AMBIGUITY' };
   if (pr.merged) {
-    if (github.main?.status === 'pending' || github.main?.status === 'missing')
-      return { status: 'REVIEW', pr: pr.number, action: 'WAIT_MAIN_CI', detail: 'MAIN_CI_PENDING' };
-    if (github.main?.status === 'failure')
+    if (verdict.kind !== 'valid' || verdict.verdict !== 'PASS')
+      return { status: 'REVIEW', pr: pr.number, action: 'WAIT_FOR_VERDICT' };
+    const mainVerification = verifyMergedMain(pr, github);
+    if (mainVerification.kind === 'wait')
+      return {
+        status: 'REVIEW',
+        pr: pr.number,
+        action: 'WAIT_MAIN_CI',
+        detail: mainVerification.detail,
+      };
+    if (mainVerification.kind === 'blocked')
       return {
         status: 'BLOCKED',
         pr: pr.number,
         error: 'TASK_BLOCKED',
-        detail: 'MAIN_VERIFY_FAILED',
+        detail: mainVerification.detail,
       };
-    if (!mainVerified(task, github))
-      return { status: 'REVIEW', pr: pr.number, action: 'WAIT_MAIN_CI', detail: 'MAIN_CI_PENDING' };
     return {
       status: 'DONE',
       pr: pr.number,
@@ -346,7 +375,18 @@ assert.notEqual(results.H.action, 'READY_PREDEFINED_NEXT');
 
 const mainFailure = reconcile(canonical, fixture.cases.H_ci_pending.local, {
   ...fixture.cases.H_ci_pending.github,
-  main: { ...fixture.cases.H_ci_pending.github.main, status: 'failure' },
+  main: {
+    ...fixture.cases.H_ci_pending.github.main,
+    requiredCiAttempts: [
+      {
+        headSha: fixture.cases.H_ci_pending.github.main.sha,
+        runId: 8001,
+        runAttempt: 1,
+        status: 'completed',
+        conclusion: 'failure',
+      },
+    ],
+  },
 });
 assert.equal(mainFailure.status, 'BLOCKED');
 assert.equal(mainFailure.error, 'TASK_BLOCKED');
@@ -361,6 +401,50 @@ assert.equal(results.I.status, 'DONE');
 assert.equal(results.I.nextTask, 'DISPATCHER-RECOVERY-001');
 assert.equal(results.I.action, 'READY_PREDEFINED_NEXT');
 assert.notEqual(results.I.canonicalTaskId, 'P4C-03');
+
+results.J = reconcile(
+  canonical,
+  fixture.cases.J_initial_main_failure.local,
+  fixture.cases.J_initial_main_failure.github,
+);
+assert.equal(results.J.status, 'BLOCKED');
+assert.equal(results.J.error, 'TASK_BLOCKED');
+assert.equal(results.J.detail, 'MAIN_VERIFY_FAILED');
+
+results.K = reconcile(
+  canonical,
+  fixture.cases.K_same_main_rerun_recovery.local,
+  fixture.cases.K_same_main_rerun_recovery.github,
+);
+assert.equal(results.K.status, 'DONE');
+assert.equal(results.K.action, 'READY_PREDEFINED_NEXT');
+assert.equal(results.K.nextTask, 'DISPATCHER-RECOVERY-001');
+
+const nullSuccessor = reconcile(
+  canonical,
+  fixture.cases.K_null_successor_recovery.local,
+  fixture.cases.K_null_successor_recovery.github,
+);
+assert.equal(nullSuccessor.status, 'DONE');
+assert.equal(nullSuccessor.action, 'DONE');
+assert.equal(nullSuccessor.nextTask, null);
+
+results.L = reconcile(
+  canonical,
+  fixture.cases.L_descendant_main_recovery.local,
+  fixture.cases.L_descendant_main_recovery.github,
+);
+assert.equal(results.L.status, 'DONE');
+
+results.M = reconcile(
+  canonical,
+  fixture.cases.M_false_recovery_prohibited.local,
+  fixture.cases.M_false_recovery_prohibited.github,
+);
+assert.notEqual(results.M.status, 'DONE');
+assert.equal(results.M.status, 'BLOCKED');
+assert.equal(results.M.error, 'TASK_BLOCKED');
+assert.equal(results.M.detail, 'MAIN_ANCESTRY_UNPROVEN');
 
 for (const result of Object.values(results)) {
   if (result.error) assert(stableErrors.has(result.error));

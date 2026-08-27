@@ -10,6 +10,9 @@ predefined queue on refreshed `main`: `id`, `task_card`, `depends_on`, and
 durable facts override stale local projection: matching PR, current head,
 top-level verdict, merge state, and CI. `dispatcher-state.json` is therefore a
 reconstructable projection plus canonical topology, not the only runtime truth.
+Every pulse reconciles fresh durable facts, including recoverable main-CI
+blockers, before any status-based stop or ordinary dispatch decision. A local
+`BLOCKED` projection cannot suppress a mechanically authorized recovery.
 
 **Remote-main refresh is mandatory before canonical queue reads.** At the start
 of every bounded pulse, first run a safe `git fetch origin main`. Canonical queue
@@ -54,6 +57,7 @@ to the closed transition table below.
 | `IN_PROGRESS` | worker failed | `BLOCKED` | Stop current pulse |
 | `REVIEW` | current-head `PASS`, fresh exact-head recheck, merge, refreshed main CI succeeds | `DONE` | Verify main, mark current `DONE`, then only predefined `next_task` becomes `READY` |
 | `REVIEW` | current-head `REQUEST_CHANGES` | `IN_PROGRESS` | Return the same canonical task and PR to implementation |
+| `BLOCKED / MAIN_VERIFY_FAILED` | accepted implementation PR remains merged from the exact Architect-reviewed `PASS` head; its accepted merge is in refreshed current-main ancestry; latest applicable required CI for exact refreshed current main is terminal `SUCCESS` | `DONE` | Clear stale `MAIN_VERIFY_FAILED`; mark current `DONE`; synchronize the three current-state files; unlock only predefined `next_task`, or unlock nothing when `next_task` is `null`; stop the current pulse |
 | any active state | product or architecture ambiguity | `BLOCKED` | Stop current pulse and request a decision |
 
 There is no transaction, revision, compare-and-swap, reviewer-identity
@@ -75,7 +79,7 @@ run future pulses.
 ## Stop rules
 
 - **Stop means end the current bounded pulse only. It never means stop the persistent scheduler.**
-- Stop the current pulse at `REVIEW`, `BLOCKED`, `DEFERRED` and `DONE`.
+- After mandatory durable and recoverable-blocker reconciliation, stop the current pulse at `REVIEW`, a still-`BLOCKED` task, `DEFERRED`, and `DONE`. `BLOCKED` is not globally terminal across future pulses.
 - If no eligible `READY` task exists on freshly fetched `origin/main`, end the current pulse with `NO_READY_TASK` and leave the dispatcher heartbeat untouched.
 - A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch for the current pulse.
 - Synthetic launch evidence proves only that the worker profile can be launched.
@@ -89,6 +93,7 @@ run future pulses.
 
 - Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required. The recurring schedule remains enabled for the next pulse.
 - The first external action of every pulse is a safe `git fetch origin main`; only after that may the Dispatcher determine canonical queue/task-card state.
+- After the refresh, reconcile durable GitHub/main facts and every projected `BLOCKED / MAIN_VERIFY_FAILED` task before applying any status-based stop or ordinary dispatch logic. Never return early merely because the cached status is `BLOCKED`.
 - Before any side effect, persist the state transition successfully, then perform the external action. In particular, persist `READY → IN_PROGRESS` before launching a Worker.
 - `IN_PROGRESS` is the default wait state only when no durable GitHub fact can advance it. A stale status or missing local PR cannot deny a matching GitHub PR.
 - Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.
@@ -100,6 +105,27 @@ run future pulses.
 - Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / TASK_BLOCKED` with reason `LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
 - More than one active task or READY task is `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`; Dispatcher never chooses between contradictory queue entries.
 - A pulse advances at most one safe stage.
+
+### Applicable current-main CI and blocker recovery
+
+For a candidate refreshed current-main SHA `M`, the accepted implementation
+merge commit `A` must be proven as an ancestor of `M`. Required CI is then read
+for exact `M`, not for an earlier main SHA or an unrelated successful SHA. If
+the workflow has been rerun on exact `M`, the latest applicable run attempt is
+authoritative:
+
+- latest attempt `SUCCESS`: current-main verification succeeds;
+- latest attempt pending, or no applicable attempt: wait and retry on the next pulse;
+- latest attempt `FAILURE`: remain `BLOCKED / MAIN_VERIFY_FAILED` and retry on the next pulse;
+- `SUCCESS` for a SHA whose ancestry does not contain `A`: fail closed and never clear the blocker.
+
+When exact-current-main verification later succeeds, the closed transition
+from `BLOCKED / MAIN_VERIFY_FAILED` to `DONE` is automatic. It requires no new
+Architect verdict, `ARCHITECT_RECOVERY_V1`, Worker repair commit, Worker PR, or
+Product Owner signal because the implementation was already accepted. Clear
+the stale blocker, perform the required three-file synchronization, and unlock
+only the predefined `next_task`; if it is `null`, unlock nothing and end the
+current pulse.
 
 ## Permanent stage-end state synchronization
 
