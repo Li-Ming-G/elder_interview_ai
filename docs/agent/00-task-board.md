@@ -16,10 +16,10 @@
 | `P4C-03` | `DONE` | Dispatcher Recovery accepted/merged/main-verified | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `91` | `P4C-04` |
 | `P4C-04` | `DONE` | P4C-03 accepted/merged/main-verified | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `92` | `P5E-01` |
 | `P5E-01` | `DONE` | P4C-04 accepted/merged/main-verified | [`tasks/P5E-01.md`](tasks/P5E-01.md) | `luna-high` | `93` | `P5E-02` |
-| `P5E-02` | `DONE` | P5E-01 accepted/merged/main-verified | [`tasks/P5E-02.md`](tasks/P5E-02.md) | `luna-high` | `94` | `P5E-03` |
-| `P5E-03` | `DONE` | P5E-02 accepted/merged/main-verified | [`tasks/P5E-03.md`](tasks/P5E-03.md) | `luna-high` | `95` | `P5C-01` |
-| `P5C-01` | `DONE` | P5E-03 accepted/merged/main-verified | [`tasks/P5C-01.md`](tasks/P5C-01.md) | `luna-high` | `96` | `P5C-02` |
-| `P5C-02` | `DONE` | P5C-01 accepted/merged/main-verified | [`tasks/P5C-02.md`](tasks/P5C-02.md) | `luna-high` | `97` | `P6R-01` |
+| `P5E-02` | `DONE` | P5E-01 merged and verified | [`tasks/P5E-02.md`](tasks/P5E-02.md) | `luna-high` | `94` | `P5E-03` |
+| `P5E-03` | `DONE` | P5E-02 merged and verified | [`tasks/P5E-03.md`](tasks/P5E-03.md) | `luna-high` | `95` | `P5C-01` |
+| `P5C-01` | `DONE` | P5E-03 merged and verified | [`tasks/P5C-01.md`](tasks/P5C-01.md) | `luna-high` | `96` | `P5C-02` |
+| `P5C-02` | `DONE` | P5C-01 merged and verified | [`tasks/P5C-02.md`](tasks/P5C-02.md) | `luna-high` | `97` | `P6R-01` |
 | `P6R-01` | `DONE` | P5 complete through P5C-02; Owner-issued P6 Development Pack | [`tasks/P6R-01.md`](tasks/P6R-01.md) | `luna-high` | `99` | `P6R-02` |
 | `P6R-02` | `DONE` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `100` | `P6R-03` |
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
@@ -33,33 +33,34 @@
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
 | `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
+| `FIRST-INTERVIEW-START-01` | `READY` | `LOCAL-DB-PORT-01`; planning baseline `main@7475b5144c816f9e383551bb5948c7a7f71d79cd` | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Owner Checkpoint A is complete through `CPA-05` / PR #111. Real-Flow Cleanup is complete through `REAL-RUNTIME-02` / PR #113. The Product Owner has now authorized one bounded Foundation/local-infrastructure maintenance pack:
+Owner Checkpoint A and Real-Flow Cleanup are complete. Local DB Port Maintenance is complete through `LOCAL-DB-PORT-01` / PR #115.
 
-`LOCAL-DB-PORT-01 → null`.
+The Product Owner has now authorized one bounded product bugfix task:
 
-`LOCAL-DB-PORT-01` is `DONE` after Architect PASS, accepted merge and successful refreshed-main CI verification. It standardized repository local PostgreSQL host ports to `15432` for development and `15433` for tests while preserving container-internal PostgreSQL port `5432` and all P1-P6/T0-T27 semantics.
+`FIRST-INTERVIEW-START-01 -> null`.
 
-## Local DB Port Maintenance intent
+Its purpose is to repair the first real interview start authority so a newly created project's first session can start after a current valid formal consent, without broadening later-session continuing-consent semantics.
 
-- development PostgreSQL host publication becomes `127.0.0.1:15432 -> container:5432`;
-- test PostgreSQL host publication becomes `127.0.0.1:15433 -> container:5432`;
-- `.env.example` and stable local engineering guidance are aligned to those ports;
-- existing untracked `.env.local` files require a one-time local edit after pulling;
-- no dynamic host-port parameterization, normal-path Compose override, OS-level reserved-port modification, schema change or business/runtime behavior change is authorized;
-- `docker compose down -v` is explicitly outside the migration path because the development database uses a persistent named volume.
+## FIRST-INTERVIEW-START-01 frozen intent
 
-P1-P6 semantics, Owner Prompt, OpenRouter/Ox, Tencent ASR, memory/evidence rules, scoring/evaluation boundaries and production provider/model/data decisions are unchanged.
+- first session identity is existing `sequence_no === 1`;
+- current valid formal `recording_transcription_ai` consent may authorize the current first interview;
+- first-session readiness/start must not require `ConsentContinuationPolicyReader` to return `covered`;
+- later sessions remain governed by the existing continuation policy and production `unavailable` remains blocking;
+- `mvp-v1` is not declared cross-session continuing consent;
+- no Prisma schema/migration, P1-P6/T0-T27 change, ASR/Director/memory/evidence change, or half-created-interview deletion UX is authorized by this task;
+- `next_task` is `null`.
 
-Open PRs #25, #43, #45, #62 and #110 remain outside this maintenance pack and must not be acted on by this task.
+Open PRs #25, #43, #45, #62 and #110 remain outside this bugfix and must not be acted on by this task.
 
 ## Maintenance
 
 - GitHub durable facts override stale projection/status fields.
 - Dispatcher must fresh-read GitHub/main or refreshed `origin/main`; an unpushed local worktree is never canonical state.
-- Stage-end sync is complete only after commit/push and a fresh durable reread verifies the three current-state files.
 - A normal Worker hands off through Task Card + PR and stops at REVIEW.
 - Ordinary Implementation Tasks use external Architect review by default; no internal Reviewer/iteration-coach unless explicitly escalated.
 - Dispatcher never creates Task Cards or invents next tasks.
