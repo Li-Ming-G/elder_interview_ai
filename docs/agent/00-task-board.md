@@ -32,7 +32,7 @@
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
-| `LOCAL-DB-PORT-01` | `READY` | `REAL-RUNTIME-02` DONE; Product Owner-issued `LOCAL-DB-PORT-MAINTENANCE-PACK`; planning baseline `bf76fce0a64689adaeb1f46fbd01575bc8c3802e` | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `null` | `null` |
+| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
 
 ## Current phase
 
@@ -40,7 +40,7 @@ Owner Checkpoint A is complete through `CPA-05` / PR #111. Real-Flow Cleanup is 
 
 `LOCAL-DB-PORT-01 → null`.
 
-`LOCAL-DB-PORT-01` is the only active queue item and is `READY` for Dispatcher launch. It standardizes repository local PostgreSQL host ports to `15432` for development and `15433` for tests while preserving container-internal PostgreSQL port `5432` and all P1-P6/T0-T27 semantics.
+`LOCAL-DB-PORT-01` is `DONE` after Architect PASS, accepted merge and successful refreshed-main CI verification. It standardized repository local PostgreSQL host ports to `15432` for development and `15433` for tests while preserving container-internal PostgreSQL port `5432` and all P1-P6/T0-T27 semantics.
 
 ## Local DB Port Maintenance intent
 

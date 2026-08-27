@@ -42,7 +42,7 @@ LOCAL-DB-PORT-01  standardize local PostgreSQL host ports to 15432/15433
 
 ## Local DB port maintenance frozen facts
 
-- `LOCAL-DB-PORT-01` is the only active task and is `READY`.
+- `LOCAL-DB-PORT-01` is `DONE` after Architect PASS, merged PR #115 and successful refreshed-main CI verification on `main@f77a00da1bc39aba0473d48275e6b735fc6d914e` (run `33053415020`).
 - Development PostgreSQL must publish `127.0.0.1:15432 -> container:5432`.
 - Test PostgreSQL must publish `127.0.0.1:15433 -> container:5432`.
 - Container-internal PostgreSQL port `5432`, database names, users, passwords, healthchecks, persistent development volume and test tmpfs semantics remain unchanged.
@@ -75,11 +75,11 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `LOCAL-DB-PORT-01`.
+- `READY`: none.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `BLOCKED`: none.
-- `DONE`: Real-Flow Cleanup through `REAL-RUNTIME-02` / PR #113; Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
+- `DONE`: Local DB Port Maintenance through `LOCAL-DB-PORT-01` / PR #115; Real-Flow Cleanup through `REAL-RUNTIME-02` / PR #113; Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 
 ## Worker prohibitions
@@ -92,4 +92,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-Dispatcher must fresh-read `origin/main`, reconcile durable state, and mechanically dispatch the single `READY` task `LOCAL-DB-PORT-01` using worker profile `luna-high`. The task stops at `REVIEW` after the Worker reports one PR. `next_task` is `null`; after external Architect PASS, merge and successful refreshed-main CI verification, synchronize the three current-state files and unlock nothing.
+Dispatcher must fresh-read `origin/main` and reconcile durable state. `LOCAL-DB-PORT-01` is complete after external Architect PASS, merge and successful refreshed-main CI verification; `next_task` is `null`, so nothing is unlocked.
