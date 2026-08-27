@@ -8,7 +8,7 @@ const webPort = Number(process.env.SMOKE_WEB_PORT ?? 4173);
 const webRoot = resolve('apps/web/dist');
 const databaseUrl =
   process.env.TEST_DATABASE_URL ??
-  'postgresql://elder_interview_test:local_test_only@127.0.0.1:5433/elder_interview_test';
+  'postgresql://elder_interview_test:local_test_only@127.0.0.1:15433/elder_interview_test';
 
 function waitForExit(child) {
   if (child.exitCode !== null) {
