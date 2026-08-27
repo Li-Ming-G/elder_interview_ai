@@ -56,6 +56,13 @@ Never run two READY tasks concurrently, advance beyond `next_task`, create Task 
 
 Every Scheduled Run is a bounded pulse. It never waits for a Worker, PR review, CI, or external state change. If the next action depends on a future event, persist the current state and end the pulse immediately.
 
+At the beginning of every pulse, the order is mandatory: refresh and reconcile
+durable GitHub/main facts, reconcile recoverable blockers, and only then apply
+ordinary status-stop or dispatch logic. `BLOCKED` is not globally terminal
+across later pulses. It ends only the current pulse when fresh facts cannot
+advance it, and a cached `BLOCKED` status must never cause an early return
+before reconciliation.
+
 Every side effect follows `persist state → perform external action`. For dispatch, persist `READY → IN_PROGRESS` successfully before launching the Worker. This prevents a subsequent pulse from dispatching the same task twice.
 
 ### Permanent stage-end state synchronization
@@ -110,6 +117,25 @@ discovery authority.
 - Before syncing main, verify repository identity and a safe clean/savable working tree. If local sync could overwrite uncommitted work, stop with `BLOCKED / TASK_BLOCKED` and reason `LOCAL_SYNC_UNSAFE`; never force-reset or overwrite unknown changes.
 - At all times there is at most one active task and one READY task; any queue contradiction yields `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`. The Dispatcher never chooses between contradictory queue entries.
 
+### Recovering `BLOCKED / MAIN_VERIFY_FAILED`
+
+Every pulse reconsiders this recoverable blocker from fresh durable facts. For
+refreshed current-main SHA `M`, prove that the already accepted implementation
+PR remains merged from its exact Architect-reviewed `PASS` head and that its
+accepted merge commit `A` is an ancestor of `M`. Read required CI for exact
+`M`. When exact `M` has reruns, the latest applicable attempt is authoritative:
+
+- `SUCCESS` completes main verification;
+- pending or missing waits for the next pulse;
+- `FAILURE` remains `BLOCKED / MAIN_VERIFY_FAILED` for retry on the next pulse;
+- success for a SHA that does not contain `A` cannot clear the blocker.
+
+A later applicable `SUCCESS` mechanically clears the stale blocker, marks the
+task `DONE`, synchronizes the three current-state files, and unlocks only its
+predefined `next_task`. If `next_task` is `null`, nothing is unlocked and the
+current pulse ends. This recovery needs no new Architect verdict,
+`ARCHITECT_RECOVERY_V1`, Worker repair commit or PR, or Product Owner signal.
+
 Every irreversible transition performs a fresh read immediately before the
 action: PR head before merge, current queue before dispatch, PR head/comments
 before verdict handling, and actual main SHA/CI before `DONE` and `READY`
@@ -126,19 +152,21 @@ main CI never produces `DONE` or a successor `READY`.
 - [`luna-high-launch-contract.md`](luna-high-launch-contract.md): launch and worker hand-back.
 - [`task-card-template.md`](task-card-template.md): mandatory bounded Task Card.
 - [`fixtures/sequential-queue-smoke.json`](fixtures/sequential-queue-smoke.json): two-task sequential smoke fixture.
-- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): A→B smoke plus A–I reconciliation validation.
+- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): A→B smoke plus A–M reconciliation validation, including main-verification blocker recovery.
 - [`fixtures/reconciliation-cases.json`](fixtures/reconciliation-cases.json): stale-state, identity, verdict, ambiguity, and CI fixtures.
 
 ## Mechanical algorithm
 
-1. Fresh-read canonical queue/Task Cards and GitHub facts; reconcile stale projection first.
-2. Validate the active ID; recover only to an existing canonical ID and bind a unique matching PR.
-3. For a `READY` task, persist `IN_PROGRESS` before launching its declared worker profile.
-4. When an open PR exists, project `REVIEW` unless the fresh current-head verdict is `REQUEST_CHANGES`; retain the same PR for repair.
-5. The external Architect performs the actual PR review.
-6. On external `PASS`, do not unlock `next_task` until the current PR is merged into `main`; refresh/sync local `main` and verify it contains the accepted task.
-7. Then, after fresh main verification, set current `DONE` and only the predefined `next_task` `READY`. On `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
-8. Worker failure, product/architecture ambiguity or another blocker sets `BLOCKED` and stops.
+1. Refresh canonical queue/Task Cards and GitHub/main facts; reconcile stale projection first.
+2. Reconcile every projected `BLOCKED / MAIN_VERIFY_FAILED` task against accepted merge ancestry and the latest applicable required CI attempt for exact current main.
+3. Only after durable and recoverable-blocker reconciliation, apply ordinary status-stop or dispatch logic.
+4. Validate the active ID; recover only to an existing canonical ID and bind a unique matching PR.
+5. For a `READY` task, persist `IN_PROGRESS` before launching its declared worker profile.
+6. When an open PR exists, project `REVIEW` unless the fresh current-head verdict is `REQUEST_CHANGES`; retain the same PR for repair.
+7. The external Architect performs the actual PR review.
+8. On external `PASS`, do not unlock `next_task` until the current PR is merged into `main`; refresh/sync local `main` and verify it contains the accepted task.
+9. Then, after fresh main verification, set current `DONE` and only the predefined `next_task` `READY`. On `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
+10. Worker failure, product/architecture ambiguity, or a blocker that fresh reconciliation cannot clear sets or retains `BLOCKED` and ends only the current pulse.
 
 ### Accepted-baseline lifecycle gate
 
