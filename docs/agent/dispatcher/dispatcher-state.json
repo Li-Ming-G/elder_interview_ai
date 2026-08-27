@@ -247,7 +247,7 @@
     },
     {
       "id": "LOCAL-DB-PORT-01",
-      "status": "REVIEW",
+      "status": "BLOCKED",
       "task_card": "docs/agent/tasks/LOCAL-DB-PORT-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
