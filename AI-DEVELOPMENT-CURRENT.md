@@ -15,43 +15,46 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through CPA-05 / PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current maintenance pack.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current bugfix.
 
 ## Current phase and real progress
 
-Current phase: `POST-CHECKPOINT A / LOCAL DB PORT MAINTENANCE ACTIVE`.
+Current phase: `POST-CHECKPOINT A / FIRST INTERVIEW START BUGFIX ACTIVE`.
 
 Completed baseline:
 
 - P5 closed through PR #97;
 - P6 Runtime T18–T24 closed through PR #103;
-- Owner Checkpoint A `CPA-01 → CPA-02 → CPA-03 → CPA-04 → CPA-05` completed through PR #111;
-- Real-Flow Cleanup `REAL-IDENTITY-01 → REAL-RUNTIME-02` completed through PR #113;
-- dispatcher main-verification recovery hardening merged through PR #114 on `main@bf76fce0a64689adaeb1f46fbd01575bc8c3802e` before this maintenance pack was issued.
+- Owner Checkpoint A completed through PR #111;
+- Real-Flow Cleanup completed through PR #113;
+- Dispatcher main-verification recovery hardening merged through PR #114;
+- Local DB Port Maintenance completed through PR #115 and successful refreshed-main verification.
 
-The Product Owner has now authorized a bounded one-task Foundation/local-infrastructure maintenance pack to remove normal local-development dependence on host PostgreSQL ports `5432` and `5433`.
+The Product Owner has now authorized one bounded product bugfix task after a real Checkpoint A hands-on attempt exposed a first-interview start failure.
 
-Planning source: `docs/agent/tasks/LOCAL-DB-PORT-MAINTENANCE-PACK.md`.
+Planning source:
+
+`docs/agent/tasks/FIRST-INTERVIEW-START-01.md`
 
 Canonical queue:
 
 ```text
-LOCAL-DB-PORT-01  standardize local PostgreSQL host ports to 15432/15433
+FIRST-INTERVIEW-START-01  repair first-session current-consent readiness/start authority
   → null
 ```
 
-## Local DB port maintenance frozen facts
+## FIRST-INTERVIEW-START-01 frozen facts
 
-- `LOCAL-DB-PORT-01` is `DONE` after Architect PASS, merged PR #115 and successful refreshed-main CI verification on `main@f77a00da1bc39aba0473d48275e6b735fc6d914e` (run `33053415020`).
-- Development PostgreSQL must publish `127.0.0.1:15432 -> container:5432`.
-- Test PostgreSQL must publish `127.0.0.1:15433 -> container:5432`.
-- Container-internal PostgreSQL port `5432`, database names, users, passwords, healthchecks, persistent development volume and test tmpfs semantics remain unchanged.
-- `.env.example` must align `DATABASE_URL` / `TEST_DATABASE_URL` to host ports `15432` / `15433`.
-- Existing `.env.local` files remain untracked; local developers update them once after pulling this change.
-- This maintenance does not introduce dynamic host-port parameterization, a normal-path Compose override file, or OS-level Windows reserved/excluded-port changes.
-- `docker compose down -v` is not part of the migration/startup path because the development database uses a persistent named volume.
-- API, Prisma migration and database-dependent test processes remain host-side in the current architecture, so host publication of both database services is preserved.
-- P1-P6, T0-T27, auth, interview, audio, ASR, transcript, memory/evidence, Director/OpenRouter/Ox, privacy, scoring/evaluation and production provider/model/data semantics are unchanged.
+- Task status is `READY`.
+- Planning baseline is `main@7475b5144c816f9e383551bb5948c7a7f71d79cd`.
+- The first session is identified by existing `sequence_no === 1`; no schema flag is added.
+- A current valid, non-revoked formal `recording_transcription_ai` consent may authorize the current first interview.
+- First-session readiness/start must not require future-session `ConsentContinuationPolicyReader` coverage.
+- Later sessions (`sequence_no > 1`) remain governed by the existing repeat-interview/continuation policy; production `unavailable` remains blocking.
+- `mvp-v1` is not declared cross-session continuing consent.
+- The separate half-created interview abandon/delete UX and the browser workflow snapshot issue are explicitly out of scope for this task.
+- No Prisma schema/migration, P1-P6/T0-T27, ASR, Director/OpenRouter/Ox, memory/evidence, audio-finalization, evaluation/scoring, provider/model/data/deployment semantics may change.
+- `next_task` is `null`.
 
 ## Preserved Checkpoint A and P6 decisions
 
@@ -60,7 +63,6 @@ LOCAL-DB-PORT-01  standardize local PostgreSQL host ports to 15432/15433
 - Automatic/manual Director orchestration, generation fences, deadlines, publication authority and background isolation remain unchanged.
 - P1–P5 semantic/data ownership remains unchanged.
 - AI failure must not stop recording; ASR failure must not damage original audio.
-- No scoring/evaluation/model-comparison UI is activated by this pack.
 - P2-D, T26–T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region, ordinary real interview data and deployment decisions remain deferred.
 
 ## Governance
@@ -69,22 +71,18 @@ Canonical Task Cards and queue topology on refreshed `main` define task identity
 
 Accepted lifecycle:
 
-`READY → Worker → PR REVIEW → external Architect verdict → merge → main CI → DONE → only predefined next_task READY`.
+`READY → Worker → PR REVIEW → external Architect verdict → merge → main CI → DONE → null`.
 
 Architect plans/reviews only. Dispatcher launches Workers, consumes external verdicts, merges after PASS, verifies main, synchronizes state and unlocks only predefined successors. Implementation Workers implement only their current Task Card.
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `FIRST-INTERVIEW-START-01`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `BLOCKED`: none.
-- `DONE`: Local DB Port Maintenance through `LOCAL-DB-PORT-01` / PR #115; Real-Flow Cleanup through `REAL-RUNTIME-02` / PR #113; Owner Checkpoint A through `CPA-05` / PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
+- `DONE`: Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 completed stages remain closed as recorded in repository history.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-
-## Worker prohibitions
-
-For `LOCAL-DB-PORT-01`, do not alter P1–P6 ownership, Owner Director Prompt semantics, OpenRouter/Ox binding, Tencent ASR behavior, memory/evidence rules, Accepted Contracts, evaluation/scoring scope, production provider/model/data policy, ordinary real interview data policy, application source behavior, Prisma schema/migrations, database identities/storage semantics, or OS-level networking configuration. Do not create dynamic host-port parameterization or a normal-path Compose override. Do not run `docker compose down -v`. Do not act on PRs #25, #43, #45, #62 or #110. Do not create successors outside the predefined queue.
 
 ## Authority order
 
@@ -92,4 +90,4 @@ Task Card for scope/entry → exact Accepted Contract for behavior/invariants �
 
 ## Next step
 
-Dispatcher must fresh-read `origin/main` and reconcile durable state. `LOCAL-DB-PORT-01` is complete after external Architect PASS, merge and successful refreshed-main CI verification; `next_task` is `null`, so nothing is unlocked.
+Dispatcher must fresh-read `origin/main`, identify the unique eligible `FIRST-INTERVIEW-START-01` READY task, persist `READY -> IN_PROGRESS`, and launch exactly one `luna-high` IMPLEMENTATION_WORKER. The Worker must stop at `REVIEW` after creating its PR. No successor may be invented because `next_task` is `null`.
