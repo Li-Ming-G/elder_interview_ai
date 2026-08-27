@@ -61,7 +61,7 @@ test('logout failure preserves the authenticated UI state', async ({ page }) => 
   await expect(page.getByRole('alert')).toContainText('退出失败');
 });
 
-test('authenticated browser start fails closed after consent version, withdrawal, or assignment drift', async ({
+test('authenticated browser start uses first-session consent and fails closed after withdrawal or assignment drift', async ({
   page,
 }) => {
   await page.goto('/');
@@ -155,8 +155,8 @@ test('authenticated browser start fails closed after consent version, withdrawal
   });
 
   expect(scenarios.versionStart).toEqual({
-    body: expect.objectContaining({ code: 'CONSENT_REAUTHORIZATION_REQUIRED' }),
-    status: 409,
+    body: expect.objectContaining({ sequence_no: 1, status: 'recording' }),
+    status: 201,
   });
   expect(scenarios.withdrawnStart).toEqual({
     body: expect.objectContaining({ code: 'PROJECT_NOT_STARTABLE' }),
@@ -209,7 +209,7 @@ test('authenticated browser start fails closed after consent version, withdrawal
           },
         },
       }),
-    ).toBe(0);
+    ).toBe(1);
   } finally {
     await verificationPrisma.$disconnect();
   }
