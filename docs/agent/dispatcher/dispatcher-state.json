@@ -247,7 +247,7 @@
     },
     {
       "id": "LOCAL-DB-PORT-01",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/LOCAL-DB-PORT-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
@@ -255,7 +255,7 @@
         "LOCAL-DB-PORT-MAINTENANCE-PACK",
         "main@bf76fce0a64689adaeb1f46fbd01575bc8c3802e"
       ],
-      "pr": null,
+      "pr": 115,
       "next_task": null
     }
   ]
