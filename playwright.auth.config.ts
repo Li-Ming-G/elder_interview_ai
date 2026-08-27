@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const databaseUrl =
   process.env.TEST_DATABASE_URL ??
-  'postgresql://elder_interview_test:local_test_only@127.0.0.1:5433/elder_interview_test';
+  'postgresql://elder_interview_test:local_test_only@127.0.0.1:15433/elder_interview_test';
 const apiPort = Number(process.env.E2E_AUTH_API_PORT ?? 3101);
 const webPort = Number(process.env.E2E_AUTH_WEB_PORT ?? 4173);
 const baseURL = `http://127.0.0.1:${String(webPort)}`;

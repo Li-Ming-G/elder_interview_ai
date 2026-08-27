@@ -13,7 +13,7 @@ services:
       timeout: 3s
       retries: 15
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1:15432:5432'
     volumes:
       - postgres-dev-data:/var/lib/postgresql
 
@@ -29,7 +29,7 @@ services:
       timeout: 3s
       retries: 15
     ports:
-      - '127.0.0.1:5433:5432'
+      - '127.0.0.1:15433:5432'
     tmpfs:
       - /var/lib/postgresql
 
