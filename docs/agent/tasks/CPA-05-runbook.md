@@ -7,11 +7,22 @@ ordinary real interview data.
 
 ## Prerequisites
 
-1. Start the local PostgreSQL service and apply the existing migrations.
-2. Put the already provisioned Tencent realtime ASR configuration and the new
+1. Start the local PostgreSQL service using the tracked Compose mapping (`127.0.0.1:15432` for
+   development and `127.0.0.1:15433` for test), then apply the existing migrations.
+2. If this checkout's ignored `.env.local` predates the repository port change, run the one-time
+   migration from the repository root:
+
+   ```text
+   pnpm local:env:migrate-db-ports
+   ```
+
+   It changes only recognized local `DATABASE_URL`/`TEST_DATABASE_URL` host ports and preserves
+   the rest of the file. If it reports an ambiguous URL, stop and correct that local configuration
+   deliberately; do not work around it with a process-level `DATABASE_URL` override.
+3. Put the already provisioned Tencent realtime ASR configuration and the new
    `OPENROUTER_API_KEY` in a local-only `.env.local`. Do not commit it, print it, or paste it into
    a terminal transcript. The only new secret for this checkpoint is `OPENROUTER_API_KEY`.
-3. The Tencent ASR values must be real configuration for the accepted ASR path. The deterministic
+4. The Tencent ASR values must be real configuration for the accepted ASR path. The deterministic
    fixture is rejected by the checkpoint start command and cannot prove audio reached the Director.
 
 ## Start the formal Workbench
@@ -24,12 +35,13 @@ pnpm checkpoint-a:start
 
 The command builds the current workspace, starts the API in explicit `--checkpoint-a` mode on
 `127.0.0.1:3101`, and starts the existing Vite Workbench on `http://127.0.0.1:5173`. It loads
-`.env.local` into the server process without printing its values. Stop both processes with
-`Ctrl-C`.
+`.env.local` into the server process without printing its values and removes backend-only secrets
+from the Vite child environment. Stop both processes with `Ctrl-C`; the launcher cleans up the
+child process trees on native Windows as well.
 
 Before the first checkpoint run, create the ordinary persisted local application user that the
-Owner will use to log in. With `DATABASE_URL` set to the local PostgreSQL database and after the
-existing migrations are applied, run the existing operator-managed CLI from the repository root:
+Owner will use to log in. After the one-time migration and after the existing migrations are
+applied, run the existing operator-managed CLI from the repository root:
 
 ```text
 pnpm --filter @elder-interview/api user:create -- --operator-ref local-owner-setup --email "owner@example.invalid" --display-name "Owner display name" --role interviewer
