@@ -6,13 +6,16 @@ Status: `DEFERRED`
 
 The Product Owner authorizes one bounded governance maintenance task to close a dispatcher liveness gap exposed by `FIRST-INTERVIEW-START-01` / PR #116: an implementation task can still have actionable work remaining after a PR exists, but the current dispatcher can enter `REVIEW` and then no-op indefinitely when required PR CI is failed and no Architect verdict has yet returned it to implementation.
 
-Predefined sequence:
+Predefined sequence now participates in the later Owner-authorized queue extension:
 
 ```text
 FIRST-INTERVIEW-START-01
   -> DISPATCHER-SAME-TASK-REPAIR-01
+  -> CKPT-A-LOCAL-START-01
   -> null
 ```
+
+This pack itself still authorizes only `DISPATCHER-SAME-TASK-REPAIR-01`. The appended `CKPT-A-LOCAL-START-01` is separately authorized by `docs/agent/tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`; its presence here records canonical queue topology and does not broaden this governance task.
 
 This pack is preloaded while `FIRST-INTERVIEW-START-01` is active. `DISPATCHER-SAME-TASK-REPAIR-01` remains `DEFERRED` until its predecessor is Architect-accepted, merged, refreshed-main CI verified, and mechanically marked `DONE`.
 
