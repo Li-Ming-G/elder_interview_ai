@@ -15,11 +15,11 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current governance maintenance task.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current first-session compatibility repair.
 
 ## Current phase
 
-Current phase: `POST-CHECKPOINT A / DISPATCHER STALE-DONE RECONCILIATION HARDENING`.
+Current phase: `CHECKPOINT A RETEST BLOCKER / LEGACY FIRST-INTERVIEW DRAFT RECOVERY`.
 
 Completed baseline:
 
@@ -29,41 +29,43 @@ Completed baseline:
 - Real-Flow Cleanup through PR #113;
 - Dispatcher main-verification recovery hardening through PR #114;
 - Local DB Port Maintenance through PR #115;
-- first-interview start repair through PR #116;
+- fresh first-interview start repair through PR #116;
 - same-task/same-PR repair-loop governance through PR #117;
 - Checkpoint A local-start repair through PR #118.
 
-Checkpoint A local-start completion is durably supported by accepted PR #118 plus exact current-main-at-verification `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`, CI run `33146225956` attempt 2 `SUCCESS`.
+PR #116 and PR #118 are merged. The current Owner blocker is therefore not a missing merge.
+
+The retest restored a browser-side unfinished first-interview workflow at the Start step. The durable server record can predate PR #116 and remain stranded as `project=draft + sequence_no=1 session=device_check + current valid formal recording_transcription_ai consent`. The fresh path is fixed because a current consent append runs `refreshReady()` and promotes the project to `ready`; a legacy record with consent already stored does not necessarily execute that mutation again. Current start authority still requires project state `ready|active` before first-session consent can authorize start, so the legacy `draft` remains `PROJECT_NOT_STARTABLE`.
 
 ## Canonical current queue
 
 ```text
-DISPATCHER-STALE-DONE-RECONCILIATION-01  [READY]
+FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [READY]
+  -> DISPATCHER-STALE-DONE-RECONCILIATION-01  [DEFERRED]
   -> null
 ```
 
-This is a newly Product Owner-authorized governance task after the prior queue reached an Owner Checkpoint. It does not retroactively invent product scope or a product successor.
+Planning sources for the current product blocker:
 
-Planning sources:
-
-- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`
-- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`
+- `docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md`
+- `docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `READY`.
+`FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` is `READY` and has priority because it blocks the Owner's Checkpoint A retest.
 
 Frozen outcome:
 
-- `DONE` remains a reconstructable projection, not irreversible authority;
-- every bounded pulse reconciles an apparently DONE current task against accepted merge ancestry and the latest applicable required CI for exact refreshed current main before allowing status-based no-op;
-- exact-current-main CI pending/missing means DONE is unconfirmed and must use the pre-DONE verification wait path;
-- exact-current-main CI terminal failure invalidates stale DONE and projects `BLOCKED / TASK_BLOCKED / MAIN_VERIFY_FAILED`;
-- later exact-current-main CI SUCCESS confirms/restores DONE using existing recovery semantics;
-- `next_task:null` never suppresses this reconciliation;
-- deterministic dry-run fixtures K/L/M/N must make the rule executable rather than comment-only memory.
+- only `sequence_no === 1` legacy projects stranded in `draft` may self-heal at formal start;
+- self-heal requires ordinary/visible project authority, active interviewer assignment, non-deleted/non-restricted project, current valid non-revoked formal `recording_transcription_ai` consent, and an otherwise valid start/session state;
+- repair happens under the existing project/session transaction locks before the final start gate;
+- normal fresh `ready` first interviews remain unchanged;
+- missing/revoked/pending consent remains blocked;
+- repeat interviews continue to use existing continuation policy unchanged;
+- no duplicate project/session/consent, database wipe, browser IndexedDB clearing, schema migration or frontend redesign;
+- real PostgreSQL regression must reproduce the pre-fix durable state and prove successful start plus negative cases.
 
-Allowed implementation area is Dispatcher governance only. No application source, Prisma/schema/migrations, CI workflow YAML, Checkpoint A runtime behavior, P1–P6/T0–T27 semantics, OpenRouter/Ox, Tencent ASR, memory/evidence, evaluation/scoring, privacy, provider/model/data or deployment semantics may change.
+After this task is Architect-PASSed, merged and exact-main CI verified, the predefined governance follow-up `DISPATCHER-STALE-DONE-RECONCILIATION-01` becomes READY.
 
 ## Preserved decisions
 
@@ -73,11 +75,12 @@ Allowed implementation area is Dispatcher governance only. No application source
 - P1–P5 semantic/data ownership unchanged.
 - AI failure must not stop recording; ASR failure must not damage original audio.
 - Repository-standard local PostgreSQL host ports remain `15432` / `15433`; container PostgreSQL remains `5432`.
+- Unfinished/new-interview delete/abandon UX remains a separate later product task and is not mixed into the current recovery.
 - P2-D, T26–T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region, ordinary real interview data and deployment decisions remain deferred.
 
 ## Governance
 
-Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts, including when its cached status says `DONE`.
+Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
 
 Accepted lifecycle:
 
@@ -87,12 +90,12 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`.
-- `IN_PROGRESS`: none.
-- `REVIEW`: none.
-- `BLOCKED`: none currently established by durable facts.
-- `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
+- `READY`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`.
+- `IN_PROGRESS`: none at planning publication time.
+- `REVIEW`: none at planning publication time.
+- `BLOCKED`: Owner Checkpoint A retest is functionally blocked by the legacy first-session durable-state compatibility gap until the current task merges.
+- `DEFERRED`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
+- `DONE`: CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -100,4 +103,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-reads `origin/main`, sees the unique READY task `DISPATCHER-STALE-DONE-RECONCILIATION-01`, persists `READY -> IN_PROGRESS`, and launches the declared `luna-high` IMPLEMENTATION_WORKER. Worker must keep the task governance-only, create one PR, publish `ARCHITECT_REVIEW_CONTEXT_V1`, and stop at REVIEW for external Architect exact-head review.
+Persistent Dispatcher fresh-reads `origin/main`, sees the unique READY task `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, persists `READY -> IN_PROGRESS`, and launches the declared `luna-high` IMPLEMENTATION_WORKER. Worker creates/reuses exactly one PR, runs the required regression/static gates, publishes `ARCHITECT_REVIEW_CONTEXT_V1`, and stops at REVIEW for external Architect exact-head review.
