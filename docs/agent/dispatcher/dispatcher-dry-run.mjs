@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const taskFields = ['id', 'status', 'task_card', 'worker_profile', 'depends_on', 'pr', 'next_task'];
 const verdictMarker = '<!-- ARCHITECT_VERDICT_V1 -->';
+const repairMarker = '<!-- DISPATCHER_REPAIR_V1 -->';
 const stableErrors = new Set([
   'NO_READY_TASK',
   'WORKER_FAILED',
@@ -138,6 +139,82 @@ function currentVerdict(task, pr) {
   return { kind: 'valid', verdict: valid.at(-1).VERDICT };
 }
 
+function latestApplicablePrCi(pr, github) {
+  const attempts = pr.requiredCiAttempts || github.requiredPrCiAttempts || [];
+  const exactHeadAttempts = attempts
+    .filter((attempt) => attempt.headSha?.toLowerCase() === pr.head.sha.toLowerCase())
+    .sort(
+      (a, b) =>
+        (b.runAttempt || 0) - (a.runAttempt || 0) ||
+        (b.updatedAt || '').localeCompare(a.updatedAt || '') ||
+        (b.runId || 0) - (a.runId || 0),
+    );
+  return exactHeadAttempts[0] || null;
+}
+
+function failedCheckIdentity(attempt) {
+  return (
+    attempt.failedCheck ||
+    attempt.identity ||
+    attempt.check ||
+    attempt.job ||
+    attempt.step ||
+    'required-pr-ci'
+  );
+}
+
+function parseRepairMarker(comment, task, pr, fingerprint) {
+  if (!comment.topLevel || !comment.body?.includes(repairMarker)) return { kind: 'ignore' };
+  const fields = {};
+  for (const line of comment.body.split(/\r?\n/)) {
+    const match = line.match(/^([A-Z0-9_]+):\s*(.+?)\s*$/);
+    if (match) fields[match[1]] = match[2];
+  }
+  const required = ['TASK', 'PR', 'HEAD', 'FAILED_CHECK', 'ACTION'];
+  if (required.some((field) => !(field in fields))) return { kind: 'malformed' };
+  if (
+    fields.TASK !== task.id ||
+    Number(fields.PR) !== pr.number ||
+    fields.HEAD.toLowerCase() !== fingerprint.head.toLowerCase() ||
+    fields.FAILED_CHECK !== fingerprint.failedCheck ||
+    fields.ACTION !== 'LAUNCHED'
+  )
+    return { kind: 'other-event' };
+  return { kind: 'valid', ...fields };
+}
+
+function repairLaunch(task, pr, failedCheck, reason) {
+  const fingerprint = {
+    task: task.id,
+    pr: pr.number,
+    head: pr.head.sha,
+    failedCheck,
+  };
+  const markerBody = `${repairMarker}\nTASK: ${task.id}\nPR: ${pr.number}\nHEAD: ${pr.head.sha}\nFAILED_CHECK: ${failedCheck}\nACTION: LAUNCHED`;
+  const matchingMarker = (pr.comments || []).some(
+    (comment) => parseRepairMarker(comment, task, pr, fingerprint).kind === 'valid',
+  );
+  return {
+    status: 'IN_PROGRESS',
+    pr: pr.number,
+    action: 'REPAIR_SAME_PR',
+    repairLaunch: !matchingMarker,
+    repairEvent: fingerprint,
+    repairMarker: matchingMarker ? 'ALREADY_LAUNCHED' : markerBody,
+    repairReason: reason,
+    repairWorker: {
+      profile: 'luna-high',
+      taskCard: task.task_card,
+      pr: pr.number,
+      currentHead: pr.head.sha,
+      failedCheck,
+      instruction:
+        'Keep the same canonical Task Card and repair the same PR; do not create a replacement PR.',
+      maxTransientReruns: 1,
+    },
+  };
+}
+
 function latestApplicableMainCi(main) {
   if (!main?.sha) return null;
   const exactMainAttempts = (main.requiredCiAttempts || [])
@@ -198,7 +275,18 @@ function projectStatus(task, pr, github) {
   if (verdict.kind === 'valid' && verdict.verdict === 'PRODUCT_AMBIGUITY')
     return { status: 'BLOCKED', pr: pr.number, error: 'PRODUCT_AMBIGUITY' };
   if (verdict.kind === 'valid' && verdict.verdict === 'REQUEST_CHANGES')
-    return { status: 'IN_PROGRESS', pr: pr.number, action: 'REPAIR_SAME_PR' };
+    return repairLaunch(task, pr, 'ARCHITECT_REQUEST_CHANGES', 'ARCHITECT_REQUEST_CHANGES');
+
+  const prCi = latestApplicablePrCi(pr, github);
+  if (!prCi || prCi.status !== 'completed')
+    return {
+      status: 'REVIEW',
+      pr: pr.number,
+      action: 'WAIT_PR_CI',
+      detail: 'PR_CI_PENDING',
+    };
+  if (prCi.conclusion !== 'success')
+    return repairLaunch(task, pr, failedCheckIdentity(prCi), 'PR_CI_FAILURE');
   if (verdict.kind === 'valid' && verdict.verdict === 'PASS') {
     if (!github.freshRead || github.freshHeadSha?.toLowerCase() !== pr.head.sha.toLowerCase())
       return { status: 'REVIEW', pr: pr.number, action: 'FRESH_HEAD_RECHECK_REQUIRED' };
@@ -428,6 +516,108 @@ const nullSuccessor = reconcile(
 assert.equal(nullSuccessor.status, 'DONE');
 assert.equal(nullSuccessor.action, 'DONE');
 assert.equal(nullSuccessor.nextTask, null);
+
+const repairCanonical = fixture.repairCanonicalQueue;
+const repair = fixture.repairCases;
+
+const repairA = reconcile(
+  repairCanonical,
+  repair.A_pending_no_verdict.local,
+  repair.A_pending_no_verdict.github,
+);
+assert.equal(repairA.status, 'REVIEW');
+assert.equal(repairA.action, 'WAIT_PR_CI');
+assert.equal(repairA.detail, 'PR_CI_PENDING');
+assert.equal(repairA.repairLaunch, undefined);
+
+const repairB = reconcile(
+  repairCanonical,
+  repair.B_failure_launches_repair.local,
+  repair.B_failure_launches_repair.github,
+);
+assert.equal(repairB.canonicalTaskId, 'P4C-02');
+assert.equal(repairB.pr, 202);
+assert.equal(repairB.status, 'IN_PROGRESS');
+assert.equal(repairB.action, 'REPAIR_SAME_PR');
+assert.equal(repairB.repairLaunch, true);
+assert.equal(repairB.repairEvent.failedCheck, 'lint');
+
+const repairC = reconcile(
+  repairCanonical,
+  repair.C_matching_marker_dedupes.local,
+  repair.C_matching_marker_dedupes.github,
+);
+assert.equal(repairC.status, 'IN_PROGRESS');
+assert.equal(repairC.action, 'REPAIR_SAME_PR');
+assert.equal(repairC.repairLaunch, false);
+assert.equal(repairC.repairMarker, 'ALREADY_LAUNCHED');
+
+const repairD = reconcile(
+  repairCanonical,
+  repair.D_new_head_is_new_event.local,
+  repair.D_new_head_is_new_event.github,
+);
+assert.equal(repairD.status, 'IN_PROGRESS');
+assert.equal(repairD.action, 'REPAIR_SAME_PR');
+assert.equal(repairD.repairLaunch, true);
+assert.equal(repairD.repairEvent.head, 'cccccccccccccccccccccccccccccccccccccccc');
+
+const repairE = reconcile(
+  repairCanonical,
+  repair.E_request_changes_same_pr.local,
+  repair.E_request_changes_same_pr.github,
+);
+assert.equal(repairE.status, 'IN_PROGRESS');
+assert.equal(repairE.action, 'REPAIR_SAME_PR');
+assert.equal(repairE.pr, 203);
+assert.equal(repairE.repairLaunch, true);
+
+const repairF = reconcile(
+  repairCanonical,
+  repair.F_success_no_verdict.local,
+  repair.F_success_no_verdict.github,
+);
+assert.equal(repairF.status, 'REVIEW');
+assert.equal(repairF.action, 'WAIT_FOR_VERDICT');
+assert.equal(repairF.repairLaunch, undefined);
+
+const repairG = reconcile(
+  repairCanonical,
+  repair.G_pass_success_merge_eligible.local,
+  repair.G_pass_success_merge_eligible.github,
+);
+assert.equal(repairG.status, 'REVIEW');
+assert.equal(repairG.action, 'MERGE_ELIGIBLE_AFTER_FRESH_HEAD_RECHECK');
+assert.equal(repairG.repairLaunch, undefined);
+
+const repairH = reconcile(
+  repairCanonical,
+  repair.H_pass_pending_no_merge.local,
+  repair.H_pass_pending_no_merge.github,
+);
+assert.equal(repairH.status, 'REVIEW');
+assert.equal(repairH.action, 'WAIT_PR_CI');
+assert.notEqual(repairH.action, 'MERGE_ELIGIBLE_AFTER_FRESH_HEAD_RECHECK');
+
+const repairI = reconcile(
+  repairCanonical,
+  repair.I_pass_failure_repairs.local,
+  repair.I_pass_failure_repairs.github,
+);
+assert.equal(repairI.status, 'IN_PROGRESS');
+assert.equal(repairI.action, 'REPAIR_SAME_PR');
+assert.equal(repairI.repairLaunch, true);
+assert.notEqual(repairI.action, 'MERGE_ELIGIBLE_AFTER_FRESH_HEAD_RECHECK');
+
+const repairJ = reconcile(
+  fixture.repairCanonicalQueue,
+  repair.J_null_next_task_still_repairs.local,
+  repair.J_null_next_task_still_repairs.github,
+);
+assert.equal(repairJ.status, 'IN_PROGRESS');
+assert.equal(repairJ.action, 'REPAIR_SAME_PR');
+assert.equal(repairJ.repairLaunch, true);
+assert.equal(fixture.repairCanonicalQueue[1].next_task, null);
 
 results.L = reconcile(
   canonical,

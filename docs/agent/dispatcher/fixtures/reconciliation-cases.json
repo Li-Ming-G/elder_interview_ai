@@ -21,7 +21,7 @@
     },
     "D_old_head_verdict": {
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "IN_PROGRESS", "pr": null } } },
-      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [{ "topLevel": true, "createdAt": "2026-08-20T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "status": "pending" } }
+      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "runId": 1900, "runAttempt": 1, "status": "completed", "conclusion": "success", "failedCheck": "lint" }], "comments": [{ "topLevel": true, "createdAt": "2026-08-20T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "status": "pending" } }
     },
     "E_current_head_request_changes": {
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 190 } } },
@@ -29,7 +29,7 @@
     },
     "F_current_head_pass": {
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 190 } } },
-      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "freshRead": true, "main": { "status": "pending" } }
+      "github": { "prs": [{ "number": 190, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02-repair", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "runId": 1900, "runAttempt": 1, "status": "completed", "conclusion": "success", "failedCheck": "lint" }], "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 190\nREVIEWED_HEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshHeadSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "freshRead": true, "main": { "status": "pending" } }
     },
     "G_ambiguous_pr": {
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "IN_PROGRESS", "pr": null } } },
@@ -63,5 +63,51 @@
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "BLOCKED", "pr": 89 } } },
       "github": { "prs": [{ "number": 89, "title": "[P4C-02] accepted implementation", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "3333333333333333333333333333333333333333", "ancestry": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "requiredCiAttempts": [{ "headSha": "3333333333333333333333333333333333333333", "runId": 9301, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
     }
-  }
+  },
+  "repairCases": {
+    "A_pending_no_verdict": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 201 } } },
+      "github": { "prs": [{ "number": 201, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "runId": 2010, "status": "in_progress", "conclusion": null }], "comments": [] }], "main": { "status": "pending" } }
+    },
+    "B_failure_launches_repair": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 202 } } },
+      "github": { "prs": [{ "number": 202, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "runId": 2020, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [] }], "main": { "status": "pending" } }
+    },
+    "C_matching_marker_dedupes": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 202 } } },
+      "github": { "prs": [{ "number": 202, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "runId": 2020, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [{ "topLevel": true, "body": "<!-- DISPATCHER_REPAIR_V1 -->\nTASK: P4C-02\nPR: 202\nHEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nFAILED_CHECK: lint\nACTION: LAUNCHED" }] }], "main": { "status": "pending" } }
+    },
+    "D_new_head_is_new_event": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 202 } } },
+      "github": { "prs": [{ "number": 202, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "cccccccccccccccccccccccccccccccccccccccc" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "cccccccccccccccccccccccccccccccccccccccc", "runId": 2021, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [{ "topLevel": true, "body": "<!-- DISPATCHER_REPAIR_V1 -->\nTASK: P4C-02\nPR: 202\nHEAD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nFAILED_CHECK: lint\nACTION: LAUNCHED" }] }], "main": { "status": "pending" } }
+    },
+    "E_request_changes_same_pr": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 203 } } },
+      "github": { "prs": [{ "number": 203, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "dddddddddddddddddddddddddddddddddddddddd" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "dddddddddddddddddddddddddddddddddddddddd", "runId": 2030, "status": "in_progress", "conclusion": null }], "comments": [{ "topLevel": true, "createdAt": "2026-08-28T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 203\nREVIEWED_HEAD: dddddddddddddddddddddddddddddddddddddddd\nVERDICT: REQUEST_CHANGES\nP0: 0\nP1: 1\nP2: 0" }] }], "main": { "status": "pending" } }
+    },
+    "F_success_no_verdict": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 204 } } },
+      "github": { "prs": [{ "number": 204, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "runId": 2040, "status": "completed", "conclusion": "success" }], "comments": [] }], "main": { "status": "pending" } }
+    },
+    "G_pass_success_merge_eligible": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 205 } } },
+      "github": { "prs": [{ "number": 205, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "ffffffffffffffffffffffffffffffffffffffff" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "ffffffffffffffffffffffffffffffffffffffff", "runId": 2050, "status": "completed", "conclusion": "success" }], "comments": [{ "topLevel": true, "createdAt": "2026-08-28T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 205\nREVIEWED_HEAD: ffffffffffffffffffffffffffffffffffffffff\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshRead": true, "freshHeadSha": "ffffffffffffffffffffffffffffffffffffffff", "main": { "status": "pending" } }
+    },
+    "H_pass_pending_no_merge": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 206 } } },
+      "github": { "prs": [{ "number": 206, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "1111111111111111111111111111111111111111" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "1111111111111111111111111111111111111111", "runId": 2060, "status": "in_progress", "conclusion": null }], "comments": [{ "topLevel": true, "createdAt": "2026-08-28T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 206\nREVIEWED_HEAD: 1111111111111111111111111111111111111111\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshRead": true, "freshHeadSha": "1111111111111111111111111111111111111111", "main": { "status": "pending" } }
+    },
+    "I_pass_failure_repairs": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 207 } } },
+      "github": { "prs": [{ "number": 207, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "2222222222222222222222222222222222222222" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "2222222222222222222222222222222222222222", "runId": 2070, "status": "completed", "conclusion": "failure", "failedCheck": "unit" }], "comments": [{ "topLevel": true, "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 207\nREVIEWED_HEAD: 2222222222222222222222222222222222222222\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshRead": true, "freshHeadSha": "2222222222222222222222222222222222222222", "main": { "status": "pending" } }
+    },
+    "J_null_next_task_still_repairs": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "REVIEW", "pr": 208 } } },
+      "github": { "prs": [{ "number": 208, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "3333333333333333333333333333333333333333" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "3333333333333333333333333333333333333333", "runId": 2080, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [] }], "main": { "status": "pending" } }
+    }
+  },
+  "repairCanonicalQueue": [
+    { "id": "P4C-01", "task_card": "docs/agent/tasks/P4C-01.md", "depends_on": [], "next_task": "P4C-02" },
+    { "id": "P4C-02", "task_card": "docs/agent/tasks/P4C-02.md", "depends_on": ["P4C-01"], "next_task": null }
+  ]
 }
