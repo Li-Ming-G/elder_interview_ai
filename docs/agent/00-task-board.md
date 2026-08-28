@@ -36,7 +36,7 @@
 | `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
 | `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
 | `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
-| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `REVIEW` | `CKPT-A-LOCAL-START-01` DONE; PR #121 open at exact head `6ddde4578e87c069d2224b9a918992944b398b95`; required `verify` CI pending; fresh Architect review context published; explicit Owner priority override 2026-08-29 | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
+| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `IN_PROGRESS` | `CKPT-A-LOCAL-START-01` DONE; PR #121 exact-head CI failed at `test:e2e:auth` on head `6ddde4578e87c069d2224b9a918992944b398b95`; bounded same-PR repair marker recorded; explicit Owner priority override 2026-08-29 | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
 | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DEFERRED` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; Owner-authorized [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md) | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
@@ -45,7 +45,7 @@ Checkpoint A infrastructure/local-start repair is durably complete. The Owner re
 
 Current active task:
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` (`REVIEW`).
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` (`IN_PROGRESS`).
 
 By explicit Product Owner priority override, governance repair runs first. The completed `CKPT-A-LOCAL-START-01` now has this Owner-authorized governance task as its explicit successor, providing a bootstrap path even for a stale Dispatcher that still follows the old current-task pointer. The governance task must then permanently make projected DONE re-reconcilable against durable exact-main CI and make post-reconciliation task selection scan the complete freshly fetched canonical queue, including the deterministic case where an old `DONE + next_task:null` pointer coexists with one newly Owner-authorized eligible READY task.
 

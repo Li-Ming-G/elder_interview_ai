@@ -297,7 +297,7 @@
     },
     {
       "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01",
-      "status": "REVIEW",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
