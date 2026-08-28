@@ -272,14 +272,14 @@
     },
     {
       "id": "DISPATCHER-SAME-TASK-REPAIR-01",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "FIRST-INTERVIEW-START-01",
         "DISPATCHER-SAME-TASK-REPAIR-PACK"
       ],
-      "pr": null,
+      "pr": 117,
       "next_task": "CKPT-A-LOCAL-START-01"
     },
     {
