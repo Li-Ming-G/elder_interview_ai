@@ -770,6 +770,7 @@ describe('DEV-007B constrained question publication', () => {
         resultKind: 'continue_listening',
         status: 'succeeded',
       });
+      await waitForTraceTerminal(continued.request_id);
       const continuedTrace = await prisma.decisionTrace.findUniqueOrThrow({
         where: { requestId: continued.request_id },
       });
