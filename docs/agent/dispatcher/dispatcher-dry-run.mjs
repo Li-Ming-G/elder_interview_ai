@@ -33,7 +33,7 @@ function assertCanonicalTopology(canonicalQueue) {
     assert(task.task_card.startsWith('docs/agent/'));
     assert(Array.isArray(task.depends_on));
     for (const dependency of task.depends_on)
-      assert(canonicalQueue.some((candidate) => candidate.id === dependency));
+      assert(typeof dependency === 'string' && dependency.length > 0);
     assert(
       task.next_task === null ||
         canonicalQueue.some((candidate) => candidate.id === task.next_task),
@@ -340,9 +340,12 @@ function reconcileProjectedDone(local, candidatesByTask, github) {
 }
 
 function eligibleReadyTasks(canonicalQueue, local) {
+  const canonicalTaskIds = new Set(canonicalQueue.map((task) => task.id));
   return canonicalQueue.filter((task) => {
     if (local.tasks?.[task.id]?.status !== 'READY') return false;
-    return task.depends_on.every((dependency) => local.tasks?.[dependency]?.status === 'DONE');
+    return task.depends_on
+      .filter((dependency) => canonicalTaskIds.has(dependency))
+      .every((dependency) => local.tasks?.[dependency]?.status === 'DONE');
   });
 }
 

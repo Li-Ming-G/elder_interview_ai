@@ -80,8 +80,8 @@
       "github": { "prs": [{ "number": 92, "title": "[P4C-04] accepted implementation", "body": "P4C-04", "head": { "ref": "codex/p4c-04", "sha": "4444444444444444444444444444444444444444" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "5555555555555555555555555555555555555555", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-04\nPR: 92\nREVIEWED_HEAD: 4444444444444444444444444444444444444444\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1515151515151515151515151515151515151515", "ancestry": ["5555555555555555555555555555555555555555"], "requiredCiAttempts": [{ "headSha": "1515151515151515151515151515151515151515", "runId": 9701, "runAttempt": 1, "status": "in_progress", "conclusion": null }] } }
     },
     "O_stale_done_pointer_selects_ready": {
-      "local": { "activeTaskId": "P4C-04", "tasks": { "P4C-04": { "status": "DONE", "pr": 92 }, "DISPATCHER-STALE-DONE-RECONCILIATION-01": { "status": "READY", "pr": null }, "P4C-03": { "status": "DONE", "pr": null } } },
-      "github": { "prs": [{ "number": 92, "title": "[P4C-04] accepted implementation", "body": "P4C-04", "head": { "ref": "codex/p4c-04", "sha": "4444444444444444444444444444444444444444" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "5555555555555555555555555555555555555555", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-04\nPR: 92\nREVIEWED_HEAD: 4444444444444444444444444444444444444444\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1616161616161616161616161616161616161616", "ancestry": ["5555555555555555555555555555555555555555"], "requiredCiAttempts": [{ "headSha": "1616161616161616161616161616161616161616", "runId": 9801, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
+      "local": { "activeTaskId": "CKPT-A-LOCAL-START-01", "tasks": { "CKPT-A-LOCAL-START-01": { "status": "DONE", "pr": 118 }, "DISPATCHER-STALE-DONE-RECONCILIATION-01": { "status": "READY", "pr": null }, "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01": { "status": "DEFERRED", "pr": null } } },
+      "github": { "prs": [{ "number": 118, "title": "[CKPT-A-LOCAL-START-01] accepted implementation", "body": "CKPT-A-LOCAL-START-01\ndocs/agent/tasks/CKPT-A-LOCAL-START-01.md", "head": { "ref": "codex/ckpt-a-local-start-01", "sha": "7777777777777777777777777777777777777777" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "8888888888888888888888888888888888888888", "comments": [{ "topLevel": true, "createdAt": "2026-08-29T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: CKPT-A-LOCAL-START-01\nPR: 118\nREVIEWED_HEAD: 7777777777777777777777777777777777777777\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "9999999999999999999999999999999999999999", "ancestry": ["8888888888888888888888888888888888888888"], "requiredCiAttempts": [{ "headSha": "9999999999999999999999999999999999999999", "runId": 9801, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
     }
   },
   "repairCases": {
@@ -127,8 +127,9 @@
     }
   },
   "staleDoneCanonicalQueue": [
-    { "id": "P4C-04", "task_card": "docs/agent/tasks/P4C-04.md", "depends_on": [], "next_task": null },
-    { "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01", "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md", "depends_on": [], "next_task": null }
+    { "id": "CKPT-A-LOCAL-START-01", "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md", "depends_on": [], "next_task": null },
+    { "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01", "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md", "depends_on": ["CKPT-A-LOCAL-START-01", "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"], "next_task": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01" },
+    { "id": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01", "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md", "depends_on": ["DISPATCHER-STALE-DONE-RECONCILIATION-01", "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"], "next_task": null }
   ],
   "repairCanonicalQueue": [
     { "id": "P4C-01", "task_card": "docs/agent/tasks/P4C-01.md", "depends_on": [], "next_task": "P4C-02" },
