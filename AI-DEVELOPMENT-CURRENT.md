@@ -15,11 +15,11 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current bugfix/governance/local-start maintenance queue.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current governance maintenance task.
 
 ## Current phase
 
-Current phase: `POST-CHECKPOINT A / FIRST INTERVIEW START REPAIR + DISPATCHER REPAIR + CKPT-A LOCAL START PRELOAD`.
+Current phase: `POST-CHECKPOINT A / DISPATCHER STALE-DONE RECONCILIATION HARDENING`.
 
 Completed baseline:
 
@@ -28,73 +28,42 @@ Completed baseline:
 - Owner Checkpoint A through PR #111;
 - Real-Flow Cleanup through PR #113;
 - Dispatcher main-verification recovery hardening through PR #114;
-- Local DB Port Maintenance through PR #115 and refreshed-main CI success.
+- Local DB Port Maintenance through PR #115;
+- first-interview start repair through PR #116;
+- same-task/same-PR repair-loop governance through PR #117;
+- Checkpoint A local-start repair through PR #118.
 
-## Canonical queue
+Checkpoint A local-start completion is durably supported by accepted PR #118 plus exact current-main-at-verification `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`, CI run `33146225956` attempt 2 `SUCCESS`.
+
+## Canonical current queue
 
 ```text
-FIRST-INTERVIEW-START-01
-  -> DISPATCHER-SAME-TASK-REPAIR-01
-  -> CKPT-A-LOCAL-START-01
+DISPATCHER-STALE-DONE-RECONCILIATION-01  [READY]
   -> null
 ```
 
-## FIRST-INTERVIEW-START-01 current truth
-
-- Canonical PR: `#116`.
-- Accepted implementation head: `c218087b8189e12b30a425011571edfcd74ad59e`.
-- External Architect verdict on that head: `PASS`; exact-head CI run `33132032390` is `SUCCESS`.
-- PR #116 was merged into refreshed `main` at `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`.
-- Durable GitHub verdict/PR/head/CI state overrides stale cached status.
-- First-session product rule remains: `sequence_no === 1` may use current valid non-revoked formal `recording_transcription_ai` consent; later sessions remain governed by existing continuation policy and production `unavailable` remains fail-closed.
-- No `mvp-v1` cross-session continuing-consent decision is introduced.
-
-## Preloaded governance successor
-
-`DISPATCHER-SAME-TASK-REPAIR-01` is Owner/Architect-predefined and is complete through PR #117.
+This is a newly Product Owner-authorized governance task after the prior queue reached an Owner Checkpoint. It does not retroactively invent product scope or a product successor.
 
 Planning sources:
 
-- `docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`
-- `docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`
+- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`
+- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`
 
-It became `DONE` after its Architect PASS, merge into refreshed `main`, and successful main CI verification.
+## Current task truth
 
-Its frozen outcome is to close the liveness gap where unfinished implementation becomes inert merely because a PR exists or `next_task` is null:
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `READY`.
 
-- required PR CI pending -> wait;
-- required PR CI failure -> same Task/same PR repair;
-- Architect `REQUEST_CHANGES` -> same Task/same PR repair;
-- durable repair-launch dedupe per exact head + failing-check signature;
-- required exact-head PR CI success + Architect PASS -> merge eligible;
-- only after merge + refreshed-main CI success + DONE may predefined successor logic run.
+Frozen outcome:
 
-## CKPT-A-LOCAL-START-01 current truth
+- `DONE` remains a reconstructable projection, not irreversible authority;
+- every bounded pulse reconciles an apparently DONE current task against accepted merge ancestry and the latest applicable required CI for exact refreshed current main before allowing status-based no-op;
+- exact-current-main CI pending/missing means DONE is unconfirmed and must use the pre-DONE verification wait path;
+- exact-current-main CI terminal failure invalidates stale DONE and projects `BLOCKED / TASK_BLOCKED / MAIN_VERIFY_FAILED`;
+- later exact-current-main CI SUCCESS confirms/restores DONE using existing recovery semantics;
+- `next_task:null` never suppresses this reconciliation;
+- deterministic dry-run fixtures K/L/M/N must make the rule executable rather than comment-only memory.
 
-- Product Owner-authorized Task Card is complete through canonical PR `#118`.
-- Accepted implementation head: `0ba8d07f130174c78a47e69f6273696379ab9d6a`.
-- Required task checks and exact-head PR CI succeeded; the Worker did not expose secrets or `.env.local` contents.
-
-## Preloaded CKPT A local-start successor
-
-`CKPT-A-LOCAL-START-01` is separately Product Owner-authorized and is complete through PR #118.
-
-Planning sources:
-
-- `docs/agent/tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`
-- `docs/agent/tasks/CKPT-A-LOCAL-START-01.md`
-
-It became active after `DISPATCHER-SAME-TASK-REPAIR-01` was Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`, and is now complete.
-
-Its frozen outcome is local operability only:
-
-- preserve tracked PostgreSQL host ports `15432` / `15433`;
-- provide a safe explicit one-time migration for an existing ignored `.env.local` still using legacy `5432` / `5433` local DB ports;
-- never commit or print real `.env.local` secrets;
-- repair the native-Windows `pnpm checkpoint-a:start` child-process launch/cleanup path;
-- preserve API/server versus Vite/browser secret isolation;
-- remove the need for process-level DB URL overrides as the steady-state Owner workflow;
-- change no application/runtime, P1-P6/T0-T27, consent, auth, ASR, Director, memory/evidence, privacy or provider semantics.
+Allowed implementation area is Dispatcher governance only. No application source, Prisma/schema/migrations, CI workflow YAML, Checkpoint A runtime behavior, P1–P6/T0–T27 semantics, OpenRouter/Ox, Tencent ASR, memory/evidence, evaluation/scoring, privacy, provider/model/data or deployment semantics may change.
 
 ## Preserved decisions
 
@@ -108,17 +77,17 @@ Its frozen outcome is local operability only:
 
 ## Governance
 
-Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
+Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts, including when its cached status says `DONE`.
 
 Accepted lifecycle:
 
-`READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> Architect PASS -> merge -> refreshed-main CI -> DONE -> only predefined next_task`.
+`READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> Architect PASS -> merge -> refreshed-main CI -> DONE -> only predefined/newly Owner-authorized next work`.
 
-Architect plans/reviews only. Dispatcher launches Workers, consumes external verdicts, merges only after accepted gates, verifies main, synchronizes state and unlocks only predefined successors. Implementation Workers implement/repair only their current Task Card and canonical PR.
+Architect plans/reviews only. Dispatcher launches Workers, consumes external verdicts, merges only after accepted gates, verifies main, synchronizes state and unlocks only authorized work. Implementation Workers implement/repair only their current Task Card and canonical PR.
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `BLOCKED`: none currently established by durable facts.
@@ -131,4 +100,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-`CKPT-A-LOCAL-START-01` is complete through PR #118; no predefined successor remains.
+Persistent Dispatcher fresh-reads `origin/main`, sees the unique READY task `DISPATCHER-STALE-DONE-RECONCILIATION-01`, persists `READY -> IN_PROGRESS`, and launches the declared `luna-high` IMPLEMENTATION_WORKER. Worker must keep the task governance-only, create one PR, publish `ARCHITECT_REVIEW_CONTEXT_V1`, and stop at REVIEW for external Architect exact-head review.
