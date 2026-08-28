@@ -230,16 +230,28 @@ function latestApplicableMainCi(main) {
 
 function verifyMergedMain(pr, github) {
   const main = github.main;
-  if (!main?.sha || !pr.mergeCommitSha) return { kind: 'wait', detail: 'MAIN_CI_PENDING' };
+  if (!main?.sha || !pr.mergeCommitSha)
+    return {
+      kind: 'wait',
+      detail: 'MAIN_CI_PENDING',
+      mainSha: main?.sha,
+      latestAttempt: null,
+    };
   const acceptedMergeInAncestry = (main.ancestry || []).some(
     (sha) => sha.toLowerCase() === pr.mergeCommitSha.toLowerCase(),
   );
   if (!acceptedMergeInAncestry) return { kind: 'blocked', detail: 'MAIN_ANCESTRY_UNPROVEN' };
   const latestAttempt = latestApplicableMainCi(main);
   if (!latestAttempt || latestAttempt.status !== 'completed')
-    return { kind: 'wait', detail: 'MAIN_CI_PENDING' };
-  if (latestAttempt.conclusion === 'success') return { kind: 'success', latestAttempt };
-  return { kind: 'blocked', detail: 'MAIN_VERIFY_FAILED', latestAttempt };
+    return {
+      kind: 'wait',
+      detail: 'MAIN_CI_PENDING',
+      mainSha: main.sha,
+      latestAttempt: latestAttempt || null,
+    };
+  if (latestAttempt.conclusion === 'success')
+    return { kind: 'success', mainSha: main.sha, latestAttempt };
+  return { kind: 'blocked', detail: 'MAIN_VERIFY_FAILED', mainSha: main.sha, latestAttempt };
 }
 
 function projectStatus(task, pr, github) {
@@ -257,6 +269,8 @@ function projectStatus(task, pr, github) {
         pr: pr.number,
         action: 'WAIT_MAIN_CI',
         detail: mainVerification.detail,
+        mainSha: mainVerification.mainSha,
+        mainCiAttempt: mainVerification.latestAttempt,
       };
     if (mainVerification.kind === 'blocked')
       return {
@@ -264,12 +278,16 @@ function projectStatus(task, pr, github) {
         pr: pr.number,
         error: 'TASK_BLOCKED',
         detail: mainVerification.detail,
+        mainSha: mainVerification.mainSha || github.main?.sha,
+        mainCiAttempt: mainVerification.latestAttempt,
       };
     return {
       status: 'DONE',
       pr: pr.number,
       action: task.next_task ? 'READY_PREDEFINED_NEXT' : 'DONE',
       nextTask: task.next_task,
+      mainSha: mainVerification.mainSha,
+      mainCiAttempt: mainVerification.latestAttempt,
     };
   }
   if (verdict.kind === 'valid' && verdict.verdict === 'PRODUCT_AMBIGUITY')
@@ -295,6 +313,62 @@ function projectStatus(task, pr, github) {
   return { status: 'REVIEW', pr: pr.number, action: 'WAIT_FOR_VERDICT' };
 }
 
+function prForTask(task, local, found, github) {
+  const localPr = local.tasks?.[task.id]?.pr;
+  return (
+    (github.prs || []).find((candidate) => candidate.number === localPr) ||
+    found.candidate?.pr ||
+    null
+  );
+}
+
+function reconcileProjectedDone(local, candidatesByTask, github) {
+  for (const { task, found } of candidatesByTask) {
+    if (local.tasks?.[task.id]?.status !== 'DONE') continue;
+    if (found.kind === 'ambiguous')
+      return {
+        status: 'BLOCKED',
+        canonicalTaskId: task.id,
+        error: 'PRODUCT_AMBIGUITY',
+        detail: 'equal PR candidates',
+        candidates: found.candidates.map((item) => item.pr.number),
+      };
+    const result = projectStatus(task, prForTask(task, local, found, github), github);
+    if (result.status !== 'DONE') return { canonicalTaskId: task.id, ...result };
+  }
+  return null;
+}
+
+function eligibleReadyTasks(canonicalQueue, local) {
+  return canonicalQueue.filter((task) => {
+    if (local.tasks?.[task.id]?.status !== 'READY') return false;
+    return task.depends_on.every((dependency) => local.tasks?.[dependency]?.status === 'DONE');
+  });
+}
+
+function dispatchReadyTask(task) {
+  return {
+    canonicalTaskId: task.id,
+    status: 'IN_PROGRESS',
+    action: 'DISPATCH_READY',
+    previousStatus: 'READY',
+    pr: null,
+    nextTask: task.next_task,
+  };
+}
+
+function selectReadyTask(canonicalQueue, local) {
+  const ready = eligibleReadyTasks(canonicalQueue, local);
+  if (ready.length > 1)
+    return {
+      status: 'BLOCKED',
+      error: 'TASK_BLOCKED',
+      detail: 'DISPATCHER_STATE_INVALID',
+      readyTasks: ready.map((task) => task.id),
+    };
+  return ready.length === 1 ? dispatchReadyTask(ready[0]) : null;
+}
+
 function reconcile(canonicalQueue, local, github) {
   const ids = assertCanonicalTopology(canonicalQueue);
   const byId = taskMap(canonicalQueue);
@@ -304,6 +378,8 @@ function reconcile(canonicalQueue, local, github) {
     task,
     found: discoverUnique(task, github),
   }));
+  const projectedDone = reconcileProjectedDone(local, candidatesByTask, github);
+  if (projectedDone) return projectedDone;
   const relevantCandidates =
     localId && !invalidLocalId
       ? candidatesByTask.filter(({ task }) => task.id === localId)
@@ -338,13 +414,22 @@ function reconcile(canonicalQueue, local, github) {
       };
     selected = unique[0];
   }
-  if (!selected) return { status: 'NO_READY_TASK', error: 'NO_READY_TASK' };
+  if (!selected)
+    return (
+      selectReadyTask(canonicalQueue, local) || { status: 'NO_READY_TASK', error: 'NO_READY_TASK' }
+    );
   const task = selected.task;
   const localTask = local.tasks?.[task.id] || { pr: null };
-  const pr =
-    (github.prs || []).find((candidate) => candidate.number === localTask.pr) ||
-    selected.found.candidate?.pr ||
-    null;
+  if (localTask.status === 'DONE') {
+    const doneResult = projectStatus(task, prForTask(task, local, selected.found, github), github);
+    if (doneResult.status !== 'DONE') return { canonicalTaskId: task.id, ...doneResult };
+    return selectReadyTask(canonicalQueue, local) || { canonicalTaskId: task.id, ...doneResult };
+  }
+  if (localTask.status === 'READY')
+    return (
+      selectReadyTask(canonicalQueue, local) || { status: 'NO_READY_TASK', error: 'NO_READY_TASK' }
+    );
+  const pr = prForTask(task, local, selected.found, github);
   const result = projectStatus(task, pr, github);
   return {
     canonicalTaskId: task.id,
@@ -635,6 +720,62 @@ assert.notEqual(results.M.status, 'DONE');
 assert.equal(results.M.status, 'BLOCKED');
 assert.equal(results.M.error, 'TASK_BLOCKED');
 assert.equal(results.M.detail, 'MAIN_ANCESTRY_UNPROVEN');
+
+results.K_projectedDonePending = reconcile(
+  canonical,
+  fixture.cases.K_projected_done_main_pending.local,
+  fixture.cases.K_projected_done_main_pending.github,
+);
+assert.equal(results.K_projectedDonePending.canonicalTaskId, 'P4C-02');
+assert.equal(results.K_projectedDonePending.status, 'REVIEW');
+assert.equal(results.K_projectedDonePending.action, 'WAIT_MAIN_CI');
+assert.equal(results.K_projectedDonePending.detail, 'MAIN_CI_PENDING');
+assert.equal(
+  results.K_projectedDonePending.mainSha,
+  fixture.cases.K_projected_done_main_pending.github.main.sha,
+);
+
+results.L_projectedDoneFailure = reconcile(
+  canonical,
+  fixture.cases.L_projected_done_main_failure.local,
+  fixture.cases.L_projected_done_main_failure.github,
+);
+assert.equal(results.L_projectedDoneFailure.canonicalTaskId, 'P4C-02');
+assert.equal(results.L_projectedDoneFailure.status, 'BLOCKED');
+assert.equal(results.L_projectedDoneFailure.error, 'TASK_BLOCKED');
+assert.equal(results.L_projectedDoneFailure.detail, 'MAIN_VERIFY_FAILED');
+assert.equal(results.L_projectedDoneFailure.mainCiAttempt.conclusion, 'failure');
+
+results.M_projectedDoneSuccess = reconcile(
+  canonical,
+  fixture.cases.M_projected_done_main_success.local,
+  fixture.cases.M_projected_done_main_success.github,
+);
+assert.equal(results.M_projectedDoneSuccess.canonicalTaskId, 'P4C-02');
+assert.equal(results.M_projectedDoneSuccess.status, 'DONE');
+assert.equal(results.M_projectedDoneSuccess.action, 'READY_PREDEFINED_NEXT');
+
+results.N_projectedDoneNullSuccessor = reconcile(
+  canonical,
+  fixture.cases.N_projected_done_null_successor_pending.local,
+  fixture.cases.N_projected_done_null_successor_pending.github,
+);
+assert.equal(results.N_projectedDoneNullSuccessor.canonicalTaskId, 'P4C-04');
+assert.equal(results.N_projectedDoneNullSuccessor.status, 'REVIEW');
+assert.equal(results.N_projectedDoneNullSuccessor.action, 'WAIT_MAIN_CI');
+assert.equal(results.N_projectedDoneNullSuccessor.detail, 'MAIN_CI_PENDING');
+assert.notEqual(results.N_projectedDoneNullSuccessor.error, 'NO_READY_TASK');
+
+results.O_staleDonePointer = reconcile(
+  fixture.staleDoneCanonicalQueue,
+  fixture.cases.O_stale_done_pointer_selects_ready.local,
+  fixture.cases.O_stale_done_pointer_selects_ready.github,
+);
+assert.equal(results.O_staleDonePointer.canonicalTaskId, 'DISPATCHER-STALE-DONE-RECONCILIATION-01');
+assert.equal(results.O_staleDonePointer.status, 'IN_PROGRESS');
+assert.equal(results.O_staleDonePointer.action, 'DISPATCH_READY');
+assert.equal(results.O_staleDonePointer.previousStatus, 'READY');
+assert.equal(results.O_staleDonePointer.pr, null);
 
 for (const result of Object.values(results)) {
   if (result.error) assert(stableErrors.has(result.error));
