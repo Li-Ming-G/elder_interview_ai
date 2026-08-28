@@ -34,7 +34,8 @@
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
 | `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
 | `FIRST-INTERVIEW-START-01` | `REVIEW` | `LOCAL-DB-PORT-01`; planning baseline `main@7475b5144c816f9e383551bb5948c7a7f71d79cd` | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
-| `DISPATCHER-SAME-TASK-REPAIR-01` | `DEFERRED` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `null` | `null` |
+| `DISPATCHER-SAME-TASK-REPAIR-01` | `DEFERRED` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `null` | `CKPT-A-LOCAL-START-01` |
+| `CKPT-A-LOCAL-START-01` | `DEFERRED` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); planning baseline `main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e` | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
@@ -46,18 +47,20 @@ Current active task:
 
 Durable GitHub state controls its live status. The Architect has returned exact head `5ca89bff5d97d31ade590a4affb1dc65a83aab78` with `REQUEST_CHANGES` because required exact-head PR CI is not green; Dispatcher must keep the same Task/PR and route it back to implementation on the next reconciliation pulse.
 
-Preloaded successor:
+Preloaded successors:
 
-`DISPATCHER-SAME-TASK-REPAIR-01` is `DEFERRED` and may become `READY` only after `FIRST-INTERVIEW-START-01` is Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
+1. `DISPATCHER-SAME-TASK-REPAIR-01` remains `DEFERRED` and may become `READY` only after `FIRST-INTERVIEW-START-01` is Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
+2. `CKPT-A-LOCAL-START-01` remains `DEFERRED` and may become `READY` only after `DISPATCHER-SAME-TASK-REPAIR-01` is likewise fully `DONE`.
 
-Its purpose is to make PR-CI failure and Architect `REQUEST_CHANGES` mechanically re-enter the same Task/same PR repair loop, with durable idempotency, so unfinished work cannot become inert in `REVIEW`.
+The first successor hardens same-task/same-PR repair liveness. The second removes the remaining Owner-side Checkpoint A Windows startup workaround by safely migrating legacy ignored `.env.local` DB ports and repairing the native Windows launcher, while preserving the standard `15432/15433` repository DB mapping.
 
 ## Frozen boundaries
 
 - first-interview bugfix semantics remain exactly as defined by `FIRST-INTERVIEW-START-01`;
-- the governance successor changes no application/runtime behavior;
+- `DISPATCHER-SAME-TASK-REPAIR-01` changes governance only and no product/runtime behavior;
+- `CKPT-A-LOCAL-START-01` changes local startup tooling/runbook only and no P1-P6/T0-T27 or product semantics;
 - P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation and production provider/model/data decisions remain unchanged;
-- `DISPATCHER-SAME-TASK-REPAIR-01.next_task = null`.
+- `CKPT-A-LOCAL-START-01.next_task = null`.
 
 Open PRs #25, #43, #45, #62 and #110 remain outside these tasks.
 
