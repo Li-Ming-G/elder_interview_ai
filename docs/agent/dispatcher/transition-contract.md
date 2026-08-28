@@ -13,6 +13,11 @@ reconstructable projection plus canonical topology, not the only runtime truth.
 Every pulse reconciles fresh durable facts, including recoverable main-CI
 blockers, before any status-based stop or ordinary dispatch decision. A local
 `BLOCKED` projection cannot suppress a mechanically authorized recovery.
+`DONE` is also only a projection: it is never exempt from that reconciliation,
+even when its `next_task` is `null`. A cached `DONE` may cause a pulse to stop
+only after the accepted merge is proven in refreshed current-main ancestry and
+the latest applicable required CI for that exact current-main SHA is terminal
+`SUCCESS`.
 
 **Remote-main refresh is mandatory before canonical queue reads.** At the start
 of every bounded pulse, first run a safe `git fetch origin main`. Canonical queue
@@ -136,6 +141,9 @@ run future pulses.
 - Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required. The recurring schedule remains enabled for the next pulse.
 - The first external action of every pulse is a safe `git fetch origin main`; only after that may the Dispatcher determine canonical queue/task-card state.
 - After the refresh, reconcile durable GitHub/main facts and every projected `BLOCKED / MAIN_VERIFY_FAILED` task before applying any status-based stop or ordinary dispatch logic. Never return early merely because the cached status is `BLOCKED`.
+- After the refresh, reconcile every projected `DONE` task as well as every projected `BLOCKED / MAIN_VERIFY_FAILED` task before applying any status-based stop or ordinary dispatch logic. Pending/missing exact-current-main CI restores the verification wait path; terminal failure projects `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`; only terminal success confirms `DONE`.
+- `next_task: null` is not a reconciliation exemption. Once durable reconciliation confirms completion, scan the complete freshly fetched canonical queue for eligible `READY` work; an old `DONE + next_task:null` pointer cannot suppress an independently Owner-authorized READY task.
+- Queue-wide READY selection is authoritative after reconciliation: exactly one eligible READY task transitions to `IN_PROGRESS`, zero yields `NO_READY_TASK`, and more than one yields `DISPATCHER_STATE_INVALID`. For `depends_on`, only entries matching a task ID in the freshly read canonical queue are resolved through local task status; durable pack, `main@...`, and other non-task prerequisites are not implicit missing-task blockers.
 - Before any side effect, persist the state transition successfully, then perform the external action. In particular, persist `READY → IN_PROGRESS` before launching a Worker.
 - `IN_PROGRESS` is the default wait state only when no durable GitHub fact can advance it. A stale status or missing local PR cannot deny a matching GitHub PR.
 - Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.

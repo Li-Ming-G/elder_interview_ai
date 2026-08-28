@@ -62,6 +62,26 @@
     "M_false_recovery_prohibited": {
       "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "BLOCKED", "pr": 89 } } },
       "github": { "prs": [{ "number": 89, "title": "[P4C-02] accepted implementation", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "3333333333333333333333333333333333333333", "ancestry": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "requiredCiAttempts": [{ "headSha": "3333333333333333333333333333333333333333", "runId": 9301, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
+    },
+    "K_projected_done_main_pending": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "DONE", "pr": 89 } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02] accepted implementation", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1212121212121212121212121212121212121212", "ancestry": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "requiredCiAttempts": [{ "headSha": "1212121212121212121212121212121212121212", "runId": 9401, "runAttempt": 1, "status": "in_progress", "conclusion": null }] } }
+    },
+    "L_projected_done_main_failure": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "DONE", "pr": 89 } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02] accepted implementation", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1313131313131313131313131313131313131313", "ancestry": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "requiredCiAttempts": [{ "headSha": "1313131313131313131313131313131313131313", "runId": 9501, "runAttempt": 1, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }] } }
+    },
+    "M_projected_done_main_success": {
+      "local": { "activeTaskId": "P4C-02", "tasks": { "P4C-02": { "status": "DONE", "pr": 89 } } },
+      "github": { "prs": [{ "number": 89, "title": "[P4C-02] accepted implementation", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "e2a5a6120759b9b3689e2241ea44f990e49ed44d" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-02\nPR: 89\nREVIEWED_HEAD: e2a5a6120759b9b3689e2241ea44f990e49ed44d\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1414141414141414141414141414141414141414", "ancestry": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "requiredCiAttempts": [{ "headSha": "1414141414141414141414141414141414141414", "runId": 9601, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
+    },
+    "N_projected_done_null_successor_pending": {
+      "local": { "activeTaskId": "P4C-04", "tasks": { "P4C-04": { "status": "DONE", "pr": 92 } } },
+      "github": { "prs": [{ "number": 92, "title": "[P4C-04] accepted implementation", "body": "P4C-04", "head": { "ref": "codex/p4c-04", "sha": "4444444444444444444444444444444444444444" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "5555555555555555555555555555555555555555", "comments": [{ "topLevel": true, "createdAt": "2026-08-22T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: P4C-04\nPR: 92\nREVIEWED_HEAD: 4444444444444444444444444444444444444444\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "1515151515151515151515151515151515151515", "ancestry": ["5555555555555555555555555555555555555555"], "requiredCiAttempts": [{ "headSha": "1515151515151515151515151515151515151515", "runId": 9701, "runAttempt": 1, "status": "in_progress", "conclusion": null }] } }
+    },
+    "O_stale_done_pointer_selects_ready": {
+      "local": { "activeTaskId": "CKPT-A-LOCAL-START-01", "tasks": { "CKPT-A-LOCAL-START-01": { "status": "DONE", "pr": 118 }, "DISPATCHER-STALE-DONE-RECONCILIATION-01": { "status": "READY", "pr": null }, "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01": { "status": "DEFERRED", "pr": null } } },
+      "github": { "prs": [{ "number": 118, "title": "[CKPT-A-LOCAL-START-01] accepted implementation", "body": "CKPT-A-LOCAL-START-01\ndocs/agent/tasks/CKPT-A-LOCAL-START-01.md", "head": { "ref": "codex/ckpt-a-local-start-01", "sha": "7777777777777777777777777777777777777777" }, "base": { "ref": "main" }, "state": "closed", "merged": true, "mergeCommitSha": "8888888888888888888888888888888888888888", "comments": [{ "topLevel": true, "createdAt": "2026-08-29T00:00:00Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: CKPT-A-LOCAL-START-01\nPR: 118\nREVIEWED_HEAD: 7777777777777777777777777777777777777777\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "main": { "sha": "9999999999999999999999999999999999999999", "ancestry": ["8888888888888888888888888888888888888888"], "requiredCiAttempts": [{ "headSha": "9999999999999999999999999999999999999999", "runId": 9801, "runAttempt": 1, "status": "completed", "conclusion": "success" }] } }
     }
   },
   "repairCases": {
@@ -106,6 +126,11 @@
       "github": { "prs": [{ "number": 208, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "3333333333333333333333333333333333333333" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "3333333333333333333333333333333333333333", "runId": 2080, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [] }], "main": { "status": "pending" } }
     }
   },
+  "staleDoneCanonicalQueue": [
+    { "id": "CKPT-A-LOCAL-START-01", "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md", "depends_on": [], "next_task": null },
+    { "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01", "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md", "depends_on": ["CKPT-A-LOCAL-START-01", "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"], "next_task": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01" },
+    { "id": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01", "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md", "depends_on": ["DISPATCHER-STALE-DONE-RECONCILIATION-01", "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"], "next_task": null }
+  ],
   "repairCanonicalQueue": [
     { "id": "P4C-01", "task_card": "docs/agent/tasks/P4C-01.md", "depends_on": [], "next_task": "P4C-02" },
     { "id": "P4C-02", "task_card": "docs/agent/tasks/P4C-02.md", "depends_on": ["P4C-01"], "next_task": null }
