@@ -213,4 +213,6 @@ External Architect exact-head review is required. Dispatcher/Worker cannot self-
 
 ## Next Task
 
-`null`
+`CKPT-A-LOCAL-START-01`
+
+This successor was separately Owner-authorized in `CKPT-A-LOCAL-START-REPAIR-PACK.md`. It remains `DEFERRED` until this governance Task is Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`. This changes only queue topology; it does not broaden the scope of this governance Task.
