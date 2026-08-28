@@ -48,12 +48,53 @@ facts and a valid current-head `ARCHITECT_VERDICT_V1`. Recovery metadata may
 help resolve a mechanical stall, but it does not supersede or add prerequisites
 to the closed transition table below.
 
+## Required PR CI and same-task repair
+
+For the current canonical task, PR, and exact PR head, required PR CI is a
+first-class implementation gate. The Dispatcher fresh-reads the applicable
+required PR CI before treating an open PR as review-only:
+
+- missing or pending required PR CI is `REVIEW` / wait for PR CI;
+- terminal `SUCCESS` permits the normal external Architect review gate;
+- terminal failure is unfinished implementation and returns the same task and
+  same PR to `IN_PROGRESS` for a bounded `luna-high` repair worker.
+
+A current-head `REQUEST_CHANGES` is also same-task/same-PR repair. It is an
+actionable external finding even when the PR-CI result is pending. A current-
+head `PASS` never bypasses the PR-CI gate: pending/missing or failed PR CI is
+not merge-eligible; only exact-head PR CI `SUCCESS` can reach the existing
+fresh-head merge gate.
+
+Before launching repair for a PR-CI failure, the Dispatcher writes this
+top-level PR comment to GitHub:
+
+```text
+<!-- DISPATCHER_REPAIR_V1 -->
+TASK: <task_id>
+PR: <pr_number>
+HEAD: <full_sha>
+FAILED_CHECK: <stable job/check/step identity>
+ACTION: LAUNCHED
+```
+
+The tuple `(TASK, PR, HEAD, FAILED_CHECK)` is the durable repair-event
+fingerprint. A matching marker suppresses another launch for that exact event;
+a new head or different failing check is a new event. The repair launch must
+include the Task Card verbatim, PR number, current head, failed-check/run
+evidence, and an instruction to keep the same PR. A plausible transient may
+receive at most one bounded no-code rerun, whose terminal result must be
+observed before handoff; a second failure requires a scoped same-PR repair or a
+concrete `WORKER_FAILED` / `PRODUCT_AMBIGUITY` report.
+
 ## Closed transitions
 
 | From | Event | To | Mechanical effect |
 | --- | --- | --- | --- |
 | `READY` | start | `IN_PROGRESS` | Persist before launching the declared worker |
 | `IN_PROGRESS` | reconciliation finds unique PR | `REVIEW` or `IN_PROGRESS` | Bind canonical PR; open/no verdict is `REVIEW`, current-head `REQUEST_CHANGES` is same-PR `IN_PROGRESS` |
+| `REVIEW` | current exact-head required PR CI pending/missing | `REVIEW` | Wait; do not launch repair or merge |
+| `REVIEW` | current exact-head required PR CI failure | `IN_PROGRESS` | Same-task/same-PR repair; launch once per durable `(TASK, PR, HEAD, FAILED_CHECK)` marker |
+| `REVIEW` | current-head `PASS` with required PR CI not `SUCCESS` | `REVIEW` or `IN_PROGRESS` | Pending/missing waits; failure uses same-task/same-PR repair; never merge |
 | `IN_PROGRESS` | worker failed | `BLOCKED` | Stop current pulse |
 | `REVIEW` | current-head `PASS`, fresh exact-head recheck, merge, refreshed main CI succeeds | `DONE` | Verify main, mark current `DONE`, then only predefined `next_task` becomes `READY` |
 | `REVIEW` | current-head `REQUEST_CHANGES` | `IN_PROGRESS` | Return the same canonical task and PR to implementation |
@@ -87,6 +128,7 @@ run future pulses.
 - On main CI failure after a valid PASS merge, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure.
 - Pending/missing main CI is retriable and must not produce `DONE` or successor `READY`.
 - On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop the current pulse for an external decision.
+- An open PR's exact-head required CI is a first-class gate: pending/missing is `REVIEW` wait; terminal failure is same-task/same-PR `IN_PROGRESS` repair with one durable launch per `(TASK, PR, HEAD, FAILED_CHECK)` marker. `REQUEST_CHANGES` is same-task/same-PR repair; `PASS` cannot bypass pending/missing/failed PR CI.
 - Never run two READY tasks concurrently or advance beyond predefined `next_task`.
 
 ## Reconciliation and safety gates
@@ -99,6 +141,7 @@ run future pulses.
 - Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.
 - If local `pr` is null or status is stale, fresh-query `Li-Ming-G/elder_interview_ai` across open and merged PRs. Use combined canonical Task Card, title/body, branch, predecessor/`next_task`, and phase evidence; no one marker is mandatory. Zero candidates is a no-op; one clear candidate is persisted and reconciled; equal candidates are `PRODUCT_AMBIGUITY`.
 - Open + current-head `REQUEST_CHANGES` is same canonical task `IN_PROGRESS`; open + no current-head verdict is `REVIEW`; open + current-head `PASS` requires a fresh exact-head recheck before merge. Merged PRs skip merge and continue through main verification.
+- For an open PR, fresh-read exact-head required PR CI before the review/merge decision: pending/missing waits, terminal failure returns the same task and PR to repair, and only terminal success permits the Architect gate. A matching `DISPATCHER_REPAIR_V1` marker suppresses duplicate repair for the same task, PR, head, and failed-check identity.
 - Formal REVIEW requires `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` and is not a verdict.
 - If an already-accepted PR is merged, skip merge and perform main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
 - Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are wait/no-op conditions retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`, main SHA, and CI run recorded.

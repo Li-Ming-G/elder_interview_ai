@@ -46,7 +46,30 @@ still projected as `REVIEW`; no merge is eligible.
 
 - `REQUEST_CHANGES`: return the same task to `IN_PROGRESS`, continue/relaunch the same Worker, retain Task Card and PR, and repair only the findings.
 - `PRODUCT_AMBIGUITY`: set the task `BLOCKED`, stop, and surface the ambiguity; do not choose a direction.
-- `PASS`: recheck exact-head equality, merge the current PR, wait for main CI, and only on success mark `DONE`, unlock only predefined `next_task`, sync main, and dispatch its predefined worker profile. Main CI failure means `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`; do not mark `DONE` or unlock.
+- `PASS`: first require terminal `SUCCESS` for required exact-head PR CI, then recheck exact-head equality and merge the current PR. Wait for main CI, and only on success mark `DONE`, unlock only predefined `next_task`, sync main, and dispatch its predefined worker profile. Main CI failure means `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`; do not mark `DONE` or unlock.
+
+For an open PR, required exact-head PR CI is a first-class implementation gate:
+pending or missing CI waits in `REVIEW`; terminal failure returns the same task
+and same PR to `IN_PROGRESS` and launches one bounded `luna-high` repair. A
+current-head `REQUEST_CHANGES` follows the same-task/same-PR repair path even if
+PR CI is pending. A current-head `PASS` cannot bypass pending, missing, or failed
+PR CI.
+
+Before a PR-CI failure repair launch, write this durable top-level PR comment:
+
+```text
+<!-- DISPATCHER_REPAIR_V1 -->
+TASK: <task_id>
+PR: <pr_number>
+HEAD: <full_sha>
+FAILED_CHECK: <stable job/check/step identity>
+ACTION: LAUNCHED
+```
+
+The tuple `(TASK, PR, HEAD, FAILED_CHECK)` is the repair-event fingerprint. A
+matching marker prevents a duplicate launch; a new PR head or failed-check
+identity authorizes a new bounded repair. The worker receives the exact Task
+Card, PR/head, failed-check/run evidence, and an explicit same-PR instruction.
 
 Never run two READY tasks concurrently, advance beyond `next_task`, create Task Cards, alter Accepted Contracts, invoke an internal Reviewer or invoke iteration-coach. Routine handoff does not require Product Owner forwarding; involve the Owner only for ambiguity, architecture decisions, scope amendments, or deferred provider/model/cost/product decisions.
 
@@ -104,12 +127,14 @@ number, author, or a fictional local ID.
 - More than one equally plausible candidate: set `BLOCKED / PRODUCT_AMBIGUITY`, list candidates, and do not choose.
 - Exactly one clear candidate: fresh-read it, persist the canonical task's PR number, then continue reconciliation.
 
-After binding, fresh-read the PR head and top-level comments. Open + current-head
-`REQUEST_CHANGES` becomes canonical `IN_PROGRESS` on the same PR. Open + no
-current-head verdict becomes `REVIEW`. Open + current-head `PASS` is merge
-eligible only after another fresh exact-head recheck. Merged PRs skip merge and
-continue through main verification. GitHub PR facts, not Worker chat, are the
-discovery authority.
+After binding, fresh-read the PR head, required PR CI, and top-level comments.
+Open + current-head `REQUEST_CHANGES` becomes canonical `IN_PROGRESS` on the
+same PR. Open + pending/missing exact-head PR CI waits in `REVIEW`; terminal
+failure becomes same-task/same-PR `IN_PROGRESS` repair; terminal success with
+no verdict becomes `REVIEW`. Open + current-head `PASS` is merge eligible only
+after required PR CI succeeds and another fresh exact-head recheck. Merged PRs
+skip merge and continue through main verification. GitHub PR facts, not Worker
+chat, are the discovery authority.
 
 - A PR's existence, non-draft state, completed PR CI, or stable head does not prove PASS or merge safety. Formal PRs must include `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds the task in `REVIEW`.
 - If a PASS PR is already merged, do not merge again; proceed to main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
@@ -152,8 +177,8 @@ main CI never produces `DONE` or a successor `READY`.
 - [`luna-high-launch-contract.md`](luna-high-launch-contract.md): launch and worker hand-back.
 - [`task-card-template.md`](task-card-template.md): mandatory bounded Task Card.
 - [`fixtures/sequential-queue-smoke.json`](fixtures/sequential-queue-smoke.json): two-task sequential smoke fixture.
-- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): A→B smoke plus A–M reconciliation validation, including main-verification blocker recovery.
-- [`fixtures/reconciliation-cases.json`](fixtures/reconciliation-cases.json): stale-state, identity, verdict, ambiguity, and CI fixtures.
+- [`dispatcher-dry-run.mjs`](dispatcher-dry-run.mjs): A→B smoke plus A–M reconciliation validation, including same-task PR-CI repair and main-verification blocker recovery.
+- [`fixtures/reconciliation-cases.json`](fixtures/reconciliation-cases.json): stale-state, identity, verdict, same-task repair, ambiguity, and CI fixtures.
 
 ## Mechanical algorithm
 
@@ -162,7 +187,7 @@ main CI never produces `DONE` or a successor `READY`.
 3. Only after durable and recoverable-blocker reconciliation, apply ordinary status-stop or dispatch logic.
 4. Validate the active ID; recover only to an existing canonical ID and bind a unique matching PR.
 5. For a `READY` task, persist `IN_PROGRESS` before launching its declared worker profile.
-6. When an open PR exists, project `REVIEW` unless the fresh current-head verdict is `REQUEST_CHANGES`; retain the same PR for repair.
+6. When an open PR exists, fresh-read exact-head required PR CI. Wait in `REVIEW` for pending/missing CI; return to `IN_PROGRESS` for same-PR repair on terminal failure or current-head `REQUEST_CHANGES`; project `REVIEW` for successful CI awaiting the external Architect.
 7. The external Architect performs the actual PR review.
 8. On external `PASS`, do not unlock `next_task` until the current PR is merged into `main`; refresh/sync local `main` and verify it contains the accepted task.
 9. Then, after fresh main verification, set current `DONE` and only the predefined `next_task` `READY`. On `REQUEST_CHANGES`, return the same task to `IN_PROGRESS`.
