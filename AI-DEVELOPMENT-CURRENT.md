@@ -40,7 +40,7 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 ## Canonical current queue
 
 ```text
-DISPATCHER-STALE-DONE-RECONCILIATION-01  [IN_PROGRESS]
+DISPATCHER-STALE-DONE-RECONCILIATION-01  [REVIEW]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DEFERRED]
   -> null
 ```
@@ -54,7 +54,7 @@ Planning sources:
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `IN_PROGRESS` and has priority by explicit Product Owner decision.
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `REVIEW` on PR #121 at exact head `4bebdc55bfe3a492c52093c5a79b876343182561`; the required `verify` CI is pending, and the task has priority by explicit Product Owner decision.
 
 Frozen governance outcome:
 
@@ -104,8 +104,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`.
-- `REVIEW`: none at planning publication time.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `DISPATCHER-STALE-DONE-RECONCILIATION-01` on PR #121.
 - `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the deferred legacy first-session durable-state compatibility gap until that product repair later merges.
 - `DEFERRED`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
