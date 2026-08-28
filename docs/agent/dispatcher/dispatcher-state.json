@@ -272,7 +272,7 @@
     },
     {
       "id": "DISPATCHER-SAME-TASK-REPAIR-01",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
