@@ -1,6 +1,6 @@
 # CKPT-A-LOCAL-START-01
 
-Status: `DEFERRED`
+Status: `DONE`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
@@ -228,4 +228,4 @@ External Architect exact-head PR review.
 
 ## Next Task
 
-`null`
+`DISPATCHER-STALE-DONE-RECONCILIATION-01`
