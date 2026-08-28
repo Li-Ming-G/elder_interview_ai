@@ -34,39 +34,33 @@
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
 | `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
 | `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
-| `DISPATCHER-SAME-TASK-REPAIR-01` | `READY` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `null` | `CKPT-A-LOCAL-START-01` |
-| `CKPT-A-LOCAL-START-01` | `DEFERRED` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); planning baseline `main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e` | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `null` | `null` |
+| `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
+| `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `null` |
+| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `READY` | `CKPT-A-LOCAL-START-01` DONE; Owner-authorized [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md); baseline `main@9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Owner Checkpoint A, Real-Flow Cleanup, FIRST-INTERVIEW-START-01, DISPATCHER-SAME-TASK-REPAIR-01 and CKPT-A-LOCAL-START-01 are complete. Local DB Port Maintenance is complete through `LOCAL-DB-PORT-01` / PR #115.
+Checkpoint A local-start repair is now durably complete: exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5` has latest applicable CI run `33146225956` attempt 2 `SUCCESS`.
 
 Current active task:
 
-`CKPT-A-LOCAL-START-01` / PR #118.
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` (`READY`).
 
-`FIRST-INTERVIEW-START-01` is complete: Architect PASS was recorded for exact head `c218087b8189e12b30a425011571edfcd74ad59e`, PR #116 was merged at `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`, and refreshed-main CI `verify` succeeded.
-
-Preloaded successors:
-
-1. `DISPATCHER-SAME-TASK-REPAIR-01` is `DONE` after its Architect PASS, merge, refreshed-main CI verification and completion.
-2. `CKPT-A-LOCAL-START-01` is `DONE` after PR #118 passed required checks and merged; no successor is predefined.
-
-The first successor hardens same-task/same-PR repair liveness. The second removes the remaining Owner-side Checkpoint A Windows startup workaround by safely migrating legacy ignored `.env.local` DB ports and repairing the native Windows launcher, while preserving the standard `15432/15433` repository DB mapping.
+This Owner-authorized governance task permanently closes the newly observed false-DONE/no-op gap: a cached `DONE`, including `DONE + next_task:null`, must still be reconciled against accepted merge ancestry and the latest applicable required CI for exact refreshed current main. Pending/missing main CI cannot confirm DONE; terminal failure must project `BLOCKED / MAIN_VERIFY_FAILED`; later exact-main SUCCESS confirms or restores DONE.
 
 ## Frozen boundaries
 
-- first-interview bugfix semantics remain exactly as defined by `FIRST-INTERVIEW-START-01`;
-- `DISPATCHER-SAME-TASK-REPAIR-01` changes governance only and no product/runtime behavior;
-- `CKPT-A-LOCAL-START-01` changes local startup tooling/runbook only and no P1-P6/T0-T27 or product semantics;
-- P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation and production provider/model/data decisions remain unchanged;
-- `CKPT-A-LOCAL-START-01.next_task = null`.
+- this new task changes Dispatcher governance only;
+- no Checkpoint A product/runtime behavior changes;
+- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation or privacy semantics change;
+- no CI workflow YAML changes are authorized;
+- the task has `next_task = null`.
 
 Open PRs #25, #43, #45, #62 and #110 remain outside these tasks.
 
 ## Maintenance
 
-- GitHub durable facts override stale projection/status fields.
+- GitHub durable facts override stale projection/status fields, including an apparently terminal `DONE` projection.
 - Dispatcher must fresh-read GitHub/main or refreshed `origin/main`; an unpushed local worktree is never canonical state.
 - A normal Worker repairs/implements only its current Task Card and canonical PR.
 - External Architect owns exact-head review and verdict.
