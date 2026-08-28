@@ -260,7 +260,7 @@
     },
     {
       "id": "FIRST-INTERVIEW-START-01",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/FIRST-INTERVIEW-START-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
