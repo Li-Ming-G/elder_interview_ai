@@ -15,11 +15,11 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current bugfix/governance maintenance.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current bugfix/governance/local-start maintenance queue.
 
 ## Current phase
 
-Current phase: `POST-CHECKPOINT A / FIRST INTERVIEW START REPAIR + DISPATCHER REPAIR PRELOAD`.
+Current phase: `POST-CHECKPOINT A / FIRST INTERVIEW START REPAIR + DISPATCHER REPAIR + CKPT-A LOCAL START PRELOAD`.
 
 Completed baseline:
 
@@ -35,6 +35,7 @@ Completed baseline:
 ```text
 FIRST-INTERVIEW-START-01
   -> DISPATCHER-SAME-TASK-REPAIR-01
+  -> CKPT-A-LOCAL-START-01
   -> null
 ```
 
@@ -68,6 +69,27 @@ Its frozen outcome is to close the liveness gap where unfinished implementation 
 - required exact-head PR CI success + Architect PASS -> merge eligible;
 - only after merge + refreshed-main CI success + DONE may predefined successor logic run.
 
+## Preloaded CKPT A local-start successor
+
+`CKPT-A-LOCAL-START-01` is separately Product Owner-authorized and currently `DEFERRED`.
+
+Planning sources:
+
+- `docs/agent/tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`
+- `docs/agent/tasks/CKPT-A-LOCAL-START-01.md`
+
+It becomes `READY` only after `DISPATCHER-SAME-TASK-REPAIR-01` is Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
+
+Its frozen outcome is local operability only:
+
+- preserve tracked PostgreSQL host ports `15432` / `15433`;
+- provide a safe explicit one-time migration for an existing ignored `.env.local` still using legacy `5432` / `5433` local DB ports;
+- never commit or print real `.env.local` secrets;
+- repair the native-Windows `pnpm checkpoint-a:start` child-process launch/cleanup path;
+- preserve API/server versus Vite/browser secret isolation;
+- remove the need for process-level DB URL overrides as the steady-state Owner workflow;
+- change no application/runtime, P1-P6/T0-T27, consent, auth, ASR, Director, memory/evidence, privacy or provider semantics.
+
 ## Preserved decisions
 
 - OpenRouter/Ox and Owner Prompt meaning unchanged.
@@ -75,11 +97,12 @@ Its frozen outcome is to close the liveness gap where unfinished implementation 
 - Automatic/manual Director orchestration, generation fences, deadlines, publication authority and background isolation unchanged.
 - P1–P5 semantic/data ownership unchanged.
 - AI failure must not stop recording; ASR failure must not damage original audio.
+- Repository-standard local PostgreSQL host ports remain `15432` / `15433`; container PostgreSQL remains `5432`.
 - P2-D, T26–T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region, ordinary real interview data and deployment decisions remain deferred.
 
 ## Governance
 
-Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
+Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
 
 Accepted lifecycle:
 
@@ -93,7 +116,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 - `IN_PROGRESS`: durable reconciliation should return `FIRST-INTERVIEW-START-01` here on the next pulse because current-head Architect verdict is `REQUEST_CHANGES`.
 - `REVIEW`: cached projection may still show `FIRST-INTERVIEW-START-01` until that pulse reconciles the verdict.
 - `BLOCKED`: none currently established by durable facts.
-- `DEFERRED`: `DISPATCHER-SAME-TASK-REPAIR-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
+- `DEFERRED`: `DISPATCHER-SAME-TASK-REPAIR-01`, `CKPT-A-LOCAL-START-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
 
 ## Authority order
@@ -102,4 +125,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher must fresh-read `origin/main` and durable PR #116 facts. The current-head `ARCHITECT_VERDICT_V1: REQUEST_CHANGES` requires same-task/same-PR repair. After `FIRST-INTERVIEW-START-01` eventually reaches true `DONE`, the predefined `DISPATCHER-SAME-TASK-REPAIR-01` becomes the only eligible successor.
+Dispatcher must fresh-read `origin/main` and durable PR #116 facts. The current-head `ARCHITECT_VERDICT_V1: REQUEST_CHANGES` requires same-task/same-PR repair. After `FIRST-INTERVIEW-START-01` eventually reaches true `DONE`, the predefined `DISPATCHER-SAME-TASK-REPAIR-01` becomes the only eligible successor. After that governance task reaches true `DONE`, `CKPT-A-LOCAL-START-01` becomes the only eligible successor and must repair the remaining Owner-side `.env.local` / native-Windows Checkpoint A startup path without process-level DB overrides.
