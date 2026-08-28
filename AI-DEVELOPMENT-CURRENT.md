@@ -40,7 +40,7 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 ## Canonical current queue
 
 ```text
-DISPATCHER-STALE-DONE-RECONCILIATION-01  [READY]
+DISPATCHER-STALE-DONE-RECONCILIATION-01  [IN_PROGRESS]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DEFERRED]
   -> null
 ```
@@ -54,7 +54,7 @@ Planning sources:
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `READY` and has priority by explicit Product Owner decision.
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `IN_PROGRESS` and has priority by explicit Product Owner decision.
 
 Frozen governance outcome:
 
@@ -103,8 +103,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`.
-- `IN_PROGRESS`: none at planning publication time.
+- `READY`: none.
+- `IN_PROGRESS`: `DISPATCHER-STALE-DONE-RECONCILIATION-01`.
 - `REVIEW`: none at planning publication time.
 - `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the deferred legacy first-session durable-state compatibility gap until that product repair later merges.
 - `DEFERRED`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
