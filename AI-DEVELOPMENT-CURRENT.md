@@ -69,16 +69,22 @@ Its frozen outcome is to close the liveness gap where unfinished implementation 
 - required exact-head PR CI success + Architect PASS -> merge eligible;
 - only after merge + refreshed-main CI success + DONE may predefined successor logic run.
 
+## CKPT-A-LOCAL-START-01 current truth
+
+- Product Owner-authorized Task Card is complete through canonical PR `#118`.
+- Accepted implementation head: `0ba8d07f130174c78a47e69f6273696379ab9d6a`.
+- Required task checks and exact-head PR CI succeeded; the Worker did not expose secrets or `.env.local` contents.
+
 ## Preloaded CKPT A local-start successor
 
-`CKPT-A-LOCAL-START-01` is separately Product Owner-authorized and is now `READY`.
+`CKPT-A-LOCAL-START-01` is separately Product Owner-authorized and is complete through PR #118.
 
 Planning sources:
 
 - `docs/agent/tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`
 - `docs/agent/tasks/CKPT-A-LOCAL-START-01.md`
 
-It became `READY` after `DISPATCHER-SAME-TASK-REPAIR-01` was Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
+It became active after `DISPATCHER-SAME-TASK-REPAIR-01` was Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`, and is now complete.
 
 Its frozen outcome is local operability only:
 
@@ -112,12 +118,12 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `CKPT-A-LOCAL-START-01`.
+- `READY`: none.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `BLOCKED`: none currently established by durable facts.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
+- `DONE`: CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -125,4 +131,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher must launch the predefined `CKPT-A-LOCAL-START-01` worker, which must repair the remaining Owner-side `.env.local` / native-Windows Checkpoint A startup path without process-level DB overrides.
+`CKPT-A-LOCAL-START-01` is complete through PR #118; no predefined successor remains.
