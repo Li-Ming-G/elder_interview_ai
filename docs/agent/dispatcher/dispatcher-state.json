@@ -293,7 +293,7 @@
         "main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e"
       ],
       "pr": 118,
-      "next_task": null
+      "next_task": "DISPATCHER-STALE-DONE-RECONCILIATION-01"
     },
     {
       "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01",
