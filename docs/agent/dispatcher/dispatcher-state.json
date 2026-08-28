@@ -296,25 +296,25 @@
       "next_task": null
     },
     {
-      "id": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
-      "status": "READY",
-      "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md",
-      "worker_profile": "luna-high",
-      "depends_on": [
-        "CKPT-A-LOCAL-START-01",
-        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"
-      ],
-      "pr": null,
-      "next_task": "DISPATCHER-STALE-DONE-RECONCILIATION-01"
-    },
-    {
       "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
-        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
+        "CKPT-A-LOCAL-START-01",
         "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"
+      ],
+      "pr": null,
+      "next_task": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01"
+    },
+    {
+      "id": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "DISPATCHER-STALE-DONE-RECONCILIATION-01",
+        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"
       ],
       "pr": null,
       "next_task": null
