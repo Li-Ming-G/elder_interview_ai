@@ -137,7 +137,7 @@ If a narrower dispatcher governance validation command exists, run it too and re
 - K/L/M/N deterministic fixtures pass;
 - no application/runtime/CI-workflow behavior changes;
 - exactly one implementation PR is created for this task;
-- Worker publishes `ARCHITECT_REVIEW_CONTEXT_V1` with exact PR head and stops at REVIEW;
+- Worker publishes `ARCHITECT_REVIEW_CONTEXT_V1` with exact head and stops at REVIEW;
 - external Architect exact-head PASS remains required before merge.
 
 ## Explicit Non-Goals
@@ -149,7 +149,7 @@ Do NOT:
 - change CI YAML or weaken any CI gate;
 - create a generic scheduler or new queue service;
 - add database/CAS state for Dispatcher;
-- invent another successor.
+- invent another successor beyond the Owner-authorized `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` follow-up.
 
 ## Review Gate
 
@@ -157,4 +157,4 @@ External Architect exact-head review.
 
 ## Next Task
 
-`null`
+`FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`
