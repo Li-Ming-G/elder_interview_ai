@@ -1,6 +1,6 @@
 # FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01
 
-Status: `READY`
+Status: `DEFERRED`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
@@ -22,8 +22,9 @@ The repair must self-heal the stale first-session project state at start time wi
 - accepted FIRST-INTERVIEW-START-01 behavior through PR #116
 - current `apps/api/src/project-foundation/project-foundation.service.ts`
 - current `tests/integration/first-interview-start.test.ts`
-- predecessor: `CKPT-A-LOCAL-START-01` is already `DONE`
+- predecessor: `DISPATCHER-STALE-DONE-RECONCILIATION-01` must be `DONE` before this task becomes `READY`
 - planning baseline: `main@0128e7d8f1b2c8c2f6a0cc6bf6c577cadb2a5b9e`
+- explicit Product Owner priority override on 2026-08-29: Dispatcher governance repair runs first; this product repair resumes immediately after that task is accepted, merged, and exact-main verified
 
 ## Scope
 
@@ -141,4 +142,4 @@ External Architect exact-head review.
 
 ## Next Task
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01`
+`null`
