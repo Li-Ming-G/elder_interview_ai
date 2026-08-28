@@ -1,6 +1,6 @@
 # DISPATCHER-STALE-DONE-RECONCILIATION-01
 
-Status: `READY`
+Status: `DEFERRED`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
@@ -19,6 +19,7 @@ Make `DONE` mechanically self-correcting when refreshed durable GitHub facts sho
 - Owner-authorized pack: `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`
 - current `docs/agent/dispatcher/transition-contract.md`
 - current dispatcher dry-run and reconciliation fixtures
+- predecessor: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` must be `DONE` before this task becomes `READY`
 - motivating incident: `CKPT-A-LOCAL-START-01` was projected `DONE` before exact current-main CI was terminal; the first CI attempt later failed, and a subsequent Dispatcher pulse no-opped on cached `DONE + next_task:null` instead of treating durable main-CI truth as authoritative
 
 ## Scope
@@ -149,7 +150,7 @@ Do NOT:
 - change CI YAML or weaken any CI gate;
 - create a generic scheduler or new queue service;
 - add database/CAS state for Dispatcher;
-- invent another successor beyond the Owner-authorized `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` follow-up.
+- invent another successor.
 
 ## Review Gate
 
@@ -157,4 +158,4 @@ External Architect exact-head review.
 
 ## Next Task
 
-`FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`
+`null`
