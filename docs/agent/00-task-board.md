@@ -36,28 +36,28 @@
 | `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
 | `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
 | `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `null` |
-| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `READY` | `CKPT-A-LOCAL-START-01` DONE; Owner-authorized [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md) | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `null` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
-| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DEFERRED` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; Owner-authorized [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md) | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `null` | `null` |
+| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `READY` | `CKPT-A-LOCAL-START-01` DONE; Owner-authorized [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md); explicit Owner priority override 2026-08-29 | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `null` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
+| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DEFERRED` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; Owner-authorized [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md) | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Checkpoint A infrastructure/local-start repair is durably complete, but the Owner retest exposed a legacy durable-state compatibility blocker in the restored unfinished first-interview workflow.
+Checkpoint A infrastructure/local-start repair is durably complete. The Owner retest exposed both a legacy durable-state compatibility blocker and a Dispatcher governance defect: a stale old `DONE + next_task:null` current-task projection suppressed a unique READY task already present on freshly published main.
 
 Current active task:
 
-`FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` (`READY`).
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` (`READY`).
 
-The screenshot/behavior matches a pre-fix first interview restored at the Start step. Such a record can still be stranded as `project=draft + sequence_no=1 session=device_check + current valid formal consent`. The fresh path was fixed by PR #116 because consent append now calls `refreshReady()` and promotes the project to `ready`; the legacy restored record does not necessarily re-run that mutation. Current start authority still rejects `draft` before first-session consent can authorize start. The new task adds a narrowly fail-closed start-time self-heal for that exact legacy state and a real PostgreSQL regression test.
+By explicit Product Owner priority override, governance repair runs first. It must make projected DONE re-reconcilable against durable exact-main CI and must make post-reconciliation task selection scan the complete freshly fetched canonical queue, including the deterministic case where an old `DONE + next_task:null` pointer coexists with one newly Owner-authorized eligible READY task.
 
-After this user-blocking recovery is accepted/merged/main-verified, `DISPATCHER-STALE-DONE-RECONCILIATION-01` becomes READY as the governance follow-up.
+After this governance task is accepted/merged/main-verified, `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` becomes READY and resumes the unchanged user-blocking first-session compatibility repair.
 
 ## Frozen boundaries
 
-- first-session legacy recovery only; no repeat-interview continuation-policy change;
+- current task is Dispatcher governance only; no application/runtime/CI-workflow change;
+- first-session legacy recovery remains deferred and its product semantics are unchanged;
 - do not delete or reset the Owner database;
 - unfinished-workflow delete/abandon UX remains a separate later task;
-- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation, privacy, schema/migration or CI-workflow changes;
-- stale-DONE governance remains deferred until the user-blocking product recovery is complete.
+- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation, privacy, schema/migration or CI-workflow product changes.
 
 Open PRs #25, #43, #45, #62 and #110 remain outside these tasks.
 
