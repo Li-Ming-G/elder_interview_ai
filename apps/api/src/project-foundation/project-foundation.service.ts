@@ -27,6 +27,7 @@ import { ResourceAuthorizationService } from '../auth/resource-authorization.ser
 import { PrismaService } from '../database/prisma.service.js';
 import type { IdempotencyRecord, Prisma } from '../generated/prisma/client.js';
 import { RealtimeRuntimeService } from '../realtime-transcription/realtime-runtime.service.js';
+import { isCurrentFirstInterviewConsentValid } from './first-interview-consent.policy.js';
 import { evaluateInterviewStartGate } from './interview-start-policy.js';
 import { createPayloadHash } from './create-idempotency.js';
 import {
@@ -728,8 +729,15 @@ export class ProjectFoundationService {
     const existing = await this.prisma.interviewSession.findUnique({ where: { id: sessionId } });
     if (existing === null) throw this.notFound();
     await this.assertInterviewerProject(actor, existing.projectId);
+    const initialAuthority = await this.repeatInterviews.read(actor.id, existing.projectId);
+    const initialFirstInterviewConsentValid =
+      existing.sequenceNo === 1
+        ? await this.hasValidCurrentFirstInterviewConsent(this.prisma, existing.projectId)
+        : false;
     this.assertCurrentStartAuthority(
-      await this.repeatInterviews.read(actor.id, existing.projectId),
+      initialAuthority,
+      existing.sequenceNo,
+      initialFirstInterviewConsentValid,
     );
     const replay = await this.findReplay<InterviewSessionResponse>(input.request_id, binding);
     if (replay !== null) {
@@ -754,7 +762,15 @@ export class ProjectFoundationService {
         where: { id: session.projectId },
       });
       const currentAuthority = await this.repeatInterviews.read(actor.id, project.id, transaction);
-      this.assertCurrentStartAuthority(currentAuthority);
+      const firstInterviewConsentValid =
+        session.sequenceNo === 1
+          ? await this.hasValidCurrentFirstInterviewConsent(transaction, project.id)
+          : false;
+      this.assertCurrentStartAuthority(
+        currentAuthority,
+        session.sequenceNo,
+        firstInterviewConsentValid,
+      );
       if (input.recording_reminder_version !== 'recording-reminder-v1') {
         throw new ConflictException({
           code: 'RECORDING_REMINDER_VERSION_STALE',
@@ -765,7 +781,9 @@ export class ProjectFoundationService {
       const gate = evaluateInterviewStartGate({
         allRequiredConsentsValid:
           currentAuthority.visibility === 'ordinary' &&
-          currentAuthority.consentContinuation.status === 'covered',
+          (session.sequenceNo === 1
+            ? firstInterviewConsentValid
+            : currentAuthority.consentContinuation.status === 'covered'),
         projectStatus: project.status,
         sessionStatus: session.status,
       });
@@ -873,21 +891,7 @@ export class ProjectFoundationService {
   ): Promise<void> {
     const project = await transaction.elderProject.findUniqueOrThrow({ where: { id: projectId } });
     if (project.status !== 'draft') return;
-    const consent = await transaction.consentRecord.findFirst({
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      where: { consentType: 'recording_transcription_ai', projectId },
-    });
-    const continuation = await this.repeatInterviews.readConsentContinuation(
-      consent === null
-        ? null
-        : {
-            id: consent.id,
-            revokedAt: consent.revokedAt,
-            status: consent.status,
-            textVersion: consent.consentTextVersion,
-          },
-    );
-    if (continuation.status === 'covered') {
+    if (await this.hasValidCurrentFirstInterviewConsent(transaction, projectId)) {
       await transaction.elderProject.update({
         data: { status: 'ready' },
         where: { id: projectId },
@@ -1004,7 +1008,23 @@ export class ProjectFoundationService {
     }
   }
 
-  private assertCurrentStartAuthority(decision: RepeatInterviewReadResult): void {
+  private async hasValidCurrentFirstInterviewConsent(
+    db: Prisma.TransactionClient | PrismaService,
+    projectId: string,
+  ): Promise<boolean> {
+    const consent = await db.consentRecord.findFirst({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { consentType: true, projectId: true, revokedAt: true, status: true },
+      where: { consentType: 'recording_transcription_ai', projectId },
+    });
+    return isCurrentFirstInterviewConsentValid(consent, projectId);
+  }
+
+  private assertCurrentStartAuthority(
+    decision: RepeatInterviewReadResult,
+    sequenceNo: number,
+    firstInterviewConsentValid: boolean,
+  ): void {
     if (decision.visibility === 'hidden') throw this.notFound();
     if (
       decision.visibility !== 'ordinary' ||
@@ -1012,6 +1032,16 @@ export class ProjectFoundationService {
       !['ready', 'active'].includes(decision.project.status)
     ) {
       throw this.projectNotStartable();
+    }
+    if (sequenceNo === 1) {
+      if (!firstInterviewConsentValid) {
+        throw new ConflictException({
+          code: 'CONSENT_REAUTHORIZATION_REQUIRED',
+          details: {},
+          message: 'Current formal consent must be recorded again',
+        });
+      }
+      return;
     }
     if (decision.consentContinuation.status === 'unavailable') {
       throw new ConflictException({
