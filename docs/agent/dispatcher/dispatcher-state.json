@@ -280,6 +280,19 @@
         "DISPATCHER-SAME-TASK-REPAIR-PACK"
       ],
       "pr": null,
+      "next_task": "CKPT-A-LOCAL-START-01"
+    },
+    {
+      "id": "CKPT-A-LOCAL-START-01",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "DISPATCHER-SAME-TASK-REPAIR-01",
+        "CKPT-A-LOCAL-START-REPAIR-PACK",
+        "main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e"
+      ],
+      "pr": null,
       "next_task": null
     }
   ]
