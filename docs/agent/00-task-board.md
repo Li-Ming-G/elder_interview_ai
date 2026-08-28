@@ -39,18 +39,18 @@
 
 ## Current phase
 
-Owner Checkpoint A and Real-Flow Cleanup are complete. Local DB Port Maintenance is complete through `LOCAL-DB-PORT-01` / PR #115.
+Owner Checkpoint A, Real-Flow Cleanup and FIRST-INTERVIEW-START-01 are complete. Local DB Port Maintenance is complete through `LOCAL-DB-PORT-01` / PR #115.
 
 Current active task:
 
-`DISPATCHER-SAME-TASK-REPAIR-01` / no PR yet.
+`CKPT-A-LOCAL-START-01` / no PR yet.
 
 `FIRST-INTERVIEW-START-01` is complete: Architect PASS was recorded for exact head `c218087b8189e12b30a425011571edfcd74ad59e`, PR #116 was merged at `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`, and refreshed-main CI `verify` succeeded.
 
 Preloaded successors:
 
-1. `DISPATCHER-SAME-TASK-REPAIR-01` is now `READY` after `FIRST-INTERVIEW-START-01` was Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
-2. `CKPT-A-LOCAL-START-01` remains `DEFERRED` and may become `READY` only after `DISPATCHER-SAME-TASK-REPAIR-01` is likewise fully `DONE`.
+1. `DISPATCHER-SAME-TASK-REPAIR-01` is `DONE` after its Architect PASS, merge, refreshed-main CI verification and completion.
+2. `CKPT-A-LOCAL-START-01` is now `READY` after `DISPATCHER-SAME-TASK-REPAIR-01` was likewise fully `DONE`.
 
 The first successor hardens same-task/same-PR repair liveness. The second removes the remaining Owner-side Checkpoint A Windows startup workaround by safely migrating legacy ignored `.env.local` DB ports and repairing the native Windows launcher, while preserving the standard `15432/15433` repository DB mapping.
 
