@@ -42,23 +42,23 @@ FIRST-INTERVIEW-START-01
 ## FIRST-INTERVIEW-START-01 current truth
 
 - Canonical PR: `#116`.
-- Reviewed implementation head: `5ca89bff5d97d31ade590a4affb1dc65a83aab78`.
-- External Architect verdict on that head: `REQUEST_CHANGES` because required exact-head PR CI run `33065625004` is failed at `test:e2e:auth`.
-- The first-interview PostgreSQL integration path passed on that exact head; the current repair action is to keep the same Task and same PR, inspect/retry/repair the failing required CI without broadening product scope.
+- Accepted implementation head: `c218087b8189e12b30a425011571edfcd74ad59e`.
+- External Architect verdict on that head: `PASS`; exact-head CI run `33132032390` is `SUCCESS`.
+- PR #116 was merged into refreshed `main` at `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`.
 - Durable GitHub verdict/PR/head/CI state overrides stale cached status.
 - First-session product rule remains: `sequence_no === 1` may use current valid non-revoked formal `recording_transcription_ai` consent; later sessions remain governed by existing continuation policy and production `unavailable` remains fail-closed.
 - No `mvp-v1` cross-session continuing-consent decision is introduced.
 
 ## Preloaded governance successor
 
-`DISPATCHER-SAME-TASK-REPAIR-01` is Owner/Architect-predefined and currently `DEFERRED`.
+`DISPATCHER-SAME-TASK-REPAIR-01` is Owner/Architect-predefined and is now `READY`.
 
 Planning sources:
 
 - `docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`
 - `docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`
 
-It becomes `READY` only after `FIRST-INTERVIEW-START-01` is Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
+It became `READY` after `FIRST-INTERVIEW-START-01` was Architect-PASSed, merged, refreshed-main CI verified and marked `DONE`.
 
 Its frozen outcome is to close the liveness gap where unfinished implementation becomes inert merely because a PR exists or `next_task` is null:
 
@@ -112,12 +112,12 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: none.
-- `IN_PROGRESS`: durable reconciliation should return `FIRST-INTERVIEW-START-01` here on the next pulse because current-head Architect verdict is `REQUEST_CHANGES`.
-- `REVIEW`: cached projection may still show `FIRST-INTERVIEW-START-01` until that pulse reconciles the verdict.
+- `READY`: `DISPATCHER-SAME-TASK-REPAIR-01`.
+- `IN_PROGRESS`: none.
+- `REVIEW`: none.
 - `BLOCKED`: none currently established by durable facts.
-- `DEFERRED`: `DISPATCHER-SAME-TASK-REPAIR-01`, `CKPT-A-LOCAL-START-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
+- `DEFERRED`: `CKPT-A-LOCAL-START-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
+- `DONE`: FIRST-INTERVIEW-START-01 through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -125,4 +125,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher must fresh-read `origin/main` and durable PR #116 facts. The current-head `ARCHITECT_VERDICT_V1: REQUEST_CHANGES` requires same-task/same-PR repair. After `FIRST-INTERVIEW-START-01` eventually reaches true `DONE`, the predefined `DISPATCHER-SAME-TASK-REPAIR-01` becomes the only eligible successor. After that governance task reaches true `DONE`, `CKPT-A-LOCAL-START-01` becomes the only eligible successor and must repair the remaining Owner-side `.env.local` / native-Windows Checkpoint A startup path without process-level DB overrides.
+Dispatcher must launch the predefined `DISPATCHER-SAME-TASK-REPAIR-01` worker. After that governance task reaches true `DONE`, `CKPT-A-LOCAL-START-01` becomes the only eligible successor and must repair the remaining Owner-side `.env.local` / native-Windows Checkpoint A startup path without process-level DB overrides.

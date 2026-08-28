@@ -260,7 +260,7 @@
     },
     {
       "id": "FIRST-INTERVIEW-START-01",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/FIRST-INTERVIEW-START-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
@@ -272,7 +272,7 @@
     },
     {
       "id": "DISPATCHER-SAME-TASK-REPAIR-01",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
