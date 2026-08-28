@@ -1,6 +1,6 @@
 # DISPATCHER-STALE-DONE-RECONCILIATION-01
 
-Status: `DEFERRED`
+Status: `READY`
 
 ## Architecture Mapping (P1-P6/T0-T27)
 
@@ -12,15 +12,18 @@ Product consent, interview, audio, ASR, transcript, Director/OpenRouter/Ox, memo
 
 ## Goal
 
-Make `DONE` mechanically self-correcting when refreshed durable GitHub facts show that exact current-main verification is still pending or has failed, so a stale `DONE + next_task:null` projection can never trap Dispatcher in a false no-op loop.
+Make `DONE` mechanically self-correcting when refreshed durable GitHub facts show that exact current-main verification is still pending or has failed, and make task selection mechanically re-scan the freshly fetched canonical queue so an old `DONE + next_task:null` projection can never trap Dispatcher in a false no-op loop or suppress a newly Owner-authorized `READY` task.
 
 ## Inputs
 
 - Owner-authorized pack: `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`
+- explicit Product Owner priority override on 2026-08-29: governance repair runs before `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`
 - current `docs/agent/dispatcher/transition-contract.md`
 - current dispatcher dry-run and reconciliation fixtures
-- predecessor: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` must be `DONE` before this task becomes `READY`
-- motivating incident: `CKPT-A-LOCAL-START-01` was projected `DONE` before exact current-main CI was terminal; the first CI attempt later failed, and a subsequent Dispatcher pulse no-opped on cached `DONE + next_task:null` instead of treating durable main-CI truth as authoritative
+- predecessor: `CKPT-A-LOCAL-START-01` is already `DONE`
+- motivating incidents:
+  - `CKPT-A-LOCAL-START-01` was projected `DONE` before exact current-main CI was terminal; the first CI attempt later failed, and a subsequent Dispatcher pulse no-opped on cached `DONE + next_task:null` instead of treating durable main-CI truth as authoritative;
+  - after refreshed `main` contained unique `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01 [READY]`, a later Dispatcher pulse still reported the old `CKPT-A-LOCAL-START-01 DONE + next_task:null` and no-op, proving stale current-task selection can suppress a newly authorized READY entry.
 
 ## Scope
 
@@ -88,9 +91,18 @@ If the accepted merge is in refreshed current-main ancestry and the latest appli
 
 ### 5. next_task:null is never an exemption
 
-`next_task:null` only means there is no successor after a genuinely completed task. It must never suppress stale-DONE reconciliation, main verification, blocker projection, or later automatic recovery.
+`next_task:null` only means there is no successor after a genuinely completed task. It must never suppress stale-DONE reconciliation, main verification, blocker projection, later automatic recovery, or a fresh canonical-queue scan for an independently Owner-authorized READY task.
 
-### 6. Preserve existing contracts
+### 6. Fresh canonical READY selection is authoritative
+
+After mandatory durable reconciliation on every pulse, Dispatcher must recompute eligible work from the complete canonical queue on freshly fetched `origin/main` rather than retaining an old current-task pointer as dispatch authority.
+
+- exactly one eligible `READY` task -> dispatch that task;
+- zero eligible `READY` tasks -> `NO_READY_TASK` only after reconciliation;
+- more than one eligible `READY` task -> `DISPATCHER_STATE_INVALID`;
+- a prior task's `DONE + next_task:null` must not terminate the pulse before this queue-wide selection step.
+
+### 7. Preserve existing contracts
 
 Do not weaken or replace:
 
@@ -116,6 +128,8 @@ M. projected `DONE` + accepted merge ancestry + exact current-main CI SUCCESS ->
 
 N. K or L with `next_task:null` -> reconciliation still occurs; no false `NO_READY_TASK` or terminal no-op caused by the null successor.
 
+O. stale current-task pointer references an old `DONE + next_task:null` task, while freshly fetched canonical queue contains exactly one independently Owner-authorized eligible `READY` task -> select that READY task and produce `READY -> IN_PROGRESS`; do not return `NO_READY_TASK`.
+
 All existing reconciliation fixtures must continue to pass.
 
 ## Required Validation
@@ -135,7 +149,8 @@ If a narrower dispatcher governance validation command exists, run it too and re
 
 - transition contract explicitly states that `DONE` is not exempt from durable reconciliation;
 - executable dry-run logic handles stale DONE correctly;
-- K/L/M/N deterministic fixtures pass;
+- queue-wide post-reconciliation READY selection cannot be suppressed by an old `DONE + next_task:null` pointer;
+- K/L/M/N/O deterministic fixtures pass;
 - no application/runtime/CI-workflow behavior changes;
 - exactly one implementation PR is created for this task;
 - Worker publishes `ARCHITECT_REVIEW_CONTEXT_V1` with exact head and stops at REVIEW;
@@ -150,7 +165,7 @@ Do NOT:
 - change CI YAML or weaken any CI gate;
 - create a generic scheduler or new queue service;
 - add database/CAS state for Dispatcher;
-- invent another successor.
+- invent another successor beyond the Product Owner-authorized `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`.
 
 ## Review Gate
 
@@ -158,4 +173,4 @@ External Architect exact-head review.
 
 ## Next Task
 
-`null`
+`FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`
