@@ -317,6 +317,18 @@
         "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"
       ],
       "pr": 122,
+      "next_task": "CKPT-A-LEGACY-PREPARE-BRIDGE-01"
+    },
+    {
+      "id": "CKPT-A-LEGACY-PREPARE-BRIDGE-01",
+      "status": "IN_PROGRESS",
+      "task_card": "docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
+        "main@bc8aa25039007ecc7a6a139d2e45888b429f77fa"
+      ],
+      "pr": null,
       "next_task": null
     }
   ]

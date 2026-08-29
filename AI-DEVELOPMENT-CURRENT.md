@@ -42,6 +42,7 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
+  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [IN_PROGRESS]
   -> null
 ```
 
@@ -68,7 +69,7 @@ Frozen governance outcome:
 
 Required deterministic coverage now includes the real incident shape: old current task `DONE + next_task:null` plus one fresh canonical eligible READY task must select that READY task and advance `READY -> IN_PROGRESS`, not false-no-op.
 
-The predefined queue is complete after `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; its `next_task` is `null`.
+The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
 
 The deferred product repair outcome remains frozen:
 
@@ -104,7 +105,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: none.
+- `IN_PROGRESS`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01`.
 - `REVIEW`: none.
 - `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the legacy first-session durable-state compatibility gap until the READY product repair merges.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
@@ -116,4 +117,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-read `origin/main`, reconciled PR #122 at exact head `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, confirmed Architect PASS, accepted merge ancestry, and exact current-main CI SUCCESS. The predefined queue is complete; no successor is authorized.
+Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER.
