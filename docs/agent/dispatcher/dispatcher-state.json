@@ -321,7 +321,7 @@
     },
     {
       "id": "CKPT-A-LEGACY-PREPARE-BRIDGE-01",
-      "status": "BLOCKED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md",
       "worker_profile": "luna-high",
       "depends_on": [

@@ -44,7 +44,7 @@ The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGAC
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
-  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [BLOCKED / MAIN_VERIFY_FAILED]
+  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
   -> null
 ```
 
@@ -54,7 +54,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `BLOCKED / MAIN_VERIFY_FAILED` because exact current-main CI run `33247160691` failed in the existing realtime Chromium E2E (`realtime-connection` expected `connected`, received `unavailable`).
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `DONE`. Its `MAIN_VERIFY_FAILED` projection was mechanically recovered after exact current-main CI run `33247714344` succeeded for `36c43271aa6ce1f3b2f5e15c09dde5943d52cef2`.
 
 Frozen outcome:
 
@@ -110,7 +110,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 - `READY`: none.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01` / `MAIN_VERIFY_FAILED` due to main CI run `33247160691`; Owner Checkpoint A retest remains blocked by this final frontend bridge plus the Owner-local `.env.local` one-time port migration.
+- `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
@@ -120,4 +120,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-read `origin/main`, persisted `CKPT-A-LEGACY-PREPARE-BRIDGE-01` as IN_PROGRESS, then exact current-main CI run `33247160691` failed in the existing realtime Chromium E2E. The task is now BLOCKED / MAIN_VERIFY_FAILED and must be mechanically rechecked on a later pulse.
+Persistent Dispatcher fresh-read `origin/main`, mechanically recovered `CKPT-A-LEGACY-PREPARE-BRIDGE-01` from `MAIN_VERIFY_FAILED` after exact current-main CI run `33247714344` succeeded. The predefined queue ends with `next_task: null`.
