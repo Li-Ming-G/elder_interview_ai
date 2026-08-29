@@ -44,7 +44,7 @@ The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGAC
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
-  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [IN_PROGRESS]
+  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [BLOCKED / MAIN_VERIFY_FAILED]
   -> null
 ```
 
@@ -120,5 +120,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER.
 Persistent Dispatcher fresh-read `origin/main`, persisted `CKPT-A-LEGACY-PREPARE-BRIDGE-01` as IN_PROGRESS, then exact current-main CI run `33247160691` failed in the existing realtime Chromium E2E. The task is now BLOCKED / MAIN_VERIFY_FAILED and must be mechanically rechecked on a later pulse.
