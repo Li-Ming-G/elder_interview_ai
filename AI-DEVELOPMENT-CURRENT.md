@@ -41,7 +41,7 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
-  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [REVIEW]
+  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> null
 ```
 
@@ -54,7 +54,7 @@ Planning sources:
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `DONE` after PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` is in `REVIEW` on PR #122 at exact head `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, with required CI SUCCESS and external Architect review pending.
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `DONE` after PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` is `DONE` after PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, with accepted merge in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8` and exact current-main CI run `33229483568` SUCCESS.
 
 Frozen governance outcome:
 
@@ -68,7 +68,7 @@ Frozen governance outcome:
 
 Required deterministic coverage now includes the real incident shape: old current task `DONE + next_task:null` plus one fresh canonical eligible READY task must select that READY task and advance `READY -> IN_PROGRESS`, not false-no-op.
 
-After this governance task is Architect-PASSed, merged and exact-main CI verified, the predefined `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` becomes READY.
+The predefined queue is complete after `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; its `next_task` is `null`.
 
 The deferred product repair outcome remains frozen:
 
@@ -105,7 +105,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 - `READY`: none.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` on PR #122.
+- `REVIEW`: none.
 - `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the legacy first-session durable-state compatibility gap until the READY product repair merges.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: `DISPATCHER-STALE-DONE-RECONCILIATION-01` through PR #121; CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
@@ -116,4 +116,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-reads `origin/main`, binds the Worker-reported PR #122 at exact head `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, confirms required CI SUCCESS, and stops in REVIEW pending the external Architect verdict.
+Persistent Dispatcher fresh-read `origin/main`, reconciled PR #122 at exact head `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, confirmed Architect PASS, accepted merge ancestry, and exact current-main CI SUCCESS. The predefined queue is complete; no successor is authorized.

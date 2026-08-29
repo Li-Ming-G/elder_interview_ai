@@ -309,7 +309,7 @@
     },
     {
       "id": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
