@@ -41,7 +41,7 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
-  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [READY]
+  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [IN_PROGRESS]
   -> null
 ```
 
@@ -103,8 +103,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`.
 - `REVIEW`: none.
 - `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the legacy first-session durable-state compatibility gap until the READY product repair merges.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
@@ -116,4 +116,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-reads `origin/main`, sees the unique eligible READY task `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, persists `READY -> IN_PROGRESS`, and launches its declared `luna-high` IMPLEMENTATION_WORKER on the next pulse.
+Persistent Dispatcher fresh-reads `origin/main`, persists `READY -> IN_PROGRESS` for the unique eligible task `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, and launches its declared `luna-high` IMPLEMENTATION_WORKER.
