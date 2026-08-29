@@ -32,34 +32,31 @@
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
-| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
+| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `115` | `null` |
 | `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
 | `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
 | `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
 | `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | `CKPT-A-LOCAL-START-01` DONE; PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; accepted merge is in refreshed main `22557cdcba1c17c5f8921094c6057fca9b423f39`; exact current-main CI run `33205218737` SUCCESS; recovered from `MAIN_VERIFY_FAILED` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
-| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `null` |
+| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
+| `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `READY` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; Owner retest on legacy `/prepare`; baseline `main@bc8aa25039007ecc7a6a139d2e45888b429f77fa` | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Checkpoint A infrastructure/local-start repair is durably complete. The Owner retest exposed both a legacy durable-state compatibility blocker and a Dispatcher governance defect: a stale old `DONE + next_task:null` current-task projection suppressed a unique READY task already present on freshly published main.
+Owner Checkpoint A retest found one remaining frontend bridge blocker after backend legacy recovery was accepted: the `/prepare` page disables Start solely because the legacy first-session project is still `draft`, preventing the request from reaching the backend self-heal path accepted in PR #122.
 
 Current active task:
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` (`DONE`).
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` (`READY`).
 
-By explicit Product Owner priority override, governance repair runs first. The completed `CKPT-A-LOCAL-START-01` now has this Owner-authorized governance task as its explicit successor, providing a bootstrap path even for a stale Dispatcher that still follows the old current-task pointer. The governance task must then permanently make projected DONE re-reconcilable against durable exact-main CI and make post-reconciliation task selection scan the complete freshly fetched canonical queue, including the deterministic case where an old `DONE + next_task:null` pointer coexists with one newly Owner-authorized eligible READY task.
-
-The governance task and `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` are accepted, merged, and main-verified. The predefined queue ends here with `next_task: null`.
+This task is deliberately narrow: preserve all existing consent/session/microphone/reminder gates, but allow only the recoverable first-session legacy draft shape to send the explicit Start request to the backend. Backend remains final authority. No other Checkpoint A/product semantics change.
 
 ## Frozen boundaries
 
-- current task is Dispatcher governance only; no application/runtime/CI-workflow change;
-- first-session legacy recovery remains deferred and its product semantics are unchanged;
-- do not delete or reset the Owner database;
-- unfinished-workflow delete/abandon UX remains a separate later task;
-- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation, privacy, schema/migration or CI-workflow product changes.
-
-Open PRs #25, #43, #45, #62 and #110 remain outside these tasks.
+- no backend start-authority broadening;
+- no database wipe or browser IndexedDB clearing;
+- unfinished-workflow delete/abandon UX remains separate;
+- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation, privacy, schema/migration or deployment changes;
+- `.env.local` remains local-only; Owner must run the already-accepted one-time port migration command before formal local startup.
 
 ## Maintenance
 
