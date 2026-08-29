@@ -15,11 +15,11 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current Dispatcher governance repair and deferred first-session compatibility repair.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current Checkpoint A UI bridge repair.
 
 ## Current phase
 
-Current phase: `DISPATCHER GOVERNANCE REPAIR / CHECKPOINT A RETEST BLOCKER`.
+Current phase: `CHECKPOINT A RETEST / FINAL LEGACY PREPARE BRIDGE`.
 
 Completed baseline:
 
@@ -31,11 +31,13 @@ Completed baseline:
 - Local DB Port Maintenance through PR #115;
 - fresh first-interview start repair through PR #116;
 - same-task/same-PR repair-loop governance through PR #117;
-- Checkpoint A local-start repair through PR #118.
+- Checkpoint A local-start repair through PR #118;
+- stale-DONE reconciliation through PR #121;
+- backend legacy first-session draft recovery through PR #122.
 
-PR #116 and PR #118 are merged. The Owner retest also exposed a legacy first-session durable-state compatibility blocker, but a later Dispatcher pulse failed to dispatch its already-published READY Task Card because a stale old `DONE + next_task:null` current-task projection suppressed the fresh canonical queue.
+Owner retest after PR #122 exposed one remaining frontend-only compatibility gap: `/prepare` still disables Start for a recoverable first-session legacy `draft`, so the explicit Start request never reaches the backend self-heal path already accepted in PR #122.
 
-The Product Owner therefore explicitly reprioritized the already-authorized governance task `DISPATCHER-STALE-DONE-RECONCILIATION-01` ahead of `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`. This is a queue-order/governance correction only; it does not change the legacy recovery product meaning.
+The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, to bridge that UI gate without broadening backend authority or other product semantics.
 
 ## Canonical current queue
 
@@ -46,40 +48,44 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> null
 ```
 
-Planning sources:
+Task source:
 
-- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-PACK.md`
-- `docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`
-- `docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK.md`
-- `docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`
+- `docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `DONE` after PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` is `DONE` after PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`, with accepted merge in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8` and exact current-main CI run `33229483568` SUCCESS.
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `READY`.
 
-Frozen governance outcome:
+Frozen outcome:
 
-- projected `DONE` is never exempt from durable reconciliation;
-- exact-current-main pending/failure can invalidate stale projected DONE according to the existing main-verification contract;
-- `next_task:null` cannot suppress reconciliation or automatic main-verification recovery;
-- after reconciliation, Dispatcher recomputes eligible work from the complete canonical queue on freshly fetched `origin/main`;
-- an old `DONE + next_task:null` current-task pointer cannot suppress a newly Owner-authorized unique eligible `READY` entry;
-- zero READY means `NO_READY_TASK` only after reconciliation and queue-wide selection; more than one READY remains `DISPATCHER_STATE_INVALID`;
-- no application/runtime/CI-workflow behavior changes.
+- `/prepare` must retain current valid consent, current-page microphone pass, `device_check`, reminder-present and single-submit gates;
+- normal `ready`/`active` behavior stays unchanged;
+- exactly one bounded frontend allowance may let a first-session legacy `draft` (`sequence_no === 1`) send the Start request;
+- frontend does not mutate project state or duplicate backend authority logic;
+- backend remains final authority and may still reject;
+- repeat sessions and invalid/revoked/pending consent remain blocked;
+- no database wipe, IndexedDB clearing, schema migration or frontend redesign.
 
-Required deterministic coverage now includes the real incident shape: old current task `DONE + next_task:null` plus one fresh canonical eligible READY task must select that READY task and advance `READY -> IN_PROGRESS`, not false-no-op.
+The predefined queue ends after this task; `next_task` is `null`.
 
 The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
+The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
 
-The deferred product repair outcome remains frozen:
+## Local Owner prerequisite
 
-- only `sequence_no === 1` legacy projects stranded in `draft` may self-heal at formal start;
-- self-heal requires ordinary/visible project authority, active interviewer assignment, non-deleted/non-restricted project, current valid non-revoked formal `recording_transcription_ai` consent, and an otherwise valid start/session state;
-- repair happens under the existing project/session transaction locks before the final start gate;
-- normal fresh `ready` first interviews remain unchanged;
-- missing/revoked/pending consent remains blocked;
-- repeat interviews continue to use existing continuation policy unchanged;
-- no duplicate project/session/consent, database wipe, browser IndexedDB clearing, schema migration or frontend redesign.
+The accepted Windows/local-start repair intentionally does not mutate ignored secret-bearing `.env.local` automatically. Before formal local Checkpoint A startup, Owner must run once if legacy ports remain:
+
+```text
+pnpm local:env:migrate-db-ports
+```
+
+Then use the stable formal command:
+
+```text
+pnpm checkpoint-a:start
+```
+
+No process-level `DATABASE_URL` / `TEST_DATABASE_URL` override should be needed afterward.
 
 ## Preserved decisions
 
@@ -89,7 +95,7 @@ The deferred product repair outcome remains frozen:
 - P1–P5 semantic/data ownership unchanged.
 - AI failure must not stop recording; ASR failure must not damage original audio.
 - Repository-standard local PostgreSQL host ports remain `15432` / `15433`; container PostgreSQL remains `5432`.
-- Unfinished/new-interview delete/abandon UX remains a separate later product task and is not mixed into the current recovery.
+- Unfinished/new-interview delete/abandon UX remains a separate later product task.
 - P2-D, T26–T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region, ordinary real interview data and deployment decisions remain deferred.
 
 ## Governance
@@ -107,9 +113,9 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 - `READY`: none.
 - `IN_PROGRESS`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01`.
 - `REVIEW`: none.
-- `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the legacy first-session durable-state compatibility gap until the READY product repair merges.
+- `BLOCKED`: Owner Checkpoint A retest remains blocked only by this final frontend bridge plus the Owner-local `.env.local` one-time port migration.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: `DISPATCHER-STALE-DONE-RECONCILIATION-01` through PR #121; CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
+- `DONE`: legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -118,3 +124,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 ## Next step
 
 Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER.
+Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER. External Architect reviews the exact PR head after implementation CI succeeds.
