@@ -738,6 +738,7 @@ export class ProjectFoundationService {
       initialAuthority,
       existing.sequenceNo,
       initialFirstInterviewConsentValid,
+      existing.status,
     );
     const replay = await this.findReplay<InterviewSessionResponse>(input.request_id, binding);
     if (replay !== null) {
@@ -770,6 +771,7 @@ export class ProjectFoundationService {
         currentAuthority,
         session.sequenceNo,
         firstInterviewConsentValid,
+        session.status,
       );
       if (input.recording_reminder_version !== 'recording-reminder-v1') {
         throw new ConflictException({
@@ -778,13 +780,25 @@ export class ProjectFoundationService {
           message: 'Recording reminder version is stale',
         });
       }
+      const projectReadyForStart =
+        project.status === 'draft' &&
+        session.sequenceNo === 1 &&
+        session.status === 'device_check' &&
+        currentAuthority.visibility === 'ordinary' &&
+        currentAuthority.projectStateAvailable &&
+        firstInterviewConsentValid
+          ? await transaction.elderProject.update({
+              data: { status: 'ready' },
+              where: { id: project.id },
+            })
+          : project;
       const gate = evaluateInterviewStartGate({
         allRequiredConsentsValid:
           currentAuthority.visibility === 'ordinary' &&
           (session.sequenceNo === 1
             ? firstInterviewConsentValid
             : currentAuthority.consentContinuation.status === 'covered'),
-        projectStatus: project.status,
+        projectStatus: projectReadyForStart.status,
         sessionStatus: session.status,
       });
       if (!gate.allowed) {
@@ -817,7 +831,7 @@ export class ProjectFoundationService {
           timelineOffsetMs: 0,
         },
       });
-      if (project.status === 'ready') {
+      if (projectReadyForStart.status === 'ready') {
         await transaction.elderProject.update({
           data: { status: 'active' },
           where: { id: project.id },
@@ -1024,12 +1038,19 @@ export class ProjectFoundationService {
     decision: RepeatInterviewReadResult,
     sequenceNo: number,
     firstInterviewConsentValid: boolean,
+    sessionStatus: string,
   ): void {
     if (decision.visibility === 'hidden') throw this.notFound();
     if (
       decision.visibility !== 'ordinary' ||
       !decision.projectStateAvailable ||
-      !['ready', 'active'].includes(decision.project.status)
+      (!['ready', 'active'].includes(decision.project.status) &&
+        !(
+          sequenceNo === 1 &&
+          sessionStatus === 'device_check' &&
+          decision.project.status === 'draft' &&
+          firstInterviewConsentValid
+        ))
     ) {
       throw this.projectNotStartable();
     }

@@ -135,6 +135,55 @@ describe('first-interview current-consent start authority', () => {
     expect(started.body).toMatchObject({ id: sessionId, sequence_no: 1, status: 'recording' });
   });
 
+  it('recovers a legacy first-session draft with current formal consent at start time', async () => {
+    const listener = request.agent(application().getHttpServer() as SupertestApp);
+    const csrf = await login(listener);
+    const actor = await prisma.user.findUniqueOrThrow({
+      where: { email: 'first-interview-listener@example.test' },
+    });
+    const projectId = await createProject(listener, csrf, '虚构遗留首次访谈');
+    const sessionId = await createCheckedFirstSession(listener, csrf, projectId);
+    await appendServiceTerm(listener, csrf, projectId);
+
+    await prisma.consentRecord.create({
+      data: {
+        consentMethod: 'written',
+        consentTextVersion: MVP_V1,
+        consentType: 'recording_transcription_ai',
+        consentedAt: new Date('2026-08-27T08:00:00.000Z'),
+        createdBy: actor.id,
+        projectId,
+        status: 'valid',
+      },
+    });
+
+    expect(
+      (await listener.get(`/api/v1/projects/${projectId}`).set('Origin', ORIGIN)).body,
+    ).toMatchObject({ status: 'draft' });
+    expect(await prisma.elderProject.count({ where: { id: projectId } })).toBe(1);
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.consentRecord.count({
+        where: { consentType: 'recording_transcription_ai', projectId },
+      }),
+    ).toBe(1);
+
+    const started = await startSession(listener, csrf, sessionId);
+
+    expect(started.status).toBe(201);
+    expect(started.body).toMatchObject({ id: sessionId, sequence_no: 1, status: 'recording' });
+    expect(
+      (await listener.get(`/api/v1/projects/${projectId}`).set('Origin', ORIGIN)).body,
+    ).toMatchObject({ status: 'active' });
+    expect(await prisma.elderProject.count({ where: { id: projectId } })).toBe(1);
+    expect(await prisma.interviewSession.count({ where: { projectId } })).toBe(1);
+    expect(
+      await prisma.consentRecord.count({
+        where: { consentType: 'recording_transcription_ai', projectId },
+      }),
+    ).toBe(1);
+  });
+
   it('keeps a first session without current formal consent blocked', async () => {
     const listener = request.agent(application().getHttpServer() as SupertestApp);
     const csrf = await login(listener);
