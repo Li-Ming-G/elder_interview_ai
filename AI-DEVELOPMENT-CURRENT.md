@@ -54,7 +54,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `READY`.
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `BLOCKED / MAIN_VERIFY_FAILED` because exact current-main CI run `33247160691` failed in the existing realtime Chromium E2E (`realtime-connection` expected `connected`, received `unavailable`).
 
 Frozen outcome:
 
@@ -66,9 +66,6 @@ Frozen outcome:
 - repeat sessions and invalid/revoked/pending consent remain blocked;
 - no database wipe, IndexedDB clearing, schema migration or frontend redesign.
 
-The predefined queue ends after this task; `next_task` is `null`.
-
-The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
 The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
 
 ## Local Owner prerequisite
@@ -111,9 +108,9 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01`.
+- `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: Owner Checkpoint A retest remains blocked only by this final frontend bridge plus the Owner-local `.env.local` one-time port migration.
+- `BLOCKED`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01` / `MAIN_VERIFY_FAILED` due to main CI run `33247160691`; Owner Checkpoint A retest remains blocked by this final frontend bridge plus the Owner-local `.env.local` one-time port migration.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
@@ -124,4 +121,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 ## Next step
 
 Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER.
-Persistent Dispatcher fresh-read `origin/main`, selected the unique eligible READY task `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, persisted it as IN_PROGRESS, and will launch its declared luna-high IMPLEMENTATION_WORKER. External Architect reviews the exact PR head after implementation CI succeeds.
+Persistent Dispatcher fresh-read `origin/main`, persisted `CKPT-A-LEGACY-PREPARE-BRIDGE-01` as IN_PROGRESS, then exact current-main CI run `33247160691` failed in the existing realtime Chromium E2E. The task is now BLOCKED / MAIN_VERIFY_FAILED and must be mechanically rechecked on a later pulse.
