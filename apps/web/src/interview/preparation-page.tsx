@@ -148,9 +148,13 @@ export function PreparationPage({
   const { project, consents, session } = loadState.data;
   const currentConsent = latestConsent(consents);
   const consentReady = hasCurrentValidConsent(consents);
-  const canResume =
-    (project.status === 'ready' || project.status === 'active') &&
+  const legacyFirstSessionDraft =
+    project.status === 'draft' &&
+    session?.sequence_no === 1 &&
     consentReady &&
+    session.status === 'device_check';
+  const canResume =
+    (project.status === 'ready' || project.status === 'active' || legacyFirstSessionDraft) &&
     session?.status === 'device_check' &&
     deviceState.kind === 'passed' &&
     session.recording_start_reminder !== undefined &&
