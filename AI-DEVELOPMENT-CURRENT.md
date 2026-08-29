@@ -40,8 +40,8 @@ The Product Owner therefore explicitly reprioritized the already-authorized gove
 ## Canonical current queue
 
 ```text
-DISPATCHER-STALE-DONE-RECONCILIATION-01  [BLOCKED / MAIN_VERIFY_FAILED]
-  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DEFERRED]
+DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
+  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [READY]
   -> null
 ```
 
@@ -54,7 +54,7 @@ Planning sources:
 
 ## Current task truth
 
-`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `BLOCKED / MAIN_VERIFY_FAILED` after PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; exact current-main CI run `33204233564` failed at `Run pnpm test:e2e:auth -- --project=chromium`. The accepted implementation merge remains in current-main ancestry, but DONE and successor unlock are withheld pending a later successful exact-main verification.
+`DISPATCHER-STALE-DONE-RECONCILIATION-01` is `DONE` after PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; the accepted implementation merge is in refreshed current-main `22557cdcba1c17c5f8921094c6057fca9b423f39`, and exact current-main CI run `33205218737` is SUCCESS, mechanically clearing the prior `MAIN_VERIFY_FAILED` blocker.
 
 Frozen governance outcome:
 
@@ -103,12 +103,12 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: `DISPATCHER-STALE-DONE-RECONCILIATION-01` — `MAIN_VERIFY_FAILED` at exact current-main `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`, CI run `33204233564`; Owner Checkpoint A retest also remains functionally blocked by the deferred legacy first-session durable-state compatibility gap.
-- `DEFERRED`: `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
+- `BLOCKED`: Owner Checkpoint A retest remains functionally blocked by the legacy first-session durable-state compatibility gap until the READY product repair merges.
+- `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
+- `DONE`: `DISPATCHER-STALE-DONE-RECONCILIATION-01` through PR #121; CKPT-A-LOCAL-START-01 through PR #118; DISPATCHER-SAME-TASK-REPAIR-01 through PR #117; FIRST-INTERVIEW-START-01 fresh-path repair through PR #116; Local DB Port Maintenance through PR #115; Real-Flow Cleanup through PR #113; Owner Checkpoint A through PR #111; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -116,4 +116,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-reads `origin/main`, rechecks the accepted merged PR #121 and exact current-main CI run `33204233564`; because that CI failed, it retains `BLOCKED / MAIN_VERIFY_FAILED`, withholds DONE and successor unlock, and retries reconciliation on the next pulse.
+Persistent Dispatcher fresh-reads `origin/main`, sees the unique eligible READY task `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, persists `READY -> IN_PROGRESS`, and launches its declared `luna-high` IMPLEMENTATION_WORKER on the next pulse.
