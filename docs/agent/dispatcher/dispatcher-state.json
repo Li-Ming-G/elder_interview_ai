@@ -321,14 +321,14 @@
     },
     {
       "id": "CKPT-A-LEGACY-PREPARE-BRIDGE-01",
-      "status": "DONE",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
         "main@bc8aa25039007ecc7a6a139d2e45888b429f77fa"
       ],
-      "pr": null,
+      "pr": 123,
       "next_task": null
     }
   ]

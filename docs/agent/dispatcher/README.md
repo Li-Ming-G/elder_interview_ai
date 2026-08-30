@@ -4,6 +4,13 @@ This directory implements a deliberately small governance path:
 
 `Single Dispatcher → Sequential Task Queue → Implementation Worker → External Architect PR Review`.
 
+> **PRE-MERGE MAIN-CI GUARD:** If the accepted implementation PR has not been
+> proven merged from the exact Architect-reviewed `PASS` head, with its accepted
+> merge commit in refreshed current-main ancestry, main CI is not task main-
+> verification evidence. It MUST NOT cause `MAIN_VERIFY_FAILED` or `DONE`.
+> Worker-launch and state-projection commits are pre-merge and their CI cannot
+> complete or main-block the implementation task.
+
 ## Authority and state semantics
 
 Canonical Task Card IDs, dependencies, and `next_task` topology come from the

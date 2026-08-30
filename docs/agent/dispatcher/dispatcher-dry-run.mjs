@@ -254,6 +254,15 @@ function verifyMergedMain(pr, github) {
   return { kind: 'blocked', detail: 'MAIN_VERIFY_FAILED', mainSha: main.sha, latestAttempt };
 }
 
+function acceptedImplementationMergeIsProven(pr, verdict) {
+  return Boolean(
+    pr?.merged === true &&
+    pr.mergeCommitSha &&
+    verdict.kind === 'valid' &&
+    verdict.verdict === 'PASS',
+  );
+}
+
 function projectStatus(task, pr, github) {
   if (!pr) return { status: 'IN_PROGRESS', pr: null, action: 'WAIT' };
   const verdict = currentVerdict(task, pr);
@@ -262,6 +271,15 @@ function projectStatus(task, pr, github) {
   if (pr.merged) {
     if (verdict.kind !== 'valid' || verdict.verdict !== 'PASS')
       return { status: 'REVIEW', pr: pr.number, action: 'WAIT_FOR_VERDICT' };
+    // PRE-MERGE MAIN-CI GUARD: never classify main CI until the accepted
+    // implementation PR merge itself is durable and attributable.
+    if (!acceptedImplementationMergeIsProven(pr, verdict))
+      return {
+        status: 'REVIEW',
+        pr: pr.number,
+        action: 'WAIT_FOR_MERGE_PROOF',
+        detail: 'IMPLEMENTATION_PR_MERGE_UNPROVEN',
+      };
     const mainVerification = verifyMergedMain(pr, github);
     if (mainVerification.kind === 'wait')
       return {
@@ -479,6 +497,40 @@ const fixture = await load('fixtures/reconciliation-cases.json');
 validateSmokeFixture();
 const canonical = fixture.canonicalQueue;
 const results = {};
+
+const preMergeCanonical = fixture.preMergeMainCiCanonicalQueue;
+const preMerge = fixture.preMergeMainCiCases;
+
+results.preMergeMainFailureIgnored = reconcile(
+  preMergeCanonical,
+  preMerge.A_in_progress_main_failure.local,
+  preMerge.A_in_progress_main_failure.github,
+);
+assert.equal(results.preMergeMainFailureIgnored.status, 'IN_PROGRESS');
+assert.equal(results.preMergeMainFailureIgnored.action, 'WAIT');
+assert.notEqual(results.preMergeMainFailureIgnored.detail, 'MAIN_VERIFY_FAILED');
+assert.notEqual(results.preMergeMainFailureIgnored.status, 'DONE');
+
+results.preMergeMainSuccessIgnored = reconcile(
+  preMergeCanonical,
+  preMerge.B_in_progress_main_success.local,
+  preMerge.B_in_progress_main_success.github,
+);
+assert.equal(results.preMergeMainSuccessIgnored.status, 'IN_PROGRESS');
+assert.equal(results.preMergeMainSuccessIgnored.action, 'WAIT');
+assert.notEqual(results.preMergeMainSuccessIgnored.status, 'DONE');
+
+results.staleDoneOpenPrRecovered = reconcile(
+  preMergeCanonical,
+  preMerge.C_stale_done_null_pr_open_pass.local,
+  preMerge.C_stale_done_null_pr_open_pass.github,
+);
+assert.equal(results.staleDoneOpenPrRecovered.canonicalTaskId, 'CKPT-A-LEGACY-PREPARE-BRIDGE-01');
+assert.equal(results.staleDoneOpenPrRecovered.pr, 123);
+assert.equal(results.staleDoneOpenPrRecovered.status, 'REVIEW');
+assert.equal(results.staleDoneOpenPrRecovered.action, 'MERGE_ELIGIBLE_AFTER_FRESH_HEAD_RECHECK');
+assert.notEqual(results.staleDoneOpenPrRecovered.error, 'NO_READY_TASK');
+assert.notEqual(results.staleDoneOpenPrRecovered.status, 'DONE');
 
 results.A = reconcile(
   canonical,
