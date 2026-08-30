@@ -44,7 +44,7 @@ The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGAC
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
-  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [REVIEW]
+  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
   -> null
 ```
 
@@ -54,7 +54,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `REVIEW` on PR #123. Durable GitHub facts show PR #123 is open and unmerged at exact head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; that head has a valid `ARCHITECT_VERDICT_V1 PASS` and exact-head PR CI `SUCCESS`. The earlier `DONE / pr:null` projection was invalid because current-main CI was classified before the accepted implementation PR had merged.
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `DONE` after PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`. The accepted merge is in refreshed current main `7467256f1ac8ad95054937c4cee88f5498b21b4d`; exact-current-main CI run `33289681762` is terminal `SUCCESS`. The predefined queue ends with `next_task: null`.
 
 Frozen outcome:
 
@@ -109,10 +109,10 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 - `READY`: none.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01` on open PR #123.
+- `REVIEW`: none.
 - `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
+- `DONE`: legacy frontend bridge through merged PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -120,4 +120,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher must retain `CKPT-A-LEGACY-PREPARE-BRIDGE-01` in the open-PR lifecycle at `REVIEW` on PR #123. Only after the accepted implementation PR is proven merged may refreshed-main CI become task main-verification evidence. The predefined queue ends with `next_task: null`.
+Persistent Dispatcher records `CKPT-A-LEGACY-PREPARE-BRIDGE-01` as `DONE` after accepted PR #123 merge and exact-current-main CI success. The predefined queue ends with `next_task: null`.
