@@ -27,7 +27,7 @@
 | `P6R-05` | `DONE` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
 | `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
-| `CPA-03` | `DONE` | CPA-02 external PASS + merge + main verification | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
+| `CPA-03` | `DONE` | CPA-02 merged and verified | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
 | `CPA-04` | `DONE` | Architect PASS; merged PR #109 at `db7d6f713dba6fb6d2e73483df7279e043061865`; main `28e3f89c3fa4995dd875ed1d915075e4a19efccd`; main CI SUCCESS | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
@@ -39,27 +39,33 @@
 | `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | `CKPT-A-LOCAL-START-01` DONE; PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; accepted merge is in refreshed main `22557cdcba1c17c5f8921094c6057fca9b423f39`; exact current-main CI run `33205218737` SUCCESS; recovered from `MAIN_VERIFY_FAILED` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
 | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
 | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from exact Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; exact-current-main CI run `33289681762` SUCCESS | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
+| `CKPT-A-WEB-CWD-01` | `READY` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; Owner-authorized local run blocker at `main@ed5f522dd636f06638ea859de0558f827e15eb8a` | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Owner Checkpoint A retest found one remaining frontend bridge blocker after backend legacy recovery was accepted: the `/prepare` page disables Start solely because the legacy first-session project is still `draft`, preventing the request from reaching the backend self-heal path accepted in PR #122.
+Owner Checkpoint A local retest now reaches healthy PostgreSQL, current migrations and API HTTP 200. The remaining blocker is launcher-only: Vite starts on `5173` but serves 404 because the formal launcher does not set the Vite working directory to `apps/web`.
 
 Current active task:
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` (`DONE`, PR #123).
+`CKPT-A-WEB-CWD-01` (`READY`).
 
-By explicit Product Owner priority override, governance repair runs first. The completed `CKPT-A-LOCAL-START-01` now has this Owner-authorized governance task as its explicit successor, providing a bootstrap path even for a stale Dispatcher that still follows the old current-task pointer. The governance task must then permanently make projected DONE re-reconcilable against durable exact-main CI and make post-reconciliation task selection scan the complete freshly fetched canonical queue, including the deterministic case where an old `DONE + next_task:null` pointer coexists with one newly Owner-authorized eligible READY task.
+The Product Owner explicitly authorized this ultra-small maintenance task. It is independent newly authorized work after the completed `CKPT-A-LEGACY-PREPARE-BRIDGE-01`; the older task's `DONE + next_task:null` does not suppress a full canonical queue scan.
 
-The governance task, `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`, and `CKPT-A-LEGACY-PREPARE-BRIDGE-01` are accepted, merged, and main-verified. PR #123 merged from the exact-head Architect PASS; exact-current-main CI run `33289681762` is SUCCESS. The predefined queue ends with `next_task: null`.
-This task is deliberately narrow: preserve all existing consent/session/microphone/reminder gates, but allow only the recoverable first-session legacy draft shape to send the explicit Start request to the backend. Backend remains final authority. No other Checkpoint A/product semantics change.
+Allowed implementation scope is exactly two files:
+
+- `scripts/start-checkpoint-a.mjs`
+- `scripts/local-operability.test.mjs`
+
+The repair must set the web child working directory to `<repositoryRoot>/apps/web`, add deterministic regression coverage, preserve API launch behavior, secret isolation and process cleanup, and leave all `apps/**` product behavior unchanged.
 
 ## Frozen boundaries
 
-- no backend start-authority broadening;
-- no database wipe or browser IndexedDB clearing;
-- unfinished-workflow delete/abandon UX remains separate;
-- no P1-P6/T0-T27, OpenRouter/Ox, Tencent ASR, memory/evidence, scoring/evaluation, privacy, schema/migration or deployment changes;
-- `.env.local` remains local-only; Owner must run the already-accepted one-time port migration command before formal local startup.
+- no `apps/**` changes;
+- no database/schema/migration/Docker/`.env.local` changes;
+- no consent/start, auth, ASR, Director, memory/evidence, scoring/evaluation, privacy or deployment changes;
+- no P1-P6/T0-T27 semantic changes;
+- no process manager, dynamic port selection or temporary runtime workaround;
+- unfinished-workflow delete/abandon UX remains separate.
 
 ## Maintenance
 
