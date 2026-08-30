@@ -15,11 +15,11 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
 | P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current Checkpoint A UI bridge repair.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current local-launch maintenance repair.
 
 ## Current phase
 
-Current phase: `CHECKPOINT A RETEST / FINAL LEGACY PREPARE BRIDGE`.
+Current phase: `CHECKPOINT A RETEST / LOCAL WEB CWD MAINTENANCE`.
 
 Completed baseline:
 
@@ -33,11 +33,13 @@ Completed baseline:
 - same-task/same-PR repair-loop governance through PR #117;
 - Checkpoint A local-start repair through PR #118;
 - stale-DONE reconciliation through PR #121;
-- backend legacy first-session draft recovery through PR #122.
+- backend legacy first-session draft recovery through PR #122;
+- frontend legacy prepare bridge through PR #123;
+- final bridge-state synchronization at `main@ed5f522dd636f06638ea859de0558f827e15eb8a` with exact-main CI SUCCESS.
 
-Owner retest after PR #122 exposed one remaining frontend-only compatibility gap: `/prepare` still disables Start for a recoverable first-session legacy `draft`, so the explicit Start request never reaches the backend self-heal path already accepted in PR #122.
+The next Owner Checkpoint A local run proved PostgreSQL healthy, all 28 migrations current, and API health HTTP 200. The remaining blocker is launcher-only: Vite starts on `5173` but serves repository-root 404 responses because `scripts/start-checkpoint-a.mjs` does not set the web child working directory to `apps/web`.
 
-The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, to bridge that UI gate without broadening backend authority or other product semantics.
+The Product Owner explicitly authorized one ultra-small maintenance task, `CKPT-A-WEB-CWD-01`, to repair only that launcher working-directory defect.
 
 ## Canonical current queue
 
@@ -45,44 +47,46 @@ The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGAC
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
+
+CKPT-A-WEB-CWD-01  [READY]
   -> null
 ```
 
+The older `DONE + next_task:null` chain describes those completed tasks only. The newly Owner-authorized `READY` maintenance task is independently eligible and must be found by full canonical queue scan.
+
 Task source:
 
-- `docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`
+- `docs/agent/tasks/CKPT-A-WEB-CWD-01.md`
 
 ## Current task truth
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `DONE` after PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`. The accepted merge is in refreshed current main `7467256f1ac8ad95054937c4cee88f5498b21b4d`; exact-current-main CI run `33289681762` is terminal `SUCCESS`. The predefined queue ends with `next_task: null`.
+`CKPT-A-WEB-CWD-01` is `READY`.
 
 Frozen outcome:
 
-- `/prepare` must retain current valid consent, current-page microphone pass, `device_check`, reminder-present and single-submit gates;
-- normal `ready`/`active` behavior stays unchanged;
-- exactly one bounded frontend allowance may let a first-session legacy `draft` (`sequence_no === 1`) send the Start request;
-- frontend does not mutate project state or duplicate backend authority logic;
-- backend remains final authority and may still reject;
-- repeat sessions and invalid/revoked/pending consent remain blocked;
-- no database wipe, IndexedDB clearing, schema migration or frontend redesign.
-
-The predefined queue continues with the Owner-authorized `CKPT-A-LEGACY-PREPARE-BRIDGE-01`, a narrow frontend bridge for the already accepted backend recovery path.
+- formal `pnpm checkpoint-a:start` launches Vite with `<repositoryRoot>/apps/web` as working directory;
+- API launch behavior and port `3101` stay unchanged;
+- Vite host `127.0.0.1`, port `5173`, strict-port behavior and direct Node entrypoint stay unchanged unless strictly necessary for the cwd repair;
+- backend-only secrets remain absent from the Vite child environment;
+- child cleanup behavior remains intact;
+- no `apps/**` product behavior changes;
+- no database, Docker, consent, auth, ASR, Director, memory/evidence, evaluation or deployment changes.
 
 ## Local Owner prerequisite
 
-The accepted Windows/local-start repair intentionally does not mutate ignored secret-bearing `.env.local` automatically. Before formal local Checkpoint A startup, Owner must run once if legacy ports remain:
+The accepted Windows/local-start repair intentionally does not mutate ignored secret-bearing `.env.local` automatically. If legacy ports remain, the already accepted one-time command is:
 
 ```text
 pnpm local:env:migrate-db-ports
 ```
 
-Then use the stable formal command:
+The Owner has already verified the development/test PostgreSQL instances are healthy and migrations are current for the latest Checkpoint A attempt. After this maintenance task is accepted and merged, use the stable formal command:
 
 ```text
 pnpm checkpoint-a:start
 ```
 
-No process-level `DATABASE_URL` / `TEST_DATABASE_URL` override should be needed afterward.
+No process-level `DATABASE_URL` / `TEST_DATABASE_URL` override should be needed.
 
 ## Preserved decisions
 
@@ -107,12 +111,12 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `CKPT-A-WEB-CWD-01`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
 - `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: legacy frontend bridge through merged PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
+- `DONE`: legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -120,4 +124,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher records `CKPT-A-LEGACY-PREPARE-BRIDGE-01` as `DONE` after accepted PR #123 merge and exact-current-main CI success. The predefined queue ends with `next_task: null`.
+Persistent Dispatcher must fresh-read `main`, full-scan the canonical queue, select the unique eligible `READY` task `CKPT-A-WEB-CWD-01`, persist `READY -> IN_PROGRESS`, and launch its declared `luna-high` Implementation Worker. The Worker must remain within the two-file Task Card scope and stop at `REVIEW` with one PR.
