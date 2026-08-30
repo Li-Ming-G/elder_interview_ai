@@ -1,12 +1,13 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
   createCheckpointACommands,
   createCheckpointAEnvironments,
+  createCheckpointAProcessOptions,
   terminateProcessTree,
 } from './start-checkpoint-a.mjs';
 import { migrateLocalDbPorts } from './migrate-local-db-ports.mjs';
@@ -88,12 +89,24 @@ test('uses direct Node entrypoints for API and Vite on every platform', () => {
   assert.equal(commands.api.command, process.execPath);
   assert.deepEqual(commands.api.arguments.slice(-1), ['--checkpoint-a']);
   assert.equal(commands.web.command, process.execPath);
+  assert.equal(commands.web.cwd, resolve('C:\\repo', 'apps/web'));
   assert.match(
     commands.web.arguments[0],
     /apps[\\/]web[\\/]node_modules[\\/]vite[\\/]bin[\\/]vite\.js$/u,
   );
   assert.deepEqual(commands.web.arguments.slice(-3), ['--port', '5173', '--strictPort']);
   assert.ok(!commands.web.command.endsWith('.cmd'));
+});
+
+test('passes the web working directory to the Vite child process', () => {
+  const commands = createCheckpointACommands('C:\\repo');
+  const options = createCheckpointAProcessOptions(commands.web, {
+    PUBLIC_FLAG: 'preserved',
+  });
+
+  assert.equal(options.cwd, resolve('C:\\repo', 'apps/web'));
+  assert.equal(options.env.PUBLIC_FLAG, 'preserved');
+  assert.equal(options.stdio, 'inherit');
 });
 
 test('keeps backend-only secrets out of the Vite child environment', () => {

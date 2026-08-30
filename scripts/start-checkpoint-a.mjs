@@ -33,6 +33,7 @@ export function createCheckpointACommands(repositoryRoot = process.cwd()) {
     },
     web: {
       command: process.execPath,
+      cwd: resolve(repositoryRoot, 'apps/web'),
       // Calling Vite through its Node entrypoint works on Windows and POSIX without
       // invoking a package-manager .cmd/.sh wrapper as a child process.
       arguments: [
@@ -44,6 +45,14 @@ export function createCheckpointACommands(repositoryRoot = process.cwd()) {
         '--strictPort',
       ],
     },
+  };
+}
+
+export function createCheckpointAProcessOptions(command, environment) {
+  return {
+    ...(command.cwd ? { cwd: command.cwd } : {}),
+    env: environment,
+    stdio: 'inherit',
   };
 }
 
@@ -65,14 +74,16 @@ async function main() {
   const { apiEnvironment, webEnvironment } = createCheckpointAEnvironments();
   const commands = createCheckpointACommands();
 
-  const api = spawn(commands.api.command, commands.api.arguments, {
-    env: apiEnvironment,
-    stdio: 'inherit',
-  });
-  const web = spawn(commands.web.command, commands.web.arguments, {
-    env: webEnvironment,
-    stdio: 'inherit',
-  });
+  const api = spawn(
+    commands.api.command,
+    commands.api.arguments,
+    createCheckpointAProcessOptions(commands.api, apiEnvironment),
+  );
+  const web = spawn(
+    commands.web.command,
+    commands.web.arguments,
+    createCheckpointAProcessOptions(commands.web, webEnvironment),
+  );
 
   let stopping = false;
   function stop() {
