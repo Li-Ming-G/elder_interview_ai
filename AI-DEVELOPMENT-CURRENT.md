@@ -48,7 +48,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
 
-CKPT-A-WEB-CWD-01  [READY]
+CKPT-A-WEB-CWD-01  [IN_PROGRESS]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-WEB-CWD-01` is `READY`.
+`CKPT-A-WEB-CWD-01` is `IN_PROGRESS`; its declared `luna-high` Worker is being launched.
 
 Frozen outcome:
 
@@ -111,8 +111,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 ## Current states
 
-- `READY`: `CKPT-A-WEB-CWD-01`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `CKPT-A-WEB-CWD-01`.
 - `REVIEW`: none.
 - `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
@@ -124,4 +124,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher must fresh-read `main`, full-scan the canonical queue, select the unique eligible `READY` task `CKPT-A-WEB-CWD-01`, persist `READY -> IN_PROGRESS`, and launch its declared `luna-high` Implementation Worker. The Worker must remain within the two-file Task Card scope and stop at `REVIEW` with one PR.
+Persistent Dispatcher selected the unique eligible `READY` task `CKPT-A-WEB-CWD-01`, persisted `READY -> IN_PROGRESS`, and will launch its declared `luna-high` Implementation Worker. The Worker must remain within the two-file Task Card scope and stop at `REVIEW` with one PR.

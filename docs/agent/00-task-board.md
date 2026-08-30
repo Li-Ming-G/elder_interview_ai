@@ -39,7 +39,7 @@
 | `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | `CKPT-A-LOCAL-START-01` DONE; PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; accepted merge is in refreshed main `22557cdcba1c17c5f8921094c6057fca9b423f39`; exact current-main CI run `33205218737` SUCCESS; recovered from `MAIN_VERIFY_FAILED` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
 | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
 | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from exact Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; exact-current-main CI run `33289681762` SUCCESS | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
-| `CKPT-A-WEB-CWD-01` | `READY` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; Owner-authorized local run blocker at `main@ed5f522dd636f06638ea859de0558f827e15eb8a` | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `null` | `null` |
+| `CKPT-A-WEB-CWD-01` | `IN_PROGRESS` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; Owner-authorized local run blocker at `main@ed5f522dd636f06638ea859de0558f827e15eb8a` | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
@@ -47,7 +47,7 @@ Owner Checkpoint A local retest now reaches healthy PostgreSQL, current migratio
 
 Current active task:
 
-`CKPT-A-WEB-CWD-01` (`READY`).
+`CKPT-A-WEB-CWD-01` (`IN_PROGRESS`).
 
 The Product Owner explicitly authorized this ultra-small maintenance task. It is independent newly authorized work after the completed `CKPT-A-LEGACY-PREPARE-BRIDGE-01`; the older task's `DONE + next_task:null` does not suppress a full canonical queue scan.
 
