@@ -48,6 +48,103 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     );
   });
 
+  it('enables the start bridge for a legacy first-session draft after current-page checks', async () => {
+    const api = createApi({ project: { ...PROJECT, status: 'draft' } });
+    const navigate = vi.fn();
+    const checkMicrophone = vi.fn<MicrophoneChecker>(() =>
+      Promise.resolve({ inputDetected: true, permission: 'granted' }),
+    );
+    renderPage(api, navigate, checkMicrophone);
+    await screen.findByRole('heading', { name: '继续建立正式录音' });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    await waitFor(() => {
+      expect(api.deviceCheck).toHaveBeenCalledWith(SESSION_ID, {
+        input_detected: true,
+        microphone_permission: 'granted',
+      });
+    });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(
+      false,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
+    await waitFor(() => {
+      expect(api.captureStart).toHaveBeenCalledWith('recording-reminder-v1');
+    });
+    expect(navigate).toHaveBeenCalledWith(
+      `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`,
+    );
+    expect(checkMicrophone).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a legacy draft repeat session disabled', async () => {
+    const api = createApi({
+      project: { ...PROJECT, status: 'draft' },
+      session: { ...SESSION, sequence_no: 2 },
+    });
+    renderPage(api);
+    await screen.findByRole('heading', { name: '继续建立正式录音' });
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    await waitFor(() => {
+      expect(api.deviceCheck).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+    expect(api.captureStart).not.toHaveBeenCalled();
+  });
+
+  it('keeps a legacy draft with invalid current consent disabled', async () => {
+    const api = createApi({
+      consents: [{ ...CONSENT, status: 'revoked' }],
+      project: { ...PROJECT, status: 'draft' },
+    });
+    renderPage(api);
+    expect(await screen.findByText('最新正式授权当前无效。')).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '检测麦克风' }).disabled).toBe(
+      true,
+    );
+  });
+
+  it('keeps a legacy draft disabled when current-page microphone input fails', async () => {
+    const api = createApi({ project: { ...PROJECT, status: 'draft' } });
+    renderPage(
+      api,
+      vi.fn(),
+      vi.fn<MicrophoneChecker>(() =>
+        Promise.resolve({ inputDetected: false, permission: 'granted', reason: 'silent' }),
+      ),
+    );
+    expect(await screen.findByText(/待设备检查/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+    expect(await screen.findByText(/没有检测到声音/)).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
+    expect(api.deviceCheck).not.toHaveBeenCalled();
+    expect(api.captureStart).not.toHaveBeenCalled();
+  });
+
+  it.each(['ready', 'active'] as const)(
+    'preserves normal %s project start behavior',
+    async (status) => {
+      const api = createApi({ project: { ...PROJECT, status } });
+      const navigate = vi.fn();
+      renderPage(api, navigate);
+      await screen.findByRole('heading', { name: '继续建立正式录音' });
+      fireEvent.click(screen.getByRole('button', { name: '检测麦克风' }));
+      await waitFor(() => {
+        expect(api.deviceCheck).toHaveBeenCalledTimes(1);
+      });
+      fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
+      await waitFor(() => {
+        expect(api.captureStart).toHaveBeenCalledWith('recording-reminder-v1');
+      });
+      expect(navigate).toHaveBeenCalledWith(
+        `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`,
+      );
+    },
+  );
+
   it('fails closed when current-page microphone input is not detected', async () => {
     const api = createApi({ session: { ...SESSION, status: 'created' } });
     renderPage(
@@ -121,7 +218,9 @@ function createApi(overrides: Partial<PreparationData> = {}): MockApi {
       Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
     ),
     createSession: vi.fn(),
-    deviceCheck: vi.fn(() => Promise.resolve({ ...SESSION, status: 'device_check' })),
+    deviceCheck: vi.fn(() =>
+      Promise.resolve({ ...(data.session ?? SESSION), status: 'device_check' }),
+    ),
     loadPreparation: vi.fn(() => Promise.resolve(data)),
   };
 }
