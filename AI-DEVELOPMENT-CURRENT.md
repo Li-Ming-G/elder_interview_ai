@@ -48,7 +48,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
 
-CKPT-A-WEB-CWD-01  [DONE]
+CKPT-A-WEB-CWD-01  [BLOCKED]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-WEB-CWD-01` is `DONE` after PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`, its merge is in refreshed current main `c515d69112d395499ccc02d6176dde092b7cfbea`, and exact-current-main CI run `33297942677` is terminal `SUCCESS`. The predefined queue ends with `next_task: null`.
+`CKPT-A-WEB-CWD-01` is `BLOCKED / MAIN_VERIFY_FAILED` after PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`, its merge remains in refreshed current main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`, and exact-current-main CI run `33298968554` failed. The task remains retriable on a later pulse after main verification recovers.
 
 Frozen outcome:
 
@@ -114,7 +114,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 - `READY`: none.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: none.
+- `BLOCKED`: `CKPT-A-WEB-CWD-01` / `MAIN_VERIFY_FAILED` on main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`, CI run `33298968554`.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
@@ -124,4 +124,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher recovered `CKPT-A-WEB-CWD-01` after confirming merged PR #125 from exact head `60cdce838394467379254890d3b2536cca3383c6` in current main `c515d69112d395499ccc02d6176dde092b7cfbea`; exact-current-main CI run `33297942677` is terminal `SUCCESS`. The task is now `DONE`; the predefined queue ends with `next_task: null`.
+Persistent Dispatcher rechecked merged PR #125 from exact head `60cdce838394467379254890d3b2536cca3383c6` in current main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`; exact-current-main CI run `33298968554` failed, so the task is `BLOCKED / MAIN_VERIFY_FAILED` pending mechanical recovery.

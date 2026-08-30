@@ -3,7 +3,7 @@
   "queue": [
     {
       "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
-      "status": "DONE",
+      "status": "BLOCKED",
       "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
       "worker_profile": "luna-high",
       "depends_on": [
