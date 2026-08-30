@@ -6,6 +6,23 @@
     { "id": "P4C-03", "task_card": "docs/agent/tasks/P4C-03.md", "depends_on": ["DISPATCHER-RECOVERY-001"], "next_task": "P4C-04" },
     { "id": "P4C-04", "task_card": "docs/agent/tasks/P4C-04.md", "depends_on": ["P4C-03"], "next_task": null }
   ],
+  "preMergeMainCiCanonicalQueue": [
+    { "id": "CKPT-A-LEGACY-PREPARE-BRIDGE-01", "task_card": "docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md", "depends_on": [], "next_task": null }
+  ],
+  "preMergeMainCiCases": {
+    "A_in_progress_main_failure": {
+      "local": { "activeTaskId": "CKPT-A-LEGACY-PREPARE-BRIDGE-01", "tasks": { "CKPT-A-LEGACY-PREPARE-BRIDGE-01": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [], "main": { "sha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "ancestry": [], "requiredCiAttempts": [{ "headSha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "runId": 33247714344, "runAttempt": 1, "status": "completed", "conclusion": "failure", "failedCheck": "chromium-realtime-e2e" }] } }
+    },
+    "B_in_progress_main_success": {
+      "local": { "activeTaskId": "CKPT-A-LEGACY-PREPARE-BRIDGE-01", "tasks": { "CKPT-A-LEGACY-PREPARE-BRIDGE-01": { "status": "IN_PROGRESS", "pr": null } } },
+      "github": { "prs": [], "main": { "sha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "ancestry": [], "requiredCiAttempts": [{ "headSha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "runId": 33247714344, "runAttempt": 2, "status": "completed", "conclusion": "success" }] } }
+    },
+    "C_stale_done_null_pr_open_pass": {
+      "local": { "activeTaskId": "CKPT-A-LEGACY-PREPARE-BRIDGE-01", "tasks": { "CKPT-A-LEGACY-PREPARE-BRIDGE-01": { "status": "DONE", "pr": null } } },
+      "github": { "prs": [{ "number": 123, "title": "fix(web): bridge legacy prepare start", "body": "CKPT-A-LEGACY-PREPARE-BRIDGE-01\ndocs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md", "head": { "ref": "codex/ckpt-a-legacy-prepare-bridge-01", "sha": "5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6", "runId": 33247412082, "runAttempt": 1, "status": "completed", "conclusion": "success" }], "comments": [{ "topLevel": true, "createdAt": "2026-08-29T10:22:39Z", "body": "<!-- ARCHITECT_VERDICT_V1 -->\nTASK: CKPT-A-LEGACY-PREPARE-BRIDGE-01\nPR: 123\nREVIEWED_HEAD: 5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0" }] }], "freshRead": true, "freshHeadSha": "5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6", "main": { "sha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "ancestry": [], "requiredCiAttempts": [{ "headSha": "36c43271aa6ce1f3b2f5e15c09dde5943d52cef2", "runId": 33247714344, "runAttempt": 2, "status": "completed", "conclusion": "success" }] } }
+    }
+  },
   "cases": {
     "A_stale_local_status": {
       "local": { "activeTaskId": "P4C-01", "tasks": { "P4C-01": { "status": "DEFERRED", "pr": null } } },

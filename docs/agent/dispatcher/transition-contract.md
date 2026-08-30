@@ -2,6 +2,13 @@
 
 Assume one Dispatcher and one sequential task queue. The Dispatcher performs only the transitions below and never acts as reviewer.
 
+> **PRE-MERGE MAIN-CI GUARD:** Main CI is task main-verification evidence only
+> after an accepted implementation PR exists, is proven merged from the exact
+> Architect-reviewed `PASS` head, and its accepted merge commit is proven to be
+> an ancestor of refreshed current main. Before all of those facts hold, any
+> main CI result—including `FAILURE` or `SUCCESS` from a Worker-launch or state-
+> projection commit—MUST NOT produce `MAIN_VERIFY_FAILED` or `DONE`.
+
 ## Authority and projection semantics
 
 Canonical task identity and topology are read from the formal Task Cards and
@@ -130,7 +137,7 @@ run future pulses.
 - A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch for the current pulse.
 - Synthetic launch evidence proves only that the worker profile can be launched.
 - `PASS` alone does not unlock a downstream task. The current PR must first be merged into `main`; refresh and verify the accepted task on main, then mark `DONE` and unlock only predefined `next_task`.
-- On main CI failure after a valid PASS merge, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure.
+- On main CI failure after a valid PASS merge whose accepted merge commit is proven in refreshed current-main ancestry, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure. Before that merge proof exists, main CI is not task verification evidence and cannot cause `MAIN_VERIFY_FAILED` or `DONE`.
 - Pending/missing main CI is retriable and must not produce `DONE` or successor `READY`.
 - On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop the current pulse for an external decision.
 - An open PR's exact-head required CI is a first-class gate: pending/missing is `REVIEW` wait; terminal failure is same-task/same-PR `IN_PROGRESS` repair with one durable launch per `(TASK, PR, HEAD, FAILED_CHECK)` marker. `REQUEST_CHANGES` is same-task/same-PR repair; `PASS` cannot bypass pending/missing/failed PR CI.

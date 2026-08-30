@@ -44,7 +44,7 @@ The Product Owner explicitly authorized one narrow successor task, `CKPT-A-LEGAC
 ```text
 DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
-  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
+  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [REVIEW]
   -> null
 ```
 
@@ -54,7 +54,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `DONE`. Its `MAIN_VERIFY_FAILED` projection was mechanically recovered after exact current-main CI run `33247714344` succeeded for `36c43271aa6ce1f3b2f5e15c09dde5943d52cef2`.
+`CKPT-A-LEGACY-PREPARE-BRIDGE-01` is `REVIEW` on PR #123. Durable GitHub facts show PR #123 is open and unmerged at exact head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; that head has a valid `ARCHITECT_VERDICT_V1 PASS` and exact-head PR CI `SUCCESS`. The earlier `DONE / pr:null` projection was invalid because current-main CI was classified before the accepted implementation PR had merged.
 
 Frozen outcome:
 
@@ -109,7 +109,7 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 
 - `READY`: none.
 - `IN_PROGRESS`: none.
-- `REVIEW`: none.
+- `REVIEW`: `CKPT-A-LEGACY-PREPARE-BRIDGE-01` on open PR #123.
 - `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
@@ -120,4 +120,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher fresh-read `origin/main`, mechanically recovered `CKPT-A-LEGACY-PREPARE-BRIDGE-01` from `MAIN_VERIFY_FAILED` after exact current-main CI run `33247714344` succeeded. The predefined queue ends with `next_task: null`.
+Persistent Dispatcher must retain `CKPT-A-LEGACY-PREPARE-BRIDGE-01` in the open-PR lifecycle at `REVIEW` on PR #123. Only after the accepted implementation PR is proven merged may refreshed-main CI become task main-verification evidence. The predefined queue ends with `next_task: null`.
