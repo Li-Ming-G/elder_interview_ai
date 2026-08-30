@@ -48,7 +48,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
 
-CKPT-A-WEB-CWD-01  [IN_PROGRESS]
+CKPT-A-WEB-CWD-01  [REVIEW]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-WEB-CWD-01` is `IN_PROGRESS`; its declared `luna-high` Worker is being launched.
+`CKPT-A-WEB-CWD-01` is `REVIEW` on PR #125 at exact head `60cdce838394467379254890d3b2536cca3383c6`; the Worker completed within scope and stopped for external Architect review.
 
 Frozen outcome:
 
@@ -112,8 +112,8 @@ Architect plans/reviews only. Dispatcher launches Workers, consumes external ver
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `CKPT-A-WEB-CWD-01`.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `CKPT-A-WEB-CWD-01` on PR #125.
 - `BLOCKED`: none.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
@@ -124,4 +124,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher selected the unique eligible `READY` task `CKPT-A-WEB-CWD-01`, persisted `READY -> IN_PROGRESS`, and will launch its declared `luna-high` Implementation Worker. The Worker must remain within the two-file Task Card scope and stop at `REVIEW` with one PR.
+Persistent Dispatcher reconciled the Worker handoff for `CKPT-A-WEB-CWD-01`, bound PR #125 at exact head `60cdce838394467379254890d3b2536cca3383c6`, and stopped at `REVIEW` for external Architect review. The Worker changed only the two Task Card-authorized files.

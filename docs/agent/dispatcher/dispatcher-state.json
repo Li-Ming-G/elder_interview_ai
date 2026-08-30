@@ -333,14 +333,14 @@
     },
     {
       "id": "CKPT-A-WEB-CWD-01",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/CKPT-A-WEB-CWD-01.md",
       "worker_profile": "luna-high",
       "depends_on": [
         "CKPT-A-LEGACY-PREPARE-BRIDGE-01",
         "main@ed5f522dd636f06638ea859de0558f827e15eb8a"
       ],
-      "pr": null,
+      "pr": 125,
       "next_task": null
     }
   ]
