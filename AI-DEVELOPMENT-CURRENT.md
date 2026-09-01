@@ -46,7 +46,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [READY]
+PFC-01-NEW-INTENT-TRUTH        [IN_PROGRESS]
   -> PFC-02-PRESTART-DISCARD   [DEFERRED]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `READY`.
+`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS`.
 
 Its responsibility is intentionally narrow:
 
@@ -123,8 +123,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: `PFC-01-NEW-INTENT-TRUTH`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `PFC-01-NEW-INTENT-TRUTH`.
 - `REVIEW`: none.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher must fresh-read main, scan the full canonical queue, select the single eligible `READY` task `PFC-01-NEW-INTENT-TRUTH`, transition it to `IN_PROGRESS`, and launch one `luna-high` Implementation Worker. No Owner routing to individual roles is required.
+Dispatcher selected the single eligible task `PFC-01-NEW-INTENT-TRUTH`, persisted `READY -> IN_PROGRESS`, and is launching one `luna-high` Implementation Worker. The Worker must stop at `REVIEW` with the canonical PR and exact head.
