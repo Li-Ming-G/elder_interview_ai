@@ -11,13 +11,7 @@ import type {
 
 import type { HomeApi, NextSessionApi } from '../interview/interview-api.js';
 import { InterviewApiError } from '../interview/interview-api.js';
-import {
-  preparationPath,
-  reauthorizationPath,
-  reviewPath,
-  saveFactsPath,
-  workbenchPath,
-} from '../interview/routes.js';
+import { preparationPath, reviewPath, saveFactsPath, workbenchPath } from '../interview/routes.js';
 import {
   IndexedDbNewInterviewWorkflowStore,
   type NextSessionAttempt,
@@ -457,7 +451,7 @@ export function EmptyState(): React.JSX.Element {
   return (
     <div className="home-state">
       <strong>还没有已分配的项目</strong>
-      <p>新建访谈功能即将可用；已有项目被分配后会显示在这里。</p>
+      <p>可以使用上方“新建访谈”开始一次真实访谈；已有项目被分配后会显示在这里。</p>
     </div>
   );
 }
@@ -508,15 +502,9 @@ function ProjectGroup({
             </button>
           ) : null}
           {project.repeat_interview?.primary_action === 'record_formal_consent' ? (
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                navigate(reauthorizationPath(project.id));
-              }}
-              type="button"
-            >
-              重新取得正式授权
-            </button>
+            <p className="project-action-note" role="status">
+              当前需要重新取得正式授权；该流程暂不可用，请联系项目负责人处理。
+            </p>
           ) : null}
         </div>
       </header>

@@ -597,7 +597,7 @@ describe('WorkbenchShell', () => {
     expect(screen.queryByRole('button', { name: '完成并离开' })).toBeNull();
   });
 
-  it('renders NO_AUDIO_CAPTURED as a distinct terminal fact', async () => {
+  it('returns to the workspace before preparing another session after NO_AUDIO_CAPTURED', async () => {
     const harness = createHarness(
       session('failed', {
         capture: { ...CAPTURE, status: 'abandoned_empty' },
@@ -605,10 +605,12 @@ describe('WorkbenchShell', () => {
       }),
       { phase: 'stopped' },
     );
-    renderWorkbench(harness);
+    const navigate = vi.fn();
+    renderWorkbench(harness, vi.fn(), navigate);
     expect(await screen.findByText('没有录到可保存的内容')).toBeTruthy();
     expect(screen.getByText(/不是“保存完成”/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: '重新准备一次访谈' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回工作区重新准备' }));
+    expect(navigate).toHaveBeenCalledWith('/', true);
   });
 
   it('pauses following while reviewing and announces only new final transcript segments', async () => {

@@ -11,7 +11,7 @@ import { ReauthorizationRoute } from './interview/reauthorization-route.js';
 import { createBrowserInterviewCaptureController } from './interview/browser-interview-capture-controller.js';
 import type { InterviewCaptureController } from './interview/interview-capture-controller.js';
 import { ErrorState, HomeFrame, HomeShell } from './home/home-shell.js';
-import { SessionPlaceholderRoute } from './home/route-placeholder.js';
+import { SessionSaveFactsRoute } from './home/route-placeholder.js';
 import { SessionReviewRoute } from './home/session-review-route.js';
 
 export function App(): React.JSX.Element {
@@ -300,9 +300,8 @@ export function App(): React.JSX.Element {
 
   if (route?.kind === 'save_facts') {
     return (
-      <SessionPlaceholderRoute
+      <SessionSaveFactsRoute
         api={interviewApi}
-        kind={route.kind}
         navigate={navigate}
         projectId={route.projectId}
         sessionId={route.sessionId}

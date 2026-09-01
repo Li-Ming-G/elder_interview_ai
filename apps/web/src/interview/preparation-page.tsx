@@ -140,6 +140,15 @@ export function PreparationPage({
           <button className="button button--secondary" onClick={() => void load()} type="button">
             重新加载
           </button>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              navigate('/', true);
+            }}
+            type="button"
+          >
+            返回工作区
+          </button>
         </section>
       </main>
     );

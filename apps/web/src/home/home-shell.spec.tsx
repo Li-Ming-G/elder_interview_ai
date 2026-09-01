@@ -483,6 +483,61 @@ describe('HomeShell', () => {
     expect(screen.queryByRole('button', { name: '开始下一次访谈' })).toBeNull();
   });
 
+  it('keeps unavailable reauthorization visibly blocked without a fake navigation action', async () => {
+    const navigate = vi.fn();
+    const api = {
+      createNextSession: vi.fn(),
+      listProjectSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+      listProjects: vi.fn().mockResolvedValue({
+        items: [
+          {
+            approximate_age: null,
+            birth_year: null,
+            created_at: '2026-08-12T08:00:00.000Z',
+            created_by: USER.id,
+            current_city: null,
+            display_name: '虚构长者',
+            id: PROJECT_ID,
+            projection: 'ordinary',
+            repeat_interview: {
+              basis_sequence_no: 1,
+              basis_session_id: SESSION_ID,
+              consent_continuation: {
+                basis_consent_record_id: 'consent',
+                basis_consent_text_version: 'fictional-v1',
+                reason: 'current_consent_invalid',
+                required_action: 'record_formal_consent',
+                required_consent_text_version: 'fictional-v1',
+                status: 'required',
+                workflow_version: 'continuing-consent-v1',
+              },
+              next_sequence_no: 2,
+              primary_action: 'record_formal_consent',
+              reason: 'current_consent_invalid',
+              workflow_version: 'repeat-interview-v1',
+            },
+            status: 'active',
+            updated_at: '2026-08-12T08:00:00.000Z',
+          },
+        ],
+      }),
+    };
+
+    render(
+      <HomeShell
+        api={api}
+        navigate={navigate}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+      />,
+    );
+
+    expect(await screen.findByText(/当前需要重新取得正式授权/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '重新取得正式授权' })).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('replays the frozen next-session attempt when the same page comes back online', async () => {
     const attempt = {
       actorId: USER.id,
