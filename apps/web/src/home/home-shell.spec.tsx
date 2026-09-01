@@ -23,7 +23,7 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 describe('HomeShell', () => {
   afterEach(cleanup);
 
-  it('exposes explicit resume and fresh-new actions for an unfinished local creation', async () => {
+  it('keeps fresh-new unavailable while exposing explicit resume for an unfinished local creation', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     await workflowStore.create(USER.id);
     const navigate = vi.fn();
@@ -45,8 +45,10 @@ describe('HomeShell', () => {
     );
 
     const resume = await screen.findByRole('button', { name: '继续未完成访谈' });
-    fireEvent.click(screen.getByRole('button', { name: '开始新的访谈' }));
-    expect(navigate).toHaveBeenCalledWith('/interviews/new?mode=new');
+    const freshNew = screen.getByRole('button', { name: '暂不能开始新的访谈' });
+    expect((freshNew as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(freshNew);
+    expect(navigate).not.toHaveBeenCalled();
     expect(await workflowStore.getActive(USER.id)).not.toBeNull();
 
     fireEvent.click(resume);
@@ -104,7 +106,7 @@ describe('HomeShell', () => {
     const newButton = await screen.findByRole('button', { name: '暂时无法安全新建访谈' });
     expect((newButton as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole('button', { name: '继续未完成访谈' })).toBeNull();
-    expect(screen.getByText(/暂时无法核对未完成的新建访谈/)).toBeTruthy();
+    expect(screen.getByText(/暂时无法核对未完成的新建访谈；新建访谈暂不可用/)).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();
   });
 

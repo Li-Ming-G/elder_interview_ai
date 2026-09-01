@@ -140,11 +140,11 @@ export function HomeShell({
         setNewInterviewRecovery({ kind: 'active', workflow: result.workflow });
       } else {
         setNewInterviewRecovery({ kind: 'unavailable' });
-        setActionMessage('暂时无法核对未完成的新建访谈，请选择新建访谈或稍后刷新重试。');
+        setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
       }
     } catch {
       setNewInterviewRecovery({ kind: 'unavailable' });
-      setActionMessage('暂时无法核对未完成的新建访谈，请选择新建访谈或稍后刷新重试。');
+      setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
     }
   }
 
@@ -240,7 +240,8 @@ export function HomeShell({
             className="button button--primary"
             disabled={
               newInterviewRecovery.kind === 'checking' ||
-              newInterviewRecovery.kind === 'unavailable'
+              newInterviewRecovery.kind === 'unavailable' ||
+              newInterviewRecovery.kind === 'active'
             }
             onClick={() => {
               navigate('/interviews/new?mode=new');
@@ -252,7 +253,7 @@ export function HomeShell({
               : newInterviewRecovery.kind === 'unavailable'
                 ? '暂时无法安全新建访谈'
                 : newInterviewRecovery.kind === 'active'
-                  ? '开始新的访谈'
+                  ? '暂不能开始新的访谈'
                   : '新建访谈'}
           </button>
           {newInterviewRecovery.kind !== 'active' ? null : (
