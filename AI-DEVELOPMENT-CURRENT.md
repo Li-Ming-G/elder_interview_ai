@@ -53,7 +53,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
 CKPT-A-WEB-CWD-01  [DONE]
   -> null
 
-CKPT-A-FIRST-CAPTURE-GATE-01  [READY]
+CKPT-A-FIRST-CAPTURE-GATE-01  [IN_PROGRESS]
   -> null
 ```
 
@@ -65,7 +65,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-FIRST-CAPTURE-GATE-01` is `READY`, with no PR yet.
+`CKPT-A-FIRST-CAPTURE-GATE-01` is `IN_PROGRESS`, with no PR yet; its declared `luna-high` Worker is being launched.
 
 Proven defect boundary:
 
@@ -118,8 +118,8 @@ Architect plans/reviews. Dispatcher launches Workers, consumes external verdicts
 
 ## Current states
 
-- `READY`: `CKPT-A-FIRST-CAPTURE-GATE-01`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `CKPT-A-FIRST-CAPTURE-GATE-01`.
 - `REVIEW`: none.
 - `BLOCKED`: none among current Checkpoint A maintenance work; historical records remain as recorded in the canonical queue.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
@@ -131,4 +131,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher must full-scan the canonical queue, select the unique READY task `CKPT-A-FIRST-CAPTURE-GATE-01`, persist `IN_PROGRESS`, and launch one luna-high implementation Worker. The Owner does not need to manually redistribute this bug to other roles.
+Dispatcher selected the unique READY task `CKPT-A-FIRST-CAPTURE-GATE-01`, persisted `IN_PROGRESS`, and will launch one luna-high implementation Worker. The Owner does not need to manually redistribute this bug to other roles.
