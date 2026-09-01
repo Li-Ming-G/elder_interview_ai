@@ -48,7 +48,7 @@ Predefined queue:
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
-  -> PFC-03-RECORDING-NAV-SAFETY [READY]
+  -> PFC-03-RECORDING-NAV-SAFETY [IN_PROGRESS]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. External Architect passed exact PR #128 head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1`; PR #128 merged as `c5c7141f13def9f0f37b4bf269f0e49dfc35fdbf`, and exact-current-main CI run `33519802779` succeeded. Predefined successor `PFC-03-RECORDING-NAV-SAFETY` is now `READY`.
+`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. `PFC-03-RECORDING-NAV-SAFETY` is `IN_PROGRESS` under its declared `luna-high` worker profile. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,8 +123,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: `PFC-03-RECORDING-NAV-SAFETY`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `PFC-03-RECORDING-NAV-SAFETY`.
 - `REVIEW`: none.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-04` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher verified accepted PR #128 in exact current-main ancestry with exact-current-main CI success, marked `PFC-02-PRESTART-DISCARD` `DONE`, and unlocked only predefined successor `PFC-03-RECORDING-NAV-SAFETY` as `READY`. The next bounded pulse may dispatch it.
+Dispatcher selected the sole queue-wide eligible task `PFC-03-RECORDING-NAV-SAFETY`, persisted `READY -> IN_PROGRESS`, and is launching the Task Card's declared `luna-high` Implementation Worker.
