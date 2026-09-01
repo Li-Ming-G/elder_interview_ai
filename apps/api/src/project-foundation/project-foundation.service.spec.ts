@@ -26,10 +26,13 @@ describe('ProjectFoundationService prestart discard', () => {
       result: 'discarded',
       session_id: sessionStatus === null ? null : SESSION_ID,
     });
-    expect(harness.project.update).toHaveBeenCalledWith({
-      data: { deletedAt: expect.any(Date), status: 'deleted' },
+    const updateCall = harness.project.update.mock.calls[0] as
+      [{ data: { deletedAt: unknown; status: string }; where: { id: string } }] | undefined;
+    expect(updateCall?.[0]).toMatchObject({
+      data: { status: 'deleted' },
       where: { id: PROJECT_ID },
     });
+    expect(updateCall?.[0].data.deletedAt).toBeInstanceOf(Date);
     expect(harness.session.delete).not.toHaveBeenCalled();
   });
 
@@ -131,20 +134,31 @@ function request(sessionId: string | null): {
   };
 }
 
+type MockFunction = ReturnType<typeof vi.fn>;
+
+type Harness = {
+  actor: Parameters<ProjectFoundationService['discardPrestartInterview']>[0];
+  assignment: { findFirst: MockFunction };
+  idempotency: { create: MockFunction; findUnique: MockFunction };
+  project: { findUnique: MockFunction; update: MockFunction };
+  service: ProjectFoundationService;
+  session: { delete: MockFunction; findMany: MockFunction };
+};
+
 function createHarness(
   projectStatus: string,
   sessionStatus: string | null,
   evidence: { audioObject?: boolean; captureGeneration?: boolean } = {},
-) {
+): Harness {
   const idempotency = {
-    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+    create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
       idempotencyRecords.set(data.requestId as string, {
         ...data,
         id: globalThis.crypto.randomUUID(),
       });
     }),
     findUnique: vi.fn(
-      async ({ where }: { where: { requestId: string } }) =>
+      ({ where }: { where: { requestId: string } }) =>
         idempotencyRecords.get(where.requestId) ?? null,
     ),
   };
@@ -180,7 +194,7 @@ function createHarness(
     projectAssignment: assignment,
   };
   const prisma = {
-    $transaction: vi.fn(async (callback: (value: typeof transaction) => unknown) =>
+    $transaction: vi.fn((callback: (value: typeof transaction) => unknown) =>
       callback(transaction),
     ),
     idempotencyRecord: idempotency,
