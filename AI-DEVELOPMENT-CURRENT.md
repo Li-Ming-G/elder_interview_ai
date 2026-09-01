@@ -49,7 +49,7 @@ Predefined queue:
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
-  -> PFC-04-SUGGESTION-RECOVERY  [IN_PROGRESS]
+  -> PFC-04-SUGGESTION-RECOVERY  [REVIEW]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `IN_PROGRESS` on PR #130 for bounded same-task repair of exact-head CI lint failures. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `REVIEW` on PR #130 at repaired exact head `e25f8d153a6afe2df893564856c1608a622d677f`; exact-head required CI is pending. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `IN_PROGRESS`: `PFC-04-SUGGESTION-RECOVERY` on PR #130 for bounded CI repair.
+- `REVIEW`: `PFC-04-SUGGESTION-RECOVERY` on PR #130; exact-head CI pending.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher bound unique PR #130 to `PFC-04-SUGGESTION-RECOVERY`. Exact-head CI run `33537487531` failed at `pnpm lint` in the Task Card's allowed suggestion panel files, so the same task and PR remain `IN_PROGRESS` for bounded `luna-high` repair; no successor is unlocked.
+PR #130 advanced to repaired head `e25f8d153a6afe2df893564856c1608a622d677f`. Dispatcher returned the task to `REVIEW`; exact-head required CI run `33538408841` is pending, so no successor is unlocked.
