@@ -75,7 +75,7 @@ export function NewInterviewPage({
   captureFactory?: () => ConsentCapture;
   checkMicrophone: MicrophoneChecker;
   csrfToken: string;
-  intent?: 'new' | 'resume';
+  intent?: 'new' | 'resume' | undefined;
   navigate: (path: string, replace?: boolean) => void;
   workflowStore?: IndexedDbNewInterviewWorkflowStore;
 }): React.JSX.Element {
@@ -90,51 +90,61 @@ export function NewInterviewPage({
   const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
+  const initializationPromise = useRef<Promise<{
+    resumed: boolean;
+    workflow: NewInterviewWorkflow;
+  }> | null>(null);
   const unknownReplayKey = useRef<string | null>(null);
   const capture = useRef<ConsentCapture | null>(null);
   const captureUnsubscribe = useRef<(() => void) | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void (async (): Promise<void> => {
-      try {
-        const existing = await store.getActive(actorId);
-        let workflow: NewInterviewWorkflow;
-        let resumed = false;
-        if (existing === null) {
-          workflow = await store.create(actorId);
-        } else {
-          const reconciliation = await reconcileNewInterviewWorkflow(
-            existing,
-            api as NewInterviewRecoveryAuthority,
-          );
-          if (reconciliation.kind === 'unavailable') {
-            throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
-          }
-          if (reconciliation.kind === 'retired') {
-            await store.retire(reconciliation.workflow);
-            workflow = await store.create(actorId);
-          } else if (intent === 'new') {
-            throw new Error('NEW_INTERVIEW_INTENT_BLOCKED');
-          } else {
-            workflow = reconciliation.workflow;
-            await store.put(workflow);
-            resumed = true;
-          }
+    let cancelled = false;
+    initializationPromise.current ??= (async (): Promise<{
+      resumed: boolean;
+      workflow: NewInterviewWorkflow;
+    }> => {
+      const existing = await store.getActive(actorId);
+      let workflow: NewInterviewWorkflow;
+      let resumed = false;
+      if (existing === null) {
+        workflow = await store.create(actorId);
+      } else {
+        const reconciliation = await reconcileNewInterviewWorkflow(
+          existing,
+          api as NewInterviewRecoveryAuthority,
+        );
+        if (reconciliation.kind === 'unavailable') {
+          throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
         }
-        if (!controller.signal.aborted) setPage({ kind: 'ready', resumed, workflow });
-      } catch (error) {
-        if (!controller.signal.aborted) {
+        if (reconciliation.kind === 'retired') {
+          await store.retire(reconciliation.workflow);
+          workflow = await store.create(actorId);
+        } else if (intent === 'new') {
+          throw new Error('NEW_INTERVIEW_INTENT_BLOCKED');
+        } else {
+          workflow = reconciliation.workflow;
+          await store.put(workflow);
+          resumed = true;
+        }
+      }
+      return { resumed, workflow };
+    })();
+    void initializationPromise.current
+      .then(({ resumed, workflow }) => {
+        if (!cancelled && mounted.current) setPage({ kind: 'ready', resumed, workflow });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled && mounted.current) {
           setPage({
             kind: 'error',
             message: workflowInitializationError(error),
           });
         }
-      }
-    })();
+      });
     return (): void => {
-      controller.abort();
+      cancelled = true;
     };
   }, [actorId, api, intent, store]);
 

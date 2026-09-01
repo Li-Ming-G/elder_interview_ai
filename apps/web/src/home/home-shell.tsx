@@ -243,7 +243,7 @@ export function HomeShell({
               newInterviewRecovery.kind === 'unavailable'
             }
             onClick={() => {
-              navigate('/interviews/new');
+              navigate('/interviews/new?mode=new');
             }}
             type="button"
           >

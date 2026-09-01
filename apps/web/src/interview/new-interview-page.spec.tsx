@@ -192,6 +192,19 @@ describe('NewInterviewPage', () => {
     );
   });
 
+  it('initializes a clean workflow once during the StrictMode setup-cleanup-setup cycle', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+
+    renderPage(fakeApi(), { strict: true, workflowStore });
+
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    expect(await workflowStore.getActive(ACTOR_ID)).toMatchObject({
+      actorId: ACTOR_ID,
+      status: 'active',
+      step: 'project',
+    });
+  });
+
   it('requires a fresh current-page microphone check after refresh before consent recording', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const first = renderPage(readyApi(), { workflowStore });

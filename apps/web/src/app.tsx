@@ -224,6 +224,7 @@ export function App(): React.JSX.Element {
   }
 
   if (route?.kind === 'new_interview') {
+    const mode = new URLSearchParams(globalThis.location.search).get('mode');
     return (
       <NewInterviewPage
         actorId={user.id}
@@ -231,11 +232,7 @@ export function App(): React.JSX.Element {
         captureController={captureController}
         checkMicrophone={checkMicrophoneInput}
         csrfToken={csrfToken}
-        intent={
-          new URLSearchParams(globalThis.location.search).get('mode') === 'resume'
-            ? 'resume'
-            : 'new'
-        }
+        intent={mode === 'new' ? 'new' : mode === 'resume' ? 'resume' : undefined}
         navigate={navigate}
       />
     );
