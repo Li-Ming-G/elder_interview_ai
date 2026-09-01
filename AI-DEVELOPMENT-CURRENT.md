@@ -49,8 +49,8 @@ Predefined queue:
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
-  -> PFC-04-SUGGESTION-RECOVERY  [REVIEW]
-  -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
+  -> PFC-04-SUGGESTION-RECOVERY  [DONE]
+  -> PFC-05-ROUTE-ACTION-CLOSURE [READY]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
   -> null
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `REVIEW` on PR #130 at repaired exact head `0f7904503421773faca4a9e3f842520a7882e59d`; exact-head required CI succeeded and external Architect review is required. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. PR #130 was accepted and merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33545438599` succeeded. The predefined successor `PFC-05-ROUTE-ACTION-CLOSURE` is now the sole eligible `READY` task.
 
 Its responsibility is intentionally narrow:
 
@@ -123,11 +123,12 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `REVIEW`: `PFC-04-SUGGESTION-RECOVERY` on PR #130; exact-head CI succeeded.
+- `READY`: `PFC-05-ROUTE-ACTION-CLOSURE`.
+- `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
-- `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
-- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-03-RECORDING-NAV-SAFETY`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
+- `DEFERRED`: `PFC-06` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
+- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 
 ## Authority order
 
@@ -135,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-PR #130 advanced to repaired head `0f7904503421773faca4a9e3f842520a7882e59d` and exact-head required CI succeeded. Dispatcher returned the task to `REVIEW`; external Architect exact-head review is required and no successor is unlocked.
+Exact-current-main CI run `33545438599` succeeded. Dispatcher marked `PFC-04-SUGGESTION-RECOVERY` `DONE` and unlocked only its predefined successor `PFC-05-ROUTE-ACTION-CLOSURE`; this DONE pulse now ends.
