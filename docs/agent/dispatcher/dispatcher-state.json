@@ -318,6 +318,73 @@
       "depends_on": ["CKPT-A-WEB-CWD-01", "main@1805d63dbe63366a82692d81157dd4642b786216"],
       "pr": 126,
       "next_task": null
+    },
+    {
+      "id": "PFC-01-NEW-INTENT-TRUTH",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/PFC-01-NEW-INTENT-TRUTH.md",
+      "worker_profile": "luna-high",
+      "depends_on": [
+        "CKPT-A-FIRST-CAPTURE-GATE-01",
+        "PRODUCT-FLOW-CLOSURE-01",
+        "main@39fb739a6bdc0f42406e4191c5f885b63ece69ab"
+      ],
+      "pr": null,
+      "next_task": "PFC-02-PRESTART-DISCARD"
+    },
+    {
+      "id": "PFC-02-PRESTART-DISCARD",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-02-PRESTART-DISCARD.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-01-NEW-INTENT-TRUTH"],
+      "pr": null,
+      "next_task": "PFC-03-RECORDING-NAV-SAFETY"
+    },
+    {
+      "id": "PFC-03-RECORDING-NAV-SAFETY",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-03-RECORDING-NAV-SAFETY.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-02-PRESTART-DISCARD"],
+      "pr": null,
+      "next_task": "PFC-04-SUGGESTION-RECOVERY"
+    },
+    {
+      "id": "PFC-04-SUGGESTION-RECOVERY",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-04-SUGGESTION-RECOVERY.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-03-RECORDING-NAV-SAFETY"],
+      "pr": null,
+      "next_task": "PFC-05-ROUTE-ACTION-CLOSURE"
+    },
+    {
+      "id": "PFC-05-ROUTE-ACTION-CLOSURE",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-05-ROUTE-ACTION-CLOSURE.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-04-SUGGESTION-RECOVERY"],
+      "pr": null,
+      "next_task": "PFC-06-ERROR-AUTH-RESILIENCE"
+    },
+    {
+      "id": "PFC-06-ERROR-AUTH-RESILIENCE",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-06-ERROR-AUTH-RESILIENCE.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-05-ROUTE-ACTION-CLOSURE"],
+      "pr": null,
+      "next_task": "PFC-07-FULL-FLOW-E2E"
+    },
+    {
+      "id": "PFC-07-FULL-FLOW-E2E",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
+      "pr": null,
+      "next_task": null
     }
   ]
 }
