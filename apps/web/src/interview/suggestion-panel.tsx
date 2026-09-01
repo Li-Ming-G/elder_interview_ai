@@ -272,7 +272,7 @@ export function SuggestionPanel({
             </button>
             <button
               className="button button--primary"
-              disabled={loading || manualBusy || current?.kind === 'withdrawn'}
+              disabled={loading || manualBusy || current === null || current.kind === 'withdrawn'}
               onClick={() => void nextQuestion()}
               type="button"
             >

@@ -161,10 +161,15 @@ describe('SuggestionPanel', () => {
     render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
 
     expect((await screen.findByRole('alert')).textContent).toContain('录音和转录仍会继续');
+    const next = screen.getByRole('button', { name: '下一个问题' });
+    expect(next.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(next);
+    expect(requestNextSuggestion).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '重新加载问题建议' }));
     expect(await screen.findByRole('button', { name: '重新加载问题建议' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '重新加载问题建议' }));
     expect(await screen.findByText('当前问题')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '下一个问题' }).hasAttribute('disabled')).toBe(false);
     expect(getCurrentSuggestion).toHaveBeenCalledTimes(3);
     expect(requestNextSuggestion).not.toHaveBeenCalled();
   });
