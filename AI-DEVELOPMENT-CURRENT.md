@@ -47,7 +47,7 @@ Predefined queue:
 
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
-  -> PFC-02-PRESTART-DISCARD   [REVIEW]
+  -> PFC-02-PRESTART-DISCARD   [IN_PROGRESS]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `REVIEW` on PR #128 at exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283`; exact-head required CI `verify` succeeded and external Architect exact-head review is required.
+`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `IN_PROGRESS` on PR #128 at exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283`. The latest valid current-head Architect verdict is `REQUEST_CHANGES` with two P1 findings: permit confirmed discard for authoritative pre-formal created/device-check sessions while advanced/evidence states remain fail-closed, and add the Task Card's required bounded backend regression evidence.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: none.
-- `REVIEW`: `PFC-02-PRESTART-DISCARD` on PR #128.
+- `IN_PROGRESS`: `PFC-02-PRESTART-DISCARD` on PR #128.
+- `REVIEW`: none.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-03` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher found and bound the unique matching PR #128, reconciled exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283` with required CI success, persisted `IN_PROGRESS -> REVIEW`, and is publishing external Architect review context.
+Dispatcher consumed the current-head `REQUEST_CHANGES` verdict for PR #128, persisted `REVIEW -> IN_PROGRESS`, and is launching one bounded `luna-high` same-task/same-PR repair Worker for the two P1 findings.

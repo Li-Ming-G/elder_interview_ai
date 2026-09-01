@@ -334,7 +334,7 @@
     },
     {
       "id": "PFC-02-PRESTART-DISCARD",
-      "status": "REVIEW",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/PFC-02-PRESTART-DISCARD.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-01-NEW-INTENT-TRUTH"],
