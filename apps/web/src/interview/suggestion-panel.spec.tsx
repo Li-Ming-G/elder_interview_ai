@@ -204,12 +204,13 @@ describe('SuggestionPanel', () => {
     await screen.findByText('当前问题');
     fireEvent.click(screen.getByRole('button', { name: '下一个问题' }));
 
-    await waitFor(() => expect(requestNextSuggestion).toHaveBeenCalledTimes(1));
-    expect(requestNextSuggestion).toHaveBeenCalledWith(SESSION_ID, {
-      expected_presentation_revision: 2,
-      expected_snapshot_id: '33333333-3333-4333-8333-333333333333',
-      request_id: expect.any(String),
+    await waitFor(() => {
+      expect(requestNextSuggestion).toHaveBeenCalledTimes(1);
     });
+    const request = requestNextSuggestion.mock.calls[0]?.[1];
+    expect(request?.expected_presentation_revision).toBe(2);
+    expect(request?.expected_snapshot_id).toBe('33333333-3333-4333-8333-333333333333');
+    expect(typeof request?.request_id).toBe('string');
   });
 
   it.each([

@@ -281,7 +281,6 @@ export function SuggestionPanel({
             {canRetryCurrent ? (
               <button
                 className="button button--secondary"
-                disabled={loading || manualBusy}
                 onClick={() => void readCurrent()}
                 type="button"
               >
