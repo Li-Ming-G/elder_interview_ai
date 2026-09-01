@@ -3,7 +3,7 @@
   "queue": [
     {
       "id": "MEMORY-T5-T8-P2-C-RUNTIME-001",
-      "status": "BLOCKED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/MEMORY-T5-T8-P2-C-RUNTIME-001.md",
       "worker_profile": "luna-high",
       "depends_on": [
@@ -180,11 +180,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/CPA-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "P6R-05",
-        "CHECKPOINT-A-DEVELOPMENT-PACK",
-        "checkpoint-a-openrouter-director-v1"
-      ],
+      "depends_on": ["P6R-05", "CHECKPOINT-A-DEVELOPMENT-PACK", "checkpoint-a-openrouter-director-v1"],
       "pr": 105,
       "next_task": "CPA-02"
     },
@@ -211,10 +207,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/CPA-04.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "CPA-03",
-        "OWNER_DIRECTOR_PROMPT_ARTIFACT@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984"
-      ],
+      "depends_on": ["CPA-03", "OWNER_DIRECTOR_PROMPT_ARTIFACT@22760af1adc5d08f51f5dd3ed0aebca5f3c7d984"],
       "pr": 109,
       "next_task": "CPA-05"
     },
@@ -250,11 +243,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/LOCAL-DB-PORT-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "REAL-RUNTIME-02",
-        "LOCAL-DB-PORT-MAINTENANCE-PACK",
-        "main@bf76fce0a64689adaeb1f46fbd01575bc8c3802e"
-      ],
+      "depends_on": ["REAL-RUNTIME-02", "LOCAL-DB-PORT-MAINTENANCE-PACK", "main@bf76fce0a64689adaeb1f46fbd01575bc8c3802e"],
       "pr": 115,
       "next_task": null
     },
@@ -263,10 +252,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/FIRST-INTERVIEW-START-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "LOCAL-DB-PORT-01",
-        "main@7475b5144c816f9e383551bb5948c7a7f71d79cd"
-      ],
+      "depends_on": ["LOCAL-DB-PORT-01", "main@7475b5144c816f9e383551bb5948c7a7f71d79cd"],
       "pr": 116,
       "next_task": "DISPATCHER-SAME-TASK-REPAIR-01"
     },
@@ -275,10 +261,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/DISPATCHER-SAME-TASK-REPAIR-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "FIRST-INTERVIEW-START-01",
-        "DISPATCHER-SAME-TASK-REPAIR-PACK"
-      ],
+      "depends_on": ["FIRST-INTERVIEW-START-01", "DISPATCHER-SAME-TASK-REPAIR-PACK"],
       "pr": 117,
       "next_task": "CKPT-A-LOCAL-START-01"
     },
@@ -287,11 +270,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "DISPATCHER-SAME-TASK-REPAIR-01",
-        "CKPT-A-LOCAL-START-REPAIR-PACK",
-        "main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e"
-      ],
+      "depends_on": ["DISPATCHER-SAME-TASK-REPAIR-01", "CKPT-A-LOCAL-START-REPAIR-PACK", "main@0cc2bf6e97da4c9e751d705da46d4ddb52ba8d7e"],
       "pr": 118,
       "next_task": "DISPATCHER-STALE-DONE-RECONCILIATION-01"
     },
@@ -300,10 +279,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "CKPT-A-LOCAL-START-01",
-        "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"
-      ],
+      "depends_on": ["CKPT-A-LOCAL-START-01", "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"],
       "pr": 121,
       "next_task": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01"
     },
@@ -312,10 +288,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "DISPATCHER-STALE-DONE-RECONCILIATION-01",
-        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"
-      ],
+      "depends_on": ["DISPATCHER-STALE-DONE-RECONCILIATION-01", "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-PACK"],
       "pr": 122,
       "next_task": "CKPT-A-LEGACY-PREPARE-BRIDGE-01"
     },
@@ -324,10 +297,7 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01",
-        "main@bc8aa25039007ecc7a6a139d2e45888b429f77fa"
-      ],
+      "depends_on": ["FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01", "main@bc8aa25039007ecc7a6a139d2e45888b429f77fa"],
       "pr": 123,
       "next_task": null
     },
@@ -336,11 +306,17 @@
       "status": "DONE",
       "task_card": "docs/agent/tasks/CKPT-A-WEB-CWD-01.md",
       "worker_profile": "luna-high",
-      "depends_on": [
-        "CKPT-A-LEGACY-PREPARE-BRIDGE-01",
-        "main@ed5f522dd636f06638ea859de0558f827e15eb8a"
-      ],
+      "depends_on": ["CKPT-A-LEGACY-PREPARE-BRIDGE-01", "main@ed5f522dd636f06638ea859de0558f827e15eb8a"],
       "pr": 125,
+      "next_task": null
+    },
+    {
+      "id": "CKPT-A-FIRST-CAPTURE-GATE-01",
+      "status": "READY",
+      "task_card": "docs/agent/tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["CKPT-A-WEB-CWD-01", "main@1805d63dbe63366a82692d81157dd4642b786216"],
+      "pr": null,
       "next_task": null
     }
   ]
