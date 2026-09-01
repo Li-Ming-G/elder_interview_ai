@@ -49,7 +49,7 @@ Predefined queue:
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
-  -> PFC-04-SUGGESTION-RECOVERY  [IN_PROGRESS]
+  -> PFC-04-SUGGESTION-RECOVERY  [REVIEW]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `IN_PROGRESS` on PR #130 at repaired exact head `e25f8d153a6afe2df893564856c1608a622d677f` after exact-head CI failed in unrelated Workbench unit tests; one bounded no-code rerun is authorized. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `REVIEW` on PR #130 at repaired exact head `e25f8d153a6afe2df893564856c1608a622d677f`; exact-head required CI run `33538408841` attempt 2 succeeded and external Architect review is required. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `IN_PROGRESS`: `PFC-04-SUGGESTION-RECOVERY` on PR #130; bounded no-code CI rerun requested.
+- `REVIEW`: `PFC-04-SUGGESTION-RECOVERY` on PR #130; exact-head CI succeeded.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Exact-head CI run `33538408841` failed in two unrelated `workbench-shell.spec.tsx` tests while the scoped Worker verification passed. Dispatcher returned the same task and PR to `IN_PROGRESS` and requested the single bounded no-code rerun allowed for a plausible transient; no successor is unlocked.
+Exact-head CI run `33538408841` attempt 2 succeeded for repaired head `e25f8d153a6afe2df893564856c1608a622d677f`. Dispatcher returned PR #130 to `REVIEW`; external Architect exact-head review is required and no successor is unlocked.

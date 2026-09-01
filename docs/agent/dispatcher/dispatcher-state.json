@@ -352,7 +352,7 @@
     },
     {
       "id": "PFC-04-SUGGESTION-RECOVERY",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-04-SUGGESTION-RECOVERY.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-03-RECORDING-NAV-SAFETY"],
