@@ -15,7 +15,7 @@
 | `DISPATCHER-RECOVERY-001` | `DONE` | P4C-02 merged and verified | [`tasks/DISPATCHER-RECOVERY-001.md`](tasks/DISPATCHER-RECOVERY-001.md) | `luna-high` | `90` | `P4C-03` |
 | `P4C-03` | `DONE` | Dispatcher Recovery accepted/merged/main-verified | [`tasks/P4C-03.md`](tasks/P4C-03.md) | `luna-high` | `91` | `P4C-04` |
 | `P4C-04` | `DONE` | P4C-03 accepted/merged/main-verified | [`tasks/P4C-04.md`](tasks/P4C-04.md) | `luna-high` | `92` | `P5E-01` |
-| `P5E-01` | `DONE` | P4C-04 accepted/merged/main-verified | [`tasks/P5E-01.md`](tasks/P5E-01.md) | `luna-high` | `93` | `P5E-02` |
+| `P5E-01` | `DONE` | P4C-04 merged and verified | [`tasks/P5E-01.md`](tasks/P5E-01.md) | `luna-high` | `93` | `P5E-02` |
 | `P5E-02` | `DONE` | P5E-01 merged and verified | [`tasks/P5E-02.md`](tasks/P5E-02.md) | `luna-high` | `94` | `P5E-03` |
 | `P5E-03` | `DONE` | P5E-02 merged and verified | [`tasks/P5E-03.md`](tasks/P5E-03.md) | `luna-high` | `95` | `P5C-01` |
 | `P5C-01` | `DONE` | P5E-03 merged and verified | [`tasks/P5C-01.md`](tasks/P5C-01.md) | `luna-high` | `96` | `P5C-02` |
@@ -32,43 +32,40 @@
 | `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
 | `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
 | `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
-| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `115` | `null` |
+| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
 | `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
 | `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
 | `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
 | `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | `CKPT-A-LOCAL-START-01` DONE; PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; accepted merge is in refreshed main `22557cdcba1c17c5f8921094c6057fca9b423f39`; exact current-main CI run `33205218737` SUCCESS; recovered from `MAIN_VERIFY_FAILED` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
 | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
 | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from exact Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; exact-current-main CI run `33289681762` SUCCESS | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
-| `CKPT-A-WEB-CWD-01` | `BLOCKED` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6` into current main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`; exact-current-main CI run `33298968554` failed (`MAIN_VERIFY_FAILED`) | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
+| `CKPT-A-WEB-CWD-01` | `DONE` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`; accepted ancestry remains in exact current main `1805d63dbe63366a82692d81157dd4642b786216`; exact-current-main CI run `33299450389` SUCCESS | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
+| `CKPT-A-FIRST-CAPTURE-GATE-01` | `READY` | `CKPT-A-WEB-CWD-01` DONE; defect observed on `main@1805d63dbe63366a82692d81157dd4642b786216` | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-Owner Checkpoint A local retest now reaches healthy PostgreSQL, current migrations and API HTTP 200. The remaining blocker is launcher-only: Vite starts on `5173` but serves 404 because the formal launcher does not set the Vite working directory to `apps/web`.
+Owner Checkpoint A local retest now loads the preparation page and passes formal consent plus current-page microphone checks. The current blocker is the first-session capture authority gate after formal start: `SessionCaptureService` still requires deferred repeat/continuing consent for sequence 1 during capture confirmation/recovery.
 
 Current active task:
 
-`CKPT-A-WEB-CWD-01` (`BLOCKED / MAIN_VERIFY_FAILED`, PR #125).
+`CKPT-A-FIRST-CAPTURE-GATE-01` (`READY`, PR none).
 
-The Product Owner explicitly authorized this ultra-small maintenance task. It is independent newly authorized work after the completed `CKPT-A-LEGACY-PREPARE-BRIDGE-01`; the older task's `DONE + next_task:null` does not suppress a full canonical queue scan.
+The Product Owner explicitly authorized this ultra-small first-principles maintenance repair and asked for the fastest safe path back to Checkpoint A testing.
 
-Allowed implementation scope is exactly two files:
-
-- `scripts/start-checkpoint-a.mjs`
-- `scripts/local-operability.test.mjs`
-
-The repair must set the web child working directory to `<repositoryRoot>/apps/web`, add deterministic regression coverage, preserve API launch behavior, secret isolation and process cleanup, and leave all `apps/**` product behavior unchanged.
+Allowed implementation scope is defined by the Task Card and is intentionally narrow around `session-capture.service.ts` plus the existing relevant integration tests.
 
 ## Frozen boundaries
 
-- no `apps/**` changes;
-- no database/schema/migration/Docker/`.env.local` changes;
-- no consent/start, auth, ASR, Director, memory/evidence, scoring/evaluation, privacy or deployment changes;
-- no P1-P6/T0-T27 semantic changes;
-- no process manager, dynamic port selection or temporary runtime workaround;
-- unfinished-workflow delete/abandon UX remains separate.
+- sequence 1 capture confirm/recovery uses current valid first-interview formal consent;
+- sequence > 1 continuation-consent behavior unchanged;
+- active actor, assignment/access, project availability/status and capture generation/state checks unchanged;
+- no UI, database/schema/migration, auth redesign, consent-policy activation, ASR, Director, memory, P1–P6 or deployment changes;
+- no data reset/workaround for the Owner's interrupted live session.
 
 ## Maintenance
 
+- `MEMORY-T5-T8-P2-C-RUNTIME-001` is historical `DONE`; the stale `BLOCKED` cache projection is corrected and is not current work.
+- `CKPT-A-WEB-CWD-01` is `DONE`; exact current-main CI `33299450389` is SUCCESS and overrides the stale older failure projection.
 - GitHub durable facts override stale projection/status fields.
 - Dispatcher must fresh-read GitHub/main or refreshed `origin/main`; an unpushed local worktree is never canonical state.
 - A normal Worker repairs/implements only its current Task Card and canonical PR.
