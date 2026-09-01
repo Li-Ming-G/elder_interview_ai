@@ -49,7 +49,7 @@ Predefined queue:
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
-  -> PFC-04-SUGGESTION-RECOVERY  [READY]
+  -> PFC-04-SUGGESTION-RECOVERY  [IN_PROGRESS]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. PR #129 was accepted and merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33534495664` succeeded. The predefined successor `PFC-04-SUGGESTION-RECOVERY` is now the sole eligible `READY` task.
+`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `IN_PROGRESS` under its declared `luna-high` worker profile. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: `PFC-04-SUGGESTION-RECOVERY`.
+- `IN_PROGRESS`: `PFC-04-SUGGESTION-RECOVERY`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Exact-current-main CI run `33534495664` succeeded and mechanically cleared the stale `MAIN_VERIFY_FAILED` blocker. Dispatcher marked `PFC-03-RECORDING-NAV-SAFETY` `DONE` and unlocked only its predefined successor `PFC-04-SUGGESTION-RECOVERY`; this DONE pulse now ends.
+Dispatcher selected the sole queue-wide eligible task `PFC-04-SUGGESTION-RECOVERY`, persisted `READY -> IN_PROGRESS`, and is launching the Task Card's declared `luna-high` Implementation Worker.
