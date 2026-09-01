@@ -53,7 +53,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
 CKPT-A-WEB-CWD-01  [DONE]
   -> null
 
-CKPT-A-FIRST-CAPTURE-GATE-01  [IN_PROGRESS]
+CKPT-A-FIRST-CAPTURE-GATE-01  [REVIEW]
   -> null
 ```
 
@@ -65,7 +65,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-FIRST-CAPTURE-GATE-01` is `IN_PROGRESS`, with no PR yet; its declared `luna-high` Worker is being launched.
+`CKPT-A-FIRST-CAPTURE-GATE-01` is `REVIEW` on PR #126 at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; exact-head required CI `verify` is `SUCCESS`.
 
 Proven defect boundary:
 
@@ -119,8 +119,8 @@ Architect plans/reviews. Dispatcher launches Workers, consumes external verdicts
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `CKPT-A-FIRST-CAPTURE-GATE-01`.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `CKPT-A-FIRST-CAPTURE-GATE-01` on PR #126.
 - `BLOCKED`: none among current Checkpoint A maintenance work; historical records remain as recorded in the canonical queue.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
 - `DONE`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; `CKPT-A-WEB-CWD-01`; legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
@@ -131,4 +131,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher selected the unique READY task `CKPT-A-FIRST-CAPTURE-GATE-01`, persisted `IN_PROGRESS`, and will launch one luna-high implementation Worker. The Owner does not need to manually redistribute this bug to other roles.
+Dispatcher reconciled the Worker handoff for `CKPT-A-FIRST-CAPTURE-GATE-01`, bound PR #126 at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`, and stopped at `REVIEW` for external Architect review.
