@@ -48,7 +48,7 @@ Predefined queue:
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
-  -> PFC-03-RECORDING-NAV-SAFETY [REVIEW]
+  -> PFC-03-RECORDING-NAV-SAFETY [IN_PROGRESS]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. `PFC-03-RECORDING-NAV-SAFETY` is `REVIEW` on PR #129 at exact head `330b53895feaceecbea53b87e79019e9083738b3`; exact-head required CI succeeded and external Architect review is required. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. `PFC-03-RECORDING-NAV-SAFETY` is `IN_PROGRESS` on PR #129 for bounded same-task repair of the current-head Architect `REQUEST_CHANGES`. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -124,7 +124,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `REVIEW`: `PFC-03-RECORDING-NAV-SAFETY` on PR #129.
+- `IN_PROGRESS`: `PFC-03-RECORDING-NAV-SAFETY` on PR #129 for bounded repair.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-04` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher bound the unique durable implementation PR #129 to `PFC-03-RECORDING-NAV-SAFETY` and advanced it to `REVIEW` after exact-head required CI succeeded. External Architect exact-head review is now required.
+Current-head Architect verdict is `REQUEST_CHANGES` for PR #129. Dispatcher returned the same task and PR to bounded `luna-high` repair; no successor is unlocked.
