@@ -356,7 +356,7 @@
       "task_card": "docs/agent/tasks/PFC-04-SUGGESTION-RECOVERY.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-03-RECORDING-NAV-SAFETY"],
-      "pr": null,
+      "pr": 130,
       "next_task": "PFC-05-ROUTE-ACTION-CLOSURE"
     },
     {
