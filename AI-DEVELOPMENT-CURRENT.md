@@ -48,7 +48,7 @@ Predefined queue:
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
-  -> PFC-03-RECORDING-NAV-SAFETY [REVIEW]
+  -> PFC-03-RECORDING-NAV-SAFETY [BLOCKED / MAIN_VERIFY_FAILED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. `PFC-03-RECORDING-NAV-SAFETY` is `REVIEW` on PR #129 at repaired exact head `02b8ccc4309b4d94474f7209d1e8259c545f8fa7`; exact-head required CI rerun succeeded and current-head external Architect review is required. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. PR #129 was accepted and merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`, but `PFC-03-RECORDING-NAV-SAFETY` is `BLOCKED / MAIN_VERIFY_FAILED` because exact-current-main CI run `33533271266` failed in the realtime auth E2E connection step. Later pulses must mechanically recheck exact-current-main CI and automatically complete the task if an applicable rerun succeeds. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -124,7 +124,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `REVIEW`: `PFC-03-RECORDING-NAV-SAFETY` on PR #129; exact-head CI succeeded.
+- `BLOCKED`: `PFC-03-RECORDING-NAV-SAFETY` / `MAIN_VERIFY_FAILED` on exact current main `ee01cf0c42d7041bc7d4524c21a874eb51245787`.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-04` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Exact-head CI run `33526748503` attempt 2 succeeded for repaired head `02b8ccc4309b4d94474f7209d1e8259c545f8fa7`. Dispatcher returned PR #129 to `REVIEW`; current-head external Architect review is required and no successor is unlocked.
+PR #129 is merged and its merge commit is proven in exact current-main ancestry. Exact-current-main CI run `33533271266` failed at `test:e2e:auth / realtime-connection`, so the task remains `BLOCKED / MAIN_VERIFY_FAILED`; no successor is unlocked. Future pulses must retry mechanical recovery from applicable exact-current-main CI.
