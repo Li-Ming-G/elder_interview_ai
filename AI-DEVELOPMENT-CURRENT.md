@@ -46,7 +46,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [IN_PROGRESS]
+PFC-01-NEW-INTENT-TRUTH        [REVIEW]
   -> PFC-02-PRESTART-DISCARD   [DEFERRED]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS` on PR #127 at exact head `07621884f0e3a74d9d383046115b88109d8d3059`. CI run `33478639358` passed task-related E2E and failed at the realtime auth E2E connection check; one bounded no-code rerun is authorized for the plausible transient.
+`PFC-01-NEW-INTENT-TRUTH` is `REVIEW` on PR #127 at exact head `07621884f0e3a74d9d383046115b88109d8d3059`. Exact-head CI run `33478639358` attempt 2 is `SUCCESS`.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: Checkpoint A maintenance through PR #126 and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher reconciled the exact-head CI failure on PR #127 and is issuing the single permitted bounded no-code rerun for the plausible realtime auth E2E transient. A second failure requires scoped same-PR repair or a concrete blocker.
+Dispatcher reconciled exact-head CI SUCCESS for PR #127, persisted `IN_PROGRESS -> REVIEW`, and stopped for external Architect exact-head review.
