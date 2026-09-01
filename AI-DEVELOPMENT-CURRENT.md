@@ -2,132 +2,138 @@
 
 ## Product goal
 
-Deliver a responsive web MVP where a listener can conduct a consented elder interview, preserve original audio/transcript evidence, receive evidence-linked AI assistance, continue the same project across sessions, and review saved records. AI assists the listener; it does not autonomously interview or write the final biography.
+Deliver a responsive web MVP where a listener can conduct a consented elder interview, preserve original audio/transcript evidence, receive evidence-linked AI assistance, safely finish/save/review the session, and continue the same elder project across sessions. AI assists the listener; it does not autonomously interview or write the final biography.
 
-## P1–P6 architecture
+## P1-P6 architecture
 
 | Layer | Frozen responsibility | Current truth |
 | --- | --- | --- |
-| P1 | Current-session Working Memory only; no Long retrieval | v1.2 runtime accepted at `cc2b82d83859a5bff0c4e796f8c4fa0a541e9b66` |
-| P2 | LLM semantic consolidation Working→Mid and session-end Mid/current→Long; program owns persistence/CAS/revision/evidence/transaction | P2-C complete through PR #80; P2-D deferred |
+| P1 | Current-session Working Memory only; no Long retrieval | v1.2 runtime accepted |
+| P2 | LLM semantic consolidation Working->Mid and session-end Mid/current->Long; program owns persistence/CAS/revision/evidence/transaction | P2-C complete through PR #80; P2-D deferred |
 | P3 | PostgreSQL + pgvector retrieval, provider-neutral embeddings, minimal continuation/branch/related graph | Complete through PR #86; real embedding model deferred |
-| P4 | Programmatic Context V2, priority, configurable budget and frozen membership/digest | Complete through PR #88–#92; production numeric budget deferred |
-| P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
-| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A baseline through PR #111; T26–T27 deferred |
+| P4 | Programmatic Context V2, priority, configurable budget and frozen membership/digest | Complete through PR #88-#92; production numeric budget deferred |
+| P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93-#97 |
+| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18-T24 complete through PR #103; Owner Checkpoint A baseline through PR #111; T26-T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current Checkpoint A maintenance repair.
+P1-P6 ownership, T0-T27 semantic boundaries, OpenRouter/Ox Director behavior, Tencent ASR, evidence authority and consent/capture safety are unchanged by the current product-flow work.
 
 ## Current phase
 
-Current phase: `CHECKPOINT A RETEST / FIRST CAPTURE AUTHORITY GATE`.
+Current phase: `PRODUCT FLOW CLOSURE 01`.
 
-Completed baseline:
-
-- P5 through PR #97;
-- P6 Runtime T18–T24 through PR #103;
-- Owner Checkpoint A baseline through PR #111;
-- Real-Flow Cleanup through PR #113;
-- Dispatcher main-verification recovery hardening through PR #114;
-- Local DB Port Maintenance through PR #115;
-- fresh first-interview start repair through PR #116;
-- same-task/same-PR repair-loop governance through PR #117;
-- Checkpoint A local-start repair through PR #118;
-- stale-DONE reconciliation through PR #121;
-- backend legacy first-session draft recovery through PR #122;
-- frontend legacy prepare bridge through PR #123;
-- Checkpoint A Web cwd launcher repair through PR #125;
-- first-session capture authority gate repair through PR #126.
-
-Exact current main `1805d63dbe63366a82692d81157dd4642b786216` has successful CI run `33299450389`. PR #125 remains merged in accepted ancestry, so `CKPT-A-WEB-CWD-01` is reconciled `DONE`. The earlier projection that marked it `BLOCKED` after an older failed current-main run is stale.
-
-The first-session capture authority gate repair is accepted, merged and exact-current-main verified. The Owner can resume the same existing interview record for live Checkpoint A testing.
-
-## Canonical current queue
+The Product Owner completed the adversarial product-surface review and authorized all audited fixes F1-F20. Primary objective is now the ordinary first-interview lifecycle, not deeper feature expansion:
 
 ```text
-DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
-  -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
-  -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
+Home
+-> explicit New vs Resume
+-> safe pre-start discard if requested
+-> microphone + recorded verbal consent
+-> formal recording
+-> speaker calibration or explicit safe skip/degrade
+-> Workbench transcript + AI next question
+-> safe End Interview
+-> save/finalization
+-> Review
+-> Home
+```
 
-CKPT-A-WEB-CWD-01  [DONE]
-  -> null
+Owner-frozen v1 product decision: **no deliberate pause-then-resume feature.** Ordinary product copy must not promise it. Existing interruption recovery remains a safety/recovery mechanism and is not a user-facing pause product.
 
-CKPT-A-FIRST-CAPTURE-GATE-01  [DONE]
+Development Pack:
+
+- `docs/agent/tasks/PRODUCT-FLOW-CLOSURE-01.md`
+
+Predefined queue:
+
+```text
+PFC-01-NEW-INTENT-TRUTH        [READY]
+  -> PFC-02-PRESTART-DISCARD   [DEFERRED]
+  -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
+  -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
+  -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
+  -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
+  -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
   -> null
 ```
 
-`MEMORY-T5-T8-P2-C-RUNTIME-001` is historical `DONE` through PR #80. A stale Dispatcher projection that changed it to `BLOCKED` is corrected here and must not become active work.
-
-Task source:
-
-- `docs/agent/tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`
+Only the first eligible task may run. Successors are already Owner-authorized but remain locked until predecessor external Architect PASS + merge + refreshed-main CI + state synchronization.
 
 ## Current task truth
 
-`CKPT-A-FIRST-CAPTURE-GATE-01` is `DONE`. Architect PASS covered exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; PR #126 merged as `f324d10b1cc8b6a4299ec0a6de1bb888610df5fb`, which is exact current main; exact-current-main CI run `33458417909` attempt 3 is `SUCCESS`.
+`PFC-01-NEW-INTENT-TRUTH` is `READY`.
 
-Proven defect boundary:
+Its responsibility is intentionally narrow:
 
-- `ProjectFoundationService.startSession()` already applies the correct sequence-1 current-formal-consent rule;
-- browser capture then calls `confirmCaptureActive()`;
-- `SessionCaptureService.assertCurrentGate()` still requires `consentContinuation.status === 'covered'` for every sequence;
-- the production/default continuation policy is intentionally unavailable until its future policy is accepted;
-- therefore sequence 1 can formally start and then immediately fail capture confirmation with `FORBIDDEN`;
-- the same shared gate can also block recovery of the already-interrupted sequence-1 capture.
+- Home `新建访谈` must not silently resume an older local workflow;
+- unfinished creation gets an explicit `继续未完成访谈` entry;
+- stale IndexedDB recovery is reconciled against server project/session facts before it can become active again;
+- server facts outrank browser workflow state;
+- normal in-page progress must not falsely render “已恢复旧流程” copy;
+- no backend discard/delete is implemented in PFC-01; PFC-02 owns the safe server-authoritative pre-start discard.
 
-Frozen repair outcome:
+Task source:
 
-- sequence 1 capture confirm/recovery uses latest current valid formal `recording_transcription_ai` consent;
-- sequence > 1 keeps the existing covered-continuation rule unchanged;
-- active actor, assignment/access, ordinary visibility, project-state availability, project status, capture generation/state, idempotency and evidence safety remain unchanged;
-- missing/revoked/invalid first-session consent fails closed;
-- no continuing-consent policy activation;
-- no UI, DB, ASR, Director, memory or P1–P6 changes.
+- `docs/agent/tasks/PFC-01-NEW-INTENT-TRUTH.md`
 
-## Local Owner prerequisite
+## Product-flow closure invariants
 
-The Owner has already verified local PostgreSQL development/test instances are healthy, all 28 migrations are current, the API is healthy, and the Workbench launcher cwd repair is present. After this maintenance task is accepted, merged and exact-main verified, use:
+1. Server truth > browser recovery state.
+2. Button label and actual action must agree.
+3. A visible ordinary action either works end-to-end or is honestly unavailable in place; it must not route into a known placeholder/dead end.
+4. Formal recording cannot be silently left behind by SPA navigation/history/back/refresh/close.
+5. Once formal recording starts, safe End Interview is always available, including during calibration.
+6. Calibration failure cannot hard-lock completion and must never invent speaker identity.
+7. AI suggestion failure never stops recording and must have a visible retry path.
+8. One unresolved formal interview takes precedence over creating another.
+9. No deliberate pause/resume feature in v1.
+10. Happy-path interview completion outranks visual polish.
 
-```text
-pnpm checkpoint-a:start
-```
+## Completed baseline
 
-Resume the SAME existing interview record. Do not wipe the database/IndexedDB or create a replacement record merely to bypass the interrupted capture.
+- P1-P6 core through PR #103;
+- Checkpoint A baseline through PR #111;
+- ordinary identity/runtime cleanup through PR #113;
+- local DB/start/governance maintenance through PR #121;
+- legacy first-interview backend/frontend recovery through PR #122/#123;
+- Checkpoint A Vite cwd repair through PR #125;
+- first-session capture authority gate through PR #126;
+- `CKPT-A-FIRST-CAPTURE-GATE-01` is historical `DONE` and is the dependency baseline for the Product Flow Closure pack.
 
-## Preserved decisions
+Historical `MEMORY-T5-T8-P2-C-RUNTIME-001` remains `DONE`; stale Dispatcher projections must not reactivate it.
 
-- OpenRouter/Ox and Owner Prompt meaning unchanged.
-- Tencent real-ASR unchanged.
-- Automatic/manual Director orchestration, generation fences, deadlines, publication authority and background isolation unchanged.
-- P1–P5 semantic/data ownership unchanged.
+## Preserved decisions / deferred work
+
 - AI failure must not stop recording; ASR failure must not damage original audio.
 - Repository-standard local PostgreSQL host ports remain `15432` / `15433`; container PostgreSQL remains `5432`.
-- Unfinished/new-interview delete/abandon UX remains a separate later product task.
-- P2-D, T26–T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region, ordinary real interview data and deployment decisions remain deferred.
+- P2-D, T26-T27, real embeddings, tokenizer, production P4 numeric budget, production provider/model/region/data/deployment decisions remain deferred.
+- No ordinary real/private elder data is introduced by this pack.
+- No broad UI redesign.
 
 ## Governance
 
-Canonical Task Cards and queue topology on refreshed `main` define task identity/dependencies/next task. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
+Canonical Task Cards + canonical queue on refreshed main define authorized work. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
 
 Accepted lifecycle:
 
-`READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> Architect PASS -> merge -> refreshed-main CI -> DONE -> only predefined/newly Owner-authorized next work`.
+```text
+READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> external Architect PASS -> merge -> refreshed-main CI -> DONE -> predefined successor
+```
 
-Architect plans/reviews. Dispatcher launches Workers, consumes external verdicts, merges only after accepted gates, verifies main, synchronizes state and unlocks only authorized work. Implementation Workers implement/repair only their current Task Card and canonical PR.
+Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flow tasks or product behavior. Worker implements only the active Task Card.
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `PFC-01-NEW-INTENT-TRUTH`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: none among current Checkpoint A maintenance work; historical records remain as recorded in the canonical queue.
-- `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; `CKPT-A-FIRST-CAPTURE-GATE-01` through PR #126 and exact-current-main CI run `33458417909` attempt 3; `CKPT-A-WEB-CWD-01`; legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
+- `BLOCKED`: none in the Product Flow Closure pack.
+- `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
+- `DONE`: Checkpoint A maintenance through PR #126 and prior accepted baseline tasks.
 
 ## Authority order
 
-Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> this file -> stable `00`–`10` specs -> history. Any unresolvable contradiction is `PRODUCT_AMBIGUITY`.
+Current Task Card -> Product Flow Closure Development Pack -> exact accepted lower-level contracts/invariants -> this file -> stable architecture specs -> history. Any unresolvable contradiction is `PRODUCT_AMBIGUITY`.
 
 ## Next step
 
-`CKPT-A-FIRST-CAPTURE-GATE-01` is merged and exact-current-main verified `DONE`. Its predefined `next_task` is `null`, so no successor is unlocked. The Owner may resume the SAME existing Checkpoint A interview record with `pnpm checkpoint-a:start` and continue live testing.
+Dispatcher must fresh-read main, scan the full canonical queue, select the single eligible `READY` task `PFC-01-NEW-INTENT-TRUTH`, transition it to `IN_PROGRESS`, and launch one `luna-high` Implementation Worker. No Owner routing to individual roles is required.
