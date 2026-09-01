@@ -321,7 +321,7 @@
     },
     {
       "id": "PFC-01-NEW-INTENT-TRUTH",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/PFC-01-NEW-INTENT-TRUTH.md",
       "worker_profile": "luna-high",
       "depends_on": [
@@ -334,7 +334,7 @@
     },
     {
       "id": "PFC-02-PRESTART-DISCARD",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/PFC-02-PRESTART-DISCARD.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-01-NEW-INTENT-TRUTH"],
