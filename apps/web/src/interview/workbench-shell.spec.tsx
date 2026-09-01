@@ -26,7 +26,7 @@ import type {
   InterviewCaptureController,
   InterviewCaptureControllerSnapshot,
 } from './interview-capture-controller.js';
-import { WorkbenchShell } from './workbench-shell.js';
+import { WorkbenchShell, type WorkbenchNavigationRequest } from './workbench-shell.js';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const SESSION_ID = '22222222-2222-4222-8222-222222222222';
@@ -143,6 +143,86 @@ describe('WorkbenchShell', () => {
     expect(harness.controller.resume).not.toHaveBeenCalled();
     expect(harness.api.createSession).not.toHaveBeenCalled();
     expect(screen.getByText('正在采集 · 本浏览器已保存 2 段')).toBeTruthy();
+  });
+
+  it('protects browser refresh while formal capture needs attention and removes protection at terminal state', async () => {
+    const harness = createHarness(recordingSession());
+    renderWorkbench(harness);
+    await screen.findByText('当前对话');
+
+    const activeUnload = new Event('beforeunload', { cancelable: true });
+    globalThis.dispatchEvent(activeUnload);
+    expect(activeUnload.defaultPrevented).toBe(true);
+
+    act(() => {
+      harness.emit(
+        snapshot(endingSession('completed'), {
+          endHandoff: END_HANDOFF,
+          phase: 'stopped',
+        }),
+      );
+    });
+    const terminalUnload = new Event('beforeunload', { cancelable: true });
+    globalThis.dispatchEvent(terminalUnload);
+    expect(terminalUnload.defaultPrevented).toBe(false);
+  });
+
+  it('offers the same End Interview action during speaker calibration', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: { ...EMPTY_REALTIME, calibration: calibrationSnapshot('collecting') },
+    });
+    renderWorkbench(harness);
+
+    expect(await screen.findByRole('heading', { name: '先确认两位说话人' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '结束访谈' }));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '继续访谈' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('guards navigation with stay and end-and-leave choices', async () => {
+    const harness = createHarness(recordingSession());
+    let guard: ((request: WorkbenchNavigationRequest) => void) | null = null;
+    const commit = vi.fn();
+    renderWorkbench(harness, vi.fn(), vi.fn(), (next) => {
+      guard = next;
+    });
+    await screen.findByText('当前对话');
+
+    const invokeGuard = (request: WorkbenchNavigationRequest): void => {
+      if (guard === null) throw new Error('navigation guard was not registered');
+      guard(request);
+    };
+    invokeGuard({ commit, path: '/', replace: false });
+    expect(await screen.findByRole('heading', { name: '访谈正在进行' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '留在访谈中' }));
+    expect(commit).not.toHaveBeenCalled();
+
+    vi.mocked(harness.controller.stopAndFreeze).mockImplementation(() => {
+      harness.emit(
+        snapshot(endingSession('stopping'), {
+          endHandoff: END_HANDOFF,
+          phase: 'stopped',
+        }),
+      );
+      return Promise.resolve(stopHandoff(harness.controller.snapshot));
+    });
+    vi.mocked(harness.controller.completeFrozenAudio).mockImplementation(() => {
+      harness.emit(
+        snapshot(endingSession('completed'), {
+          endHandoff: END_HANDOFF,
+          phase: 'stopped',
+        }),
+      );
+      return Promise.resolve(harness.controller.snapshot);
+    });
+    harness.api.recoverSession.mockResolvedValue(endingSession('completed'));
+    invokeGuard({ commit, path: '/', replace: false });
+    fireEvent.click(await screen.findByRole('button', { name: '结束访谈并离开' }));
+    await waitFor(() => {
+      expect(harness.controller.stopAndFreeze).toHaveBeenCalledTimes(1);
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('keeps calibration evidence out of the ordinary transcript projection', async () => {
@@ -804,7 +884,7 @@ describe('WorkbenchShell', () => {
     Object.assign(harness.api, { resolveSpeakerCalibration });
     renderWorkbench(harness);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    fireEvent.click(await screen.findByRole('button', { name: '跳过说话人确认并继续访谈' }));
     await waitFor(() => {
       expect(resolveSpeakerCalibration).toHaveBeenCalledWith(
         '55555555-5555-4555-8555-555555555555',
@@ -835,10 +915,10 @@ describe('WorkbenchShell', () => {
     Object.assign(harness.api, { resolveSpeakerCalibration });
     renderWorkbench(harness);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    fireEvent.click(await screen.findByRole('button', { name: '跳过说话人确认并继续访谈' }));
     await screen.findByText(/response unknown/);
     const firstRequestId = resolveSpeakerCalibration.mock.calls[0]?.[1].request_id;
-    fireEvent.click(screen.getByRole('button', { name: 'ASR 降级，继续访谈' }));
+    fireEvent.click(screen.getByRole('button', { name: '跳过说话人确认并继续访谈' }));
     await waitFor(() => {
       expect(resolveSpeakerCalibration).toHaveBeenCalledTimes(2);
     });
@@ -865,7 +945,7 @@ describe('WorkbenchShell', () => {
     Object.assign(harness.api, { beginSpeakerCalibration });
     renderWorkbench(harness);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'ASR 降级，继续访谈' }));
+    fireEvent.click(await screen.findByRole('button', { name: '跳过说话人确认并继续访谈' }));
     expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
 
     act(() => {
@@ -1004,6 +1084,7 @@ function renderWorkbench(
   harness: ReturnType<typeof createHarness>,
   onReturnToLogin = vi.fn(),
   navigate = vi.fn(),
+  registerNavigationGuard?: (guard: ((request: WorkbenchNavigationRequest) => void) | null) => void,
 ): void {
   render(
     <WorkbenchShell
@@ -1012,6 +1093,7 @@ function renderWorkbench(
       navigate={navigate}
       onReturnToLogin={onReturnToLogin}
       projectId={PROJECT_ID}
+      {...(registerNavigationGuard === undefined ? {} : { registerNavigationGuard })}
       sessionId={SESSION_ID}
     />,
   );

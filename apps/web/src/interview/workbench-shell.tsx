@@ -28,8 +28,15 @@ import type {
   InterviewCaptureController,
   InterviewCaptureControllerSnapshot,
 } from './interview-capture-controller.js';
+import { requiresCaptureAttention } from './interview-capture-controller.js';
 import { preparationPath, reviewPath } from './routes.js';
 import { SuggestionPanel } from './suggestion-panel.js';
+
+export interface WorkbenchNavigationRequest {
+  commit: () => void;
+  path: string;
+  replace: boolean;
+}
 
 interface WorkbenchShellProps {
   api: InterviewApi &
@@ -52,6 +59,7 @@ interface WorkbenchShellProps {
   navigate: (path: string, replace?: boolean) => void;
   onReturnToLogin: () => void;
   projectId: string;
+  registerNavigationGuard?: (guard: ((request: WorkbenchNavigationRequest) => void) | null) => void;
   sessionId: string;
 }
 
@@ -79,6 +87,7 @@ export function WorkbenchShell({
   navigate,
   onReturnToLogin,
   projectId,
+  registerNavigationGuard,
   sessionId,
 }: WorkbenchShellProps): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
@@ -92,6 +101,9 @@ export function WorkbenchShell({
   const [calibrationBusy, setCalibrationBusy] = useState(false);
   const [calibrationError, setCalibrationError] = useState<string | null>(null);
   const [calibrationGateDismissed, setCalibrationGateDismissed] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<WorkbenchNavigationRequest | null>(
+    null,
+  );
   const actionLock = useRef(false);
   const endTrigger = useRef<HTMLElement | null>(null);
   const reconcileRequestId = useRef<string | null>(null);
@@ -128,6 +140,19 @@ export function WorkbenchShell({
   }, [api, captureController, projectId, sessionId]);
 
   useEffect(() => captureController.subscribe(setSnapshot), [captureController]);
+  useEffect(() => {
+    if (registerNavigationGuard === undefined) return;
+    registerNavigationGuard((request) => {
+      if (!requiresCaptureAttention(captureController.snapshot)) {
+        request.commit();
+        return;
+      }
+      setPendingNavigation(request);
+    });
+    return (): void => {
+      registerNavigationGuard(null);
+    };
+  }, [captureController, registerNavigationGuard]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -270,10 +295,7 @@ export function WorkbenchShell({
   }
 
   useEffect(() => {
-    const session = snapshot.serverSession;
-    if (session?.status !== 'stopping' || snapshot.archive.pendingDeliveryCount === 0) {
-      return;
-    }
+    if (!requiresCaptureAttention(snapshot)) return;
     const warn = (event: BeforeUnloadEvent): void => {
       event.preventDefault();
       Reflect.set(event, 'returnValue', '');
@@ -282,7 +304,7 @@ export function WorkbenchShell({
     return (): void => {
       globalThis.removeEventListener('beforeunload', warn);
     };
-  }, [snapshot.archive.pendingDeliveryCount, snapshot.serverSession]);
+  }, [snapshot]);
 
   async function resumeInterview(): Promise<void> {
     if (actionLock.current) return;
@@ -298,10 +320,8 @@ export function WorkbenchShell({
     }
   }
 
-  async function confirmEnd(): Promise<void> {
-    if (actionLock.current || endMode === null) return;
-    const mode = endMode;
-    setEndMode(null);
+  async function performEnd(mode: EndMode): Promise<boolean> {
+    if (actionLock.current) return false;
     actionLock.current = true;
     setActionError(null);
     setFinalizingLocal(true);
@@ -315,12 +335,37 @@ export function WorkbenchShell({
         }
         await submitFrozenEnd(handoff, mode);
       }
+      return true;
     } catch (error) {
       setActionError(readableActionError(error, '安全结束未能完成，请保留本页并重新核对'));
+      return false;
     } finally {
       setFinalizingLocal(false);
       actionLock.current = false;
     }
+  }
+
+  async function confirmEnd(): Promise<void> {
+    if (endMode === null) return;
+    const mode = endMode;
+    setEndMode(null);
+    await performEnd(mode);
+  }
+
+  async function endAndLeave(): Promise<void> {
+    const request = pendingNavigation;
+    if (request === null) return;
+    setPendingNavigation(null);
+    const mode = navigationEndMode(snapshot);
+    if (mode !== null) {
+      if (await performEnd(mode)) request.commit();
+      else setPendingNavigation(request);
+      return;
+    }
+
+    await reconcile();
+    if (!requiresCaptureAttention(captureController.snapshot)) request.commit();
+    else setPendingNavigation(request);
   }
 
   async function abandonEmpty(): Promise<void> {
@@ -525,71 +570,104 @@ export function WorkbenchShell({
   }
   if (state === 'recording' && !calibrationConfirmed && !calibrationGateDismissed) {
     return (
-      <CalibrationGate
-        busy={calibrationBusy}
-        connection={snapshot.realtime.connection}
-        error={calibrationError}
-        failureKind={snapshot.realtime.failureKind}
-        onBegin={() => void beginCalibration(true)}
-        onContinueDegraded={() => {
-          if (
-            snapshot.realtime.calibration?.status === 'collecting' &&
-            snapshot.realtime.calibration.attempt !== null
-          ) {
-            void resolveCalibration('skip');
-          } else if (
-            snapshot.realtime.calibration?.attempt == null &&
-            isCalibrationProviderUnavailable(
-              snapshot.realtime.connection,
-              snapshot.realtime.failureKind,
-            )
-          ) {
-            setCalibrationGateDismissed(true);
-          }
-        }}
-        onResolve={(action, mappings) => void resolveCalibration(action, mappings)}
-        projectName={projectName}
-        snapshot={snapshot.realtime.calibration}
-      />
+      <>
+        <CalibrationGate
+          busy={calibrationBusy}
+          connection={snapshot.realtime.connection}
+          error={calibrationError}
+          failureKind={snapshot.realtime.failureKind}
+          onBegin={() => void beginCalibration(true)}
+          onContinueDegraded={() => {
+            if (
+              snapshot.realtime.calibration?.status === 'collecting' &&
+              snapshot.realtime.calibration.attempt !== null
+            ) {
+              void resolveCalibration('skip');
+            } else if (
+              snapshot.realtime.calibration?.attempt == null &&
+              isCalibrationProviderUnavailable(
+                snapshot.realtime.connection,
+                snapshot.realtime.failureKind,
+              )
+            ) {
+              setCalibrationGateDismissed(true);
+            }
+          }}
+          onEnd={(trigger) => {
+            endTrigger.current = trigger;
+            setEndMode('normal');
+          }}
+          onResolve={(action, mappings) => void resolveCalibration(action, mappings)}
+          projectName={projectName}
+          snapshot={snapshot.realtime.calibration}
+        />
+        {endMode === null ? null : (
+          <EndInterviewDialog
+            onCancel={() => {
+              setEndMode(null);
+            }}
+            onConfirm={() => void confirmEnd()}
+            restoreFocus={endTrigger.current}
+          />
+        )}
+        {pendingNavigation === null ? null : (
+          <LeaveInterviewDialog
+            onCancel={() => {
+              setPendingNavigation(null);
+            }}
+            onConfirm={() => void endAndLeave()}
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <WorkbenchView
-      actionError={actionError}
-      canAbandon={canAbandon}
-      canFinalizeExisting={canFinalizeExisting}
-      canResume={canResume}
-      endMode={endMode}
-      endTrigger={endTrigger}
-      authenticationRequired={authenticationRequired}
-      navigate={navigate}
-      onCloseEnd={() => {
-        setEndMode(null);
-      }}
-      onConfirmEnd={() => void confirmEnd()}
-      onContinueFrozen={() => void continueFrozenEnd()}
-      onEnd={(mode, trigger) => {
-        endTrigger.current = trigger;
-        setEndMode(mode);
-      }}
-      onRecheck={() => void verify()}
-      onReconcile={() => void reconcile()}
-      onReturnToLogin={onReturnToLogin}
-      onResume={() => void resumeInterview()}
-      projectId={projectId}
-      projectName={projectName}
-      reviewHref={reviewPath(projectId, sessionId)}
-      saveExpanded={saveExpanded}
-      setSaveExpanded={setSaveExpanded}
-      setStatusExpanded={setStatusExpanded}
-      snapshot={snapshot}
-      state={state}
-      statusExpanded={statusExpanded}
-      validConsent={validConsent}
-      speakerCorrections={api}
-      suggestionApi={api}
-    />
+    <>
+      <WorkbenchView
+        actionError={actionError}
+        canAbandon={canAbandon}
+        canFinalizeExisting={canFinalizeExisting}
+        canResume={canResume}
+        endMode={endMode}
+        endTrigger={endTrigger}
+        authenticationRequired={authenticationRequired}
+        navigate={navigate}
+        onCloseEnd={() => {
+          setEndMode(null);
+        }}
+        onConfirmEnd={() => void confirmEnd()}
+        onContinueFrozen={() => void continueFrozenEnd()}
+        onEnd={(mode, trigger) => {
+          endTrigger.current = trigger;
+          setEndMode(mode);
+        }}
+        onRecheck={() => void verify()}
+        onReconcile={() => void reconcile()}
+        onReturnToLogin={onReturnToLogin}
+        onResume={() => void resumeInterview()}
+        projectId={projectId}
+        projectName={projectName}
+        reviewHref={reviewPath(projectId, sessionId)}
+        saveExpanded={saveExpanded}
+        setSaveExpanded={setSaveExpanded}
+        setStatusExpanded={setStatusExpanded}
+        snapshot={snapshot}
+        state={state}
+        statusExpanded={statusExpanded}
+        validConsent={validConsent}
+        speakerCorrections={api}
+        suggestionApi={api}
+      />
+      {pendingNavigation === null ? null : (
+        <LeaveInterviewDialog
+          onCancel={() => {
+            setPendingNavigation(null);
+          }}
+          onConfirm={() => void endAndLeave()}
+        />
+      )}
+    </>
   );
 }
 
@@ -955,6 +1033,7 @@ function CalibrationGate({
   failureKind,
   onBegin,
   onContinueDegraded,
+  onEnd,
   onResolve,
   projectName,
   snapshot,
@@ -965,6 +1044,7 @@ function CalibrationGate({
   failureKind: RealtimeState['failureKind'];
   onBegin: () => void;
   onContinueDegraded: () => void;
+  onEnd: (trigger: HTMLButtonElement) => void;
   onResolve: (action: 'confirm' | 'fail' | 'skip', mappings?: SpeakerCalibrationMapping[]) => void;
   projectName: string;
   snapshot: SpeakerCalibrationSnapshot | null | undefined;
@@ -981,6 +1061,15 @@ function CalibrationGate({
         <p className="workbench-safety" role="status">
           原始录音正在本浏览器持续归档
         </p>
+        <button
+          className="button button--danger workbench-end"
+          onClick={(event) => {
+            onEnd(event.currentTarget);
+          }}
+          type="button"
+        >
+          结束访谈
+        </button>
       </header>
       <section className="calibration-gate__stage">
         <p className="context-label">正式访谈前 · 独立校准</p>
@@ -1011,7 +1100,7 @@ function CalibrationGate({
                 onClick={onContinueDegraded}
                 type="button"
               >
-                ASR 降级，继续访谈
+                跳过说话人确认并继续访谈
               </button>
             ) : null}
           </div>
@@ -1352,6 +1441,56 @@ function SessionStatePanel({
   );
 }
 
+function LeaveInterviewDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const stayButton = useRef<HTMLButtonElement>(null);
+  const needsOpenFallback =
+    typeof HTMLDialogElement === 'undefined' ||
+    typeof HTMLDialogElement.prototype.showModal !== 'function';
+  useEffect(() => {
+    const node = dialog.current;
+    if (node !== null && typeof node.showModal === 'function' && !node.open) node.showModal();
+    stayButton.current?.focus();
+  }, []);
+  return (
+    <dialog
+      aria-describedby="leave-dialog-copy"
+      aria-labelledby="leave-dialog-title"
+      className="end-dialog"
+      onCancel={(event) => {
+        event.preventDefault();
+        onCancel();
+      }}
+      open={needsOpenFallback}
+      ref={dialog}
+    >
+      <h2 id="leave-dialog-title">访谈正在进行</h2>
+      <p id="leave-dialog-copy">
+        离开前必须先处理当前访谈。可以留在访谈中，或先安全结束并保存已经录下的内容。
+      </p>
+      <div className="end-dialog-actions">
+        <button
+          className="button button--secondary"
+          onClick={onCancel}
+          ref={stayButton}
+          type="button"
+        >
+          留在访谈中
+        </button>
+        <button className="button button--danger" onClick={onConfirm} type="button">
+          结束访谈并离开
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
 function EndInterviewDialog({
   onCancel,
   onConfirm,
@@ -1403,6 +1542,16 @@ function EndInterviewDialog({
       </div>
     </dialog>
   );
+}
+
+function navigationEndMode(snapshot: InterviewCaptureControllerSnapshot): EndMode | null {
+  const serverStatus = snapshot.serverSession?.status;
+  if (serverStatus === 'recording' || serverStatus === 'reconnecting') return 'normal';
+  if (serverStatus === 'interrupted' || snapshot.phase === 'interrupted') {
+    return snapshot.archive.archiveChunkCount > 0 ? 'interrupted' : 'empty';
+  }
+  if (snapshot.phase === 'active' || snapshot.phase === 'preparing') return 'normal';
+  return null;
 }
 
 function SaveFacts({
