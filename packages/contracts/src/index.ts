@@ -51,6 +51,20 @@ export interface ProjectDetails {
 
 export interface CreateProjectRequest extends ProjectDetails, IdempotentRequest {}
 
+export interface DiscardPrestartInterviewRequest extends IdempotentRequest {
+  session_id: string | null;
+  workflow_version: 'prestart-discard-v1';
+}
+
+export type PrestartDiscardResult = 'discarded' | 'already_discarded';
+
+export interface DiscardPrestartInterviewResponse {
+  project_id: string;
+  request_id: string;
+  result: PrestartDiscardResult;
+  session_id: string | null;
+}
+
 export interface ProjectResponse extends ProjectDetails {
   id: string;
   status: ProjectStatus;

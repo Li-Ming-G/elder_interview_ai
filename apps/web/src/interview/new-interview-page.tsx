@@ -3,6 +3,7 @@ import type {
   ConsentResponse,
   CreateConsentRequest,
   CreateProjectRequest,
+  DiscardPrestartInterviewRequest,
   InterviewSessionResponse,
   ProjectResponse,
 } from '@elder-interview/contracts';
@@ -41,7 +42,7 @@ const CONSENT_NOTICE = [
 type PageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; resumed: boolean; workflow: NewInterviewWorkflow };
+  | { kind: 'ready'; newIntent: boolean; resumed: boolean; workflow: NewInterviewWorkflow };
 
 const EMPTY_CAPTURE: AudioCaptureSnapshot = {
   error: null,
@@ -91,6 +92,7 @@ export function NewInterviewPage({
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
   const initializationPromise = useRef<Promise<{
+    newIntent: boolean;
     resumed: boolean;
     workflow: NewInterviewWorkflow;
   }> | null>(null);
@@ -102,12 +104,14 @@ export function NewInterviewPage({
   useEffect(() => {
     let cancelled = false;
     initializationPromise.current ??= (async (): Promise<{
+      newIntent: boolean;
       resumed: boolean;
       workflow: NewInterviewWorkflow;
     }> => {
       const existing = await store.getActive(actorId);
       let workflow: NewInterviewWorkflow;
       let resumed = false;
+      let newIntent = false;
       if (existing === null) {
         workflow = await store.create(actorId);
       } else {
@@ -119,21 +123,23 @@ export function NewInterviewPage({
           throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
         }
         if (reconciliation.kind === 'retired') {
+          if (intent === 'new') throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
           await store.retire(reconciliation.workflow);
           workflow = await store.create(actorId);
         } else if (intent === 'new') {
-          throw new Error('NEW_INTERVIEW_INTENT_BLOCKED');
+          workflow = reconciliation.workflow;
+          newIntent = true;
         } else {
           workflow = reconciliation.workflow;
           await store.put(workflow);
           resumed = true;
         }
       }
-      return { resumed, workflow };
+      return { newIntent, resumed, workflow };
     })();
     void initializationPromise.current
-      .then(({ resumed, workflow }) => {
-        if (!cancelled && mounted.current) setPage({ kind: 'ready', resumed, workflow });
+      .then(({ newIntent, resumed, workflow }) => {
+        if (!cancelled && mounted.current) setPage({ kind: 'ready', newIntent, resumed, workflow });
       })
       .catch((error: unknown) => {
         if (!cancelled && mounted.current) {
@@ -197,6 +203,7 @@ export function NewInterviewPage({
     if (mounted.current) {
       setPage((current) => ({
         kind: 'ready',
+        newIntent: current.kind === 'ready' && current.newIntent,
         resumed: current.kind === 'ready' && current.resumed,
         workflow,
       }));
@@ -550,6 +557,37 @@ export function NewInterviewPage({
     }
   }
 
+  async function discardAndStartFresh(): Promise<void> {
+    if (page.kind !== 'ready' || !page.newIntent || !beginAction()) return;
+    const workflow = page.workflow;
+    try {
+      const projectId = workflow.projectAttempt?.response?.id;
+      if (projectId !== undefined) {
+        const request: DiscardPrestartInterviewRequest = {
+          request_id: globalThis.crypto.randomUUID(),
+          session_id: workflow.sessionAttempt?.response?.id ?? null,
+          workflow_version: 'prestart-discard-v1',
+        };
+        const response = await api.discardPrestartInterview(projectId, request);
+        if (response.project_id !== projectId) {
+          throw new Error('PRESTART_DISCARD_ACK_MISMATCH');
+        }
+      }
+      const fresh = await store.discard(workflow);
+      setDeviceState({ kind: 'idle' });
+      setPage({ kind: 'ready', newIntent: false, resumed: false, workflow: fresh });
+      showMessage('旧的未完成访谈已安全放弃。请填写信息，开始一次全新的访谈。');
+    } catch (error) {
+      showMessage(
+        error instanceof InterviewApiError && error.code === 'PRESTART_DISCARD_UNAVAILABLE'
+          ? '这次访谈已经有正式录音或其他证据，不能放弃；请返回工作区处理现有访谈。'
+          : '尚未安全放弃旧的未完成访谈；原恢复记录已保留，请稍后重试。',
+      );
+    } finally {
+      endAction();
+    }
+  }
+
   function consentCapture(): ConsentCapture {
     if (capture.current === null) {
       capture.current = captureFactory();
@@ -655,17 +693,26 @@ export function NewInterviewPage({
       ) : null}
 
       <section className="new-interview-panel" aria-live="polite">
-        {workflow.step === 'project' ? (
+        {page.newIntent ? (
+          <PrestartDiscardStep
+            busy={busy}
+            onCancel={() => {
+              navigate('/interviews/new?mode=resume', true);
+            }}
+            onDiscard={() => void discardAndStartFresh()}
+          />
+        ) : null}
+        {!page.newIntent && workflow.step === 'project' ? (
           <ProjectForm attempt={workflow.projectAttempt} busy={busy} onSubmit={submitProject} />
         ) : null}
-        {workflow.step === 'session' ? (
+        {!page.newIntent && workflow.step === 'session' ? (
           <SessionStep
             attempt={workflow.sessionAttempt}
             busy={busy}
             onCreate={() => void createSession()}
           />
         ) : null}
-        {workflow.step === 'consent_audio' ? (
+        {!page.newIntent && workflow.step === 'consent_audio' ? (
           <ConsentRecordingStep
             busy={busy}
             capture={captureSnapshot}
@@ -676,21 +723,23 @@ export function NewInterviewPage({
             onStart={() => void startConsentRecording()}
           />
         ) : null}
-        {workflow.step === 'consent' ? (
+        {!page.newIntent && workflow.step === 'consent' ? (
           <ConsentConfirmationStep
             attempt={workflow.consentAttempt}
             busy={busy}
             onConfirm={() => void submitConsent()}
           />
         ) : null}
-        {workflow.step === 'start' ? (
+        {!page.newIntent && workflow.step === 'start' ? (
           <StartStep
             busy={busy}
             onStart={() => void startFormalCapture()}
             reminder={workflow.sessionAttempt?.response?.recording_start_reminder}
           />
         ) : null}
-        {workflow.step === 'complete' ? <p aria-busy="true">正在打开说话人校准…</p> : null}
+        {!page.newIntent && workflow.step === 'complete' ? (
+          <p aria-busy="true">正在打开说话人校准…</p>
+        ) : null}
         {message === null ? null : (
           <p className="workflow-message" role="status">
             {message}
@@ -770,6 +819,44 @@ function ProjectForm({
         {busy ? '正在确认…' : frozen ? '重新恢复创建操作' : '创建项目并继续'}
       </button>
     </form>
+  );
+}
+
+function PrestartDiscardStep({
+  busy,
+  onCancel,
+  onDiscard,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onDiscard: () => void;
+}): React.JSX.Element {
+  return (
+    <div>
+      <p className="context-label">新建访谈</p>
+      <h2>已有一条未完成访谈</h2>
+      <p>
+        继续会保留原来的项目和创建记录；放弃并新建需要确认，且只会在服务端确认尚未正式录音后执行。
+      </p>
+      <div className="workflow-actions">
+        <button
+          className="button button--secondary"
+          disabled={busy}
+          onClick={onCancel}
+          type="button"
+        >
+          继续未完成访谈
+        </button>
+        <button
+          className="button button--primary"
+          disabled={busy}
+          onClick={onDiscard}
+          type="button"
+        >
+          {busy ? '正在安全放弃…' : '放弃未完成访谈并新建'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1126,8 +1213,8 @@ function stepIsPast(current: string, displayed: string): boolean {
 }
 
 function workflowInitializationError(error: unknown): string {
-  if (error instanceof Error && error.message === 'NEW_INTERVIEW_INTENT_BLOCKED') {
-    return '检测到未完成的新建访谈，已保留原记录；开始新的访谈尚未执行，请先选择“继续未完成访谈”。安全丢弃并新建将在后续步骤中提供。';
+  if (error instanceof Error && error.message === 'NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED') {
+    return '这条未完成访谈已经有正式录音或其他证据，不能放弃；请返回工作区处理现有访谈。';
   }
   if (error instanceof Error && error.message === 'NEW_INTERVIEW_RECOVERY_UNAVAILABLE') {
     return '暂时无法核对未完成的新建访谈，尚未开始新的访谈；请返回工作区，待权威状态可用后重试。';

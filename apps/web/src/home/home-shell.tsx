@@ -240,8 +240,7 @@ export function HomeShell({
             className="button button--primary"
             disabled={
               newInterviewRecovery.kind === 'checking' ||
-              newInterviewRecovery.kind === 'unavailable' ||
-              newInterviewRecovery.kind === 'active'
+              newInterviewRecovery.kind === 'unavailable'
             }
             onClick={() => {
               navigate('/interviews/new?mode=new');
@@ -253,7 +252,7 @@ export function HomeShell({
               : newInterviewRecovery.kind === 'unavailable'
                 ? '暂时无法安全新建访谈'
                 : newInterviewRecovery.kind === 'active'
-                  ? '暂不能开始新的访谈'
+                  ? '放弃未完成访谈并新建'
                   : '新建访谈'}
           </button>
           {newInterviewRecovery.kind !== 'active' ? null : (

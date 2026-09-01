@@ -49,6 +49,19 @@ describe('IndexedDbNewInterviewWorkflowStore', () => {
     });
   });
 
+  it('retires the discarded workflow and creates a fresh identity atomically', async () => {
+    const store = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await store.create('actor-a');
+    const fresh = await store.discard(workflow);
+
+    expect(fresh.workflowId).not.toBe(workflow.workflowId);
+    expect(await store.getActive('actor-a')).toMatchObject({
+      status: 'active',
+      step: 'project',
+      workflowId: fresh.workflowId,
+    });
+  });
+
   it('persists a detached prepare session request until acknowledgement', async () => {
     const store = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const first = await store.getOrCreateDetachedSessionRequestId('actor-a', 'project-a');

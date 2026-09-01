@@ -9,6 +9,8 @@ import type {
   CreateNextSessionRequest,
   CreateNextSessionResponse,
   CreateProjectRequest,
+  DiscardPrestartInterviewRequest,
+  DiscardPrestartInterviewResponse,
   CreateServiceTermRequest,
   DeviceCheckRequest,
   InterviewSessionResponse,
@@ -66,6 +68,10 @@ export interface InterviewApi {
 export interface NewInterviewApi {
   createConsent(projectId: string, request: CreateConsentRequest): Promise<ConsentResponse>;
   createProject(request: CreateProjectRequest): Promise<ProjectResponse>;
+  discardPrestartInterview(
+    projectId: string,
+    request: DiscardPrestartInterviewRequest,
+  ): Promise<DiscardPrestartInterviewResponse>;
   createServiceTerm(
     projectId: string,
     request: CreateServiceTermRequest,
@@ -231,6 +237,8 @@ export function createInterviewApi(
       createWrite(`/api/v1/projects/${projectId}/next-session`, input),
     createProject: async (input): Promise<ProjectResponse> =>
       createWrite('/api/v1/projects', input),
+    discardPrestartInterview: async (projectId, input): Promise<DiscardPrestartInterviewResponse> =>
+      createWrite(`/api/v1/projects/${projectId}/prestart-discard`, input),
     createServiceTerm: async (projectId, input): Promise<ServiceTermResponse> =>
       createWrite(`/api/v1/projects/${projectId}/service-terms`, input),
     createSession: async (projectId, input): Promise<InterviewSessionResponse> =>

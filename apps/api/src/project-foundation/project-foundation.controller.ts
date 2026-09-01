@@ -1,5 +1,6 @@
 import type {
   ConsentResponse,
+  DiscardPrestartInterviewResponse,
   CreateNextSessionResponse,
   EvidenceFinalizationResponse,
   InterviewSessionResponse,
@@ -29,6 +30,7 @@ import {
   validateConfirmCaptureActive,
   validateConsent,
   validateCreateProject,
+  validateDiscardPrestartInterview,
   validateDeviceCheck,
   validateIdempotentRequest,
   validateReportCaptureInterrupted,
@@ -74,6 +76,19 @@ export class ProjectFoundationController {
   @Get('projects')
   public async listProjects(@Req() request: AuthenticatedRequest): Promise<ProjectListResponse> {
     return this.projects.listProjects(await this.actors.from(request));
+  }
+
+  @Post('projects/:id/prestart-discard')
+  public async discardPrestartInterview(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<DiscardPrestartInterviewResponse> {
+    return this.projects.discardPrestartInterview(
+      await this.actors.from(request),
+      validateUuid(id),
+      validateDiscardPrestartInterview(body),
+    );
   }
 
   @Get('projects/:id/sessions')

@@ -1,6 +1,7 @@
 import type {
   CreateConsentRequest,
   CreateProjectRequest,
+  DiscardPrestartInterviewRequest,
   CreateServiceTermRequest,
   DeviceCheckRequest,
   StartSessionRequest,
@@ -83,6 +84,17 @@ export function validateConsent(body: Record<string, unknown>): CreateConsentReq
 
 export function validateIdempotentRequest(body: Record<string, unknown>): IdempotentRequest {
   return { request_id: validateUuid(body.request_id) };
+}
+
+export function validateDiscardPrestartInterview(
+  body: Record<string, unknown>,
+): DiscardPrestartInterviewRequest {
+  if (body.workflow_version !== 'prestart-discard-v1') throw validationError();
+  return {
+    request_id: validateUuid(body.request_id),
+    session_id: body.session_id === null ? null : validateUuid(body.session_id),
+    workflow_version: 'prestart-discard-v1',
+  };
 }
 
 export function validateStartSession(body: Record<string, unknown>): StartSessionRequest {

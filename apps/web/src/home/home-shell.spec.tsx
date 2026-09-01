@@ -45,10 +45,10 @@ describe('HomeShell', () => {
     );
 
     const resume = await screen.findByRole('button', { name: '继续未完成访谈' });
-    const freshNew = screen.getByRole('button', { name: '暂不能开始新的访谈' });
-    expect((freshNew as HTMLButtonElement).disabled).toBe(true);
+    const freshNew = screen.getByRole('button', { name: '放弃未完成访谈并新建' });
+    expect((freshNew as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(freshNew);
-    expect(navigate).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/interviews/new?mode=new');
     expect(await workflowStore.getActive(USER.id)).not.toBeNull();
 
     fireEvent.click(resume);
