@@ -46,7 +46,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [IN_PROGRESS]
+PFC-01-NEW-INTENT-TRUTH        [REVIEW]
   -> PFC-02-PRESTART-DISCARD   [DEFERRED]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS` on PR #127 at exact head `6b38d1272f46ef565f3317943455c28926fd164b`. The latest valid current-head Architect verdict is `REQUEST_CHANGES` with one P1 finding: Home must not present enabled fresh-new copy that promises the PFC-02 transition while an unfinished workflow exists, and reconciliation-unavailable copy must match the fail-closed UI.
+`PFC-01-NEW-INTENT-TRUTH` is `REVIEW` on PR #127 at repaired exact head `09337566d61242e9b83363ac28014c3a64f7d05d`. Exact-head required CI run `33489214338` is pending, and the prior-head `REQUEST_CHANGES` verdict is stale.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: Checkpoint A maintenance through PR #126 and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher consumed the current-head `REQUEST_CHANGES` verdict for PR #127, persisted `REVIEW -> IN_PROGRESS`, and is launching one bounded `luna-high` same-task/same-PR repair Worker for the P1 action-truth finding.
+Dispatcher reconciled repaired head `09337566d61242e9b83363ac28014c3a64f7d05d`, persisted `IN_PROGRESS -> REVIEW`, and is waiting for exact-head required CI before publishing refreshed external Architect review context.

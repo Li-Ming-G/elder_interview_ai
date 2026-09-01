@@ -321,7 +321,7 @@
     },
     {
       "id": "PFC-01-NEW-INTENT-TRUTH",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-01-NEW-INTENT-TRUTH.md",
       "worker_profile": "luna-high",
       "depends_on": [

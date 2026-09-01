@@ -41,7 +41,7 @@
 | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01 | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
 | `CKPT-A-WEB-CWD-01` | `DONE` | CKPT-A-LEGACY-PREPARE-BRIDGE-01 | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
 | `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | CKPT-A-WEB-CWD-01; PR #126 merged/main verified | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
-| `PFC-01-NEW-INTENT-TRUTH` | `IN_PROGRESS` | PR #127 at exact head `6b38d1272f46ef565f3317943455c28926fd164b`; current-head Architect REQUEST_CHANGES P1 requires same-task/same-PR repair so Home exposes only truthful non-destructive actions while recovery exists or authority is unavailable | [`tasks/PFC-01-NEW-INTENT-TRUTH.md`](tasks/PFC-01-NEW-INTENT-TRUTH.md) | `luna-high` | `127` | `PFC-02-PRESTART-DISCARD` |
+| `PFC-01-NEW-INTENT-TRUTH` | `REVIEW` | PR #127 at repaired exact head `09337566d61242e9b83363ac28014c3a64f7d05d`; exact-head CI run `33489214338` pending; prior-head REQUEST_CHANGES is stale | [`tasks/PFC-01-NEW-INTENT-TRUTH.md`](tasks/PFC-01-NEW-INTENT-TRUTH.md) | `luna-high` | `127` | `PFC-02-PRESTART-DISCARD` |
 | `PFC-02-PRESTART-DISCARD` | `DEFERRED` | `PFC-01-NEW-INTENT-TRUTH` | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `null` | `PFC-03-RECORDING-NAV-SAFETY` |
 | `PFC-03-RECORDING-NAV-SAFETY` | `DEFERRED` | `PFC-02-PRESTART-DISCARD` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `null` | `PFC-04-SUGGESTION-RECOVERY` |
 | `PFC-04-SUGGESTION-RECOVERY` | `DEFERRED` | `PFC-03-RECORDING-NAV-SAFETY` | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `null` | `PFC-05-ROUTE-ACTION-CLOSURE` |
@@ -53,7 +53,7 @@
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-Current active task: `PFC-01-NEW-INTENT-TRUTH` (`IN_PROGRESS`, PR #127). Current-head Architect REQUEST_CHANGES requires bounded same-PR repair of Home action truth while preserving the recovery handle and PFC-02 boundary.
+Current active task: `PFC-01-NEW-INTENT-TRUTH` (`REVIEW`, PR #127) at repaired exact head `09337566d61242e9b83363ac28014c3a64f7d05d`. Exact-head required CI is pending; the prior-head verdict is stale.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
