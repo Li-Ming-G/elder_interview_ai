@@ -46,7 +46,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [IN_PROGRESS]
+PFC-01-NEW-INTENT-TRUTH        [REVIEW]
   -> PFC-02-PRESTART-DISCARD   [DEFERRED]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS` on PR #127 at exact head `9c495b604fb3d4f28740236ed3eb45310aa430ea`. Exact-head CI run `33477362815` failed at `Run pnpm test:e2e`; the same task and PR require bounded repair.
+`PFC-01-NEW-INTENT-TRUTH` is `REVIEW` on PR #127 at repaired exact head `07621884f0e3a74d9d383046115b88109d8d3059`. Exact-head required CI `verify` is pending.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `PFC-01-NEW-INTENT-TRUTH`.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: Checkpoint A maintenance through PR #126 and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher bound canonical PR #127 for `PFC-01-NEW-INTENT-TRUTH`. Exact-head CI failed at `Run pnpm test:e2e`, so the Dispatcher is launching one bounded `luna-high` repair Worker on the same task and PR.
+Dispatcher reconciled the repaired head for canonical PR #127, persisted `IN_PROGRESS -> REVIEW`, and is waiting for exact-head required CI before the external Architect gate.
