@@ -21,12 +21,20 @@ import {
 import {
   IndexedDbNewInterviewWorkflowStore,
   type NextSessionAttempt,
+  type NewInterviewWorkflow,
 } from '../interview/new-interview-workflow-store.js';
+import { reconcileNewInterviewWorkflow } from '../interview/new-interview-recovery.js';
 
 interface ProjectSessions {
   items: ProjectSessionListItem[];
   nextCursor: string | null;
 }
+
+type NewInterviewRecoveryState =
+  | { kind: 'checking' }
+  | { kind: 'none' }
+  | { kind: 'active'; workflow: NewInterviewWorkflow }
+  | { kind: 'unavailable' };
 
 export function HomeShell({
   api,
@@ -54,6 +62,9 @@ export function HomeShell({
   const [error, setError] = useState<string | null>(null);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [newInterviewRecovery, setNewInterviewRecovery] = useState<NewInterviewRecoveryState>({
+    kind: 'checking',
+  });
 
   useEffect(() => {
     let current = true;
@@ -93,6 +104,7 @@ export function HomeShell({
             ]),
           ),
         );
+        await loadNewInterviewRecovery();
         const pending = await store.listNextSessionAttempts(user.id);
         if (pending.length === 0) return;
         await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
@@ -111,6 +123,30 @@ export function HomeShell({
       window.removeEventListener('online', resumeWhenOnline);
     };
   }, [api, navigate, onAuthLost, store, user.id]);
+
+  async function loadNewInterviewRecovery(): Promise<void> {
+    try {
+      const workflow = await store.getActive(user.id);
+      if (workflow === null) {
+        setNewInterviewRecovery({ kind: 'none' });
+        return;
+      }
+      const result = await reconcileNewInterviewWorkflow(workflow, api);
+      if (result.kind === 'retired') {
+        await store.retire(result.workflow);
+        setNewInterviewRecovery({ kind: 'none' });
+      } else if (result.kind === 'active') {
+        await store.put(result.workflow);
+        setNewInterviewRecovery({ kind: 'active', workflow: result.workflow });
+      } else {
+        setNewInterviewRecovery({ kind: 'unavailable' });
+        setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
+      }
+    } catch {
+      setNewInterviewRecovery({ kind: 'unavailable' });
+      setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
+    }
+  }
 
   async function resumeNextSessionAttempt(attempt: NextSessionAttempt): Promise<void> {
     setBusyProjectId(attempt.projectId);
@@ -202,13 +238,35 @@ export function HomeShell({
         <div className="home-header__actions">
           <button
             className="button button--primary"
+            disabled={
+              newInterviewRecovery.kind === 'checking' ||
+              newInterviewRecovery.kind === 'unavailable' ||
+              newInterviewRecovery.kind === 'active'
+            }
             onClick={() => {
-              navigate('/interviews/new');
+              navigate('/interviews/new?mode=new');
             }}
             type="button"
           >
-            新建访谈
+            {newInterviewRecovery.kind === 'checking'
+              ? '正在核对未完成访谈…'
+              : newInterviewRecovery.kind === 'unavailable'
+                ? '暂时无法安全新建访谈'
+                : newInterviewRecovery.kind === 'active'
+                  ? '暂不能开始新的访谈'
+                  : '新建访谈'}
           </button>
+          {newInterviewRecovery.kind !== 'active' ? null : (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                navigate('/interviews/new?mode=resume');
+              }}
+              type="button"
+            >
+              继续未完成访谈
+            </button>
+          )}
           <button
             className="button button--secondary"
             onClick={() => void onLogout()}

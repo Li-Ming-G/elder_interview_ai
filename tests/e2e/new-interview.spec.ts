@@ -164,6 +164,9 @@ async function routeNewInterview(page: Page, requestIds: string[]): Promise<void
         status: 201,
       });
     }
+    if (path === `/api/v1/sessions/${SESSION_ID}` && request.method() === 'GET') {
+      return route.fulfill({ json: sessionAck('created'), status: 200 });
+    }
     if (path === `/api/v1/sessions/${SESSION_ID}/device-check` && request.method() === 'POST')
       return route.fulfill({ json: sessionAck('device_check'), status: 201 });
     if (path.includes('/service-terms')) return route.abort('blockedbyclient');

@@ -127,9 +127,11 @@ export function App(): React.JSX.Element {
   }
 
   function navigate(path: string, replace = false): void {
-    if (replace) globalThis.history.replaceState(null, '', path);
-    else globalThis.history.pushState(null, '', path);
-    setPathname(path);
+    const url = new URL(path, globalThis.location.href);
+    const nextPath = `${url.pathname}${url.search}${url.hash}`;
+    if (replace) globalThis.history.replaceState(null, '', nextPath);
+    else globalThis.history.pushState(null, '', nextPath);
+    setPathname(url.pathname);
   }
 
   function returnToLogin(): void {
@@ -222,6 +224,7 @@ export function App(): React.JSX.Element {
   }
 
   if (route?.kind === 'new_interview') {
+    const mode = new URLSearchParams(globalThis.location.search).get('mode');
     return (
       <NewInterviewPage
         actorId={user.id}
@@ -229,6 +232,7 @@ export function App(): React.JSX.Element {
         captureController={captureController}
         checkMicrophone={checkMicrophoneInput}
         csrfToken={csrfToken}
+        intent={mode === 'new' ? 'new' : mode === 'resume' ? 'resume' : undefined}
         navigate={navigate}
       />
     );

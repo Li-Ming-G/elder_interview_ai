@@ -50,8 +50,72 @@ describe('NewInterviewPage', () => {
     expect(screen.getByLabelText<HTMLInputElement>('姓名、昵称或项目代号').disabled).toBe(true);
     resolveProject?.(projectResponse('虚构长者小满'));
     await screen.findByRole('heading', { name: '建立本次访谈会话' });
+    expect(screen.queryByText(/已恢复这台浏览器/)).toBeNull();
     expect(screen.queryByText(/服务说明|价格|费用/)).toBeNull();
     expect(api.createServiceTerm).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing recovery handle when explicit new intent is blocked', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const oldWorkflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put({
+      ...oldWorkflow,
+      projectAttempt: {
+        payload: {
+          approximate_age: null,
+          birth_year: null,
+          current_city: null,
+          display_name: '虚构旧项目',
+          native_place: null,
+          request_id: '20000000-0000-4000-8000-000000000002',
+        },
+        requestId: '20000000-0000-4000-8000-000000000002',
+        response: projectResponse('虚构旧项目'),
+        state: 'acknowledged',
+      },
+      step: 'session',
+    });
+    const api = fakeApi();
+
+    renderPage(api, { intent: 'new', workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    expect(screen.getByText(/已保留原记录；开始新的访谈尚未执行/)).toBeTruthy();
+    expect(await workflowStore.getActive(ACTOR_ID)).toMatchObject({
+      workflowId: oldWorkflow.workflowId,
+      projectAttempt: { response: { display_name: '虚构旧项目' } },
+    });
+    expect(api.createProject).not.toHaveBeenCalled();
+  });
+
+  it('retires a local workflow when the authoritative session has advanced beyond creation', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithSession(workflow));
+    const api = fakeApi();
+    api.getSession.mockResolvedValue(sessionResponse('recording'));
+
+    renderPage(api, { intent: 'resume', workflowStore });
+
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    expect(await workflowStore.getActive(ACTOR_ID)).not.toEqual(workflow);
+    expect(api.createProject).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the authoritative session identity does not match the workflow', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithSession(workflow));
+    const api = fakeApi();
+    api.getSession.mockResolvedValue({
+      ...sessionResponse('created'),
+      project_id: '99999999-9999-4999-8999-999999999999',
+    });
+
+    renderPage(api, { intent: 'resume', workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    expect(api.createProject).not.toHaveBeenCalled();
   });
 
   it('automatically replays an unknown create with the frozen request identity', async () => {
@@ -126,6 +190,19 @@ describe('NewInterviewPage', () => {
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '返回工作区' }).disabled).toBe(
       false,
     );
+  });
+
+  it('initializes a clean workflow once during the StrictMode setup-cleanup-setup cycle', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+
+    renderPage(fakeApi(), { strict: true, workflowStore });
+
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    expect(await workflowStore.getActive(ACTOR_ID)).toMatchObject({
+      actorId: ACTOR_ID,
+      status: 'active',
+      step: 'project',
+    });
   });
 
   it('requires a fresh current-page microphone check after refresh before consent recording', async () => {
@@ -221,6 +298,7 @@ function renderPage(
       recordingReminderVersion: string,
     ) => Promise<InterviewCaptureControllerSnapshot>;
     navigate?: (path: string, replace?: boolean) => void;
+    intent?: 'new' | 'resume';
     strict?: boolean;
     workflowStore?: IndexedDbNewInterviewWorkflowStore;
   } = {},
@@ -230,9 +308,11 @@ function renderPage(
     configuredCapture === undefined
       ? {}
       : { captureFactory: (): ConsentCapture => configuredCapture };
+  const intentProps = options.intent === undefined ? {} : { intent: options.intent };
   const page = (
     <NewInterviewPage
       {...captureProps}
+      {...intentProps}
       actorId={ACTOR_ID}
       api={api}
       captureController={() => ({
@@ -279,8 +359,39 @@ function projectResponse(displayName: string): ProjectResponse {
   };
 }
 
+function workflowWithSession(
+  workflow: Awaited<ReturnType<IndexedDbNewInterviewWorkflowStore['create']>>,
+): Awaited<ReturnType<IndexedDbNewInterviewWorkflowStore['create']>> {
+  return {
+    ...workflow,
+    projectAttempt: {
+      payload: {
+        approximate_age: null,
+        birth_year: null,
+        current_city: null,
+        display_name: '虚构已建立项目',
+        native_place: null,
+        request_id: '20000000-0000-4000-8000-000000000002',
+      },
+      requestId: '20000000-0000-4000-8000-000000000002',
+      response: projectResponse('虚构已建立项目'),
+      state: 'acknowledged',
+    },
+    sessionAttempt: {
+      payload: { request_id: '40000000-0000-4000-8000-000000000002' },
+      requestId: '40000000-0000-4000-8000-000000000002',
+      response: sessionResponse('created'),
+      state: 'acknowledged',
+    },
+    step: 'consent_audio',
+  };
+}
+
 type MockApi = {
   [Key in keyof NewInterviewApi]: ReturnType<typeof vi.fn<NewInterviewApi[Key]>>;
+} & {
+  getSession: ReturnType<typeof vi.fn>;
+  listProjectSessions: ReturnType<typeof vi.fn>;
 };
 
 function fakeApi(): MockApi {
@@ -290,6 +401,8 @@ function fakeApi(): MockApi {
     createServiceTerm: vi.fn<NewInterviewApi['createServiceTerm']>(),
     createSession: vi.fn<NewInterviewApi['createSession']>(),
     deviceCheck: vi.fn<NewInterviewApi['deviceCheck']>(),
+    getSession: vi.fn().mockResolvedValue(sessionResponse('created')),
+    listProjectSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     startSession: vi.fn<NewInterviewApi['startSession']>(),
   };
 }
