@@ -47,7 +47,7 @@ Predefined queue:
 
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
-  -> PFC-02-PRESTART-DISCARD   [READY]
+  -> PFC-02-PRESTART-DISCARD   [IN_PROGRESS]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. External Architect passed exact PR head `09337566d61242e9b83363ac28014c3a64f7d05d`; PR #127 merged as `f0fe36a141b3d3ab56cdf44ac1a3b3974d964ca6`, and exact-current-main CI run `33491698862` succeeded. Predefined successor `PFC-02-PRESTART-DISCARD` is now `READY`.
+`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `IN_PROGRESS` under its declared `luna-high` worker profile. It owns only the safe server-authoritative pre-formal-recording discard/new transition defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,8 +123,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: `PFC-02-PRESTART-DISCARD`.
-- `IN_PROGRESS`: none.
+- `READY`: none.
+- `IN_PROGRESS`: `PFC-02-PRESTART-DISCARD`.
 - `REVIEW`: none.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-03` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher verified accepted PR #127 in exact current-main ancestry with exact-current-main CI success, marked `PFC-01-NEW-INTENT-TRUTH` `DONE`, and unlocked only predefined successor `PFC-02-PRESTART-DISCARD` as `READY`. The next bounded pulse may dispatch it.
+Dispatcher selected the sole queue-wide eligible task `PFC-02-PRESTART-DISCARD`, persisted `READY -> IN_PROGRESS`, and is launching the Task Card's declared `luna-high` Implementation Worker.
