@@ -99,26 +99,33 @@ export function NewInterviewPage({
     const controller = new AbortController();
     void (async (): Promise<void> => {
       try {
-        const existing = intent === 'resume' ? await store.getActive(actorId) : null;
+        const existing = await store.getActive(actorId);
+        const shouldResume =
+          intent === 'resume' || (existing !== null && isMandatoryRecovery(existing));
         let workflow: NewInterviewWorkflow;
         let resumed = false;
-        if (existing === null) {
+        if (existing === null || !shouldResume) {
           workflow = await store.create(actorId);
         } else {
-          const reconciliation = await reconcileNewInterviewWorkflow(
-            existing,
-            api as NewInterviewRecoveryAuthority,
-          );
-          if (reconciliation.kind === 'unavailable') {
-            throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
-          }
-          if (reconciliation.kind === 'retired') {
-            await store.retire(reconciliation.workflow);
-            workflow = await store.create(actorId);
-          } else {
-            workflow = reconciliation.workflow;
-            await store.put(workflow);
+          if (intent === 'new' && isMandatoryRecovery(existing)) {
+            workflow = existing;
             resumed = true;
+          } else {
+            const reconciliation = await reconcileNewInterviewWorkflow(
+              existing,
+              api as NewInterviewRecoveryAuthority,
+            );
+            if (reconciliation.kind === 'unavailable') {
+              throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
+            }
+            if (reconciliation.kind === 'retired') {
+              await store.retire(reconciliation.workflow);
+              workflow = await store.create(actorId);
+            } else {
+              workflow = reconciliation.workflow;
+              await store.put(workflow);
+              resumed = true;
+            }
           }
         }
         if (!controller.signal.aborted) setPage({ kind: 'ready', resumed, workflow });
@@ -1111,4 +1118,12 @@ function stepIsCurrent(current: string, displayed: string): boolean {
 
 function stepIsPast(current: string, displayed: string): boolean {
   return STEP_ORDER.indexOf(current) > STEP_ORDER.indexOf(displayed);
+}
+
+function isMandatoryRecovery(workflow: NewInterviewWorkflow): boolean {
+  return (
+    workflow.consentAudioJobId !== null ||
+    (workflow.projectAttempt?.state === 'unknown_response' &&
+      workflow.projectAttempt.response === null)
+  );
 }
