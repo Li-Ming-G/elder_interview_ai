@@ -44,8 +44,10 @@ export function App(): React.JSX.Element {
       const guard = navigationGuard.current;
       if (guard !== null && targetPath !== previousPath) {
         // Restore the route before asking the Workbench to resolve the active
-        // capture. The requested target is committed only after safe closeout.
-        globalThis.history.replaceState(null, '', previousPath);
+        // capture. Add the active route back instead of replacing the history
+        // entry the user requested, so choosing stay leaves that same target
+        // available for a later Back attempt.
+        restoreGuardedHistoryEntry(previousPath);
         setPathname(new URL(previousPath, globalThis.location.href).pathname);
         guard({
           commit: () => {
@@ -337,6 +339,10 @@ export function App(): React.JSX.Element {
       </section>
     </HomeFrame>
   );
+}
+
+export function restoreGuardedHistoryEntry(previousPath: string): void {
+  globalThis.history.pushState(null, '', previousPath);
 }
 
 async function sendLogout(token: string | null): Promise<Response> {

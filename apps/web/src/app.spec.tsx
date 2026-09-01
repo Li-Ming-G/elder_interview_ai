@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { App } from './app.js';
+import { App, restoreGuardedHistoryEntry } from './app.js';
 
 describe('App', () => {
   afterEach(() => {
@@ -94,5 +94,24 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: '登录' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: '已登录' })).toBeNull();
     expect(globalThis.location.pathname).toBe('/');
+  });
+
+  it('preserves the browser Back destination after restoring the active Workbench route', async () => {
+    globalThis.history.replaceState(null, '', '/seed');
+    globalThis.history.pushState(null, '', '/previous');
+    globalThis.history.pushState(null, '', '/workbench');
+
+    globalThis.history.back();
+    await waitFor(() => {
+      expect(globalThis.location.pathname).toBe('/previous');
+    });
+
+    restoreGuardedHistoryEntry('/workbench');
+    expect(globalThis.location.pathname).toBe('/workbench');
+
+    globalThis.history.back();
+    await waitFor(() => {
+      expect(globalThis.location.pathname).toBe('/previous');
+    });
   });
 });
