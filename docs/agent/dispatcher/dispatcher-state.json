@@ -361,11 +361,11 @@
     },
     {
       "id": "PFC-05-ROUTE-ACTION-CLOSURE",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-05-ROUTE-ACTION-CLOSURE.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-04-SUGGESTION-RECOVERY"],
-      "pr": null,
+      "pr": 131,
       "next_task": "PFC-06-ERROR-AUTH-RESILIENCE"
     },
     {
