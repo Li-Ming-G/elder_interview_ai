@@ -343,7 +343,7 @@
     },
     {
       "id": "PFC-03-RECORDING-NAV-SAFETY",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-03-RECORDING-NAV-SAFETY.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-02-PRESTART-DISCARD"],
