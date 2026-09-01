@@ -13,19 +13,19 @@ Deliver a responsive web MVP where a listener can conduct a consented elder inte
 | P3 | PostgreSQL + pgvector retrieval, provider-neutral embeddings, minimal continuation/branch/related graph | Complete through PR #86; real embedding model deferred |
 | P4 | Programmatic Context V2, priority, configurable budget and frozen membership/digest | Complete through PR #88–#92; production numeric budget deferred |
 | P5 | Evidence drill-down, Evidence Gate and non-destructive Correction | Complete through PR #93–#97 |
-| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A complete through PR #111; T26–T27 deferred |
+| P6 | Director/runtime orchestration, generation fences, deadlines and evaluation feedback | T18–T24 complete through PR #103; Owner Checkpoint A baseline through PR #111; T26–T27 deferred |
 
-Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current local-launch maintenance repair.
+Foundation/Observability T0 Decision Trace remains accepted. P1–P6 ownership and T0–T27 semantic boundaries are unchanged by the current Checkpoint A maintenance repair.
 
 ## Current phase
 
-Current phase: `CHECKPOINT A RETEST / LOCAL WEB CWD MAINTENANCE`.
+Current phase: `CHECKPOINT A RETEST / FIRST CAPTURE AUTHORITY GATE`.
 
 Completed baseline:
 
 - P5 through PR #97;
 - P6 Runtime T18–T24 through PR #103;
-- Owner Checkpoint A through PR #111;
+- Owner Checkpoint A baseline through PR #111;
 - Real-Flow Cleanup through PR #113;
 - Dispatcher main-verification recovery hardening through PR #114;
 - Local DB Port Maintenance through PR #115;
@@ -35,11 +35,13 @@ Completed baseline:
 - stale-DONE reconciliation through PR #121;
 - backend legacy first-session draft recovery through PR #122;
 - frontend legacy prepare bridge through PR #123;
-- final bridge-state synchronization at `main@ed5f522dd636f06638ea859de0558f827e15eb8a` with exact-main CI SUCCESS.
+- Checkpoint A Web cwd launcher repair through PR #125.
 
-The next Owner Checkpoint A local run proved PostgreSQL healthy, all 28 migrations current, and API health HTTP 200. The remaining blocker is launcher-only: Vite starts on `5173` but serves repository-root 404 responses because `scripts/start-checkpoint-a.mjs` does not set the web child working directory to `apps/web`.
+Exact current main `1805d63dbe63366a82692d81157dd4642b786216` has successful CI run `33299450389`. PR #125 remains merged in accepted ancestry, so `CKPT-A-WEB-CWD-01` is reconciled `DONE`. The earlier projection that marked it `BLOCKED` after an older failed current-main run is stale.
 
-The Product Owner explicitly authorized one ultra-small maintenance task, `CKPT-A-WEB-CWD-01`, to repair only that launcher working-directory defect.
+The Owner's next live Checkpoint A attempt now loads the preparation page, validates current formal consent and current-page microphone input, and reaches the formal Start action. The remaining product blocker occurs after `startSession`: first-session capture confirmation/recovery is rejected because `SessionCaptureService` still universally requires repeat/continuing consent even for sequence 1.
+
+The Product Owner explicitly authorized the ultra-small first-principles repair `CKPT-A-FIRST-CAPTURE-GATE-01`, prioritizing the fastest safe return to live Checkpoint A testing.
 
 ## Canonical current queue
 
@@ -48,45 +50,50 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
   -> FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01  [DONE]
   -> CKPT-A-LEGACY-PREPARE-BRIDGE-01  [DONE]
 
-CKPT-A-WEB-CWD-01  [BLOCKED]
+CKPT-A-WEB-CWD-01  [DONE]
+  -> null
+
+CKPT-A-FIRST-CAPTURE-GATE-01  [READY]
   -> null
 ```
 
-The older `DONE + next_task:null` chain describes those completed tasks only. The newly Owner-authorized `READY` maintenance task is independently eligible and must be found by full canonical queue scan.
+`MEMORY-T5-T8-P2-C-RUNTIME-001` is historical `DONE` through PR #80. A stale Dispatcher projection that changed it to `BLOCKED` is corrected here and must not become active work.
 
 Task source:
 
-- `docs/agent/tasks/CKPT-A-WEB-CWD-01.md`
+- `docs/agent/tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`
 
 ## Current task truth
 
-`CKPT-A-WEB-CWD-01` is `BLOCKED / MAIN_VERIFY_FAILED` after PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`, its merge remains in refreshed current main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`, and exact-current-main CI run `33298968554` failed. The task remains retriable on a later pulse after main verification recovers.
+`CKPT-A-FIRST-CAPTURE-GATE-01` is `READY`, with no PR yet.
 
-Frozen outcome:
+Proven defect boundary:
 
-- formal `pnpm checkpoint-a:start` launches Vite with `<repositoryRoot>/apps/web` as working directory;
-- API launch behavior and port `3101` stay unchanged;
-- Vite host `127.0.0.1`, port `5173`, strict-port behavior and direct Node entrypoint stay unchanged unless strictly necessary for the cwd repair;
-- backend-only secrets remain absent from the Vite child environment;
-- child cleanup behavior remains intact;
-- no `apps/**` product behavior changes;
-- no database, Docker, consent, auth, ASR, Director, memory/evidence, evaluation or deployment changes.
+- `ProjectFoundationService.startSession()` already applies the correct sequence-1 current-formal-consent rule;
+- browser capture then calls `confirmCaptureActive()`;
+- `SessionCaptureService.assertCurrentGate()` still requires `consentContinuation.status === 'covered'` for every sequence;
+- the production/default continuation policy is intentionally unavailable until its future policy is accepted;
+- therefore sequence 1 can formally start and then immediately fail capture confirmation with `FORBIDDEN`;
+- the same shared gate can also block recovery of the already-interrupted sequence-1 capture.
+
+Frozen repair outcome:
+
+- sequence 1 capture confirm/recovery uses latest current valid formal `recording_transcription_ai` consent;
+- sequence > 1 keeps the existing covered-continuation rule unchanged;
+- active actor, assignment/access, ordinary visibility, project-state availability, project status, capture generation/state, idempotency and evidence safety remain unchanged;
+- missing/revoked/invalid first-session consent fails closed;
+- no continuing-consent policy activation;
+- no UI, DB, ASR, Director, memory or P1–P6 changes.
 
 ## Local Owner prerequisite
 
-The accepted Windows/local-start repair intentionally does not mutate ignored secret-bearing `.env.local` automatically. If legacy ports remain, the already accepted one-time command is:
-
-```text
-pnpm local:env:migrate-db-ports
-```
-
-The Owner has already verified the development/test PostgreSQL instances are healthy and migrations are current for the latest Checkpoint A attempt. After this maintenance task is accepted and merged, use the stable formal command:
+The Owner has already verified local PostgreSQL development/test instances are healthy, all 28 migrations are current, the API is healthy, and the Workbench launcher cwd repair is present. After this maintenance task is accepted, merged and exact-main verified, use:
 
 ```text
 pnpm checkpoint-a:start
 ```
 
-No process-level `DATABASE_URL` / `TEST_DATABASE_URL` override should be needed.
+Resume the SAME existing interview record. Do not wipe the database/IndexedDB or create a replacement record merely to bypass the interrupted capture.
 
 ## Preserved decisions
 
@@ -107,16 +114,16 @@ Accepted lifecycle:
 
 `READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> Architect PASS -> merge -> refreshed-main CI -> DONE -> only predefined/newly Owner-authorized next work`.
 
-Architect plans/reviews only. Dispatcher launches Workers, consumes external verdicts, merges only after accepted gates, verifies main, synchronizes state and unlocks only authorized work. Implementation Workers implement/repair only their current Task Card and canonical PR.
+Architect plans/reviews. Dispatcher launches Workers, consumes external verdicts, merges only after accepted gates, verifies main, synchronizes state and unlocks only authorized work. Implementation Workers implement/repair only their current Task Card and canonical PR.
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `CKPT-A-FIRST-CAPTURE-GATE-01`.
 - `IN_PROGRESS`: none.
 - `REVIEW`: none.
-- `BLOCKED`: `CKPT-A-WEB-CWD-01` / `MAIN_VERIFY_FAILED` on main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`, CI run `33298968554`.
+- `BLOCKED`: none among current Checkpoint A maintenance work; historical records remain as recorded in the canonical queue.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
+- `DONE`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; `CKPT-A-WEB-CWD-01`; legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -124,4 +131,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Persistent Dispatcher rechecked merged PR #125 from exact head `60cdce838394467379254890d3b2536cca3383c6` in current main `96a8d570271c81c92cf47cdc262e4d5ac64d34c1`; exact-current-main CI run `33298968554` failed, so the task is `BLOCKED / MAIN_VERIFY_FAILED` pending mechanical recovery.
+Dispatcher must full-scan the canonical queue, select the unique READY task `CKPT-A-FIRST-CAPTURE-GATE-01`, persist `IN_PROGRESS`, and launch one luna-high implementation Worker. The Owner does not need to manually redistribute this bug to other roles.
