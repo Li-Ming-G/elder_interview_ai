@@ -5,6 +5,7 @@ import type {
   CreateProjectRequest,
   DiscardPrestartInterviewRequest,
   InterviewSessionResponse,
+  ProjectSessionListItem,
   ProjectResponse,
 } from '@elder-interview/contracts';
 
@@ -115,17 +116,27 @@ export function NewInterviewPage({
       if (existing === null) {
         workflow = await store.create(actorId);
       } else {
-        const reconciliation = await reconcileNewInterviewWorkflow(
-          existing,
-          api as NewInterviewRecoveryAuthority,
-        );
+        const recoveryApi = api as NewInterviewRecoveryAuthority;
+        const reconciliation = await reconcileNewInterviewWorkflow(existing, recoveryApi);
         if (reconciliation.kind === 'unavailable') {
           throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
         }
         if (reconciliation.kind === 'retired') {
-          if (intent === 'new') throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
-          await store.retire(reconciliation.workflow);
-          workflow = await store.create(actorId);
+          const prestart = await recoverServerPrestartWorkflow(
+            reconciliation.workflow,
+            recoveryApi,
+            intent,
+          );
+          if (prestart === null) {
+            if (intent === 'new') throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
+            await store.retire(reconciliation.workflow);
+            workflow = await store.create(actorId);
+          } else {
+            workflow = prestart;
+            newIntent = intent === 'new';
+            if (!newIntent) resumed = true;
+            await store.put(workflow);
+          }
         } else if (intent === 'new') {
           workflow = reconciliation.workflow;
           newIntent = true;
@@ -747,6 +758,91 @@ export function NewInterviewPage({
         )}
       </section>
     </HomeFrame>
+  );
+}
+
+async function recoverServerPrestartWorkflow(
+  workflow: NewInterviewWorkflow,
+  api: NewInterviewRecoveryAuthority,
+  intent: 'new' | 'resume' | undefined,
+): Promise<NewInterviewWorkflow | null> {
+  if (
+    workflow.sessionAttempt?.response !== undefined &&
+    workflow.sessionAttempt.response !== null
+  ) {
+    return null;
+  }
+  const project = workflow.projectAttempt?.response;
+  const listProjectSessions = api.listProjectSessions;
+  if (project === undefined || project === null || listProjectSessions === undefined) {
+    return null;
+  }
+
+  const items: ProjectSessionListItem[] = [];
+  let cursor: string | null = null;
+  do {
+    let page: Awaited<ReturnType<typeof listProjectSessions>>;
+    try {
+      page = await listProjectSessions(project.id, { cursor });
+    } catch {
+      return null;
+    }
+    if (
+      !Array.isArray(page.items) ||
+      page.items.some((item) => item.project_id !== project.id) ||
+      (page.next_cursor !== null && typeof page.next_cursor !== 'string')
+    ) {
+      return null;
+    }
+    items.push(...page.items);
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+
+  const [item] = items;
+  const getSession = api.getSession;
+  if (
+    item === undefined ||
+    items.length !== 1 ||
+    !isPrestartSessionListItem(item) ||
+    (intent !== 'new' && getSession === undefined)
+  ) {
+    return null;
+  }
+  if (intent === 'new') return workflow;
+  if (getSession === undefined) return null;
+
+  let session: InterviewSessionResponse;
+  try {
+    session = await getSession(item.id);
+  } catch {
+    return null;
+  }
+  if (
+    session.id !== item.id ||
+    session.project_id !== project.id ||
+    session.created_by !== workflow.actorId ||
+    (session.status !== 'created' && session.status !== 'device_check')
+  ) {
+    return null;
+  }
+  const requestId = globalThis.crypto.randomUUID();
+  return {
+    ...workflow,
+    sessionAttempt: {
+      payload: { request_id: requestId },
+      requestId,
+      response: session,
+      state: 'acknowledged',
+    },
+    step: workflow.consentAudioObjectId === null ? 'consent_audio' : 'consent',
+  };
+}
+
+function isPrestartSessionListItem(item: ProjectSessionListItem): boolean {
+  return (
+    (item.status === 'created' || item.status === 'device_check') &&
+    item.capture === null &&
+    item.finalization === null
   );
 }
 
