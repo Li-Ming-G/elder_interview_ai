@@ -47,8 +47,8 @@ Predefined queue:
 
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
-  -> PFC-02-PRESTART-DISCARD   [REVIEW]
-  -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
+  -> PFC-02-PRESTART-DISCARD   [DONE]
+  -> PFC-03-RECORDING-NAV-SAFETY [READY]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `REVIEW` on PR #128 at repaired exact head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1`; exact-head required CI `verify` succeeded and the prior-head `REQUEST_CHANGES` verdict is stale.
+`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. External Architect passed exact PR #128 head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1`; PR #128 merged as `c5c7141f13def9f0f37b4bf269f0e49dfc35fdbf`, and exact-current-main CI run `33519802779` succeeded. Predefined successor `PFC-03-RECORDING-NAV-SAFETY` is now `READY`.
 
 Its responsibility is intentionally narrow:
 
@@ -123,12 +123,12 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: none.
+- `READY`: `PFC-03-RECORDING-NAV-SAFETY`.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `PFC-02-PRESTART-DISCARD` on PR #128.
+- `REVIEW`: none.
 - `BLOCKED`: none in the Product Flow Closure pack.
-- `DEFERRED`: `PFC-03` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
-- `DONE`: `PFC-01-NEW-INTENT-TRUTH`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
+- `DEFERRED`: `PFC-04` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
+- `DONE`: `PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 
 ## Authority order
 
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher reconciled repaired head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1` with exact-head required CI success, persisted `IN_PROGRESS -> REVIEW`, and is publishing refreshed external Architect review context.
+Dispatcher verified accepted PR #128 in exact current-main ancestry with exact-current-main CI success, marked `PFC-02-PRESTART-DISCARD` `DONE`, and unlocked only predefined successor `PFC-03-RECORDING-NAV-SAFETY` as `READY`. The next bounded pulse may dispatch it.

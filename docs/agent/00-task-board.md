@@ -42,8 +42,8 @@
 | `CKPT-A-WEB-CWD-01` | `DONE` | CKPT-A-LEGACY-PREPARE-BRIDGE-01 | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
 | `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | CKPT-A-WEB-CWD-01; PR #126 merged/main verified | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
 | `PFC-01-NEW-INTENT-TRUTH` | `DONE` | Architect PASS; PR #127 merged as `f0fe36a141b3d3ab56cdf44ac1a3b3974d964ca6`; exact-current-main CI run `33491698862` succeeded | [`tasks/PFC-01-NEW-INTENT-TRUTH.md`](tasks/PFC-01-NEW-INTENT-TRUTH.md) | `luna-high` | `127` | `PFC-02-PRESTART-DISCARD` |
-| `PFC-02-PRESTART-DISCARD` | `REVIEW` | PR #128 at repaired exact head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1`; exact-head required CI `verify` succeeded; prior-head REQUEST_CHANGES is stale | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `128` | `PFC-03-RECORDING-NAV-SAFETY` |
-| `PFC-03-RECORDING-NAV-SAFETY` | `DEFERRED` | `PFC-02-PRESTART-DISCARD` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `null` | `PFC-04-SUGGESTION-RECOVERY` |
+| `PFC-02-PRESTART-DISCARD` | `DONE` | Architect PASS; PR #128 merged as `c5c7141f13def9f0f37b4bf269f0e49dfc35fdbf`; exact-current-main CI run `33519802779` succeeded | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `128` | `PFC-03-RECORDING-NAV-SAFETY` |
+| `PFC-03-RECORDING-NAV-SAFETY` | `READY` | `PFC-02-PRESTART-DISCARD` DONE and main verified | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `null` | `PFC-04-SUGGESTION-RECOVERY` |
 | `PFC-04-SUGGESTION-RECOVERY` | `DEFERRED` | `PFC-03-RECORDING-NAV-SAFETY` | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `null` | `PFC-05-ROUTE-ACTION-CLOSURE` |
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DEFERRED` | `PFC-04-SUGGESTION-RECOVERY` | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `null` | `PFC-06-ERROR-AUTH-RESILIENCE` |
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DEFERRED` | `PFC-05-ROUTE-ACTION-CLOSURE` | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `null` | `PFC-07-FULL-FLOW-E2E` |
@@ -53,11 +53,11 @@
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `REVIEW` on PR #128 at repaired exact head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1` with required CI success.
+`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. `PFC-03-RECORDING-NAV-SAFETY` is the sole `READY` task.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
-No task remains `READY` while `PFC-02-PRESTART-DISCARD` is active. `PFC-03` through `PFC-07` remain `DEFERRED` until mechanically unlocked by predecessor DONE.
+Only `PFC-03-RECORDING-NAV-SAFETY` is eligible now. `PFC-04` through `PFC-07` remain `DEFERRED` until mechanically unlocked by predecessor DONE.
 
 ## Frozen product-flow boundaries
 
