@@ -330,7 +330,7 @@ export interface InterviewSessionResponse {
 
 export const RECORDING_START_REMINDER_VERSION = 'recording-reminder-v1' as const;
 export const RECORDING_START_REMINDER_TEXT =
-  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。' as const;
+  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。' as const;
 
 export interface RecordingStartReminderProjection {
   version: typeof RECORDING_START_REMINDER_VERSION;

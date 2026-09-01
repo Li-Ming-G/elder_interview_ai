@@ -307,7 +307,7 @@ test('created repeat session performs current-page microphone check before remin
   await expect(page.getByRole('button', { name: '开始访谈' })).toBeDisabled();
   await page.getByRole('button', { name: '检测麦克风' }).click();
   await expect(
-    page.getByText('本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。'),
+    page.getByText('本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。'),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '开始访谈' })).toBeEnabled();
   await page.setViewportSize({ height: 844, width: 390 });
@@ -445,7 +445,7 @@ function recordingStartReminder(): unknown {
     action_label: '开始访谈',
     creates_consent_record: false,
     requires_explicit_action: true,
-    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。',
+    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。',
     version: 'recording-reminder-v1',
   };
 }

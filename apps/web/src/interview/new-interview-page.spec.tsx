@@ -18,7 +18,7 @@ const ACTOR_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '20000000-0000-4000-8000-000000000001';
 const RECORDING_START_REMINDER_VERSION = 'recording-reminder-v1' as const;
 const RECORDING_START_REMINDER_TEXT =
-  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。' as const;
+  '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。' as const;
 
 describe('NewInterviewPage', () => {
   afterEach(() => {
@@ -53,6 +53,17 @@ describe('NewInterviewPage', () => {
     expect(screen.queryByText(/已恢复这台浏览器/)).toBeNull();
     expect(screen.queryByText(/服务说明|价格|费用/)).toBeNull();
     expect(api.createServiceTerm).not.toHaveBeenCalled();
+  });
+
+  it('keeps ordinary consent copy truthful without promising pause-and-resume', async () => {
+    const api = readyApi();
+    renderPage(api);
+    await reachConsentRecording();
+
+    expect(screen.getByText('长者可随时要求停止。')).toBeTruthy();
+    expect(screen.getByText('长者可要求某段内容不再使用。')).toBeTruthy();
+    expect(screen.queryByText(/暂停|稍后恢复|pause|resume/i)).toBeNull();
+    expect(screen.getByRole('button', { name: '停止并保存授权录音' })).toBeTruthy();
   });
 
   it('keeps the existing recovery handle until explicit discard is confirmed', async () => {
