@@ -49,7 +49,7 @@ Predefined queue:
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
-  -> PFC-04-SUGGESTION-RECOVERY  [IN_PROGRESS]
+  -> PFC-04-SUGGESTION-RECOVERY  [REVIEW]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `IN_PROGRESS` on PR #130 for bounded same-task repair of the current-head Architect `REQUEST_CHANGES`. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. `PFC-04-SUGGESTION-RECOVERY` is `REVIEW` on PR #130 at repaired exact head `0f7904503421773faca4a9e3f842520a7882e59d`; exact-head required CI succeeded and external Architect review is required. It owns only suggestion retry/recovery and the bounded no-pause copy audit defined by its Task Card.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `IN_PROGRESS`: `PFC-04-SUGGESTION-RECOVERY` on PR #130 for bounded Architect-requested repair.
+- `REVIEW`: `PFC-04-SUGGESTION-RECOVERY` on PR #130; exact-head CI succeeded.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Current-head Architect verdict is `REQUEST_CHANGES` for PR #130: manual next must be honestly unavailable when `current === null`, while retry remains usable and retry success restores manual-next behavior. Dispatcher returned the same task and PR to bounded `luna-high` repair; no successor is unlocked.
+PR #130 advanced to repaired head `0f7904503421773faca4a9e3f842520a7882e59d` and exact-head required CI succeeded. Dispatcher returned the task to `REVIEW`; external Architect exact-head review is required and no successor is unlocked.
