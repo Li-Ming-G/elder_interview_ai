@@ -50,7 +50,7 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
-  -> PFC-05-ROUTE-ACTION-CLOSURE [READY]
+  -> PFC-05-ROUTE-ACTION-CLOSURE [IN_PROGRESS]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
   -> null
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. PR #130 was accepted and merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33545438599` succeeded. The predefined successor `PFC-05-ROUTE-ACTION-CLOSURE` is now the sole eligible `READY` task.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. PR #130 was accepted and merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33545438599` succeeded. The Dispatcher selected the sole eligible task `PFC-05-ROUTE-ACTION-CLOSURE` and persisted it as `IN_PROGRESS` before Worker launch.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: `PFC-05-ROUTE-ACTION-CLOSURE`.
+- `IN_PROGRESS`: `PFC-05-ROUTE-ACTION-CLOSURE`; luna-high Worker launch follows the persisted transition.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Exact-current-main CI run `33545438599` succeeded. Dispatcher marked `PFC-04-SUGGESTION-RECOVERY` `DONE` and unlocked only its predefined successor `PFC-05-ROUTE-ACTION-CLOSURE`; this DONE pulse now ends.
+Dispatcher selected the sole queue-wide eligible task `PFC-05-ROUTE-ACTION-CLOSURE`, persisted `READY -> IN_PROGRESS`, and will launch its declared luna-high Worker in this pulse.

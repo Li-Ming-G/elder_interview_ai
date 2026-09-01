@@ -45,7 +45,7 @@
 | `PFC-02-PRESTART-DISCARD` | `DONE` | Architect PASS; PR #128 merged as `c5c7141f13def9f0f37b4bf269f0e49dfc35fdbf`; exact-current-main CI run `33519802779` succeeded | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `128` | `PFC-03-RECORDING-NAV-SAFETY` |
 | `PFC-03-RECORDING-NAV-SAFETY` | `DONE` | Architect PASS; PR #129 merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`; exact-current-main CI run `33534495664` succeeded and cleared `MAIN_VERIFY_FAILED` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `129` | `PFC-04-SUGGESTION-RECOVERY` |
 | `PFC-04-SUGGESTION-RECOVERY` | `DONE` | Architect PASS; PR #130 merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; exact-current-main CI run `33545438599` succeeded | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `130` | `PFC-05-ROUTE-ACTION-CLOSURE` |
-| `PFC-05-ROUTE-ACTION-CLOSURE` | `READY` | `PFC-04-SUGGESTION-RECOVERY` DONE/main verified | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `null` | `PFC-06-ERROR-AUTH-RESILIENCE` |
+| `PFC-05-ROUTE-ACTION-CLOSURE` | `IN_PROGRESS` | `PFC-04-SUGGESTION-RECOVERY` DONE/main verified; Dispatcher persisted start before Worker launch | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `null` | `PFC-06-ERROR-AUTH-RESILIENCE` |
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DEFERRED` | `PFC-05-ROUTE-ACTION-CLOSURE` | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `null` | `PFC-07-FULL-FLOW-E2E` |
 | `PFC-07-FULL-FLOW-E2E` | `DEFERRED` | `PFC-06-ERROR-AUTH-RESILIENCE` | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `null` | `null` |
 
@@ -53,11 +53,11 @@
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. `PFC-05-ROUTE-ACTION-CLOSURE` is the sole eligible `READY` task.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. `PFC-05-ROUTE-ACTION-CLOSURE` is the sole active `IN_PROGRESS` task.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
-`PFC-05-ROUTE-ACTION-CLOSURE` is the only `READY` task. `PFC-06` and `PFC-07` remain `DEFERRED` until mechanically unlocked by predecessor DONE.
+No task remains `READY` while `PFC-05-ROUTE-ACTION-CLOSURE` is active. `PFC-06` and `PFC-07` remain `DEFERRED` until mechanically unlocked by predecessor DONE.
 
 ## Frozen product-flow boundaries
 
