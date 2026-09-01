@@ -334,11 +334,11 @@
     },
     {
       "id": "PFC-02-PRESTART-DISCARD",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-02-PRESTART-DISCARD.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-01-NEW-INTENT-TRUTH"],
-      "pr": null,
+      "pr": 128,
       "next_task": "PFC-03-RECORDING-NAV-SAFETY"
     },
     {

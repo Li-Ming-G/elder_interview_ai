@@ -47,7 +47,7 @@ Predefined queue:
 
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
-  -> PFC-02-PRESTART-DISCARD   [IN_PROGRESS]
+  -> PFC-02-PRESTART-DISCARD   [REVIEW]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `IN_PROGRESS` under its declared `luna-high` worker profile. It owns only the safe server-authoritative pre-formal-recording discard/new transition defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `REVIEW` on PR #128 at exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283`; exact-head required CI `verify` succeeded and external Architect exact-head review is required.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `PFC-02-PRESTART-DISCARD`.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `PFC-02-PRESTART-DISCARD` on PR #128.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-03` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher selected the sole queue-wide eligible task `PFC-02-PRESTART-DISCARD`, persisted `READY -> IN_PROGRESS`, and is launching the Task Card's declared `luna-high` Implementation Worker.
+Dispatcher found and bound the unique matching PR #128, reconciled exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283` with required CI success, persisted `IN_PROGRESS -> REVIEW`, and is publishing external Architect review context.
