@@ -35,13 +35,12 @@ Completed baseline:
 - stale-DONE reconciliation through PR #121;
 - backend legacy first-session draft recovery through PR #122;
 - frontend legacy prepare bridge through PR #123;
-- Checkpoint A Web cwd launcher repair through PR #125.
+- Checkpoint A Web cwd launcher repair through PR #125;
+- first-session capture authority gate repair through PR #126.
 
 Exact current main `1805d63dbe63366a82692d81157dd4642b786216` has successful CI run `33299450389`. PR #125 remains merged in accepted ancestry, so `CKPT-A-WEB-CWD-01` is reconciled `DONE`. The earlier projection that marked it `BLOCKED` after an older failed current-main run is stale.
 
-The Owner's next live Checkpoint A attempt now loads the preparation page, validates current formal consent and current-page microphone input, and reaches the formal Start action. The remaining product blocker occurs after `startSession`: first-session capture confirmation/recovery is rejected because `SessionCaptureService` still universally requires repeat/continuing consent even for sequence 1.
-
-The Product Owner explicitly authorized the ultra-small first-principles repair `CKPT-A-FIRST-CAPTURE-GATE-01`, prioritizing the fastest safe return to live Checkpoint A testing.
+The first-session capture authority gate repair is accepted, merged and exact-current-main verified. The Owner can resume the same existing interview record for live Checkpoint A testing.
 
 ## Canonical current queue
 
@@ -53,7 +52,7 @@ DISPATCHER-STALE-DONE-RECONCILIATION-01  [DONE]
 CKPT-A-WEB-CWD-01  [DONE]
   -> null
 
-CKPT-A-FIRST-CAPTURE-GATE-01  [REVIEW]
+CKPT-A-FIRST-CAPTURE-GATE-01  [DONE]
   -> null
 ```
 
@@ -65,7 +64,7 @@ Task source:
 
 ## Current task truth
 
-`CKPT-A-FIRST-CAPTURE-GATE-01` is `REVIEW` on PR #126 at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; exact-head required CI `verify` is `SUCCESS`.
+`CKPT-A-FIRST-CAPTURE-GATE-01` is `DONE`. Architect PASS covered exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; PR #126 merged as `f324d10b1cc8b6a4299ec0a6de1bb888610df5fb`, which is exact current main; exact-current-main CI run `33458417909` attempt 3 is `SUCCESS`.
 
 Proven defect boundary:
 
@@ -120,10 +119,10 @@ Architect plans/reviews. Dispatcher launches Workers, consumes external verdicts
 
 - `READY`: none.
 - `IN_PROGRESS`: none.
-- `REVIEW`: `CKPT-A-FIRST-CAPTURE-GATE-01` on PR #126.
+- `REVIEW`: none.
 - `BLOCKED`: none among current Checkpoint A maintenance work; historical records remain as recorded in the canonical queue.
 - `DEFERRED`: P2-D, T26–T27 and production provider/model/budget/data/deployment decisions.
-- `DONE`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; `CKPT-A-WEB-CWD-01`; legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
+- `DONE`: `MEMORY-T5-T8-P2-C-RUNTIME-001`; `CKPT-A-FIRST-CAPTURE-GATE-01` through PR #126 and exact-current-main CI run `33458417909` attempt 3; `CKPT-A-WEB-CWD-01`; legacy frontend bridge through PR #123; legacy backend recovery through PR #122; Dispatcher governance through PR #121; Checkpoint A local-start through PR #118; prior P1–P6 stages as recorded in history.
 
 ## Authority order
 
@@ -131,4 +130,4 @@ Task Card for scope/entry -> exact Accepted Contract for behavior/invariants -> 
 
 ## Next step
 
-Dispatcher reconciled the Worker handoff for `CKPT-A-FIRST-CAPTURE-GATE-01`, bound PR #126 at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`, and stopped at `REVIEW` for external Architect review.
+`CKPT-A-FIRST-CAPTURE-GATE-01` is merged and exact-current-main verified `DONE`. Its predefined `next_task` is `null`, so no successor is unlocked. The Owner may resume the SAME existing Checkpoint A interview record with `pnpm checkpoint-a:start` and continue live testing.

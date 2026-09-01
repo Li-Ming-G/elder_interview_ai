@@ -312,7 +312,7 @@
     },
     {
       "id": "CKPT-A-FIRST-CAPTURE-GATE-01",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md",
       "worker_profile": "luna-high",
       "depends_on": ["CKPT-A-WEB-CWD-01", "main@1805d63dbe63366a82692d81157dd4642b786216"],

@@ -40,15 +40,13 @@
 | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
 | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from exact Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; exact-current-main CI run `33289681762` SUCCESS | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
 | `CKPT-A-WEB-CWD-01` | `DONE` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`; accepted ancestry remains in exact current main `1805d63dbe63366a82692d81157dd4642b786216`; exact-current-main CI run `33299450389` SUCCESS | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
-| `CKPT-A-FIRST-CAPTURE-GATE-01` | `REVIEW` | `CKPT-A-WEB-CWD-01` DONE; PR #126 at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; exact-head required CI `verify` SUCCESS | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
+| `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | `CKPT-A-WEB-CWD-01` DONE; Architect PASS at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; PR #126 merged as `f324d10b1cc8b6a4299ec0a6de1bb888610df5fb`; accepted merge is exact current main; exact-current-main CI run `33458417909` attempt 3 SUCCESS | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
 
 ## Current phase
 
-Owner Checkpoint A local retest now loads the preparation page and passes formal consent plus current-page microphone checks. The current blocker is the first-session capture authority gate after formal start: `SessionCaptureService` still requires deferred repeat/continuing consent for sequence 1 during capture confirmation/recovery.
+The first-session capture authority gate repair is accepted, merged and exact-current-main verified. The Owner can resume the same existing interview record for live Checkpoint A testing.
 
-Current active task:
-
-`CKPT-A-FIRST-CAPTURE-GATE-01` (`REVIEW`, PR #126).
+Current active task: none. `CKPT-A-FIRST-CAPTURE-GATE-01` is `DONE` through PR #126 and exact-current-main CI run `33458417909` attempt 3 SUCCESS.
 
 The Product Owner explicitly authorized this ultra-small first-principles maintenance repair and asked for the fastest safe path back to Checkpoint A testing.
 
