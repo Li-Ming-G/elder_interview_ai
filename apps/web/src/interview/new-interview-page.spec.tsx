@@ -55,7 +55,7 @@ describe('NewInterviewPage', () => {
     expect(api.createServiceTerm).not.toHaveBeenCalled();
   });
 
-  it('starts a fresh local workflow for explicit new intent instead of resuming the old one', async () => {
+  it('keeps the existing recovery handle when explicit new intent is blocked', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const oldWorkflow = await workflowStore.create(ACTOR_ID);
     await workflowStore.put({
@@ -79,9 +79,12 @@ describe('NewInterviewPage', () => {
 
     renderPage(api, { intent: 'new', workflowStore });
 
-    await screen.findByRole('heading', { name: '最低项目信息' });
-    expect(screen.getByLabelText<HTMLInputElement>('姓名、昵称或项目代号').value).toBe('');
-    expect(api.getSession).not.toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    expect(screen.getByText(/已保留原记录；开始新的访谈尚未执行/)).toBeTruthy();
+    expect(await workflowStore.getActive(ACTOR_ID)).toMatchObject({
+      workflowId: oldWorkflow.workflowId,
+      projectAttempt: { response: { display_name: '虚构旧项目' } },
+    });
     expect(api.createProject).not.toHaveBeenCalled();
   });
 
@@ -375,6 +378,7 @@ type MockApi = {
   [Key in keyof NewInterviewApi]: ReturnType<typeof vi.fn<NewInterviewApi[Key]>>;
 } & {
   getSession: ReturnType<typeof vi.fn>;
+  listProjectSessions: ReturnType<typeof vi.fn>;
 };
 
 function fakeApi(): MockApi {
@@ -385,6 +389,7 @@ function fakeApi(): MockApi {
     createSession: vi.fn<NewInterviewApi['createSession']>(),
     deviceCheck: vi.fn<NewInterviewApi['deviceCheck']>(),
     getSession: vi.fn().mockResolvedValue(sessionResponse('created')),
+    listProjectSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     startSession: vi.fn<NewInterviewApi['startSession']>(),
   };
 }

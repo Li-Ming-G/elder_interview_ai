@@ -21,16 +21,20 @@ import {
 import {
   IndexedDbNewInterviewWorkflowStore,
   type NextSessionAttempt,
+  type NewInterviewWorkflow,
 } from '../interview/new-interview-workflow-store.js';
-import {
-  reconcileNewInterviewWorkflow,
-  type NewInterviewRecoveryResult,
-} from '../interview/new-interview-recovery.js';
+import { reconcileNewInterviewWorkflow } from '../interview/new-interview-recovery.js';
 
 interface ProjectSessions {
   items: ProjectSessionListItem[];
   nextCursor: string | null;
 }
+
+type NewInterviewRecoveryState =
+  | { kind: 'checking' }
+  | { kind: 'none' }
+  | { kind: 'active'; workflow: NewInterviewWorkflow }
+  | { kind: 'unavailable' };
 
 export function HomeShell({
   api,
@@ -58,9 +62,9 @@ export function HomeShell({
   const [error, setError] = useState<string | null>(null);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [unfinishedWorkflow, setUnfinishedWorkflow] = useState<
-    NewInterviewRecoveryResult & { kind: 'active' }
-  >();
+  const [newInterviewRecovery, setNewInterviewRecovery] = useState<NewInterviewRecoveryState>({
+    kind: 'checking',
+  });
 
   useEffect(() => {
     let current = true;
@@ -124,22 +128,23 @@ export function HomeShell({
     try {
       const workflow = await store.getActive(user.id);
       if (workflow === null) {
-        setUnfinishedWorkflow(undefined);
+        setNewInterviewRecovery({ kind: 'none' });
         return;
       }
       const result = await reconcileNewInterviewWorkflow(workflow, api);
       if (result.kind === 'retired') {
         await store.retire(result.workflow);
-        setUnfinishedWorkflow(undefined);
+        setNewInterviewRecovery({ kind: 'none' });
       } else if (result.kind === 'active') {
         await store.put(result.workflow);
-        setUnfinishedWorkflow(result);
+        setNewInterviewRecovery({ kind: 'active', workflow: result.workflow });
       } else {
-        setUnfinishedWorkflow(undefined);
+        setNewInterviewRecovery({ kind: 'unavailable' });
         setActionMessage('暂时无法核对未完成的新建访谈，请选择新建访谈或稍后刷新重试。');
       }
     } catch {
-      setUnfinishedWorkflow(undefined);
+      setNewInterviewRecovery({ kind: 'unavailable' });
+      setActionMessage('暂时无法核对未完成的新建访谈，请选择新建访谈或稍后刷新重试。');
     }
   }
 
@@ -233,14 +238,24 @@ export function HomeShell({
         <div className="home-header__actions">
           <button
             className="button button--primary"
+            disabled={
+              newInterviewRecovery.kind === 'checking' ||
+              newInterviewRecovery.kind === 'unavailable'
+            }
             onClick={() => {
               navigate('/interviews/new');
             }}
             type="button"
           >
-            {unfinishedWorkflow === undefined ? '新建访谈' : '开始新的访谈'}
+            {newInterviewRecovery.kind === 'checking'
+              ? '正在核对未完成访谈…'
+              : newInterviewRecovery.kind === 'unavailable'
+                ? '暂时无法安全新建访谈'
+                : newInterviewRecovery.kind === 'active'
+                  ? '开始新的访谈'
+                  : '新建访谈'}
           </button>
-          {unfinishedWorkflow === undefined ? null : (
+          {newInterviewRecovery.kind !== 'active' ? null : (
             <button
               className="button button--secondary"
               onClick={() => {

@@ -39,6 +39,16 @@ describe('IndexedDbNewInterviewWorkflowStore', () => {
     expect(await reopened.getActive('actor-b')).toBeNull();
   });
 
+  it('does not create a second active workflow for the same actor', async () => {
+    const store = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await store.create('actor-a');
+
+    await expect(store.create('actor-a')).rejects.toThrow('ACTIVE_NEW_INTERVIEW_WORKFLOW_EXISTS');
+    expect(await store.getActive('actor-a')).toMatchObject({
+      workflowId: workflow.workflowId,
+    });
+  });
+
   it('persists a detached prepare session request until acknowledgement', async () => {
     const store = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const first = await store.getOrCreateDetachedSessionRequestId('actor-a', 'project-a');

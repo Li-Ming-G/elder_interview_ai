@@ -79,7 +79,20 @@ export class IndexedDbNewInterviewWorkflowStore {
       updatedAt: now,
       workflowId: globalThis.crypto.randomUUID(),
     };
-    await this.put(workflow);
+    const database = await this.database();
+    const transaction = database.transaction(WORKFLOW_STORE, 'readwrite');
+    const completion = transactionComplete(transaction);
+    const values = await idbRequest(
+      transaction.objectStore(WORKFLOW_STORE).index(ACTOR_INDEX).getAll(actorId) as IDBRequest<
+        NewInterviewWorkflow[]
+      >,
+    );
+    if (values.some((value) => value.actorId === actorId && value.status === 'active')) {
+      await completion;
+      throw new Error('ACTIVE_NEW_INTERVIEW_WORKFLOW_EXISTS');
+    }
+    await idbRequest(transaction.objectStore(WORKFLOW_STORE).put(workflow));
+    await completion;
     return workflow;
   }
 

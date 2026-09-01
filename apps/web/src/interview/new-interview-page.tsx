@@ -100,40 +100,35 @@ export function NewInterviewPage({
     void (async (): Promise<void> => {
       try {
         const existing = await store.getActive(actorId);
-        const shouldResume =
-          intent === 'resume' || (existing !== null && isMandatoryRecovery(existing));
         let workflow: NewInterviewWorkflow;
         let resumed = false;
-        if (existing === null || !shouldResume) {
+        if (existing === null) {
           workflow = await store.create(actorId);
         } else {
-          if (intent === 'new' && isMandatoryRecovery(existing)) {
-            workflow = existing;
-            resumed = true;
+          const reconciliation = await reconcileNewInterviewWorkflow(
+            existing,
+            api as NewInterviewRecoveryAuthority,
+          );
+          if (reconciliation.kind === 'unavailable') {
+            throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
+          }
+          if (reconciliation.kind === 'retired') {
+            await store.retire(reconciliation.workflow);
+            workflow = await store.create(actorId);
+          } else if (intent === 'new') {
+            throw new Error('NEW_INTERVIEW_INTENT_BLOCKED');
           } else {
-            const reconciliation = await reconcileNewInterviewWorkflow(
-              existing,
-              api as NewInterviewRecoveryAuthority,
-            );
-            if (reconciliation.kind === 'unavailable') {
-              throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
-            }
-            if (reconciliation.kind === 'retired') {
-              await store.retire(reconciliation.workflow);
-              workflow = await store.create(actorId);
-            } else {
-              workflow = reconciliation.workflow;
-              await store.put(workflow);
-              resumed = true;
-            }
+            workflow = reconciliation.workflow;
+            await store.put(workflow);
+            resumed = true;
           }
         }
         if (!controller.signal.aborted) setPage({ kind: 'ready', resumed, workflow });
-      } catch {
+      } catch (error) {
         if (!controller.signal.aborted) {
           setPage({
             kind: 'error',
-            message: '浏览器无法建立可靠的新建访谈记录，请检查存储权限后重试。',
+            message: workflowInitializationError(error),
           });
         }
       }
@@ -1120,10 +1115,12 @@ function stepIsPast(current: string, displayed: string): boolean {
   return STEP_ORDER.indexOf(current) > STEP_ORDER.indexOf(displayed);
 }
 
-function isMandatoryRecovery(workflow: NewInterviewWorkflow): boolean {
-  return (
-    workflow.consentAudioJobId !== null ||
-    (workflow.projectAttempt?.state === 'unknown_response' &&
-      workflow.projectAttempt.response === null)
-  );
+function workflowInitializationError(error: unknown): string {
+  if (error instanceof Error && error.message === 'NEW_INTERVIEW_INTENT_BLOCKED') {
+    return '检测到未完成的新建访谈，已保留原记录；开始新的访谈尚未执行，请先选择“继续未完成访谈”。安全丢弃并新建将在后续步骤中提供。';
+  }
+  if (error instanceof Error && error.message === 'NEW_INTERVIEW_RECOVERY_UNAVAILABLE') {
+    return '暂时无法核对未完成的新建访谈，尚未开始新的访谈；请返回工作区，待权威状态可用后重试。';
+  }
+  return '浏览器无法建立可靠的新建访谈记录，请检查存储权限后重试。';
 }
