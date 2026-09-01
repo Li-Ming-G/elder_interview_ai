@@ -104,7 +104,7 @@ export function HomeShell({
             ]),
           ),
         );
-        await loadNewInterviewRecovery();
+        await loadNewInterviewRecovery(pages);
         const pending = await store.listNextSessionAttempts(user.id);
         if (pending.length === 0) return;
         await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
@@ -124,7 +124,9 @@ export function HomeShell({
     };
   }, [api, navigate, onAuthLost, store, user.id]);
 
-  async function loadNewInterviewRecovery(): Promise<void> {
+  async function loadNewInterviewRecovery(
+    loadedPages: readonly (readonly [string, ProjectSessionListResponse])[],
+  ): Promise<void> {
     try {
       const workflow = await store.getActive(user.id);
       if (workflow === null) {
@@ -133,8 +135,14 @@ export function HomeShell({
       }
       const result = await reconcileNewInterviewWorkflow(workflow, api);
       if (result.kind === 'retired') {
-        await store.retire(result.workflow);
-        setNewInterviewRecovery({ kind: 'none' });
+        const prestart = recoverLoadedPrestartWorkflow(result.workflow, loadedPages);
+        if (prestart === null) {
+          await store.retire(result.workflow);
+          setNewInterviewRecovery({ kind: 'none' });
+        } else {
+          await store.put(prestart);
+          setNewInterviewRecovery({ kind: 'active', workflow: prestart });
+        }
       } else if (result.kind === 'active') {
         await store.put(result.workflow);
         setNewInterviewRecovery({ kind: 'active', workflow: result.workflow });
@@ -240,8 +248,7 @@ export function HomeShell({
             className="button button--primary"
             disabled={
               newInterviewRecovery.kind === 'checking' ||
-              newInterviewRecovery.kind === 'unavailable' ||
-              newInterviewRecovery.kind === 'active'
+              newInterviewRecovery.kind === 'unavailable'
             }
             onClick={() => {
               navigate('/interviews/new?mode=new');
@@ -253,7 +260,7 @@ export function HomeShell({
               : newInterviewRecovery.kind === 'unavailable'
                 ? '暂时无法安全新建访谈'
                 : newInterviewRecovery.kind === 'active'
-                  ? '暂不能开始新的访谈'
+                  ? '放弃未完成访谈并新建'
                   : '新建访谈'}
           </button>
           {newInterviewRecovery.kind !== 'active' ? null : (
@@ -315,6 +322,34 @@ export function HomeShell({
         )}
       </section>
     </HomeFrame>
+  );
+}
+
+function recoverLoadedPrestartWorkflow(
+  workflow: NewInterviewWorkflow,
+  loadedPages: readonly (readonly [string, ProjectSessionListResponse])[],
+): NewInterviewWorkflow | null {
+  if (
+    workflow.sessionAttempt?.response !== undefined &&
+    workflow.sessionAttempt.response !== null
+  ) {
+    return null;
+  }
+  const projectId = workflow.projectAttempt?.response?.id;
+  if (projectId === undefined) return null;
+  const page = loadedPages.find(([id]) => id === projectId)?.[1];
+  if (page === undefined || page.next_cursor !== null || page.items.length !== 1) return null;
+  const [item] = page.items;
+  if (item === undefined || !isPrestartSessionListItem(item, projectId)) return null;
+  return workflow;
+}
+
+function isPrestartSessionListItem(item: ProjectSessionListItem, projectId: string): boolean {
+  return (
+    item.project_id === projectId &&
+    (item.status === 'created' || item.status === 'device_check') &&
+    item.capture === null &&
+    item.finalization === null
   );
 }
 

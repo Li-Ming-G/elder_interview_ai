@@ -55,7 +55,7 @@ describe('NewInterviewPage', () => {
     expect(api.createServiceTerm).not.toHaveBeenCalled();
   });
 
-  it('keeps the existing recovery handle when explicit new intent is blocked', async () => {
+  it('keeps the existing recovery handle until explicit discard is confirmed', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const oldWorkflow = await workflowStore.create(ACTOR_ID);
     await workflowStore.put({
@@ -79,13 +79,84 @@ describe('NewInterviewPage', () => {
 
     renderPage(api, { intent: 'new', workflowStore });
 
-    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
-    expect(screen.getByText(/已保留原记录；开始新的访谈尚未执行/)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: '已有一条未完成访谈' })).toBeTruthy();
     expect(await workflowStore.getActive(ACTOR_ID)).toMatchObject({
       workflowId: oldWorkflow.workflowId,
       projectAttempt: { response: { display_name: '虚构旧项目' } },
     });
     expect(api.createProject).not.toHaveBeenCalled();
+  });
+
+  it('keeps a server-backed prestart session discardable when the local session response is missing', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithProjectOnly(workflow));
+    const api = fakeApi();
+    api.listProjectSessions.mockResolvedValue({
+      items: [prestartSessionListItem('created')],
+      next_cursor: null,
+    });
+    api.discardPrestartInterview.mockResolvedValue({
+      project_id: PROJECT_ID,
+      request_id: '50000000-0000-4000-8000-000000000001',
+      result: 'discarded',
+      session_id: '40000000-0000-4000-8000-000000000001',
+    });
+
+    renderPage(api, { intent: 'new', workflowStore });
+
+    await screen.findByRole('heading', { name: '已有一条未完成访谈' });
+    fireEvent.click(screen.getByRole('button', { name: '放弃未完成访谈并新建' }));
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    expect(api.discardPrestartInterview).toHaveBeenCalledWith(
+      PROJECT_ID,
+      expect.objectContaining({ session_id: null }),
+    );
+  });
+
+  it('requires confirmation and creates a fresh workflow only after server discard succeeds', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithSession(workflow));
+    const api = readyApi();
+    api.discardPrestartInterview.mockResolvedValue({
+      project_id: PROJECT_ID,
+      request_id: '50000000-0000-4000-8000-000000000001',
+      result: 'discarded',
+      session_id: '40000000-0000-4000-8000-000000000001',
+    });
+
+    renderPage(api, { intent: 'new', workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '已有一条未完成访谈' })).toBeTruthy();
+    expect(api.discardPrestartInterview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '放弃未完成访谈并新建' }));
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    expect(api.discardPrestartInterview).toHaveBeenCalledWith(
+      PROJECT_ID,
+      expect.objectContaining({
+        session_id: '40000000-0000-4000-8000-000000000001',
+        workflow_version: 'prestart-discard-v1',
+      }),
+    );
+    expect((await workflowStore.getActive(ACTOR_ID))?.workflowId).not.toBe(workflow.workflowId);
+  });
+
+  it('keeps local recovery state when server discard fails', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithSession(workflow));
+    const api = readyApi();
+    api.discardPrestartInterview.mockRejectedValue(
+      new InterviewApiError('PRESTART_DISCARD_UNAVAILABLE', 'blocked', 409),
+    );
+
+    renderPage(api, { intent: 'new', workflowStore });
+    await screen.findByRole('heading', { name: '已有一条未完成访谈' });
+    fireEvent.click(screen.getByRole('button', { name: '放弃未完成访谈并新建' }));
+
+    await screen.findByText(/已经有正式录音或其他证据/);
+    expect((await workflowStore.getActive(ACTOR_ID))?.workflowId).toBe(workflow.workflowId);
   });
 
   it('retires a local workflow when the authoritative session has advanced beyond creation', async () => {
@@ -387,6 +458,29 @@ function workflowWithSession(
   };
 }
 
+function workflowWithProjectOnly(
+  workflow: Awaited<ReturnType<IndexedDbNewInterviewWorkflowStore['create']>>,
+): Awaited<ReturnType<IndexedDbNewInterviewWorkflowStore['create']>> {
+  return {
+    ...workflow,
+    projectAttempt: {
+      payload: {
+        approximate_age: null,
+        birth_year: null,
+        current_city: null,
+        display_name: '虚构已建立项目',
+        native_place: null,
+        request_id: '20000000-0000-4000-8000-000000000002',
+      },
+      requestId: '20000000-0000-4000-8000-000000000002',
+      response: projectResponse('虚构已建立项目'),
+      state: 'acknowledged',
+    },
+    sessionAttempt: null,
+    step: 'session',
+  };
+}
+
 type MockApi = {
   [Key in keyof NewInterviewApi]: ReturnType<typeof vi.fn<NewInterviewApi[Key]>>;
 } & {
@@ -400,6 +494,7 @@ function fakeApi(): MockApi {
     createProject: vi.fn<NewInterviewApi['createProject']>(),
     createServiceTerm: vi.fn<NewInterviewApi['createServiceTerm']>(),
     createSession: vi.fn<NewInterviewApi['createSession']>(),
+    discardPrestartInterview: vi.fn<NewInterviewApi['discardPrestartInterview']>(),
     deviceCheck: vi.fn<NewInterviewApi['deviceCheck']>(),
     getSession: vi.fn().mockResolvedValue(sessionResponse('created')),
     listProjectSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
@@ -434,6 +529,27 @@ function sessionResponse(status: InterviewSessionResponse['status']): InterviewS
     started_at: null,
     status,
     updated_at: '2026-08-12T00:00:00.000Z',
+  };
+}
+
+function prestartSessionListItem(
+  status: 'created' | 'device_check',
+): import('@elder-interview/contracts').ProjectSessionListItem {
+  return {
+    capture: null,
+    capture_failure_code: null,
+    created_at: '2026-08-12T00:00:00.000Z',
+    duration_seconds: null,
+    ended_at: null,
+    finalization: null,
+    home_state: 'preparation_required',
+    id: '40000000-0000-4000-8000-000000000001',
+    primary_action: 'continue_preparation',
+    project_id: PROJECT_ID,
+    review_access: 'unavailable',
+    sequence_no: 1,
+    started_at: null,
+    status,
   };
 }
 

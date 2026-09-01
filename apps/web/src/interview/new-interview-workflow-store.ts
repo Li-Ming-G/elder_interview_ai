@@ -244,6 +244,33 @@ export class IndexedDbNewInterviewWorkflowStore {
     await this.put({ ...workflow, status: 'retired' });
   }
 
+  public async discard(workflow: NewInterviewWorkflow): Promise<NewInterviewWorkflow> {
+    if (workflow.status !== 'active') throw new Error('WORKFLOW_NOT_ACTIVE');
+    const now = new Date().toISOString();
+    const fresh: NewInterviewWorkflow = {
+      actorId: workflow.actorId,
+      consentAttempt: null,
+      consentAudioJobId: null,
+      consentAudioObjectId: null,
+      createdAt: now,
+      projectAttempt: null,
+      serviceTermAttempt: null,
+      sessionAttempt: null,
+      status: 'active',
+      step: 'project',
+      updatedAt: now,
+      workflowId: globalThis.crypto.randomUUID(),
+    };
+    const database = await this.database();
+    const transaction = database.transaction(WORKFLOW_STORE, 'readwrite');
+    const completion = transactionComplete(transaction);
+    const store = transaction.objectStore(WORKFLOW_STORE);
+    await idbRequest(store.put({ ...workflow, status: 'retired', updatedAt: now }));
+    await idbRequest(store.put(fresh));
+    await completion;
+    return fresh;
+  }
+
   private database(): Promise<IDBDatabase> {
     this.databasePromise ??= new Promise((resolve, reject) => {
       const open = this.factory.open(DATABASE_NAME, DATABASE_VERSION);

@@ -5,6 +5,8 @@ import type {
   CreateConsentRequest,
   CreateProjectRequest,
   CreateServiceTermRequest,
+  DiscardPrestartInterviewRequest,
+  DiscardPrestartInterviewResponse,
   DeviceCheckRequest,
   InterviewSessionResponse,
   ProjectListResponse,
@@ -149,6 +151,112 @@ export class ProjectFoundationService {
       );
     }
     return { items };
+  }
+
+  public async discardPrestartInterview(
+    actor: AuthPrincipal,
+    projectId: string,
+    input: DiscardPrestartInterviewRequest,
+  ): Promise<DiscardPrestartInterviewResponse> {
+    await this.authorization.assertRole(actor, ['interviewer']);
+    const binding: IdempotencyBinding = {
+      action: 'project.prestart_discard',
+      actorId: actor.id,
+      createIdentity: null,
+      requestPayloadHash: createPayloadHash({
+        session_id: input.session_id,
+        workflow_version: input.workflow_version,
+      }),
+      targetId: projectId,
+      targetType: 'elder_project',
+    };
+    const replay = await this.findReplay<DiscardPrestartInterviewResponse>(
+      input.request_id,
+      binding,
+    );
+    if (replay !== null) return replay;
+
+    return this.prisma.$transaction(async (transaction) => {
+      await this.lock(transaction, `request:${input.request_id}`);
+      const repeated = await this.findReplayInTransaction<DiscardPrestartInterviewResponse>(
+        transaction,
+        input.request_id,
+        binding,
+      );
+      if (repeated !== null) return repeated;
+      await this.lock(transaction, `project:${projectId}`);
+      const project = await transaction.elderProject.findUnique({ where: { id: projectId } });
+      if (project === null) throw this.notFound();
+      await this.assertActiveAssignment(transaction, projectId, actor.id);
+
+      const sessions = await transaction.interviewSession.findMany({
+        orderBy: [{ sequenceNo: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          status: true,
+          audioObjects: { select: { id: true }, where: { purpose: 'interview' } },
+          captureGenerations: { select: { id: true } },
+        },
+        where: { projectId },
+      });
+      const selectedSession =
+        input.session_id === null
+          ? sessions.length === 1
+            ? (sessions[0] ?? null)
+            : null
+          : (sessions.find(({ id }) => id === input.session_id) ?? null);
+      if (input.session_id !== null && selectedSession === null) {
+        throw this.prestartDiscardTargetStale();
+      }
+
+      if (project.status === 'deleted' || project.deletedAt !== null) {
+        const response: DiscardPrestartInterviewResponse = {
+          project_id: projectId,
+          request_id: input.request_id,
+          result: 'already_discarded',
+          session_id: selectedSession?.id ?? input.session_id,
+        };
+        await this.writeIdempotency(transaction, input.request_id, binding, response);
+        return response;
+      }
+      if (
+        !['draft', 'ready'].includes(project.status) ||
+        sessions.length > 1 ||
+        (selectedSession !== null &&
+          selectedSession.status !== 'created' &&
+          selectedSession.status !== 'device_check') ||
+        sessions.some(
+          (session) => session.audioObjects.length > 0 || session.captureGenerations.length > 0,
+        )
+      ) {
+        throw this.prestartDiscardUnavailable();
+      }
+
+      const now = new Date();
+      await transaction.elderProject.update({
+        data: { deletedAt: now, status: 'deleted' },
+        where: { id: projectId },
+      });
+      const response: DiscardPrestartInterviewResponse = {
+        project_id: projectId,
+        request_id: input.request_id,
+        result: 'discarded',
+        session_id: selectedSession?.id ?? null,
+      };
+      await transaction.auditLog.create({
+        data: {
+          action: 'project.prestart_discard',
+          actorId: actor.id,
+          actorType: 'user',
+          entityId: projectId,
+          entityType: 'elder_project',
+          metadata: { result: response.result, session_id: response.session_id },
+          requestId: input.request_id,
+        },
+      });
+      await this.writeIdempotency(transaction, input.request_id, binding, response);
+      return response;
+    });
   }
 
   public async getProject(actor: AuthPrincipal, projectId: string): Promise<ProjectResponse> {
@@ -986,6 +1094,7 @@ export class ProjectFoundationService {
     binding: IdempotencyBinding,
     response:
       | ConsentResponse
+      | DiscardPrestartInterviewResponse
       | CreateNextSessionResponse
       | InterviewSessionResponse
       | ProjectResponse
@@ -1109,6 +1218,22 @@ export class ProjectFoundationService {
       code: 'PROJECT_NOT_STARTABLE',
       details: {},
       message: 'Project cannot create an interview session',
+    });
+  }
+
+  private prestartDiscardUnavailable(): ConflictException {
+    return new ConflictException({
+      code: 'PRESTART_DISCARD_UNAVAILABLE',
+      details: {},
+      message: 'Interview has crossed the formal recording boundary',
+    });
+  }
+
+  private prestartDiscardTargetStale(): ConflictException {
+    return new ConflictException({
+      code: 'PRESTART_DISCARD_TARGET_STALE',
+      details: {},
+      message: 'The unfinished interview target is no longer current',
     });
   }
 

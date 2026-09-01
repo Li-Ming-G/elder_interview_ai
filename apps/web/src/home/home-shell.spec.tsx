@@ -45,10 +45,10 @@ describe('HomeShell', () => {
     );
 
     const resume = await screen.findByRole('button', { name: '继续未完成访谈' });
-    const freshNew = screen.getByRole('button', { name: '暂不能开始新的访谈' });
-    expect((freshNew as HTMLButtonElement).disabled).toBe(true);
+    const freshNew = screen.getByRole('button', { name: '放弃未完成访谈并新建' });
+    expect((freshNew as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(freshNew);
-    expect(navigate).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/interviews/new?mode=new');
     expect(await workflowStore.getActive(USER.id)).not.toBeNull();
 
     fireEvent.click(resume);
@@ -108,6 +108,96 @@ describe('HomeShell', () => {
     expect(screen.queryByRole('button', { name: '继续未完成访谈' })).toBeNull();
     expect(screen.getByText(/暂时无法核对未完成的新建访谈；新建访谈暂不可用/)).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('exposes both explicit choices for a server-backed prestart session when local recovery lacks its session response', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(USER.id);
+    await workflowStore.put({
+      ...workflow,
+      projectAttempt: {
+        payload: {
+          approximate_age: null,
+          birth_year: null,
+          current_city: null,
+          display_name: '虚构待核对项目',
+          native_place: null,
+          request_id: '33333333-3333-4333-8333-333333333333',
+        },
+        requestId: '33333333-3333-4333-8333-333333333333',
+        response: {
+          approximate_age: null,
+          birth_year: null,
+          created_at: '2026-08-12T00:00:00.000Z',
+          created_by: USER.id,
+          current_city: null,
+          display_name: '虚构待核对项目',
+          id: PROJECT_ID,
+          native_place: null,
+          status: 'draft',
+          updated_at: '2026-08-12T00:00:00.000Z',
+        },
+        state: 'acknowledged',
+      },
+      sessionAttempt: null,
+      step: 'session',
+    });
+    const api = {
+      createNextSession: vi.fn(),
+      listProjectSessions: vi.fn().mockResolvedValue({
+        items: [
+          {
+            capture: null,
+            capture_failure_code: null,
+            created_at: '2026-08-12T00:00:00.000Z',
+            duration_seconds: null,
+            ended_at: null,
+            finalization: null,
+            home_state: 'preparation_required',
+            id: SESSION_ID,
+            primary_action: 'continue_preparation',
+            project_id: PROJECT_ID,
+            review_access: 'unavailable',
+            sequence_no: 1,
+            started_at: null,
+            status: 'device_check',
+          },
+        ],
+        next_cursor: null,
+      }),
+      listProjects: vi.fn().mockResolvedValue({
+        items: [
+          {
+            approximate_age: null,
+            birth_year: null,
+            created_at: '2026-08-12T00:00:00.000Z',
+            created_by: USER.id,
+            current_city: null,
+            display_name: '虚构待核对项目',
+            id: PROJECT_ID,
+            native_place: null,
+            projection: 'ordinary',
+            status: 'draft',
+            updated_at: '2026-08-12T00:00:00.000Z',
+          },
+        ],
+      }),
+    };
+
+    render(
+      <HomeShell
+        api={api}
+        navigate={vi.fn()}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={workflowStore}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: '放弃未完成访谈并新建' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '继续未完成访谈' })).toBeTruthy();
+    expect((await workflowStore.getActive(USER.id))?.workflowId).toBe(workflow.workflowId);
   });
 
   it('renders a restricted project only as the fixed neutral projection', async () => {
