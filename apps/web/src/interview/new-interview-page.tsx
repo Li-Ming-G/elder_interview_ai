@@ -20,6 +20,10 @@ import {
   type NewInterviewWorkflow,
   type StableCreateAttempt,
 } from './new-interview-workflow-store.js';
+import {
+  reconcileNewInterviewWorkflow,
+  type NewInterviewRecoveryAuthority,
+} from './new-interview-recovery.js';
 import { workbenchPath } from './routes.js';
 
 const CONSENT_TEXT_VERSION = 'mvp-v1';
@@ -37,7 +41,7 @@ const CONSENT_NOTICE = [
 type PageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; workflow: NewInterviewWorkflow };
+  | { kind: 'ready'; resumed: boolean; workflow: NewInterviewWorkflow };
 
 const EMPTY_CAPTURE: AudioCaptureSnapshot = {
   error: null,
@@ -58,6 +62,7 @@ export function NewInterviewPage({
   captureFactory = (): ConsentCapture => new BrowserConsentCapture(),
   checkMicrophone,
   csrfToken,
+  intent = 'resume',
   navigate,
   workflowStore,
 }: {
@@ -70,6 +75,7 @@ export function NewInterviewPage({
   captureFactory?: () => ConsentCapture;
   checkMicrophone: MicrophoneChecker;
   csrfToken: string;
+  intent?: 'new' | 'resume';
   navigate: (path: string, replace?: boolean) => void;
   workflowStore?: IndexedDbNewInterviewWorkflowStore;
 }): React.JSX.Element {
@@ -93,8 +99,29 @@ export function NewInterviewPage({
     const controller = new AbortController();
     void (async (): Promise<void> => {
       try {
-        const workflow = (await store.getActive(actorId)) ?? (await store.create(actorId));
-        if (!controller.signal.aborted) setPage({ kind: 'ready', workflow });
+        const existing = intent === 'resume' ? await store.getActive(actorId) : null;
+        let workflow: NewInterviewWorkflow;
+        let resumed = false;
+        if (existing === null) {
+          workflow = await store.create(actorId);
+        } else {
+          const reconciliation = await reconcileNewInterviewWorkflow(
+            existing,
+            api as NewInterviewRecoveryAuthority,
+          );
+          if (reconciliation.kind === 'unavailable') {
+            throw new Error('NEW_INTERVIEW_RECOVERY_UNAVAILABLE');
+          }
+          if (reconciliation.kind === 'retired') {
+            await store.retire(reconciliation.workflow);
+            workflow = await store.create(actorId);
+          } else {
+            workflow = reconciliation.workflow;
+            await store.put(workflow);
+            resumed = true;
+          }
+        }
+        if (!controller.signal.aborted) setPage({ kind: 'ready', resumed, workflow });
       } catch {
         if (!controller.signal.aborted) {
           setPage({
@@ -107,7 +134,7 @@ export function NewInterviewPage({
     return (): void => {
       controller.abort();
     };
-  }, [actorId, store]);
+  }, [actorId, api, intent, store]);
 
   useEffect(() => {
     mounted.current = true;
@@ -155,7 +182,13 @@ export function NewInterviewPage({
 
   async function save(workflow: NewInterviewWorkflow): Promise<void> {
     await store.put(workflow);
-    if (mounted.current) setPage({ kind: 'ready', workflow });
+    if (mounted.current) {
+      setPage((current) => ({
+        kind: 'ready',
+        resumed: current.kind === 'ready' && current.resumed,
+        workflow,
+      }));
+    }
   }
 
   async function runCreate<Response>(
@@ -568,12 +601,6 @@ export function NewInterviewPage({
   }
 
   const workflow = page.workflow;
-  const resumed =
-    workflow.createdAt !== workflow.updatedAt ||
-    [workflow.projectAttempt, workflow.consentAttempt, workflow.sessionAttempt]
-      .filter((value) => value !== null)
-      .some((value) => value.state === 'unknown_response');
-
   return (
     <HomeFrame>
       <header className="new-interview-header">
@@ -609,7 +636,7 @@ export function NewInterviewPage({
         ))}
       </ol>
 
-      {resumed ? (
+      {page.resumed ? (
         <p className="workflow-resume" role="status">
           已恢复这台浏览器上未完成的新建记录。正在恢复上次创建操作，不会重复创建项目。
         </p>

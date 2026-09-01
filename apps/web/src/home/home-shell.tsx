@@ -22,6 +22,10 @@ import {
   IndexedDbNewInterviewWorkflowStore,
   type NextSessionAttempt,
 } from '../interview/new-interview-workflow-store.js';
+import {
+  reconcileNewInterviewWorkflow,
+  type NewInterviewRecoveryResult,
+} from '../interview/new-interview-recovery.js';
 
 interface ProjectSessions {
   items: ProjectSessionListItem[];
@@ -54,6 +58,9 @@ export function HomeShell({
   const [error, setError] = useState<string | null>(null);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [unfinishedWorkflow, setUnfinishedWorkflow] = useState<
+    NewInterviewRecoveryResult & { kind: 'active' }
+  >();
 
   useEffect(() => {
     let current = true;
@@ -93,6 +100,7 @@ export function HomeShell({
             ]),
           ),
         );
+        await loadNewInterviewRecovery();
         const pending = await store.listNextSessionAttempts(user.id);
         if (pending.length === 0) return;
         await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
@@ -111,6 +119,29 @@ export function HomeShell({
       window.removeEventListener('online', resumeWhenOnline);
     };
   }, [api, navigate, onAuthLost, store, user.id]);
+
+  async function loadNewInterviewRecovery(): Promise<void> {
+    try {
+      const workflow = await store.getActive(user.id);
+      if (workflow === null) {
+        setUnfinishedWorkflow(undefined);
+        return;
+      }
+      const result = await reconcileNewInterviewWorkflow(workflow, api);
+      if (result.kind === 'retired') {
+        await store.retire(result.workflow);
+        setUnfinishedWorkflow(undefined);
+      } else if (result.kind === 'active') {
+        await store.put(result.workflow);
+        setUnfinishedWorkflow(result);
+      } else {
+        setUnfinishedWorkflow(undefined);
+        setActionMessage('暂时无法核对未完成的新建访谈，请选择新建访谈或稍后刷新重试。');
+      }
+    } catch {
+      setUnfinishedWorkflow(undefined);
+    }
+  }
 
   async function resumeNextSessionAttempt(attempt: NextSessionAttempt): Promise<void> {
     setBusyProjectId(attempt.projectId);
@@ -207,8 +238,19 @@ export function HomeShell({
             }}
             type="button"
           >
-            新建访谈
+            {unfinishedWorkflow === undefined ? '新建访谈' : '开始新的访谈'}
           </button>
+          {unfinishedWorkflow === undefined ? null : (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                navigate('/interviews/new?mode=resume');
+              }}
+              type="button"
+            >
+              继续未完成访谈
+            </button>
+          )}
           <button
             className="button button--secondary"
             onClick={() => void onLogout()}

@@ -127,9 +127,11 @@ export function App(): React.JSX.Element {
   }
 
   function navigate(path: string, replace = false): void {
-    if (replace) globalThis.history.replaceState(null, '', path);
-    else globalThis.history.pushState(null, '', path);
-    setPathname(path);
+    const url = new URL(path, globalThis.location.href);
+    const nextPath = `${url.pathname}${url.search}${url.hash}`;
+    if (replace) globalThis.history.replaceState(null, '', nextPath);
+    else globalThis.history.pushState(null, '', nextPath);
+    setPathname(url.pathname);
   }
 
   function returnToLogin(): void {
@@ -229,6 +231,11 @@ export function App(): React.JSX.Element {
         captureController={captureController}
         checkMicrophone={checkMicrophoneInput}
         csrfToken={csrfToken}
+        intent={
+          new URLSearchParams(globalThis.location.search).get('mode') === 'resume'
+            ? 'resume'
+            : 'new'
+        }
         navigate={navigate}
       />
     );

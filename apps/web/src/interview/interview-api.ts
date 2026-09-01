@@ -81,6 +81,7 @@ export interface HomeApi {
     projectId: string,
     input?: { cursor?: string | null; limit?: number },
   ) => Promise<ProjectSessionListResponse>;
+  getSession?: (sessionId: string) => Promise<InterviewSessionResponse>;
 }
 
 export interface NextSessionApi {

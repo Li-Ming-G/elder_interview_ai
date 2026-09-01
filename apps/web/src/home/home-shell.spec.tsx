@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 
+import { IDBFactory } from 'fake-indexeddb';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InterviewApiError } from '../interview/interview-api.js';
-import type { NextSessionAttempt } from '../interview/new-interview-workflow-store.js';
+import {
+  IndexedDbNewInterviewWorkflowStore,
+  type NextSessionAttempt,
+} from '../interview/new-interview-workflow-store.js';
 import { HomeShell } from './home-shell.js';
 
 const USER = {
@@ -18,6 +22,33 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 
 describe('HomeShell', () => {
   afterEach(cleanup);
+
+  it('exposes explicit resume and fresh-new actions for an unfinished local creation', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    await workflowStore.create(USER.id);
+    const navigate = vi.fn();
+    const api = {
+      createNextSession: vi.fn(),
+      listProjectSessions: vi.fn(),
+      listProjects: vi.fn().mockResolvedValue({ items: [] }),
+    };
+
+    render(
+      <HomeShell
+        api={api}
+        navigate={navigate}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={workflowStore}
+      />,
+    );
+
+    const resume = await screen.findByRole('button', { name: '继续未完成访谈' });
+    expect(screen.getByRole('button', { name: '开始新的访谈' })).toBeTruthy();
+    fireEvent.click(resume);
+    expect(navigate).toHaveBeenCalledWith('/interviews/new?mode=resume');
+  });
 
   it('renders a restricted project only as the fixed neutral projection', async () => {
     const api = {

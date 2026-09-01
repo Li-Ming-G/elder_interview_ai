@@ -37,7 +37,7 @@ export interface NewInterviewWorkflow {
   projectAttempt: StableCreateAttempt<CreateProjectRequest, ProjectResponse> | null;
   serviceTermAttempt: StableCreateAttempt<CreateServiceTermRequest, ServiceTermResponse> | null;
   sessionAttempt: StableCreateAttempt<{ request_id: string }, InterviewSessionResponse> | null;
-  status: 'active' | 'complete';
+  status: 'active' | 'complete' | 'retired';
   step: WorkflowStep;
   updatedAt: string;
   workflowId: string;
@@ -227,6 +227,10 @@ export class IndexedDbNewInterviewWorkflowStore {
     await completion;
   }
 
+  public async retire(workflow: NewInterviewWorkflow): Promise<void> {
+    await this.put({ ...workflow, status: 'retired' });
+  }
+
   private database(): Promise<IDBDatabase> {
     this.databasePromise ??= new Promise((resolve, reject) => {
       const open = this.factory.open(DATABASE_NAME, DATABASE_VERSION);
@@ -287,7 +291,7 @@ function assertWorkflow(value: NewInterviewWorkflow): void {
   if (
     value.workflowId.trim().length === 0 ||
     value.actorId.trim().length === 0 ||
-    !['active', 'complete'].includes(value.status)
+    !['active', 'complete', 'retired'].includes(value.status)
   ) {
     throw new TypeError('invalid new interview workflow');
   }
