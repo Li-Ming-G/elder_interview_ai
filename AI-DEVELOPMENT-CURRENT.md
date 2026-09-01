@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS`.
+`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS` on PR #127 at exact head `9c495b604fb3d4f28740236ed3eb45310aa430ea`. Exact-head CI run `33477362815` failed at `Run pnpm test:e2e`; the same task and PR require bounded repair.
 
 Its responsibility is intentionally narrow:
 
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher selected the single eligible task `PFC-01-NEW-INTENT-TRUTH`, persisted `READY -> IN_PROGRESS`, and is launching one `luna-high` Implementation Worker. The Worker must stop at `REVIEW` with the canonical PR and exact head.
+Dispatcher bound canonical PR #127 for `PFC-01-NEW-INTENT-TRUTH`. Exact-head CI failed at `Run pnpm test:e2e`, so the Dispatcher is launching one bounded `luna-high` repair Worker on the same task and PR.
