@@ -46,7 +46,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [IN_PROGRESS]
+PFC-01-NEW-INTENT-TRUTH        [REVIEW]
   -> PFC-02-PRESTART-DISCARD   [DEFERRED]
   -> PFC-03-RECORDING-NAV-SAFETY [DEFERRED]
   -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` is `IN_PROGRESS` on PR #127 at exact head `07621884f0e3a74d9d383046115b88109d8d3059`. The latest valid current-head Architect verdict is `REQUEST_CHANGES` with one P1 finding: explicit fresh-new must not shadow an unfinished recovery handle before PFC-02, and reconciliation-unavailable behavior must fail closed.
+`PFC-01-NEW-INTENT-TRUTH` is `REVIEW` on PR #127 at repaired exact head `9ca072b2544950eb721ebcb04bfe9df7af4491bc`. Exact-head required CI `verify` is pending, and the prior-head `REQUEST_CHANGES` verdict is stale.
 
 Its responsibility is intentionally narrow:
 
@@ -124,8 +124,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `READY`: none.
-- `IN_PROGRESS`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
-- `REVIEW`: none.
+- `IN_PROGRESS`: none.
+- `REVIEW`: `PFC-01-NEW-INTENT-TRUTH` on PR #127.
 - `BLOCKED`: none in the Product Flow Closure pack.
 - `DEFERRED`: `PFC-02` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: Checkpoint A maintenance through PR #126 and prior accepted baseline tasks.
@@ -136,4 +136,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatcher consumed the current-head `REQUEST_CHANGES` verdict for PR #127, persisted `REVIEW -> IN_PROGRESS`, and is launching one bounded `luna-high` same-task/same-PR repair Worker for the P1 finding.
+Dispatcher reconciled the repaired head for PR #127, persisted `IN_PROGRESS -> REVIEW`, and is waiting for exact-head required CI before publishing refreshed review context.
