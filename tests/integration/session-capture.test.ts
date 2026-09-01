@@ -214,8 +214,8 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' } });
   });
 
-  it('confirms, records durable PCM evidence, interrupts, and resumes on one timeline', async () => {
-    const fixture = await createFixture();
+  it('confirms, records durable PCM evidence, interrupts, and resumes a first session without continuation policy', async () => {
+    const fixture = await createFixture(1, 'mvp-v1');
     const sessionId = fixture.sessionIds[0];
     const stream0 = randomUUID();
     const started = await startSession(sessionId, {
@@ -312,6 +312,89 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
         ),
       ),
     ).toEqual(new Set([audioObjectId]));
+  });
+
+  it.each([
+    {
+      label: 'missing',
+      mutate: async (_projectId: string, consentId: string): Promise<void> => {
+        await prisma.consentRecord.delete({ where: { id: consentId } });
+      },
+    },
+    {
+      label: 'revoked',
+      mutate: async (_projectId: string, consentId: string): Promise<void> => {
+        await prisma.consentRecord.update({
+          data: { revokedAt: new Date(), status: 'revoked' },
+          where: { id: consentId },
+        });
+      },
+    },
+    {
+      label: 'invalid',
+      mutate: async (_projectId: string, consentId: string): Promise<void> => {
+        await prisma.consentRecord.update({
+          data: { status: 'pending' },
+          where: { id: consentId },
+        });
+      },
+    },
+    {
+      label: 'wrong-project',
+      mutate: async (_projectId: string, consentId: string): Promise<void> => {
+        const otherProject = await prisma.elderProject.create({
+          data: { createdBy: actorId, displayName: '虚构错误授权项目', status: 'ready' },
+        });
+        await prisma.consentRecord.update({
+          data: { projectId: otherProject.id },
+          where: { id: consentId },
+        });
+      },
+    },
+  ])(
+    'fails closed for a $label first-session formal consent at capture confirmation',
+    async ({ mutate }) => {
+      const fixture = await createFixture(1, 'mvp-v1');
+      const sessionId = fixture.sessionIds[0];
+      const stream = randomUUID();
+      await startSession(sessionId, {
+        audio_stream_id: stream,
+        mime_type: MIME,
+        request_id: randomUUID(),
+      });
+      await mutate(fixture.projectId, fixture.consentId);
+
+      await expect(
+        captures.confirmActive(actor, sessionId, {
+          audio_stream_id: stream,
+          generation_no: 0,
+          request_id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    },
+  );
+
+  it('keeps later-session capture bound to covered continuation consent', async () => {
+    const fixture = await createFixture(2);
+    const sessionId = fixture.sessionIds[1];
+    const stream = randomUUID();
+    await startSession(sessionId, {
+      audio_stream_id: stream,
+      mime_type: MIME,
+      request_id: randomUUID(),
+    });
+    await prisma.consentRecord.update({
+      data: { consentTextVersion: 'mvp-v1' },
+      where: { id: fixture.consentId },
+    });
+
+    await expect(
+      captures.confirmActive(actor, sessionId, {
+        audio_stream_id: stream,
+        generation_no: 0,
+        request_id: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
   });
 
   it('allows NO_AUDIO_CAPTURED only when server chunks and accepted PCM are both absent', async () => {
@@ -894,7 +977,10 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     }
   });
 
-  async function createFixture(sessionCount = 1): Promise<{
+  async function createFixture(
+    sessionCount = 1,
+    consentTextVersion = FICTIONAL_CONTINUING_CONSENT_VERSION,
+  ): Promise<{
     consentId: string;
     projectId: string;
     sessionIds: string[];
@@ -924,7 +1010,7 @@ describe('session capture lifecycle PostgreSQL barriers', () => {
     const consent = await prisma.consentRecord.create({
       data: {
         consentMethod: 'electronic',
-        consentTextVersion: FICTIONAL_CONTINUING_CONSENT_VERSION,
+        consentTextVersion,
         consentType: 'recording_transcription_ai',
         consentedAt: new Date(),
         createdBy: actorId,

@@ -56,7 +56,7 @@ export class SessionCaptureService {
         });
         return replay.snapshot;
       }
-      await this.assertCurrentGate(tx, actor, locked.session.projectId);
+      await this.assertCurrentGate(tx, actor, locked.session.projectId, locked.session.sequenceNo);
       if (
         locked.capture.generationNo !== input.generation_no ||
         locked.capture.audioStreamId !== input.audio_stream_id
@@ -202,7 +202,7 @@ export class SessionCaptureService {
         });
         return replay.snapshot;
       }
-      await this.assertCurrentGate(tx, actor, locked.session.projectId);
+      await this.assertCurrentGate(tx, actor, locked.session.projectId, locked.session.sequenceNo);
       if (
         locked.session.status !== 'interrupted' ||
         locked.capture.status !== 'interrupted' ||
@@ -304,7 +304,7 @@ export class SessionCaptureService {
       ) {
         throw this.conflict('SESSION_NOT_RECOVERABLE');
       }
-      await this.assertCurrentGate(tx, actor, session.projectId);
+      await this.assertCurrentGate(tx, actor, session.projectId, session.sequenceNo);
       const uploaded = await tx.audioChunk.findMany({
         orderBy: { sequenceNo: 'asc' },
         where: { audioObjectId: capture.audioObjectId, uploadStatus: 'uploaded' },
@@ -383,17 +383,34 @@ export class SessionCaptureService {
     tx: Prisma.TransactionClient,
     actor: AuthPrincipal,
     projectId: string,
+    sequenceNo: number,
   ): Promise<void> {
     const decision = await this.repeatInterviews.read(actor.id, projectId, tx);
     if (
       actor.status !== 'active' ||
       decision.visibility !== 'ordinary' ||
       !decision.projectStateAvailable ||
-      !['ready', 'active'].includes(decision.project.status) ||
-      decision.consentContinuation.status !== 'covered'
+      !['ready', 'active'].includes(decision.project.status)
     ) {
       throw this.forbidden();
     }
+    const consentCovered =
+      sequenceNo === 1
+        ? await this.hasCurrentFormalConsent(tx, projectId)
+        : decision.consentContinuation.status === 'covered';
+    if (!consentCovered) throw this.forbidden();
+  }
+
+  private async hasCurrentFormalConsent(
+    tx: Prisma.TransactionClient,
+    projectId: string,
+  ): Promise<boolean> {
+    const consent = await tx.consentRecord.findFirst({
+      orderBy: [{ consentedAt: 'desc' }, { createdAt: 'desc' }],
+      select: { revokedAt: true, status: true },
+      where: { consentType: 'recording_transcription_ai', projectId },
+    });
+    return consent?.status === 'valid' && consent.revokedAt === null;
   }
 
   private assertOriginalActor(actor: AuthPrincipal, createdBy: string): void {
