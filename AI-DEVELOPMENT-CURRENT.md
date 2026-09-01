@@ -48,8 +48,8 @@ Predefined queue:
 ```text
 PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
-  -> PFC-03-RECORDING-NAV-SAFETY [BLOCKED / MAIN_VERIFY_FAILED]
-  -> PFC-04-SUGGESTION-RECOVERY  [DEFERRED]
+  -> PFC-03-RECORDING-NAV-SAFETY [DONE]
+  -> PFC-04-SUGGESTION-RECOVERY  [READY]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DEFERRED]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` and `PFC-02-PRESTART-DISCARD` are `DONE`. PR #129 was accepted and merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`, but `PFC-03-RECORDING-NAV-SAFETY` is `BLOCKED / MAIN_VERIFY_FAILED` because exact-current-main CI run `33533271266` failed in the realtime auth E2E connection step. Later pulses must mechanically recheck exact-current-main CI and automatically complete the task if an applicable rerun succeeds. It owns only the formal-capture navigation, safe-end, unload-warning, calibration escape, and Home active-capture guard behavior defined by its Task Card.
+`PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, and `PFC-03-RECORDING-NAV-SAFETY` are `DONE`. PR #129 was accepted and merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33534495664` succeeded. The predefined successor `PFC-04-SUGGESTION-RECOVERY` is now the sole eligible `READY` task.
 
 Its responsibility is intentionally narrow:
 
@@ -123,11 +123,11 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `READY`: none.
-- `BLOCKED`: `PFC-03-RECORDING-NAV-SAFETY` / `MAIN_VERIFY_FAILED` on exact current main `ee01cf0c42d7041bc7d4524c21a874eb51245787`.
+- `READY`: `PFC-04-SUGGESTION-RECOVERY`.
+- `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
-- `DEFERRED`: `PFC-04` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
-- `DONE`: `PFC-01-NEW-INTENT-TRUTH`, `PFC-02-PRESTART-DISCARD`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
+- `DEFERRED`: `PFC-05` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
+- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-03-RECORDING-NAV-SAFETY`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 
 ## Authority order
 
@@ -135,4 +135,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-PR #129 is merged and its merge commit is proven in exact current-main ancestry. Exact-current-main CI run `33533271266` failed at `test:e2e:auth / realtime-connection`, so the task remains `BLOCKED / MAIN_VERIFY_FAILED`; no successor is unlocked. Future pulses must retry mechanical recovery from applicable exact-current-main CI.
+Exact-current-main CI run `33534495664` succeeded and mechanically cleared the stale `MAIN_VERIFY_FAILED` blocker. Dispatcher marked `PFC-03-RECORDING-NAV-SAFETY` `DONE` and unlocked only its predefined successor `PFC-04-SUGGESTION-RECOVERY`; this DONE pulse now ends.

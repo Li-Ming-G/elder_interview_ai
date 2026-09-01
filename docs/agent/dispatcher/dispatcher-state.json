@@ -343,7 +343,7 @@
     },
     {
       "id": "PFC-03-RECORDING-NAV-SAFETY",
-      "status": "BLOCKED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/PFC-03-RECORDING-NAV-SAFETY.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-02-PRESTART-DISCARD"],
@@ -352,7 +352,7 @@
     },
     {
       "id": "PFC-04-SUGGESTION-RECOVERY",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/PFC-04-SUGGESTION-RECOVERY.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-03-RECORDING-NAV-SAFETY"],
