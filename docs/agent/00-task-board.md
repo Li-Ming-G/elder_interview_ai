@@ -24,48 +24,58 @@
 | `P6R-02` | `DONE` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `100` | `P6R-03` |
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
 | `P6R-04` | `DONE` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
-| `P6R-05` | `DONE` | P6R-04 external PASS + merge + main verification | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
+| `P6R-05` | `DONE` | P6R-04 merged and verified | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
 | `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
 | `CPA-03` | `DONE` | CPA-02 merged and verified | [`tasks/CPA-03.md`](tasks/CPA-03.md) | `luna-high` | `107` | `CPA-04` |
-| `CPA-04` | `DONE` | Architect PASS; merged PR #109 at `db7d6f713dba6fb6d2e73483df7279e043061865`; main `28e3f89c3fa4995dd875ed1d915075e4a19efccd`; main CI SUCCESS | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
-| `CPA-05` | `DONE` | Architect PASS; merged PR #111 at `24f741ba0cf0652db677f355d7e081cb4a41e366`; main `fc7bb87271da2c12b971cbefc1b8e78c66ef84d1`; main CI run `32850288156` SUCCESS | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
-| `REAL-IDENTITY-01` | `DONE` | Architect PASS; merged PR #112 at `7ababe69121d060904e6b0f9e87770181a3be81b`; main `1b0529af47bb9e5f437ff9041b465daad1c30c7a`; main CI run `32871264794` SUCCESS | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
-| `REAL-RUNTIME-02` | `DONE` | Architect PASS at `c57d1172e65d7944137dd83be330e49eb68ceaf5`; accepted merge `195a0b95a7972e9cc38b34adf3bb07520373ed45` is in refreshed main `684f32b558b00ef48d4785315e1d230bc1be1c40`; exact-main CI run `32914392387` attempt 2 SUCCESS | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
-| `LOCAL-DB-PORT-01` | `DONE` | Architect PASS; merged PR #115 at `6b0756d1e2592224c45d9c7317e1bbf220dccde3`; accepted merge `c4109ac56a2e3d8a955111bc7952c681dba500de` is in refreshed main `f77a00da1bc39aba0473d48275e6b735fc6d914e`; exact-main CI run `33053415020` SUCCESS | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
-| `FIRST-INTERVIEW-START-01` | `DONE` | `LOCAL-DB-PORT-01`; accepted head `c218087b8189e12b30a425011571edfcd74ad59e`; merged `2faf0179d97d1a40378e76f0488d2fe9c3db2f81`; exact-main CI `verify` SUCCESS | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
-| `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | `FIRST-INTERVIEW-START-01`; Owner-authorized [`tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-PACK.md) | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
-| `CKPT-A-LOCAL-START-01` | `DONE` | `DISPATCHER-SAME-TASK-REPAIR-01`; Owner-authorized [`tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md`](tasks/CKPT-A-LOCAL-START-REPAIR-PACK.md); exact current-main `9669e86cf4859d43272bb7fb419fc8b8b2dcc7b5`; CI run `33146225956` attempt 2 SUCCESS | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
-| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | `CKPT-A-LOCAL-START-01` DONE; PR #121 merged as `0e25f24a9a6d7cc827daa0a7f3b527a8d7d79ef2`; accepted merge is in refreshed main `22557cdcba1c17c5f8921094c6057fca9b423f39`; exact current-main CI run `33205218737` SUCCESS; recovered from `MAIN_VERIFY_FAILED` | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
-| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | `DISPATCHER-STALE-DONE-RECONCILIATION-01`; PR #122 merged as `d58586bef763e1bd2e7aac89a3aca0528f17db7b`; accepted merge is in refreshed main `b0ae1f2c180d473c1b3d1a60b2a74a901a8693a8`; exact current-main CI run `33229483568` SUCCESS | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
-| `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01`; PR #123 merged at accepted merge commit `7467256f1ac8ad95054937c4cee88f5498b21b4d` from exact Architect-reviewed head `5874715a0f1ca3132ba1bc0ab67d994eb57f1aa6`; exact-current-main CI run `33289681762` SUCCESS | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
-| `CKPT-A-WEB-CWD-01` | `DONE` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` DONE; PR #125 merged from exact head `60cdce838394467379254890d3b2536cca3383c6`; accepted ancestry remains in exact current main `1805d63dbe63366a82692d81157dd4642b786216`; exact-current-main CI run `33299450389` SUCCESS | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
-| `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | `CKPT-A-WEB-CWD-01` DONE; Architect PASS at exact head `5d7ea74a1b68841eb39a3da27404a7f41f656a91`; PR #126 merged as `f324d10b1cc8b6a4299ec0a6de1bb888610df5fb`; accepted merge is exact current main; exact-current-main CI run `33458417909` attempt 3 SUCCESS | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
+| `CPA-04` | `DONE` | Architect PASS; merged PR #109 | [`tasks/CPA-04.md`](tasks/CPA-04.md) | `luna-high` | `109` | `CPA-05` |
+| `CPA-05` | `DONE` | Architect PASS; merged PR #111; main verified | [`tasks/CPA-05.md`](tasks/CPA-05.md) | `luna-high` | `111` | `null` |
+| `REAL-IDENTITY-01` | `DONE` | CPA-05 DONE; Owner-issued Real Flow Cleanup Pack | [`tasks/REAL-IDENTITY-01.md`](tasks/REAL-IDENTITY-01.md) | `luna-high` | `112` | `REAL-RUNTIME-02` |
+| `REAL-RUNTIME-02` | `DONE` | REAL-IDENTITY-01 DONE | [`tasks/REAL-RUNTIME-02.md`](tasks/REAL-RUNTIME-02.md) | `luna-high` | `113` | `null` |
+| `LOCAL-DB-PORT-01` | `DONE` | REAL-RUNTIME-02; local DB maintenance pack | [`tasks/LOCAL-DB-PORT-01.md`](tasks/LOCAL-DB-PORT-01.md) | `luna-high` | `115` | `null` |
+| `FIRST-INTERVIEW-START-01` | `DONE` | LOCAL-DB-PORT-01 | [`tasks/FIRST-INTERVIEW-START-01.md`](tasks/FIRST-INTERVIEW-START-01.md) | `luna-high` | `116` | `DISPATCHER-SAME-TASK-REPAIR-01` |
+| `DISPATCHER-SAME-TASK-REPAIR-01` | `DONE` | FIRST-INTERVIEW-START-01 | [`tasks/DISPATCHER-SAME-TASK-REPAIR-01.md`](tasks/DISPATCHER-SAME-TASK-REPAIR-01.md) | `luna-high` | `117` | `CKPT-A-LOCAL-START-01` |
+| `CKPT-A-LOCAL-START-01` | `DONE` | DISPATCHER-SAME-TASK-REPAIR-01 | [`tasks/CKPT-A-LOCAL-START-01.md`](tasks/CKPT-A-LOCAL-START-01.md) | `luna-high` | `118` | `DISPATCHER-STALE-DONE-RECONCILIATION-01` |
+| `DISPATCHER-STALE-DONE-RECONCILIATION-01` | `DONE` | CKPT-A-LOCAL-START-01 | [`tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md`](tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md) | `luna-high` | `121` | `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` |
+| `FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01` | `DONE` | DISPATCHER-STALE-DONE-RECONCILIATION-01 | [`tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md`](tasks/FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01.md) | `luna-high` | `122` | `CKPT-A-LEGACY-PREPARE-BRIDGE-01` |
+| `CKPT-A-LEGACY-PREPARE-BRIDGE-01` | `DONE` | FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01 | [`tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md`](tasks/CKPT-A-LEGACY-PREPARE-BRIDGE-01.md) | `luna-high` | `123` | `null` |
+| `CKPT-A-WEB-CWD-01` | `DONE` | CKPT-A-LEGACY-PREPARE-BRIDGE-01 | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
+| `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | CKPT-A-WEB-CWD-01; PR #126 merged/main verified | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
+| `PFC-01-NEW-INTENT-TRUTH` | `READY` | `CKPT-A-FIRST-CAPTURE-GATE-01` DONE; Owner-authorized [`tasks/PRODUCT-FLOW-CLOSURE-01.md`](tasks/PRODUCT-FLOW-CLOSURE-01.md) | [`tasks/PFC-01-NEW-INTENT-TRUTH.md`](tasks/PFC-01-NEW-INTENT-TRUTH.md) | `luna-high` | `null` | `PFC-02-PRESTART-DISCARD` |
+| `PFC-02-PRESTART-DISCARD` | `DEFERRED` | `PFC-01-NEW-INTENT-TRUTH` | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `null` | `PFC-03-RECORDING-NAV-SAFETY` |
+| `PFC-03-RECORDING-NAV-SAFETY` | `DEFERRED` | `PFC-02-PRESTART-DISCARD` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `null` | `PFC-04-SUGGESTION-RECOVERY` |
+| `PFC-04-SUGGESTION-RECOVERY` | `DEFERRED` | `PFC-03-RECORDING-NAV-SAFETY` | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `null` | `PFC-05-ROUTE-ACTION-CLOSURE` |
+| `PFC-05-ROUTE-ACTION-CLOSURE` | `DEFERRED` | `PFC-04-SUGGESTION-RECOVERY` | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `null` | `PFC-06-ERROR-AUTH-RESILIENCE` |
+| `PFC-06-ERROR-AUTH-RESILIENCE` | `DEFERRED` | `PFC-05-ROUTE-ACTION-CLOSURE` | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `null` | `PFC-07-FULL-FLOW-E2E` |
+| `PFC-07-FULL-FLOW-E2E` | `DEFERRED` | `PFC-06-ERROR-AUTH-RESILIENCE` | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-The first-session capture authority gate repair is accepted, merged and exact-current-main verified. The Owner can resume the same existing interview record for live Checkpoint A testing.
+`PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-Current active task: none. `CKPT-A-FIRST-CAPTURE-GATE-01` is `DONE` through PR #126 and exact-current-main CI run `33458417909` attempt 3 SUCCESS.
+Current active task: `PFC-01-NEW-INTENT-TRUTH` (`READY`). It must separate explicit New vs Resume intent and reconcile stale browser workflow state against server authority before recovery.
 
-The Product Owner explicitly authorized this ultra-small first-principles maintenance repair and asked for the fastest safe path back to Checkpoint A testing.
+The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
-Allowed implementation scope is defined by the Task Card and is intentionally narrow around `session-capture.service.ts` plus the existing relevant integration tests.
+Only `PFC-01-NEW-INTENT-TRUTH` is eligible now. `PFC-02` through `PFC-07` remain `DEFERRED` until mechanically unlocked by predecessor DONE.
 
-## Frozen boundaries
+## Frozen product-flow boundaries
 
-- sequence 1 capture confirm/recovery uses current valid first-interview formal consent;
-- sequence > 1 continuation-consent behavior unchanged;
-- active actor, assignment/access, project availability/status and capture generation/state checks unchanged;
-- no UI, database/schema/migration, auth redesign, consent-policy activation, ASR, Director, memory, P1–P6 or deployment changes;
-- no data reset/workaround for the Owner's interrupted live session.
+- server facts outrank IndexedDB recovery state;
+- visible action label must match actual behavior;
+- formal recording cannot be silently left behind by route/history navigation;
+- safe End Interview is always available after formal recording starts, including calibration;
+- calibration failure cannot fabricate speaker identity or hard-lock the session;
+- AI suggestion failure never stops recording and gets a visible retry path;
+- no known placeholder/dead route may remain behind an ordinary visible action in the audited lifecycle;
+- no deliberate pause/resume product feature;
+- P1-P6 semantics, provider bindings, evidence authority and consent/capture safety remain unchanged.
 
-## Maintenance
+## Maintenance / governance
 
-- `MEMORY-T5-T8-P2-C-RUNTIME-001` is historical `DONE`; the stale `BLOCKED` cache projection is corrected and is not current work.
-- `CKPT-A-WEB-CWD-01` is `DONE`; exact current-main CI `33299450389` is SUCCESS and overrides the stale older failure projection.
-- GitHub durable facts override stale projection/status fields.
-- Dispatcher must fresh-read GitHub/main or refreshed `origin/main`; an unpushed local worktree is never canonical state.
-- A normal Worker repairs/implements only its current Task Card and canonical PR.
-- External Architect owns exact-head review and verdict.
-- Dispatcher never creates Task Cards or invents next tasks.
+- historical `MEMORY-T5-T8-P2-C-RUNTIME-001` remains `DONE` and must not become active from stale projection;
+- GitHub durable PR/head/verdict/merge/CI facts override stale local projections;
+- Dispatcher must scan the full freshly fetched canonical queue after reconciliation;
+- Dispatcher never invents Product Flow tasks or product behavior;
+- external Architect owns exact-head review and verdict;
+- Worker implements only the current Task Card and canonical PR.
