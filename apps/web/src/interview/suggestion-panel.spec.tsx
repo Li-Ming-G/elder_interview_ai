@@ -149,6 +149,75 @@ describe('SuggestionPanel', () => {
     expect(document.activeElement).toBe(next);
   });
 
+  it('offers a retry after the initial current read fails and keeps manual next separate', async () => {
+    const getCurrentSuggestion = vi
+      .fn<SuggestionApi['getCurrentSuggestion']>()
+      .mockRejectedValueOnce(new InterviewApiError('AI_UNAVAILABLE', 'unavailable', 503))
+      .mockRejectedValueOnce(new InterviewApiError('AI_UNAVAILABLE', 'unavailable', 503))
+      .mockResolvedValueOnce(currentSuggestion());
+    const requestNextSuggestion = vi.fn<SuggestionApi['requestNextSuggestion']>();
+    const api = suggestionApi({ getCurrentSuggestion, requestNextSuggestion });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('录音和转录仍会继续');
+    const next = screen.getByRole('button', { name: '下一个问题' });
+    expect(next.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(next);
+    expect(requestNextSuggestion).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载问题建议' }));
+    expect(await screen.findByRole('button', { name: '重新加载问题建议' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载问题建议' }));
+    expect(await screen.findByText('当前问题')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '下一个问题' }).hasAttribute('disabled')).toBe(false);
+    expect(getCurrentSuggestion).toHaveBeenCalledTimes(3);
+    expect(requestNextSuggestion).not.toHaveBeenCalled();
+  });
+
+  it('preserves the fenced manual-next request after current suggestion recovery', async () => {
+    const getCurrentSuggestion = vi
+      .fn<SuggestionApi['getCurrentSuggestion']>()
+      .mockRejectedValueOnce(new InterviewApiError('AI_UNAVAILABLE', 'unavailable', 503))
+      .mockResolvedValueOnce(currentSuggestion());
+    const requestNextSuggestion = vi.fn<SuggestionApi['requestNextSuggestion']>(() =>
+      Promise.resolve({
+        accepted_presentation_revision: 2,
+        attempt_id: '66666666-6666-4666-8666-666666666666',
+        request_id: '77777777-7777-4777-8777-777777777777',
+        retry_after_ms: 0,
+        status: 'pending',
+      }),
+    );
+    const api = suggestionApi({
+      getCurrentSuggestion,
+      getSuggestionRequest: vi.fn<SuggestionApi['getSuggestionRequest']>(() =>
+        Promise.resolve({
+          attempt_id: '66666666-6666-4666-8666-666666666666',
+          current: { ...currentSuggestion(), presentation_revision: 3 },
+          error_code: null,
+          publication_outcome: 'published' as const,
+          request_id: '77777777-7777-4777-8777-777777777777',
+          result_kind: 'suggestion' as const,
+          status: 'succeeded' as const,
+        }),
+      ),
+      requestNextSuggestion,
+    });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+    fireEvent.click(await screen.findByRole('button', { name: '重新加载问题建议' }));
+    await screen.findByText('当前问题');
+    fireEvent.click(screen.getByRole('button', { name: '下一个问题' }));
+
+    await waitFor(() => {
+      expect(requestNextSuggestion).toHaveBeenCalledTimes(1);
+    });
+    const request = requestNextSuggestion.mock.calls[0]?.[1];
+    expect(request?.expected_presentation_revision).toBe(2);
+    expect(request?.expected_snapshot_id).toBe('33333333-3333-4333-8333-333333333333');
+    expect(typeof request?.request_id).toBe('string');
+  });
+
   it.each([
     ['continue_listening', '继续倾听'],
     ['unavailable', '问题建议暂不可用'],

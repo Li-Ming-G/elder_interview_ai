@@ -37,7 +37,10 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
       });
     });
     expect(checkMicrophone).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/本次仍会录音、转录并由 AI 辅助分析/)).toBeTruthy();
+    const reminder = screen.getByText(/本次仍会录音、转录并由 AI 辅助分析/);
+    expect(reminder.textContent).toContain('停止');
+    expect(reminder.textContent).toContain('撤回');
+    expect(reminder.textContent).not.toContain('暂停');
     fireEvent.click(screen.getByRole('button', { name: '开始访谈' }));
     await waitFor(() => {
       expect(api.captureStart).toHaveBeenCalledTimes(1);
@@ -263,7 +266,7 @@ const SESSION: InterviewSessionResponse = {
     action_label: '开始访谈',
     creates_consent_record: false,
     requires_explicit_action: true,
-    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求暂停、停止或撤回。',
+    text: '本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。',
     version: 'recording-reminder-v1',
   },
   sequence_no: 1,

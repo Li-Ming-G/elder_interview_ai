@@ -41,6 +41,7 @@ export function SuggestionPanel({
   const readCurrent = useCallback(
     async (announce = false): Promise<SuggestionPresentationResponse | null> => {
       if (typeof api.getCurrentSuggestion !== 'function') return null;
+      setLoading(true);
       try {
         const next = await api.getCurrentSuggestion(sessionId);
         if (!mounted.current) return null;
@@ -225,6 +226,8 @@ export function SuggestionPanel({
   const reason = presentation?.reason ?? null;
   const previousDisabled =
     loading || historyLoading || current === null || !current.history.has_previous;
+  const canRetryCurrent =
+    view.kind === 'current' && !loading && !manualBusy && (current === null || error !== null);
 
   return (
     <aside
@@ -269,12 +272,21 @@ export function SuggestionPanel({
             </button>
             <button
               className="button button--primary"
-              disabled={loading || manualBusy || current?.kind === 'withdrawn'}
+              disabled={loading || manualBusy || current === null || current.kind === 'withdrawn'}
               onClick={() => void nextQuestion()}
               type="button"
             >
               {manualBusy ? '正在准备…' : '下一个问题'}
             </button>
+            {canRetryCurrent ? (
+              <button
+                className="button button--secondary"
+                onClick={() => void readCurrent()}
+                type="button"
+              >
+                重新加载问题建议
+              </button>
+            ) : null}
           </>
         ) : (
           <>
