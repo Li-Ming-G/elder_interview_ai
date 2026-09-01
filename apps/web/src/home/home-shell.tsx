@@ -65,6 +65,9 @@ export function HomeShell({
   const [newInterviewRecovery, setNewInterviewRecovery] = useState<NewInterviewRecoveryState>({
     kind: 'checking',
   });
+  const activeFormalSession = Object.values(sessions)
+    .flatMap((page) => page.items)
+    .find(hasUnresolvedFormalCapture);
 
   useEffect(() => {
     let current = true;
@@ -91,7 +94,7 @@ export function HomeShell({
         );
         const pages = await Promise.all(
           ordinary.map(
-            async (project) => [project.id, await api.listProjectSessions(project.id)] as const,
+            async (project) => [project.id, await loadAllProjectSessions(api, project.id)] as const,
           ),
         );
         if (!current) return;
@@ -248,22 +251,36 @@ export function HomeShell({
             className="button button--primary"
             disabled={
               newInterviewRecovery.kind === 'checking' ||
-              newInterviewRecovery.kind === 'unavailable'
+              newInterviewRecovery.kind === 'unavailable' ||
+              activeFormalSession !== undefined
             }
             onClick={() => {
               navigate('/interviews/new?mode=new');
             }}
             type="button"
           >
-            {newInterviewRecovery.kind === 'checking'
-              ? '正在核对未完成访谈…'
-              : newInterviewRecovery.kind === 'unavailable'
-                ? '暂时无法安全新建访谈'
-                : newInterviewRecovery.kind === 'active'
-                  ? '放弃未完成访谈并新建'
-                  : '新建访谈'}
+            {activeFormalSession !== undefined
+              ? '请先处理进行中的访谈'
+              : newInterviewRecovery.kind === 'checking'
+                ? '正在核对未完成访谈…'
+                : newInterviewRecovery.kind === 'unavailable'
+                  ? '暂时无法安全新建访谈'
+                  : newInterviewRecovery.kind === 'active'
+                    ? '放弃未完成访谈并新建'
+                    : '新建访谈'}
           </button>
-          {newInterviewRecovery.kind !== 'active' ? null : (
+          {activeFormalSession === undefined ? null : (
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                navigate(actionPath(activeFormalSession));
+              }}
+              type="button"
+            >
+              处理进行中的访谈
+            </button>
+          )}
+          {activeFormalSession !== undefined || newInterviewRecovery.kind !== 'active' ? null : (
             <button
               className="button button--secondary"
               onClick={() => {
@@ -325,6 +342,22 @@ export function HomeShell({
   );
 }
 
+async function loadAllProjectSessions(
+  api: HomeApi,
+  projectId: string,
+): Promise<ProjectSessionListResponse> {
+  const items: ProjectSessionListItem[] = [];
+  let cursor: string | null = null;
+  do {
+    let page: ProjectSessionListResponse;
+    if (cursor === null) page = await api.listProjectSessions(projectId);
+    else page = await api.listProjectSessions(projectId, { cursor });
+    items.push(...page.items);
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  return { items, next_cursor: null };
+}
+
 function recoverLoadedPrestartWorkflow(
   workflow: NewInterviewWorkflow,
   loadedPages: readonly (readonly [string, ProjectSessionListResponse])[],
@@ -350,6 +383,22 @@ function isPrestartSessionListItem(item: ProjectSessionListItem, projectId: stri
     (item.status === 'created' || item.status === 'device_check') &&
     item.capture === null &&
     item.finalization === null
+  );
+}
+
+function hasUnresolvedFormalCapture(session: ProjectSessionListItem): boolean {
+  return (
+    session.status === 'recording' ||
+    session.status === 'reconnecting' ||
+    session.status === 'stopping' ||
+    session.status === 'interrupted' ||
+    session.home_state === 'interview_active' ||
+    session.home_state === 'interview_interrupted' ||
+    session.home_state === 'saving_audio' ||
+    session.home_state === 'save_failed' ||
+    session.capture?.status === 'active' ||
+    session.capture?.status === 'preparing' ||
+    session.capture?.status === 'interrupted'
   );
 }
 

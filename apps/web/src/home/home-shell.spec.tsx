@@ -110,6 +110,73 @@ describe('HomeShell', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it('blocks new formal capture while an accessible session still needs handling', async () => {
+    const navigate = vi.fn();
+    const api = {
+      createNextSession: vi.fn(),
+      listProjectSessions: vi.fn().mockResolvedValue({
+        items: [
+          {
+            capture: { status: 'active' },
+            capture_failure_code: null,
+            created_at: '2026-08-12T08:00:00.000Z',
+            duration_seconds: null,
+            ended_at: null,
+            finalization: null,
+            home_state: 'interview_active',
+            id: SESSION_ID,
+            primary_action: 'return_to_interview',
+            project_id: PROJECT_ID,
+            review_access: 'unavailable',
+            sequence_no: 1,
+            started_at: '2026-08-12T08:00:00.000Z',
+            status: 'recording',
+          },
+        ],
+        next_cursor: null,
+      }),
+      listProjects: vi.fn().mockResolvedValue({
+        items: [
+          {
+            approximate_age: null,
+            birth_year: null,
+            created_at: '2026-08-12T08:00:00.000Z',
+            created_by: USER.id,
+            current_city: null,
+            display_name: '虚构长者',
+            id: PROJECT_ID,
+            native_place: null,
+            projection: 'ordinary',
+            status: 'active',
+            updated_at: '2026-08-12T08:00:00.000Z',
+          },
+        ],
+      }),
+    };
+    const workflowStore = {
+      getActive: vi.fn().mockResolvedValue(null),
+      listNextSessionAttempts: vi.fn().mockResolvedValue([]),
+    };
+
+    render(
+      <HomeShell
+        api={api}
+        navigate={navigate}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={workflowStore as never}
+      />,
+    );
+
+    const newButton = await screen.findByRole('button', { name: '请先处理进行中的访谈' });
+    expect((newButton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '处理进行中的访谈' }));
+    expect(navigate).toHaveBeenCalledWith(
+      `/projects/${PROJECT_ID}/interview/${SESSION_ID}/workbench`,
+    );
+  });
+
   it('exposes both explicit choices for a server-backed prestart session when local recovery lacks its session response', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const workflow = await workflowStore.create(USER.id);

@@ -67,6 +67,28 @@ export interface InterviewCaptureControllerSnapshot {
   storage: BrowserStorageAssessment | null;
 }
 
+/**
+ * A formal capture still needs listener attention until it is interrupted,
+ * safely stopped, or reaches a terminal server state. This predicate is
+ * intentionally based on durable capture/session facts rather than whether
+ * the Workbench happens to be mounted.
+ */
+export function requiresCaptureAttention(snapshot: InterviewCaptureControllerSnapshot): boolean {
+  if (
+    snapshot.serverSession?.status !== undefined &&
+    ['completed', 'failed', 'created', 'device_check'].includes(snapshot.serverSession.status)
+  ) {
+    return false;
+  }
+  if (
+    snapshot.serverSession?.status !== undefined &&
+    ['recording', 'reconnecting', 'stopping', 'interrupted'].includes(snapshot.serverSession.status)
+  ) {
+    return true;
+  }
+  return ['preparing', 'active', 'interrupted', 'stopping'].includes(snapshot.phase);
+}
+
 export interface PersistedEndHandoffSnapshot {
   audioObjectId: string;
   completeRequestId: string;

@@ -23,9 +23,40 @@ export function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [pathname, setPathname] = useState(globalThis.location.pathname);
   const captureControllers = useRef(new Map<string, InterviewCaptureController>());
+  const navigationGuard = useRef<
+    ((request: { commit: () => void; path: string; replace: boolean }) => void) | null
+  >(null);
+  const currentNavigationPath = useRef(currentLocationPath());
+
+  function commitNavigation(path: string, replace: boolean): void {
+    const url = new URL(path, globalThis.location.href);
+    const nextPath = `${url.pathname}${url.search}${url.hash}`;
+    if (replace) globalThis.history.replaceState(null, '', nextPath);
+    else globalThis.history.pushState(null, '', nextPath);
+    currentNavigationPath.current = nextPath;
+    setPathname(url.pathname);
+  }
 
   useEffect(() => {
     function onPopState(): void {
+      const targetPath = currentLocationPath();
+      const previousPath = currentNavigationPath.current;
+      const guard = navigationGuard.current;
+      if (guard !== null && targetPath !== previousPath) {
+        // Restore the route before asking the Workbench to resolve the active
+        // capture. The requested target is committed only after safe closeout.
+        globalThis.history.replaceState(null, '', previousPath);
+        setPathname(new URL(previousPath, globalThis.location.href).pathname);
+        guard({
+          commit: () => {
+            commitNavigation(targetPath, false);
+          },
+          path: targetPath,
+          replace: false,
+        });
+        return;
+      }
+      currentNavigationPath.current = targetPath;
       setPathname(globalThis.location.pathname);
     }
     globalThis.addEventListener('popstate', onPopState);
@@ -129,9 +160,18 @@ export function App(): React.JSX.Element {
   function navigate(path: string, replace = false): void {
     const url = new URL(path, globalThis.location.href);
     const nextPath = `${url.pathname}${url.search}${url.hash}`;
-    if (replace) globalThis.history.replaceState(null, '', nextPath);
-    else globalThis.history.pushState(null, '', nextPath);
-    setPathname(url.pathname);
+    const guard = navigationGuard.current;
+    if (guard !== null && nextPath !== currentNavigationPath.current) {
+      guard({
+        commit: () => {
+          commitNavigation(nextPath, replace);
+        },
+        path: nextPath,
+        replace,
+      });
+      return;
+    }
+    commitNavigation(nextPath, replace);
   }
 
   function returnToLogin(): void {
@@ -139,7 +179,7 @@ export function App(): React.JSX.Element {
     setUser(null);
     setCsrfToken(null);
     setError(null);
-    navigate('/', true);
+    commitNavigation('/', true);
   }
 
   if (loading) {
@@ -218,6 +258,9 @@ export function App(): React.JSX.Element {
         navigate={navigate}
         onReturnToLogin={returnToLogin}
         projectId={route.projectId}
+        registerNavigationGuard={(guard) => {
+          navigationGuard.current = guard;
+        }}
         sessionId={route.sessionId}
       />
     );
@@ -302,4 +345,8 @@ async function sendLogout(token: string | null): Promise<Response> {
     headers: token === null ? {} : { 'X-CSRF-Token': token },
     method: 'POST',
   });
+}
+
+function currentLocationPath(): string {
+  return `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
 }
