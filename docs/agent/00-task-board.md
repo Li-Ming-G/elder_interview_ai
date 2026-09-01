@@ -42,7 +42,7 @@
 | `CKPT-A-WEB-CWD-01` | `DONE` | CKPT-A-LEGACY-PREPARE-BRIDGE-01 | [`tasks/CKPT-A-WEB-CWD-01.md`](tasks/CKPT-A-WEB-CWD-01.md) | `luna-high` | `125` | `null` |
 | `CKPT-A-FIRST-CAPTURE-GATE-01` | `DONE` | CKPT-A-WEB-CWD-01; PR #126 merged/main verified | [`tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md`](tasks/CKPT-A-FIRST-CAPTURE-GATE-01.md) | `luna-high` | `126` | `null` |
 | `PFC-01-NEW-INTENT-TRUTH` | `DONE` | Architect PASS; PR #127 merged as `f0fe36a141b3d3ab56cdf44ac1a3b3974d964ca6`; exact-current-main CI run `33491698862` succeeded | [`tasks/PFC-01-NEW-INTENT-TRUTH.md`](tasks/PFC-01-NEW-INTENT-TRUTH.md) | `luna-high` | `127` | `PFC-02-PRESTART-DISCARD` |
-| `PFC-02-PRESTART-DISCARD` | `IN_PROGRESS` | PR #128 at exact head `6f5c8ad85ce5ffb9f86bf7030351670d17913283`; current-head Architect REQUEST_CHANGES P1 requires pre-formal reconciliation repair and bounded backend endpoint/service regression evidence | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `128` | `PFC-03-RECORDING-NAV-SAFETY` |
+| `PFC-02-PRESTART-DISCARD` | `REVIEW` | PR #128 at repaired exact head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1`; exact-head required CI `verify` succeeded; prior-head REQUEST_CHANGES is stale | [`tasks/PFC-02-PRESTART-DISCARD.md`](tasks/PFC-02-PRESTART-DISCARD.md) | `luna-high` | `128` | `PFC-03-RECORDING-NAV-SAFETY` |
 | `PFC-03-RECORDING-NAV-SAFETY` | `DEFERRED` | `PFC-02-PRESTART-DISCARD` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `null` | `PFC-04-SUGGESTION-RECOVERY` |
 | `PFC-04-SUGGESTION-RECOVERY` | `DEFERRED` | `PFC-03-RECORDING-NAV-SAFETY` | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `null` | `PFC-05-ROUTE-ACTION-CLOSURE` |
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DEFERRED` | `PFC-04-SUGGESTION-RECOVERY` | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `null` | `PFC-06-ERROR-AUTH-RESILIENCE` |
@@ -53,7 +53,7 @@
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `IN_PROGRESS` on PR #128 for bounded repair of the two current-head Architect P1 findings.
+`PFC-01-NEW-INTENT-TRUTH` is `DONE`. `PFC-02-PRESTART-DISCARD` is `REVIEW` on PR #128 at repaired exact head `0b9ed1fbf7d0dd3d7a98d4e2cb5e040dc5d655e1` with required CI success.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
