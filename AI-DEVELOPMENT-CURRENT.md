@@ -53,7 +53,7 @@ PFC-01-NEW-INTENT-TRUTH          [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
   -> PFC-07A-QUERY-MODE-NAV-STATE [DONE]
-  -> PFC-07-FULL-FLOW-E2E         [READY]
+  -> PFC-07-FULL-FLOW-E2E         [IN_PROGRESS]
   -> null
 ```
 
@@ -65,7 +65,7 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed a remaining production route-state defect: `/interviews/new?mode=new` -> `继续未完成访谈` can change the query to `mode=resume` without re-rendering because App navigation state is pathname-only. The Product Owner authorized a bounded follow-up under the existing pack.
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded. `PFC-07-FULL-FLOW-E2E` is now the sole eligible `READY` task, retaining existing PR #133 for resume.
+`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded. `PFC-07-FULL-FLOW-E2E` is now the active `IN_PROGRESS` task, resuming existing PR #133.
 
 Current task responsibility is intentionally narrow:
 
@@ -128,7 +128,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
 - `DONE`: `PFC-07A-QUERY-MODE-NAV-STATE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded.
-- `READY`: `PFC-07-FULL-FLOW-E2E`, existing PR #133 is preserved for resume.
+- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E`, existing PR #133 is preserved for resume.
 - `BLOCKED`: none in the Product Flow Closure pack after the Owner resolved the reported scope ambiguity by authorizing PFC-07A.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
@@ -142,4 +142,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Persist `PFC-07A-QUERY-MODE-NAV-STATE` from `READY` to `IN_PROGRESS`, then launch its declared `luna-high` Implementation Worker. After PFC-07A PASS + merge + refreshed-main CI, unlock `PFC-07-FULL-FLOW-E2E` and resume existing PR #133.
+PFC-07A is complete. PFC-07-FULL-FLOW-E2E is now `IN_PROGRESS`; resume existing PR #133 with its declared `luna-high` Implementation Worker.

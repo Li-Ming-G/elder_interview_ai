@@ -48,7 +48,7 @@
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DONE` | Architect PASS; PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; exact-current-main CI run `33580001375` succeeded | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `131` | `PFC-06-ERROR-AUTH-RESILIENCE` |
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07A-QUERY-MODE-NAV-STATE` |
 | `PFC-07A-QUERY-MODE-NAV-STATE` | `DONE` | PFC-06 DONE; canonical PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9` merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `134` | `PFC-07-FULL-FLOW-E2E` |
-| `PFC-07-FULL-FLOW-E2E` | `READY` | PFC-07A DONE through merged and exact-current-main-verified PR #134; existing PR #133 is preserved for resume | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
+| `PFC-07-FULL-FLOW-E2E` | `IN_PROGRESS` | PFC-07A DONE through merged and exact-current-main-verified PR #134; existing PR #133 is preserved for resume | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 
 ## Current phase
 
@@ -58,7 +58,7 @@
 
 PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed the out-of-scope production route-state defect at the continue-unfinished-interview transition. The Product Owner resolved that scope ambiguity by authorizing `PFC-07A-QUERY-MODE-NAV-STATE` under the existing pack.
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is the sole eligible `READY` task, retaining canonical PR #133 for resume.
+`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is now `IN_PROGRESS`, retaining canonical PR #133 for resume.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
