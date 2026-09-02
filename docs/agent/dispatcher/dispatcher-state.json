@@ -379,11 +379,11 @@
     },
     {
       "id": "PFC-07A-QUERY-MODE-NAV-STATE",
-      "status": "IN_PROGRESS",
+      "status": "REVIEW",
       "task_card": "docs/agent/tasks/PFC-07A-QUERY-MODE-NAV-STATE.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
-      "pr": null,
+      "pr": 134,
       "next_task": "PFC-07-FULL-FLOW-E2E"
     },
     {
