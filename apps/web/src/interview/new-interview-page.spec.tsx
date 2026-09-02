@@ -125,6 +125,63 @@ describe('NewInterviewPage', () => {
     );
   });
 
+  it('preserves authentication loss from the prestart session-list read', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithProjectOnly(workflow));
+    const api = fakeApi();
+    api.listProjectSessions
+      .mockResolvedValueOnce({
+        items: [prestartSessionListItem('created')],
+        next_cursor: null,
+      })
+      .mockRejectedValueOnce(new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401));
+    const onAuthLost = vi.fn();
+    const captureStart = vi.fn(() =>
+      Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
+    );
+    const checkMicrophone = vi.fn(() =>
+      Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }),
+    );
+
+    renderPage(api, { captureStart, intent: 'new', onAuthLost, checkMicrophone, workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(checkMicrophone).not.toHaveBeenCalled();
+    expect(captureStart).not.toHaveBeenCalled();
+  });
+
+  it('preserves authentication loss from the prestart session snapshot read', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithProjectOnly(workflow));
+    const api = fakeApi();
+    api.listProjectSessions.mockResolvedValue({
+      items: [prestartSessionListItem('created')],
+      next_cursor: null,
+    });
+    api.getSession.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401),
+    );
+    const onAuthLost = vi.fn();
+    const captureStart = vi.fn(() =>
+      Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
+    );
+    const checkMicrophone = vi.fn(() =>
+      Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }),
+    );
+
+    renderPage(api, { captureStart, intent: 'resume', onAuthLost, checkMicrophone, workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(checkMicrophone).not.toHaveBeenCalled();
+    expect(captureStart).not.toHaveBeenCalled();
+  });
+
   it('requires confirmation and creates a fresh workflow only after server discard succeeds', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const workflow = await workflowStore.create(ACTOR_ID);
@@ -396,6 +453,7 @@ function renderPage(
     captureStart?: (
       recordingReminderVersion: string,
     ) => Promise<InterviewCaptureControllerSnapshot>;
+    checkMicrophone?: () => Promise<{ inputDetected: true; permission: 'granted' }>;
     navigate?: (path: string, replace?: boolean) => void;
     onAuthLost?: () => void;
     intent?: 'new' | 'resume';
@@ -418,8 +476,10 @@ function renderPage(
       captureController={() => ({
         start: options.captureStart ?? vi.fn(() => Promise.resolve({ phase: 'active' } as never)),
       })}
-      checkMicrophone={() =>
-        Promise.resolve({ inputDetected: true as const, permission: 'granted' as const })
+      checkMicrophone={
+        options.checkMicrophone ??
+        ((): Promise<{ inputDetected: true; permission: 'granted' }> =>
+          Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }))
       }
       csrfToken="csrf-test"
       navigate={options.navigate ?? vi.fn()}

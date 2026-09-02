@@ -808,7 +808,8 @@ async function recoverServerPrestartWorkflow(
     let page: Awaited<ReturnType<typeof listProjectSessions>>;
     try {
       page = await listProjectSessions(project.id, { cursor });
-    } catch {
+    } catch (error) {
+      if (isAuthenticationError(error)) throw error;
       return null;
     }
     if (
@@ -838,7 +839,8 @@ async function recoverServerPrestartWorkflow(
   let session: InterviewSessionResponse;
   try {
     session = await getSession(item.id);
-  } catch {
+  } catch (error) {
+    if (isAuthenticationError(error)) throw error;
     return null;
   }
   if (
