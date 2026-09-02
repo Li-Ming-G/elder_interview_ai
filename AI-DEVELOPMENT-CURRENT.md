@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task on PR #133 at repaired exact head `4014cf94004d7e93f166e2ba82dc51d607ce600e`; required CI run `33603330529` failed at the primary browser journey's completion/finalization transition, so same-task/same-PR repair is required.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task on PR #133 at repaired exact head `d5057934c55b7260dfe7338754b1cb3a266fa8d4`; required CI run `33605063569` failed at the primary browser journey's completion/finalization transition, so same-task/same-PR repair is required.
 
 Its responsibility is intentionally narrow:
 
@@ -124,7 +124,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
-- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E` on PR #133 at repaired exact head `4014cf94004d7e93f166e2ba82dc51d607ce600e`; required CI run `33603330529` failed at the primary browser journey's completion/finalization transition and same-task/same-PR repair is required.
+- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E` on PR #133 at repaired exact head `d5057934c55b7260dfe7338754b1cb3a266fa8d4`; required CI run `33605063569` failed at the primary browser journey's completion/finalization transition and same-task/same-PR repair is required.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
@@ -138,4 +138,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Launch one bounded same-task/same-PR repair for PR #133 at repaired exact head `4014cf94004d7e93f166e2ba82dc51d607ce600e`, using its durable repair fingerprint.
+Launch one bounded same-task/same-PR repair for PR #133 at repaired exact head `d5057934c55b7260dfe7338754b1cb3a266fa8d4`, using its durable repair fingerprint.
