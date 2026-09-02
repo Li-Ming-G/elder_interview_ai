@@ -383,7 +383,7 @@
       "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
-      "pr": null,
+      "pr": 133,
       "next_task": null
     }
   ]
