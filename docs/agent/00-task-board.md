@@ -57,7 +57,7 @@
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
-`PFC-06-ERROR-AUTH-RESILIENCE` is persisted `DONE` after accepted merge and exact-current-main verification. `PFC-07-FULL-FLOW-E2E` is persisted `IN_PROGRESS` on PR #133 at repaired exact head `4e633008327510b675f9e7fe41205260e3ebfb4f` and requires same-task/same-PR repair after failed exact-head CI.
+`PFC-06-ERROR-AUTH-RESILIENCE` is persisted `DONE` after accepted merge and exact-current-main verification. `PFC-07-FULL-FLOW-E2E` is persisted `IN_PROGRESS` on PR #133 at repaired exact head `4014cf94004d7e93f166e2ba82dc51d607ce600e` and requires same-task/same-PR repair after failed exact-head CI.
 
 ## Frozen product-flow boundaries
 
