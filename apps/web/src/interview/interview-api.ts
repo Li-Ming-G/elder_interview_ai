@@ -51,6 +51,17 @@ export class InterviewApiError extends Error {
   }
 }
 
+export function isAuthenticationError(error: unknown): boolean {
+  return (
+    error instanceof InterviewApiError && (error.status === 401 || error.code === 'AUTH_REQUIRED')
+  );
+}
+
+export function safeInterviewErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof InterviewApiError)) return fallback;
+  return error.status === 0 ? error.message : safeMessage(error.code);
+}
+
 export interface PreparationData {
   consents: ConsentResponse[];
   project: ProjectResponse;
@@ -399,10 +410,12 @@ function safeDetails(value: unknown): Readonly<Record<string, unknown>> {
 
 function safeMessage(code: unknown): string {
   switch (code) {
+    case 'NETWORK_UNAVAILABLE':
+      return '暂时无法连接服务，请检查网络后重试';
     case 'AUTH_REQUIRED':
       return '登录已失效，请重新登录';
     case 'FORBIDDEN':
-      return '无法访问此项目，请联系项目负责人确认分配';
+      return '当前操作没有权限或当前状态不允许，请重新核对';
     case 'CONSENT_REQUIRED':
       return '正式授权当前无效，请先核对授权记录';
     case 'SERVICE_TERM_REQUIRED':

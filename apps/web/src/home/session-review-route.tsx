@@ -11,7 +11,7 @@ import {
   type LocalPlayback,
 } from '../audio/local-audio-archive.js';
 import type { HomeApi, ReviewApi } from '../interview/interview-api.js';
-import { InterviewApiError } from '../interview/interview-api.js';
+import { InterviewApiError, isAuthenticationError } from '../interview/interview-api.js';
 import { ErrorState, HomeFrame, LoadingState, StatusBadge } from './home-shell.js';
 
 type SessionReviewApi = HomeApi & ReviewApi;
@@ -25,12 +25,14 @@ export function SessionReviewRoute({
   api,
   archiveService,
   navigate,
+  onAuthLost,
   projectId,
   sessionId,
 }: {
   api: SessionReviewApi;
   archiveService?: Pick<LocalAudioArchiveService, 'createPlayback' | 'delete' | 'project'>;
   navigate: (path: string) => void;
+  onAuthLost?: () => void;
   projectId: string;
   sessionId: string;
 }): React.JSX.Element {
@@ -45,6 +47,7 @@ export function SessionReviewRoute({
   const [playback, setPlayback] = useState<LocalPlayback | null>(null);
   const playbackRef = useRef<LocalPlayback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -92,6 +95,7 @@ export function SessionReviewRoute({
         );
         setProjection(localProjection);
         setError(null);
+        setAuthenticationRequired(false);
         if (shouldReproject(localProjection.state) && retryCount < MAX_AUTOMATIC_REPROJECTIONS) {
           retryCount += 1;
           setReprojection({ attempt: retryCount, kind: 'waiting' });
@@ -104,6 +108,7 @@ export function SessionReviewRoute({
       } catch (loadError) {
         if (!current) return;
         setReprojection({ kind: 'exhausted' });
+        setAuthenticationRequired(isAuthenticationError(loadError));
         setError(reviewErrorMessage(loadError));
       }
     }
@@ -218,7 +223,15 @@ export function SessionReviewRoute({
         </button>
       </header>
 
-      {error === null ? null : <ErrorState message={error} />}
+      {error === null ? null : (
+        <ErrorState
+          message={error}
+          {...(authenticationRequired && onAuthLost !== undefined ? { onAuthLost } : {})}
+          onRetry={() => {
+            setReprojectionGeneration((value) => value + 1);
+          }}
+        />
+      )}
       {error === null && (session === null || transcripts === null || projection === null) ? (
         <LoadingState />
       ) : null}
@@ -437,9 +450,11 @@ async function findAuthorizedReview(
 }
 
 function reviewErrorMessage(error: unknown): string {
-  return error instanceof InterviewApiError && [401, 403, 404, 409].includes(error.status)
-    ? '当前访谈不可访问'
-    : '暂时无法加载当前访谈回顾';
+  if (isAuthenticationError(error)) return '登录已失效，请重新登录';
+  if (error instanceof InterviewApiError && [403, 404, 409].includes(error.status)) {
+    return '当前操作没有权限或当前状态不允许，请重新核对';
+  }
+  return '暂时无法加载当前访谈回顾';
 }
 
 function projectionLabel(state: LocalAudioArchiveProjection['state']): string {

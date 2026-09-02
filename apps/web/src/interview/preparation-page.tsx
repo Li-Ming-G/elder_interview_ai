@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import type { InterviewSessionResponse } from '@elder-interview/contracts';
 
 import type { InterviewApi, PreparationData } from './interview-api.js';
-import { InterviewApiError } from './interview-api.js';
+import {
+  InterviewApiError,
+  isAuthenticationError,
+  safeInterviewErrorMessage,
+} from './interview-api.js';
 import { hasCurrentValidConsent, latestConsent } from './consent-status.js';
 import type { InterviewCaptureController } from './interview-capture-controller.js';
 import type { MicrophoneChecker, MicrophoneCheckResult } from './microphone-check.js';
@@ -16,12 +20,13 @@ interface PreparationPageProps {
   checkMicrophone: MicrophoneChecker;
   initialSessionId: string | null;
   navigate: (path: string, replace?: boolean) => void;
+  onAuthLost?: () => void;
   projectId: string;
 }
 
 type LoadState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { authenticationRequired: boolean; kind: 'error'; message: string }
   | { data: PreparationData; kind: 'ready' };
 
 type DeviceState =
@@ -37,21 +42,28 @@ export function PreparationPage({
   checkMicrophone,
   initialSessionId,
   navigate,
+  onAuthLost,
   projectId,
 }: PreparationPageProps): React.JSX.Element {
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
   const [submitting, setSubmitting] = useState(false);
   const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
   const [actionError, setActionError] = useState<string | null>(null);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     setLoadState({ kind: 'loading' });
     setDeviceState({ kind: 'idle' });
+    setAuthenticationRequired(false);
     try {
       const data = await api.loadPreparation(projectId, initialSessionId);
       setLoadState({ data, kind: 'ready' });
     } catch (error) {
-      setLoadState({ kind: 'error', message: readableError(error, '无法加载访谈恢复信息') });
+      setLoadState({
+        authenticationRequired: isAuthenticationError(error),
+        kind: 'error',
+        message: readableError(error, '无法加载访谈恢复信息'),
+      });
     }
   }, [api, initialSessionId, projectId]);
 
@@ -95,6 +107,7 @@ export function PreparationPage({
       });
       setDeviceState({ kind: 'passed' });
     } catch (error) {
+      setAuthenticationRequired(isAuthenticationError(error));
       setDeviceState({ kind: 'failed', message: readableDeviceError(error) });
     }
   }
@@ -124,6 +137,7 @@ export function PreparationPage({
       }
       navigate(workbenchPath(projectId, sessionId));
     } catch (error) {
+      setAuthenticationRequired(isAuthenticationError(error));
       setActionError(readableError(error, '正式录音未能开始，请核对当前状态后重试'));
       setSubmitting(false);
     }
@@ -140,6 +154,11 @@ export function PreparationPage({
           <button className="button button--secondary" onClick={() => void load()} type="button">
             重新加载
           </button>
+          {loadState.authenticationRequired && onAuthLost !== undefined ? (
+            <button className="button button--secondary" onClick={onAuthLost} type="button">
+              返回登录
+            </button>
+          ) : null}
           <button
             className="button button--secondary"
             onClick={() => {
@@ -215,6 +234,11 @@ export function PreparationPage({
           <p className="inline-error" role="alert">
             {deviceState.message}
           </p>
+        ) : null}
+        {authenticationRequired && onAuthLost !== undefined ? (
+          <button className="button button--secondary" onClick={onAuthLost} type="button">
+            返回登录
+          </button>
         ) : null}
         {deviceState.kind !== 'passed' ? null : session?.recording_start_reminder === undefined ? (
           <p className="inline-error" role="alert">
@@ -292,7 +316,7 @@ function sessionStatusText(session: InterviewSessionResponse): string {
 }
 
 function readableError(error: unknown, fallback: string): string {
-  return error instanceof InterviewApiError ? error.message : fallback;
+  return safeInterviewErrorMessage(error, fallback);
 }
 
 function microphoneFailure(result: MicrophoneCheckResult): string {
@@ -303,6 +327,7 @@ function microphoneFailure(result: MicrophoneCheckResult): string {
 }
 
 function readableDeviceError(error: unknown): string {
-  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof InterviewApiError)
+    return safeInterviewErrorMessage(error, '当前页麦克风检查未完成，请检查设备后重试。');
   return '当前页麦克风检查未完成，请检查设备后重试。';
 }

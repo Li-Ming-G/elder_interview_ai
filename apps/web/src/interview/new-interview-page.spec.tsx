@@ -370,6 +370,23 @@ describe('NewInterviewPage', () => {
       expect(start).toHaveBeenCalledWith(RECORDING_START_REMINDER_VERSION);
     });
   });
+
+  it('offers the shared login recovery path for an explicit authentication loss', async () => {
+    const api = readyApi();
+    api.createProject.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401),
+    );
+    const onAuthLost = vi.fn();
+    renderPage(api, { onAuthLost });
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    fireEvent.change(screen.getByLabelText('姓名、昵称或项目代号'), {
+      target: { value: '虚构授权长者' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '创建项目并继续' }));
+    expect(await screen.findByText('登录已失效，请重新登录')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+  });
 });
 
 function renderPage(
@@ -380,6 +397,7 @@ function renderPage(
       recordingReminderVersion: string,
     ) => Promise<InterviewCaptureControllerSnapshot>;
     navigate?: (path: string, replace?: boolean) => void;
+    onAuthLost?: () => void;
     intent?: 'new' | 'resume';
     strict?: boolean;
     workflowStore?: IndexedDbNewInterviewWorkflowStore;
@@ -405,6 +423,7 @@ function renderPage(
       }
       csrfToken="csrf-test"
       navigate={options.navigate ?? vi.fn()}
+      {...(options.onAuthLost === undefined ? {} : { onAuthLost: options.onAuthLost })}
       workflowStore={
         options.workflowStore ?? new IndexedDbNewInterviewWorkflowStore(new IDBFactory())
       }

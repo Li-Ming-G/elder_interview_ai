@@ -10,6 +10,7 @@ import type {
   LocalAudioArchiveService,
 } from '../audio/local-audio-archive.js';
 import type { HomeApi, ReviewApi } from '../interview/interview-api.js';
+import { InterviewApiError } from '../interview/interview-api.js';
 import type { TranscriptSegmentResponse } from '@elder-interview/contracts';
 import { SessionReviewRoute } from './session-review-route.js';
 
@@ -200,6 +201,28 @@ describe('SessionReviewRoute', () => {
       expect(screen.getByText('完整可播放')).toBeTruthy();
       expect(asButton(screen.getByRole('button', { name: '载入完整录音' })).disabled).toBe(false);
     });
+  });
+
+  it('offers the shared login recovery path for an explicit authentication loss', async () => {
+    const { api, archive } = fixture();
+    api.listProjectSessions = vi.fn(() =>
+      Promise.reject(new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401)),
+    );
+    const onAuthLost = vi.fn();
+    render(
+      <SessionReviewRoute
+        api={api}
+        archiveService={archive}
+        navigate={vi.fn()}
+        onAuthLost={onAuthLost}
+        projectId={PROJECT_ID}
+        sessionId={SESSION_ID}
+      />,
+    );
+    expect(await screen.findByText('登录已失效，请重新登录')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('secret auth detail')).toBeNull();
   });
 });
 

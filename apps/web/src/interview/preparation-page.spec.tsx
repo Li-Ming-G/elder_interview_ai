@@ -8,7 +8,7 @@ import type {
 } from '@elder-interview/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { InterviewApi, PreparationData } from './interview-api.js';
+import { InterviewApiError, type InterviewApi, type PreparationData } from './interview-api.js';
 import { PreparationPage } from './preparation-page.js';
 import type { InterviewCaptureControllerSnapshot } from './interview-capture-controller.js';
 import type { MicrophoneChecker } from './microphone-check.js';
@@ -195,6 +195,33 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     fireEvent.click(screen.getByRole('button', { name: '返回工作区' }));
     expect(navigate).toHaveBeenCalledWith('/', true);
     expect(api.deviceCheck).not.toHaveBeenCalled();
+    expect(api.captureStart).not.toHaveBeenCalled();
+  });
+
+  it('offers the shared login recovery path for explicit authentication loss without checking the microphone', async () => {
+    const api = createApi();
+    api.loadPreparation.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401),
+    );
+    const onAuthLost = vi.fn();
+    const checkMicrophone = vi.fn<MicrophoneChecker>(() =>
+      Promise.resolve({ inputDetected: true, permission: 'granted' }),
+    );
+    render(
+      <PreparationPage
+        api={api}
+        captureController={() => ({ start: api.captureStart })}
+        checkMicrophone={checkMicrophone}
+        initialSessionId={SESSION_ID}
+        navigate={vi.fn()}
+        onAuthLost={onAuthLost}
+        projectId={PROJECT_ID}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: '返回登录' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(checkMicrophone).not.toHaveBeenCalled();
     expect(api.captureStart).not.toHaveBeenCalled();
   });
 });

@@ -17,7 +17,7 @@ import type {
   SpeakerCorrectionApi,
   SuggestionApi,
 } from './interview-api.js';
-import { InterviewApiError } from './interview-api.js';
+import { InterviewApiError, safeInterviewErrorMessage } from './interview-api.js';
 import { hasCurrentValidConsent } from './consent-status.js';
 import type {
   RealtimeState,
@@ -2173,15 +2173,17 @@ function safeProjectName(value: string): string {
 }
 
 function workbenchLoadError(error: unknown): string {
-  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof InterviewApiError) {
+    return safeInterviewErrorMessage(error, '无法核对当前会话，请稍后重试。');
+  }
   if (error instanceof Error && error.message === 'SESSION_SNAPSHOT_MISSING') {
     return '管理服务没有返回本次访谈会话，请从准备页重新核对。';
   }
-  return error instanceof Error ? error.message : '无法核对当前会话，请稍后重试。';
+  return '无法核对当前会话，请稍后重试。';
 }
 
 function readableActionError(error: unknown, fallback: string): string {
-  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof InterviewApiError) return safeInterviewErrorMessage(error, fallback);
   if (error instanceof Error) {
     const messages: Record<string, string> = {
       CAPTURE_NOT_INTERRUPTED: '管理服务未确认当前采集可以恢复，请先重新核对。',

@@ -20,6 +20,7 @@ export function App(): React.JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authReturnPath, setAuthReturnPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pathname, setPathname] = useState(globalThis.location.pathname);
   const captureControllers = useRef(new Map<string, InterviewCaptureController>());
@@ -130,6 +131,11 @@ export function App(): React.JSX.Element {
       setUser(payload.user);
       setCsrfToken(payload.csrf_token);
       setPassword('');
+      const resumePath = authReturnPath;
+      setAuthReturnPath(null);
+      if (resumePath !== null && isSafeAuthReturnPath(resumePath)) {
+        commitNavigation(resumePath, true);
+      }
     } catch {
       setError('登录请求失败，请稍后重试');
     }
@@ -177,6 +183,8 @@ export function App(): React.JSX.Element {
   }
 
   function returnToLogin(): void {
+    const returnPath = currentLocationPath();
+    setAuthReturnPath(isSafeAuthReturnPath(returnPath) ? returnPath : null);
     captureControllers.current.clear();
     setUser(null);
     setCsrfToken(null);
@@ -248,6 +256,9 @@ export function App(): React.JSX.Element {
         checkMicrophone={checkMicrophoneInput}
         initialSessionId={route.sessionId}
         navigate={navigate}
+        onAuthLost={() => {
+          returnToLogin();
+        }}
         projectId={route.projectId}
       />
     );
@@ -279,6 +290,9 @@ export function App(): React.JSX.Element {
         csrfToken={csrfToken}
         intent={mode === 'new' ? 'new' : mode === 'resume' ? 'resume' : undefined}
         navigate={navigate}
+        onAuthLost={() => {
+          returnToLogin();
+        }}
       />
     );
   }
@@ -292,6 +306,9 @@ export function App(): React.JSX.Element {
       <SessionReviewRoute
         api={interviewApi}
         navigate={navigate}
+        onAuthLost={() => {
+          returnToLogin();
+        }}
         projectId={route.projectId}
         sessionId={route.sessionId}
       />
@@ -354,4 +371,16 @@ async function sendLogout(token: string | null): Promise<Response> {
 
 function currentLocationPath(): string {
   return `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+}
+
+function isSafeAuthReturnPath(path: string): boolean {
+  try {
+    const url = new URL(path, globalThis.location.origin);
+    return (
+      url.origin === globalThis.location.origin &&
+      (url.pathname === '/' || parseInterviewRoute(url.pathname) !== null)
+    );
+  } catch {
+    return false;
+  }
 }
