@@ -14,6 +14,19 @@ Covers audited defect **F9** and is the acceptance gate for `PRODUCT-FLOW-CLOSUR
 - `PFC-07A-QUERY-MODE-NAV-STATE` must be `DONE` through Architect PASS + merge + refreshed-main CI.
 - All prior PFC behavior is expected to be present on main before this task resumes.
 
+## Deferred parking rule
+
+While `PFC-07A-QUERY-MODE-NAV-STATE` is not yet `DONE`, this task is intentionally parked as `DEFERRED`.
+
+During that parked period:
+
+- PR #133 and its historical failed exact-head CI remain durable evidence but are **not** an active `BLOCKED` / repair trigger;
+- Dispatcher must not let PR #133's failed CI suppress dispatch of the eligible predecessor/follow-up `PFC-07A-QUERY-MODE-NAV-STATE`;
+- do not launch a PFC-07 repair Worker, publish review context, or otherwise advance PR #133 while PFC-07A is unfinished;
+- once PFC-07A is `DONE` through PASS + merge + refreshed-main CI and this task is unlocked, resume normal durable reconciliation of PR #133 under the Existing PR resume contract below.
+
+This parking rule preserves all durable PR/CI evidence; it only defers when that evidence becomes actionable.
+
 ## Existing PR resume contract
 
 PFC-07 already has canonical implementation PR #133 on branch `codex/pfc-07-full-flow-e2e`.
