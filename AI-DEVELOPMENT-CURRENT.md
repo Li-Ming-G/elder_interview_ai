@@ -51,7 +51,7 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
-  -> PFC-06-ERROR-AUTH-RESILIENCE [IN_PROGRESS]
+  -> PFC-06-ERROR-AUTH-RESILIENCE [REVIEW]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
   -> null
 ```
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE` are `DONE`. PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` received external Architect PASS and was accepted and merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33580001375` succeeded. `PFC-06-ERROR-AUTH-RESILIENCE` is the sole active `IN_PROGRESS` task at Worker launch baseline `main@2304c870f365688c1353914fb5fb8c96d03dec69`.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE` are `DONE`. PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` received external Architect PASS and was accepted and merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33580001375` succeeded. `PFC-06-ERROR-AUTH-RESILIENCE` is the sole active `REVIEW` task on PR #132 at exact head `e0bac90dd558135cadba03f572bd1bd3cf5ab7d1`; required CI is pending.
 
 Its responsibility is intentionally narrow:
 
@@ -123,7 +123,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `IN_PROGRESS`: `PFC-06-ERROR-AUTH-RESILIENCE`, mechanically selected queue-wide and persisted before Worker launch at `main@2304c870f365688c1353914fb5fb8c96d03dec69`.
+- `REVIEW`: `PFC-06-ERROR-AUTH-RESILIENCE` on PR #132 at exact head `e0bac90dd558135cadba03f572bd1bd3cf5ab7d1`; required CI is pending.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
@@ -137,4 +137,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Wait for the declared `luna-high` Implementation Worker to report exactly one implementation PR for `PFC-06-ERROR-AUTH-RESILIENCE`.
+Wait for exact-head required CI on PR #132; after SUCCESS, mechanically publish `ARCHITECT_REVIEW_CONTEXT_V1` if absent.
