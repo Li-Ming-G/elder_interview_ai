@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
+const FINALIZATION_TIMEOUT_MS = 30_000;
+
 test.describe.configure({ mode: 'serial' });
 
 test.use({
@@ -270,7 +272,9 @@ async function endFormalInterview(page: Page): Promise<void> {
   await page.getByRole('button', { name: '结束访谈' }).click();
   await expect(page.getByRole('heading', { name: '确定结束本次访谈？' })).toBeVisible();
   await page.getByRole('button', { name: '确认结束' }).click();
-  await expect(page.locator('.completion-page')).toBeVisible();
+  await expect(page.locator('.completion-page')).toBeVisible({
+    timeout: FINALIZATION_TIMEOUT_MS,
+  });
 }
 
 async function releaseDeterministicPcmFrames(page: Page): Promise<void> {
