@@ -47,17 +47,17 @@
 | `PFC-04-SUGGESTION-RECOVERY` | `DONE` | Architect PASS; PR #130 merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; exact-current-main CI run `33545438599` succeeded | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `130` | `PFC-05-ROUTE-ACTION-CLOSURE` |
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DONE` | Architect PASS; PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; exact-current-main CI run `33580001375` succeeded | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `131` | `PFC-06-ERROR-AUTH-RESILIENCE` |
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07-FULL-FLOW-E2E` |
-| `PFC-07-FULL-FLOW-E2E` | `IN_PROGRESS` | PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite; same-task/same-PR repair required | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
+| `PFC-07-FULL-FLOW-E2E` | `BLOCKED` | `PRODUCT_AMBIGUITY`: PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202`; verify CI run `33607067676` exposes an out-of-scope production route-state defect at the continue-unfinished-interview transition | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 
 ## Current phase
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite and same-task/same-PR repair is required.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is blocked on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`: verify CI run `33607067676` exposes an out-of-scope production route-state defect at the continue-unfinished-interview transition.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
-`PFC-06-ERROR-AUTH-RESILIENCE` is persisted `DONE` after accepted merge and exact-current-main verification. `PFC-07-FULL-FLOW-E2E` is persisted `IN_PROGRESS` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202` after failed exact-head verify CI and requires same-task/same-PR repair.
+`PFC-06-ERROR-AUTH-RESILIENCE` is persisted `DONE` after accepted merge and exact-current-main verification. `PFC-07-FULL-FLOW-E2E` is persisted `BLOCKED` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202` with `PRODUCT_AMBIGUITY` because the needed production fix is outside the Task Card's allowed scope.
 
 ## Frozen product-flow boundaries
 

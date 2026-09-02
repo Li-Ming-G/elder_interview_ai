@@ -52,7 +52,7 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
-    -> PFC-07-FULL-FLOW-E2E        [IN_PROGRESS]
+    -> PFC-07-FULL-FLOW-E2E        [BLOCKED]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite, so same-task/same-PR repair is required.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is blocked on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`: required verify CI run `33607067676` exposes a production route-state defect outside the Task Card's allowed test-only scope.
 
 Its responsibility is intentionally narrow:
 
@@ -124,11 +124,11 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
-- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite, so same-task/same-PR repair is required.
+- `BLOCKED`: `PFC-07-FULL-FLOW-E2E` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; `PRODUCT_AMBIGUITY`: `/interviews/new?mode=new` -> `继续未完成访谈` does not render the project form because query-mode navigation changes without the pathname-driven app rerender; fixing `apps/web/src/app.tsx` is outside the Task Card's allowed scope.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
-- `BLOCKED`: none in the Product Flow Closure pack.
+- `BLOCKED`: `PFC-07-FULL-FLOW-E2E` / `PRODUCT_AMBIGUITY` pending an external decision on the out-of-scope production route-state defect.
   - `DEFERRED`: `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 
@@ -138,4 +138,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Launch one bounded same-task/same-PR repair for PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`, using its durable repair fingerprint.
+Remain blocked pending an external decision on the production route-state defect; no further repair worker is authorized for the current Task Card scope.

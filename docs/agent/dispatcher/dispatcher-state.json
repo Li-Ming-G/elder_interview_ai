@@ -379,7 +379,7 @@
     },
     {
       "id": "PFC-07-FULL-FLOW-E2E",
-      "status": "IN_PROGRESS",
+      "status": "BLOCKED",
       "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
