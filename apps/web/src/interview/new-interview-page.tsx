@@ -13,7 +13,11 @@ import { HomeFrame, StatusBadge } from '../home/home-shell.js';
 import type { AudioCaptureSnapshot } from '../audio/browser-audio-recorder.js';
 import { BrowserConsentCapture, type ConsentCapture } from './browser-consent-capture.js';
 import type { NewInterviewApi } from './interview-api.js';
-import { InterviewApiError } from './interview-api.js';
+import {
+  InterviewApiError,
+  isAuthenticationError,
+  safeInterviewErrorMessage,
+} from './interview-api.js';
 import type { InterviewCaptureController } from './interview-capture-controller.js';
 import type { MicrophoneChecker, MicrophoneCheckResult } from './microphone-check.js';
 import {
@@ -42,7 +46,7 @@ const CONSENT_NOTICE = [
 
 type PageState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { authenticationRequired: boolean; kind: 'error'; message: string }
   | { kind: 'ready'; newIntent: boolean; resumed: boolean; workflow: NewInterviewWorkflow };
 
 const EMPTY_CAPTURE: AudioCaptureSnapshot = {
@@ -66,6 +70,7 @@ export function NewInterviewPage({
   csrfToken,
   intent = 'resume',
   navigate,
+  onAuthLost,
   workflowStore,
 }: {
   actorId: string;
@@ -79,6 +84,7 @@ export function NewInterviewPage({
   csrfToken: string;
   intent?: 'new' | 'resume' | undefined;
   navigate: (path: string, replace?: boolean) => void;
+  onAuthLost?: () => void;
   workflowStore?: IndexedDbNewInterviewWorkflowStore;
 }): React.JSX.Element {
   const store = useMemo(
@@ -90,6 +96,7 @@ export function NewInterviewPage({
   const [message, setMessage] = useState<string | null>(null);
   const [captureSnapshot, setCaptureSnapshot] = useState(EMPTY_CAPTURE);
   const [deviceState, setDeviceState] = useState<DeviceState>({ kind: 'idle' });
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
   const initializationPromise = useRef<Promise<{
@@ -155,6 +162,7 @@ export function NewInterviewPage({
       .catch((error: unknown) => {
         if (!cancelled && mounted.current) {
           setPage({
+            authenticationRequired: isAuthenticationError(error),
             kind: 'error',
             message: workflowInitializationError(error),
           });
@@ -233,6 +241,7 @@ export function NewInterviewPage({
       await save(acknowledge(response));
       return response;
     } catch (error) {
+      if (isAuthenticationError(error)) setAuthenticationRequired(true);
       if (isUnknownResponse(error)) {
         await save(markUnknown(workflow, attempt.requestId));
         showMessage('暂时无法确认创建结果。网络恢复后会自动继续，也可以重新恢复创建操作。');
@@ -392,6 +401,7 @@ export function NewInterviewPage({
       setDeviceState({ kind: 'passed' });
       showMessage('已确认本页麦克风有输入，可以开始录制口头授权。');
     } catch (error) {
+      setAuthenticationRequired(isAuthenticationError(error));
       setDeviceState({ kind: 'failed', message: readableDeviceError(error) });
     } finally {
       endAction();
@@ -420,6 +430,7 @@ export function NewInterviewPage({
       if (mounted.current && capture.current === controller)
         showMessage('正在录制授权。请完整朗读固定文本，并请长者明确表达同意。');
     } catch (error) {
+      if (isAuthenticationError(error)) setAuthenticationRequired(true);
       showMessage(readableAudioError(error));
     } finally {
       endAction();
@@ -443,6 +454,7 @@ export function NewInterviewPage({
       });
       showMessage('授权录音已完整保存，可以登记正式口头授权。');
     } catch (error) {
+      if (isAuthenticationError(error)) setAuthenticationRequired(true);
       showMessage(`授权录音尚未完整保存：${readableAudioError(error)}。请使用同一上传记录重试。`);
     } finally {
       endAction();
@@ -562,6 +574,7 @@ export function NewInterviewPage({
       await save({ ...workflow, status: 'complete', step: 'complete' });
       navigate(workbenchPath(projectId, sessionId), true);
     } catch (error) {
+      if (isAuthenticationError(error)) setAuthenticationRequired(true);
       showMessage(readableStartError(error));
     } finally {
       endAction();
@@ -589,6 +602,7 @@ export function NewInterviewPage({
       setPage({ kind: 'ready', newIntent: false, resumed: false, workflow: fresh });
       showMessage('旧的未完成访谈已安全放弃。请填写信息，开始一次全新的访谈。');
     } catch (error) {
+      if (isAuthenticationError(error)) setAuthenticationRequired(true);
       showMessage(
         error instanceof InterviewApiError && error.code === 'PRESTART_DISCARD_UNAVAILABLE'
           ? '这次访谈已经有正式录音或其他证据，不能放弃；请返回工作区处理现有访谈。'
@@ -647,6 +661,11 @@ export function NewInterviewPage({
         <section className="new-interview-panel">
           <h1>无法安全开始新建访谈</h1>
           <p role="alert">{page.message}</p>
+          {page.authenticationRequired && onAuthLost !== undefined ? (
+            <button className="button button--secondary" onClick={onAuthLost} type="button">
+              返回登录
+            </button>
+          ) : null}
           <button
             className="button button--secondary"
             onClick={() => {
@@ -756,6 +775,11 @@ export function NewInterviewPage({
             {message}
           </p>
         )}
+        {authenticationRequired && onAuthLost !== undefined ? (
+          <button className="button button--secondary" onClick={onAuthLost} type="button">
+            返回登录
+          </button>
+        ) : null}
       </section>
     </HomeFrame>
   );
@@ -784,7 +808,8 @@ async function recoverServerPrestartWorkflow(
     let page: Awaited<ReturnType<typeof listProjectSessions>>;
     try {
       page = await listProjectSessions(project.id, { cursor });
-    } catch {
+    } catch (error) {
+      if (isAuthenticationError(error)) throw error;
       return null;
     }
     if (
@@ -814,7 +839,8 @@ async function recoverServerPrestartWorkflow(
   let session: InterviewSessionResponse;
   try {
     session = await getSession(item.id);
-  } catch {
+  } catch (error) {
+    if (isAuthenticationError(error)) throw error;
     return null;
   }
   if (
@@ -1229,7 +1255,7 @@ function readableError(error: unknown): string {
   if (error instanceof InterviewApiError) {
     if (error.code === 'IDEMPOTENCY_KEY_REUSED')
       return '请求编号与当前操作者、动作、项目或内容不匹配，流程已停止，请联系项目负责人核对。';
-    return error.message;
+    return safeInterviewErrorMessage(error, '操作未完成；已保存的请求身份不会被替换，请重试。');
   }
   if (error instanceof Error && error.message.endsWith('_ACK_MISMATCH'))
     return '服务响应与已保存的请求身份不一致，流程已停止，请联系项目负责人核对。';
@@ -1255,12 +1281,18 @@ function microphoneFailure(result: MicrophoneCheckResult): string {
 }
 
 function readableDeviceError(error: unknown): string {
-  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof InterviewApiError)
+    return safeInterviewErrorMessage(error, '当前页麦克风检查未完成，请检查设备后重试。');
   return '当前页麦克风检查未完成，请检查设备后重试。';
 }
 
 function readableStartError(error: unknown): string {
-  if (error instanceof InterviewApiError) return error.message;
+  if (error instanceof InterviewApiError) {
+    return safeInterviewErrorMessage(
+      error,
+      '正式录音尚未建立。授权记录不会丢失，请确认麦克风权限后重试。',
+    );
+  }
   if (error instanceof Error && error.message === 'BROWSER_CAPTURE_LOCKED')
     return '同一访谈已在另一个页面录音，请回到原页面继续。';
   return '正式录音尚未建立。授权记录不会丢失，请确认麦克风权限后重试。';

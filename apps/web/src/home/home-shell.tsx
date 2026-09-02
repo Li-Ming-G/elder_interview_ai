@@ -10,7 +10,7 @@ import type {
 } from '@elder-interview/contracts';
 
 import type { HomeApi, NextSessionApi } from '../interview/interview-api.js';
-import { InterviewApiError } from '../interview/interview-api.js';
+import { InterviewApiError, isAuthenticationError } from '../interview/interview-api.js';
 import { preparationPath, reviewPath, saveFactsPath, workbenchPath } from '../interview/routes.js';
 import {
   IndexedDbNewInterviewWorkflowStore,
@@ -22,6 +22,8 @@ import { reconcileNewInterviewWorkflow } from '../interview/new-interview-recove
 interface ProjectSessions {
   items: ProjectSessionListItem[];
   nextCursor: string | null;
+  error: string | null;
+  loading: boolean;
 }
 
 type NewInterviewRecoveryState =
@@ -54,6 +56,7 @@ export function HomeShell({
   const [projects, setProjects] = useState<ProjectListProjection[] | null>(null);
   const [sessions, setSessions] = useState<Record<string, ProjectSessions>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loadGeneration, setLoadGeneration] = useState(0);
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [newInterviewRecovery, setNewInterviewRecovery] = useState<NewInterviewRecoveryState>({
@@ -62,9 +65,13 @@ export function HomeShell({
   const activeFormalSession = Object.values(sessions)
     .flatMap((page) => page.items)
     .find(hasUnresolvedFormalCapture);
+  const sessionFactsIncomplete = Object.values(sessions).some(
+    (page) => page.loading || page.error !== null,
+  );
 
   useEffect(() => {
     let current = true;
+    const isCurrent = (): boolean => current;
     const resumeWhenOnline = (): void => {
       void (async (): Promise<void> => {
         try {
@@ -81,25 +88,49 @@ export function HomeShell({
     window.addEventListener('online', resumeWhenOnline);
     async function load(): Promise<void> {
       setError(null);
+      setProjects(null);
+      setSessions({});
       try {
         const projectPage = await api.listProjects();
         const ordinary = projectPage.items.filter(
           (project): project is ProjectListOrdinaryProjection => project.projection === 'ordinary',
         );
-        const pages = await Promise.all(
-          ordinary.map(
-            async (project) => [project.id, await loadAllProjectSessions(api, project.id)] as const,
-          ),
-        );
         if (!current) return;
         setProjects(projectPage.items);
         setSessions(
           Object.fromEntries(
-            pages.map(([projectId, page]) => [
-              projectId,
-              { items: page.items, nextCursor: page.next_cursor },
+            ordinary.map((project) => [
+              project.id,
+              { error: null, items: [], loading: true, nextCursor: null },
             ]),
           ),
+        );
+        const results = await Promise.all(
+          ordinary.map(async (project) => {
+            try {
+              return { page: await loadAllProjectSessions(api, project.id), projectId: project.id };
+            } catch (projectError) {
+              if (isAuthenticationError(projectError)) throw projectError;
+              return { error: projectSessionError(projectError), projectId: project.id };
+            }
+          }),
+        );
+        if (!isCurrent()) return;
+        const loadedSessions: Record<string, ProjectSessions> = {};
+        for (const result of results) {
+          loadedSessions[result.projectId] =
+            'page' in result
+              ? {
+                  error: null,
+                  items: result.page.items,
+                  loading: false,
+                  nextCursor: result.page.next_cursor,
+                }
+              : { error: result.error, items: [], loading: false, nextCursor: null };
+        }
+        setSessions(loadedSessions);
+        const pages = results.flatMap((result) =>
+          'page' in result ? [[result.projectId, result.page] as const] : [],
         );
         await loadNewInterviewRecovery(pages);
         const pending = await store.listNextSessionAttempts(user.id);
@@ -107,7 +138,7 @@ export function HomeShell({
         await resumeNextSessionAttempt(pending[0] as NextSessionAttempt);
       } catch (loadError) {
         if (!current) return;
-        if (loadError instanceof InterviewApiError && loadError.status === 401) {
+        if (isAuthenticationError(loadError)) {
           onAuthLost();
           return;
         }
@@ -119,7 +150,7 @@ export function HomeShell({
       current = false;
       window.removeEventListener('online', resumeWhenOnline);
     };
-  }, [api, navigate, onAuthLost, store, user.id]);
+  }, [api, loadGeneration, navigate, onAuthLost, store, user.id]);
 
   async function loadNewInterviewRecovery(
     loadedPages: readonly (readonly [string, ProjectSessionListResponse])[],
@@ -147,7 +178,11 @@ export function HomeShell({
         setNewInterviewRecovery({ kind: 'unavailable' });
         setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
       }
-    } catch {
+    } catch (recoveryError) {
+      if (isAuthenticationError(recoveryError)) {
+        onAuthLost();
+        return;
+      }
       setNewInterviewRecovery({ kind: 'unavailable' });
       setActionMessage('暂时无法核对未完成的新建访谈；新建访谈暂不可用，请稍后刷新重试。');
     }
@@ -162,7 +197,7 @@ export function HomeShell({
       await store.acknowledgeNextSession(user.id, attempt.projectId);
       navigate(preparationPath(attempt.projectId, response.session.id));
     } catch (attemptError) {
-      if (attemptError instanceof InterviewApiError && attemptError.status === 401) {
+      if (isAuthenticationError(attemptError)) {
         onAuthLost();
       } else if (attemptError instanceof InterviewApiError && attemptError.status === 0) {
         await store.markNextSessionUnknown(attempt);
@@ -222,13 +257,60 @@ export function HomeShell({
       setSessions((value) => ({
         ...value,
         [projectId]: {
+          error: null,
           items: [...(value[projectId]?.items ?? []), ...page.items],
+          loading: false,
           nextCursor: page.next_cursor,
         },
       }));
     } catch (loadError) {
-      if (loadError instanceof InterviewApiError && loadError.status === 401) onAuthLost();
-      else setError('无法加载更多访谈，请刷新后重试');
+      if (isAuthenticationError(loadError)) onAuthLost();
+      else {
+        setSessions((value) => ({
+          ...value,
+          [projectId]: {
+            ...(value[projectId] ?? { error: null, items: [], loading: false, nextCursor: null }),
+            error: projectSessionError(loadError),
+            loading: false,
+          },
+        }));
+      }
+    }
+  }
+
+  async function reloadProjectSessions(projectId: string): Promise<void> {
+    setSessions((value) => ({
+      ...value,
+      [projectId]: {
+        ...(value[projectId] ?? { error: null, items: [], loading: false, nextCursor: null }),
+        error: null,
+        loading: true,
+      },
+    }));
+    try {
+      const page = await loadAllProjectSessions(api, projectId);
+      setSessions((value) => ({
+        ...value,
+        [projectId]: {
+          error: null,
+          items: page.items,
+          loading: false,
+          nextCursor: page.next_cursor,
+        },
+      }));
+    } catch (loadError) {
+      if (isAuthenticationError(loadError)) {
+        onAuthLost();
+        return;
+      }
+      setSessions((value) => ({
+        ...value,
+        [projectId]: {
+          ...(value[projectId] ?? { error: null, items: [], loading: false, nextCursor: null }),
+          error: projectSessionError(loadError),
+          loading: false,
+        },
+      }));
     }
   }
 
@@ -246,6 +328,7 @@ export function HomeShell({
             disabled={
               newInterviewRecovery.kind === 'checking' ||
               newInterviewRecovery.kind === 'unavailable' ||
+              sessionFactsIncomplete ||
               activeFormalSession !== undefined
             }
             onClick={() => {
@@ -255,13 +338,15 @@ export function HomeShell({
           >
             {activeFormalSession !== undefined
               ? '请先处理进行中的访谈'
-              : newInterviewRecovery.kind === 'checking'
-                ? '正在核对未完成访谈…'
-                : newInterviewRecovery.kind === 'unavailable'
-                  ? '暂时无法安全新建访谈'
-                  : newInterviewRecovery.kind === 'active'
-                    ? '放弃未完成访谈并新建'
-                    : '新建访谈'}
+              : sessionFactsIncomplete
+                ? '正在核对现有访谈…'
+                : newInterviewRecovery.kind === 'checking'
+                  ? '正在核对未完成访谈…'
+                  : newInterviewRecovery.kind === 'unavailable'
+                    ? '暂时无法安全新建访谈'
+                    : newInterviewRecovery.kind === 'active'
+                      ? '放弃未完成访谈并新建'
+                      : '新建访谈'}
           </button>
           {activeFormalSession === undefined ? null : (
             <button
@@ -307,7 +392,14 @@ export function HomeShell({
             <h2 id="assigned-heading">项目与访谈</h2>
           </div>
         </div>
-        {error === null ? null : <ErrorState message={error} />}
+        {error === null ? null : (
+          <ErrorState
+            message={error}
+            onRetry={() => {
+              setLoadGeneration((value) => value + 1);
+            }}
+          />
+        )}
         {projects === null && error === null ? <LoadingState /> : null}
         {projects?.length === 0 ? <EmptyState /> : null}
         {projects?.map((project) =>
@@ -325,9 +417,12 @@ export function HomeShell({
               busy={busyProjectId === project.id}
               navigate={navigate}
               onLoadMore={() => void loadMore(project.id)}
+              onReload={() => void reloadProjectSessions(project.id)}
               onStartNext={() => void startNextSession(project)}
               project={project}
-              sessions={sessions[project.id] ?? { items: [], nextCursor: null }}
+              sessions={
+                sessions[project.id] ?? { error: null, items: [], loading: true, nextCursor: null }
+              }
             />
           ),
         )}
@@ -350,6 +445,13 @@ async function loadAllProjectSessions(
     cursor = page.next_cursor;
   } while (cursor !== null);
   return { items, next_cursor: null };
+}
+
+function projectSessionError(error: unknown): string {
+  if (error instanceof InterviewApiError && error.status === 403) {
+    return '当前操作没有权限或当前状态不允许，请重新核对';
+  }
+  return '暂时无法加载这个项目的访谈，请重新加载';
 }
 
 function recoverLoadedPrestartWorkflow(
@@ -456,11 +558,33 @@ export function EmptyState(): React.JSX.Element {
   );
 }
 
-export function ErrorState({ message }: { message: string }): React.JSX.Element {
+export function ErrorState({
+  message,
+  onRetry,
+  onAuthLost,
+}: {
+  message: string;
+  onAuthLost?: () => void;
+  onRetry?: () => void;
+}): React.JSX.Element {
   return (
     <div className="home-state home-state--error" role="alert">
       <strong>加载遇到问题</strong>
       <p>{message}</p>
+      {onRetry === undefined && onAuthLost === undefined ? null : (
+        <div className="home-state__actions">
+          {onRetry === undefined ? null : (
+            <button className="button button--secondary" onClick={onRetry} type="button">
+              重新加载
+            </button>
+          )}
+          {onAuthLost === undefined ? null : (
+            <button className="button button--secondary" onClick={onAuthLost} type="button">
+              返回登录
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -469,6 +593,7 @@ function ProjectGroup({
   busy,
   navigate,
   onLoadMore,
+  onReload,
   onStartNext,
   project,
   sessions,
@@ -476,6 +601,7 @@ function ProjectGroup({
   busy: boolean;
   navigate: (path: string) => void;
   onLoadMore: () => void;
+  onReload: () => void;
   onStartNext: () => void;
   project: ProjectListOrdinaryProjection;
   sessions: ProjectSessions;
@@ -508,7 +634,18 @@ function ProjectGroup({
           ) : null}
         </div>
       </header>
-      {sessions.items.length === 0 ? (
+      {sessions.loading ? (
+        <div className="project-state" aria-busy="true">
+          <span>正在加载这个项目的访谈…</span>
+        </div>
+      ) : sessions.error !== null ? (
+        <div className="project-state project-state--error" role="alert">
+          <p>{sessions.error}</p>
+          <button className="button button--secondary" onClick={onReload} type="button">
+            重新加载
+          </button>
+        </div>
+      ) : sessions.items.length === 0 ? (
         <div className="project-empty">这个项目还没有访谈会话。</div>
       ) : (
         <div className="session-list">

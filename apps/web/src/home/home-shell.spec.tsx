@@ -674,7 +674,115 @@ describe('HomeShell', () => {
     expect(store.acknowledgeNextSession).not.toHaveBeenCalled();
     expect(store.markNextSessionUnknown).toHaveBeenCalledWith(attempt);
   });
+
+  it('keeps other projects usable when one project session list fails and retries locally', async () => {
+    const firstProjectId = PROJECT_ID;
+    const secondProjectId = '33333333-3333-4333-8333-333333333333';
+    let firstProjectAvailable = false;
+    const api = {
+      createNextSession: vi.fn(),
+      listProjects: vi.fn().mockResolvedValue({
+        items: [
+          { ...homeProject('失败项目', firstProjectId), projection: 'ordinary' },
+          { ...homeProject('可用项目', secondProjectId), projection: 'ordinary' },
+        ],
+      }),
+      listProjectSessions: vi.fn((projectId: string) => {
+        if (projectId === firstProjectId && !firstProjectAvailable) {
+          return Promise.reject(new Error('secret internal detail'));
+        }
+        return Promise.resolve({ items: [], next_cursor: null });
+      }),
+    };
+    const workflowStore = {
+      getActive: vi.fn().mockResolvedValue(null),
+      listNextSessionAttempts: vi.fn().mockResolvedValue([]),
+    };
+
+    render(
+      <HomeShell
+        api={api}
+        navigate={vi.fn()}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={workflowStore as never}
+      />,
+    );
+
+    expect(await screen.findByText('失败项目')).toBeTruthy();
+    expect(screen.getByText('可用项目')).toBeTruthy();
+    expect(screen.getByText('暂时无法加载这个项目的访谈，请重新加载')).toBeTruthy();
+    expect(screen.queryByText('secret internal detail')).toBeNull();
+    firstProjectAvailable = true;
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
+    await waitFor(() => {
+      expect(api.listProjectSessions).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.queryByText('暂时无法加载这个项目的访谈，请重新加载')).toBeNull();
+  });
+
+  it('offers a functional retry when the root project list fails', async () => {
+    const api = {
+      createNextSession: vi.fn(),
+      listProjectSessions: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+      listProjects: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('secret root detail'))
+        .mockResolvedValueOnce({ items: [] }),
+    };
+    const workflowStore = {
+      getActive: vi.fn().mockResolvedValue(null),
+      listNextSessionAttempts: vi.fn().mockResolvedValue([]),
+    };
+    render(
+      <HomeShell
+        api={api}
+        navigate={vi.fn()}
+        onAuthLost={vi.fn()}
+        onLogout={vi.fn()}
+        user={USER}
+        workflowStore={workflowStore as never}
+      />,
+    );
+    expect(await screen.findByText('暂时无法加载工作区，请稍后重试')).toBeTruthy();
+    expect(screen.queryByText('secret root detail')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
+    await waitFor(() => {
+      expect(screen.getByText('还没有已分配的项目')).toBeTruthy();
+    });
+    expect(api.listProjects).toHaveBeenCalledTimes(2);
+  });
 });
+
+function homeProject(
+  displayName: string,
+  id: string,
+): {
+  approximate_age: null;
+  birth_year: null;
+  created_at: string;
+  created_by: string;
+  current_city: null;
+  display_name: string;
+  id: string;
+  native_place: null;
+  status: 'active';
+  updated_at: string;
+} {
+  return {
+    approximate_age: null,
+    birth_year: null,
+    created_at: '2026-08-12T08:00:00.000Z',
+    created_by: USER.id,
+    current_city: null,
+    display_name: displayName,
+    id,
+    native_place: null,
+    status: 'active',
+    updated_at: '2026-08-12T08:00:00.000Z',
+  };
+}
 
 function unknownAttempt(): NextSessionAttempt {
   return {

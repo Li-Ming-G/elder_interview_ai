@@ -58,4 +58,25 @@ describe('Interview API error envelope', () => {
       .catch((caught: unknown) => caught);
     expect((error as InterviewApiError).details).toEqual({});
   });
+
+  it('uses neutral copy for a generic forbidden response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 'FORBIDDEN', message: 'assignment was lost' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 403,
+        }),
+      ),
+    );
+    const error = await createInterviewApi('csrf')
+      .getSession('22222222-2222-4222-8222-222222222222')
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InterviewApiError);
+    expect((error as InterviewApiError).message).toBe(
+      '当前操作没有权限或当前状态不允许，请重新核对',
+    );
+    expect((error as InterviewApiError).message).not.toContain('分配');
+    expect((error as InterviewApiError).message).not.toContain('assignment');
+  });
 });

@@ -79,6 +79,22 @@ describe('App', () => {
           new Response(JSON.stringify({ csrf_token: 'expired-token' }), { status: 200 }),
         );
       }
+      if (path === '/api/v1/auth/login') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              csrf_token: 'fresh-token',
+              user: {
+                display_name: '虚构倾听员 A',
+                id: 'u',
+                role: 'interviewer',
+                status: 'active',
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
       if (path.includes('/sessions/')) {
         return Promise.resolve(
           new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
@@ -94,6 +110,14 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: '登录' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: '已登录' })).toBeNull();
     expect(globalThis.location.pathname).toBe('/');
+
+    fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'listener@example.test' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'password' } });
+    fireEvent.click(screen.getByRole('button', { name: '登录' }));
+    expect(await screen.findByRole('button', { name: '返回登录' })).toBeTruthy();
+    expect(globalThis.location.pathname).toContain(
+      '/projects/11111111-1111-4111-8111-111111111111',
+    );
   });
 
   it('preserves the browser Back destination after restoring the active Workbench route', async () => {

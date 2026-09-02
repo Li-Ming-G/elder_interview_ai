@@ -125,6 +125,63 @@ describe('NewInterviewPage', () => {
     );
   });
 
+  it('preserves authentication loss from the prestart session-list read', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithProjectOnly(workflow));
+    const api = fakeApi();
+    api.listProjectSessions
+      .mockResolvedValueOnce({
+        items: [prestartSessionListItem('created')],
+        next_cursor: null,
+      })
+      .mockRejectedValueOnce(new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401));
+    const onAuthLost = vi.fn();
+    const captureStart = vi.fn(() =>
+      Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
+    );
+    const checkMicrophone = vi.fn(() =>
+      Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }),
+    );
+
+    renderPage(api, { captureStart, intent: 'new', onAuthLost, checkMicrophone, workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(checkMicrophone).not.toHaveBeenCalled();
+    expect(captureStart).not.toHaveBeenCalled();
+  });
+
+  it('preserves authentication loss from the prestart session snapshot read', async () => {
+    const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
+    const workflow = await workflowStore.create(ACTOR_ID);
+    await workflowStore.put(workflowWithProjectOnly(workflow));
+    const api = fakeApi();
+    api.listProjectSessions.mockResolvedValue({
+      items: [prestartSessionListItem('created')],
+      next_cursor: null,
+    });
+    api.getSession.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401),
+    );
+    const onAuthLost = vi.fn();
+    const captureStart = vi.fn(() =>
+      Promise.resolve({ phase: 'active' } as InterviewCaptureControllerSnapshot),
+    );
+    const checkMicrophone = vi.fn(() =>
+      Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }),
+    );
+
+    renderPage(api, { captureStart, intent: 'resume', onAuthLost, checkMicrophone, workflowStore });
+
+    expect(await screen.findByRole('heading', { name: '无法安全开始新建访谈' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+    expect(checkMicrophone).not.toHaveBeenCalled();
+    expect(captureStart).not.toHaveBeenCalled();
+  });
+
   it('requires confirmation and creates a fresh workflow only after server discard succeeds', async () => {
     const workflowStore = new IndexedDbNewInterviewWorkflowStore(new IDBFactory());
     const workflow = await workflowStore.create(ACTOR_ID);
@@ -370,6 +427,23 @@ describe('NewInterviewPage', () => {
       expect(start).toHaveBeenCalledWith(RECORDING_START_REMINDER_VERSION);
     });
   });
+
+  it('offers the shared login recovery path for an explicit authentication loss', async () => {
+    const api = readyApi();
+    api.createProject.mockRejectedValueOnce(
+      new InterviewApiError('AUTH_REQUIRED', 'secret auth detail', 401),
+    );
+    const onAuthLost = vi.fn();
+    renderPage(api, { onAuthLost });
+    await screen.findByRole('heading', { name: '最低项目信息' });
+    fireEvent.change(screen.getByLabelText('姓名、昵称或项目代号'), {
+      target: { value: '虚构授权长者' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '创建项目并继续' }));
+    expect(await screen.findByText('登录已失效，请重新登录')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '返回登录' }));
+    expect(onAuthLost).toHaveBeenCalledTimes(1);
+  });
 });
 
 function renderPage(
@@ -379,7 +453,9 @@ function renderPage(
     captureStart?: (
       recordingReminderVersion: string,
     ) => Promise<InterviewCaptureControllerSnapshot>;
+    checkMicrophone?: () => Promise<{ inputDetected: true; permission: 'granted' }>;
     navigate?: (path: string, replace?: boolean) => void;
+    onAuthLost?: () => void;
     intent?: 'new' | 'resume';
     strict?: boolean;
     workflowStore?: IndexedDbNewInterviewWorkflowStore;
@@ -400,11 +476,14 @@ function renderPage(
       captureController={() => ({
         start: options.captureStart ?? vi.fn(() => Promise.resolve({ phase: 'active' } as never)),
       })}
-      checkMicrophone={() =>
-        Promise.resolve({ inputDetected: true as const, permission: 'granted' as const })
+      checkMicrophone={
+        options.checkMicrophone ??
+        ((): Promise<{ inputDetected: true; permission: 'granted' }> =>
+          Promise.resolve({ inputDetected: true as const, permission: 'granted' as const }))
       }
       csrfToken="csrf-test"
       navigate={options.navigate ?? vi.fn()}
+      {...(options.onAuthLost === undefined ? {} : { onAuthLost: options.onAuthLost })}
       workflowStore={
         options.workflowStore ?? new IndexedDbNewInterviewWorkflowStore(new IDBFactory())
       }

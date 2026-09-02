@@ -346,6 +346,35 @@ p {
   background: var(--danger-soft);
 }
 
+.home-state__actions,
+.project-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.home-state__actions {
+  margin-top: 1rem;
+}
+
+.project-state {
+  min-height: 4.5rem;
+  padding: 0.85rem 1.25rem;
+  color: var(--muted-ink);
+  font-size: 0.88rem;
+}
+
+.project-state--error {
+  align-items: flex-start;
+  border-top: 1px solid color-mix(in oklch, var(--danger) 32%, var(--line));
+  color: var(--danger);
+}
+
+.project-state p {
+  margin: 0;
+}
+
 .project-empty {
   padding: 1rem 1.25rem;
   color: var(--muted-ink);
