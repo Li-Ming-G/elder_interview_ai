@@ -84,7 +84,7 @@ Task source:
 2. Button label and actual action must agree.
 3. A visible ordinary action either works end-to-end or is honestly unavailable in place; it must not route into a known placeholder/dead end.
 4. Formal recording cannot be silently left behind by SPA navigation/history/back/refresh/close.
-5. Once formal recording starts, safe End Interview is always available, including calibration.
+5. Once formal recording starts, safe End Interview is always available, including during calibration.
 6. Calibration failure cannot hard-lock completion and must never invent speaker identity.
 7. AI suggestion failure never stops recording and must have a visible retry path.
 8. One unresolved formal interview takes precedence over creating another.
