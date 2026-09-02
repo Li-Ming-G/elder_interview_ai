@@ -52,7 +52,7 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
-    -> PFC-07-FULL-FLOW-E2E        [REVIEW]
+    -> PFC-07-FULL-FLOW-E2E        [IN_PROGRESS]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `REVIEW` task on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; the required exact-head verify CI is pending or missing, so the Dispatcher is waiting.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite, so same-task/same-PR repair is required.
 
 Its responsibility is intentionally narrow:
 
@@ -124,7 +124,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
-- `REVIEW`: `PFC-07-FULL-FLOW-E2E` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required exact-head verify CI is pending or missing, so the Dispatcher is waiting.
+- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; required verify CI run `33607067676` failed in the browser suite, so same-task/same-PR repair is required.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
@@ -138,4 +138,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Wait for required exact-head verify CI on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; if successful, publish the mechanical Architect review context.
+Launch one bounded same-task/same-PR repair for PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`, using its durable repair fingerprint.
