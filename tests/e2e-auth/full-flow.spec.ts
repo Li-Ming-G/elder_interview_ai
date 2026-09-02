@@ -428,18 +428,12 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
       public onerror: ((event: Event) => void) | null = null;
       public onstop: ((event: Event) => void) | null = null;
       public state: RecordingState = 'inactive';
-      private timer: ReturnType<typeof globalThis.setInterval> | null = null;
       public start(): void {
         this.state = 'recording';
         this.emit();
-        this.timer = globalThis.setInterval(() => {
-          this.emit();
-        }, 30);
       }
       public stop(): void {
         if (this.state === 'inactive') return;
-        if (this.timer !== null) globalThis.clearInterval(this.timer);
-        this.timer = null;
         this.emit();
         this.state = 'inactive';
         if (this.onstop !== null) {
