@@ -52,7 +52,7 @@ PFC-01-NEW-INTENT-TRUTH          [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
-  -> PFC-07A-QUERY-MODE-NAV-STATE [READY]
+  -> PFC-07A-QUERY-MODE-NAV-STATE [IN_PROGRESS]
   -> PFC-07-FULL-FLOW-E2E         [DEFERRED]
   -> null
 ```
@@ -65,7 +65,7 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed a remaining production route-state defect: `/interviews/new?mode=new` -> `继续未完成访谈` can change the query to `mode=resume` without re-rendering because App navigation state is pathname-only. The Product Owner authorized a bounded follow-up under the existing pack.
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is now the sole eligible `READY` task. `PFC-07-FULL-FLOW-E2E` is `DEFERRED`; its existing PR #133 is preserved and must be resumed after PFC-07A is merged and main-verified.
+`PFC-07A-QUERY-MODE-NAV-STATE` is now the sole active `IN_PROGRESS` task. `PFC-07-FULL-FLOW-E2E` is `DEFERRED`; its existing PR #133 is preserved and must be resumed after PFC-07A is merged and main-verified.
 
 Current task responsibility is intentionally narrow:
 
@@ -127,7 +127,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
-- `READY`: `PFC-07A-QUERY-MODE-NAV-STATE`, Owner-authorized bounded production fix for the query-only route-state defect exposed by PFC-07 PR #133.
+- `IN_PROGRESS`: `PFC-07A-QUERY-MODE-NAV-STATE`, Owner-authorized bounded production fix for the query-only route-state defect exposed by PFC-07 PR #133.
 - `DEFERRED`: `PFC-07-FULL-FLOW-E2E`; existing PR #133 is preserved and must be resumed after PFC-07A DONE rather than replaced.
 - `BLOCKED`: none in the Product Flow Closure pack after the Owner resolved the reported scope ambiguity by authorizing PFC-07A.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.

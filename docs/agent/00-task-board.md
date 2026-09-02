@@ -47,7 +47,7 @@
 | `PFC-04-SUGGESTION-RECOVERY` | `DONE` | Architect PASS; PR #130 merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; exact-current-main CI run `33545438599` succeeded | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `130` | `PFC-05-ROUTE-ACTION-CLOSURE` |
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DONE` | Architect PASS; PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; exact-current-main CI run `33580001375` succeeded | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `131` | `PFC-06-ERROR-AUTH-RESILIENCE` |
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07A-QUERY-MODE-NAV-STATE` |
-| `PFC-07A-QUERY-MODE-NAV-STATE` | `READY` | PFC-06 DONE; Owner-authorized bounded follow-up for the production route-state defect exposed by PFC-07 PR #133 | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `null` | `PFC-07-FULL-FLOW-E2E` |
+| `PFC-07A-QUERY-MODE-NAV-STATE` | `IN_PROGRESS` | PFC-06 DONE; Owner-authorized bounded follow-up for the production route-state defect exposed by PFC-07 PR #133 | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `null` | `PFC-07-FULL-FLOW-E2E` |
 | `PFC-07-FULL-FLOW-E2E` | `DEFERRED` | PFC-07A must merge and exact-current-main verify; existing PR #133 is preserved for resume | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 
 ## Current phase
@@ -58,7 +58,7 @@
 
 PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed the out-of-scope production route-state defect at the continue-unfinished-interview transition. The Product Owner resolved that scope ambiguity by authorizing `PFC-07A-QUERY-MODE-NAV-STATE` under the existing pack.
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is the sole eligible `READY` task. `PFC-07-FULL-FLOW-E2E` is `DEFERRED`, retaining canonical PR #133 for resume after PFC-07A is accepted, merged and exact-current-main verified.
+`PFC-07A-QUERY-MODE-NAV-STATE` is the sole active `IN_PROGRESS` task. `PFC-07-FULL-FLOW-E2E` is `DEFERRED`, retaining canonical PR #133 for resume after PFC-07A is accepted, merged and exact-current-main verified.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
