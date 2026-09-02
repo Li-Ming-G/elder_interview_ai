@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const ACTOR_ID = '10000000-0000-4000-8000-000000000001';
+test.describe.configure({ mode: 'serial' });
 
 test.use({
   launchOptions: {
@@ -88,7 +88,7 @@ test('ordinary listener completes the first interview from Home through Review a
 
   await page.getByRole('button', { name: '返回工作区' }).click();
   await expect(page).toHaveURL('/');
-  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 B' })).toBeVisible();
   const project = page.locator('article.project-group').filter({ hasText: projectName });
   await expect(project).toBeVisible();
   await expect(project.getByText('访谈已结束', { exact: true })).toBeVisible();
@@ -238,10 +238,10 @@ test('calibration keeps a safe End Interview action before speaker confirmation'
 
 async function login(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByLabel('邮箱').fill('listener-a@example.test');
+  await page.getByLabel('邮箱').fill('listener-b@example.test');
   await page.getByLabel('密码').fill('Fictional-only-Password-42!');
   await page.getByRole('button', { name: '登录' }).click();
-  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 B' })).toBeVisible();
 }
 
 async function startFormalInterviewFromHome(page: Page, projectName: string): Promise<void> {
@@ -298,9 +298,11 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
 
     class SyntheticAnalyser {
       public fftSize = 1024;
+      private sampleReads = 0;
       public getByteTimeDomainData(samples: Uint8Array): void {
         samples.fill(128);
-        samples[0] = 200;
+        this.sampleReads += 1;
+        if (this.sampleReads > 40) samples.fill(200);
       }
       public disconnect(): void {}
     }
@@ -422,7 +424,11 @@ async function readActiveWorkflowIdentity(page: Page): Promise<{
   step: string;
   workflowId: string;
 }> {
-  return page.evaluate((actorId) => {
+  return page.evaluate(async () => {
+    const actorResponse = await fetch('/api/v1/auth/me', { cache: 'no-store' });
+    if (!actorResponse.ok) throw new Error('authenticated actor lookup failed');
+    const actor = (await actorResponse.json()) as { id?: unknown };
+    if (typeof actor.id !== 'string') throw new Error('authenticated actor id is unavailable');
     return new Promise((resolve, reject) => {
       const open = indexedDB.open('elder-interview-new-workflow');
       open.onerror = (): void => {
@@ -431,7 +437,7 @@ async function readActiveWorkflowIdentity(page: Page): Promise<{
       open.onsuccess = (): void => {
         const database = open.result;
         const transaction = database.transaction('workflows', 'readonly');
-        const request = transaction.objectStore('workflows').index('by-actor').getAll(actorId);
+        const request = transaction.objectStore('workflows').index('by-actor').getAll(actor.id);
         request.onerror = (): void => {
           reject(request.error ?? new Error('workflow read failed'));
         };
@@ -459,7 +465,7 @@ async function readActiveWorkflowIdentity(page: Page): Promise<{
         };
       };
     });
-  }, ACTOR_ID);
+  });
 }
 
 function emptySuggestion(sessionId: string | undefined): Record<string, unknown> {
