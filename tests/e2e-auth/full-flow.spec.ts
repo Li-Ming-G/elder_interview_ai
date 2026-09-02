@@ -58,6 +58,7 @@ test('ordinary listener completes the first interview from Home through Review a
     new RegExp(`/projects/[^/]+/interview/${sessionId}/workbench$`, 'u'),
   );
   await expect(page.getByRole('heading', { name: '先确认两位说话人' })).toBeVisible();
+  await releaseDeterministicPcmFrames(page);
   await expect(page.getByRole('button', { name: '确认说话人' })).toBeVisible();
   await expectNoDeadPage(page);
 
@@ -261,6 +262,8 @@ async function startFormalInterviewFromHome(page: Page, projectName: string): Pr
   ).toBeVisible();
   await page.getByRole('button', { name: '开始访谈' }).click();
   await expect(page).toHaveURL(/\/workbench$/u);
+  await expect(page.getByRole('heading', { name: '先确认两位说话人' })).toBeVisible();
+  await releaseDeterministicPcmFrames(page);
 }
 
 async function endFormalInterview(page: Page): Promise<void> {
@@ -270,8 +273,27 @@ async function endFormalInterview(page: Page): Promise<void> {
   await expect(page.locator('.completion-page')).toBeVisible();
 }
 
+async function releaseDeterministicPcmFrames(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const controls = globalThis as typeof globalThis & {
+      __elderInterviewReleasePcmFrames?: () => void;
+    };
+    controls.__elderInterviewReleasePcmFrames?.();
+  });
+}
+
 async function installDeterministicBrowserMedia(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    let pcmFramesReleased = false;
+    const pendingPcmNodes = new Set<{ emitFrames: () => void }>();
+    const controls = globalThis as typeof globalThis & {
+      __elderInterviewReleasePcmFrames?: () => void;
+    };
+    controls.__elderInterviewReleasePcmFrames = (): void => {
+      pcmFramesReleased = true;
+      for (const node of pendingPcmNodes) node.emitFrames();
+    };
+
     class SyntheticTrack {
       public readyState: MediaStreamTrackState = 'live';
       private readonly listeners = new Map<string, Set<EventListener>>();
@@ -358,6 +380,7 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
       };
       private readonly timers: ReturnType<typeof globalThis.setTimeout>[] = [];
       public constructor() {
+        pendingPcmNodes.add(this);
         this.port = {
           close: (): void => {
             for (const timer of this.timers) globalThis.clearTimeout(timer);
@@ -369,9 +392,11 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
         return this;
       }
       public disconnect(): void {
+        pendingPcmNodes.delete(this);
         this.port.close();
       }
       public emitFrames(): void {
+        if (!pcmFramesReleased) return;
         for (const delay of [100, 180]) {
           this.timers.push(
             globalThis.setTimeout(() => {
