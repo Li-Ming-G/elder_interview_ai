@@ -52,7 +52,7 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
-  -> PFC-07-FULL-FLOW-E2E        [READY]
+  -> PFC-07-FULL-FLOW-E2E        [IN_PROGRESS]
   -> null
 ```
 
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE` are `DONE`. PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` received external Architect PASS and was accepted and merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33580001375` succeeded. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded. `PFC-06-ERROR-AUTH-RESILIENCE` is `DONE`, and its predefined successor `PFC-07-FULL-FLOW-E2E` is now `READY`.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task, persisted before its declared luna-high worker launch.
 
 Its responsibility is intentionally narrow:
 
@@ -124,6 +124,7 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
+- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E`, persisted before launch of its declared luna-high worker; PR not yet identified.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
@@ -137,4 +138,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Dispatch the sole predefined `READY` successor `PFC-07-FULL-FLOW-E2E` in the next bounded pulse.
+Launch the declared luna-high worker for the persisted `IN_PROGRESS` task `PFC-07-FULL-FLOW-E2E` with runtime authorization.
