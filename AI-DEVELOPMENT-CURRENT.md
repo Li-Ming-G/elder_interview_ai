@@ -46,34 +46,37 @@ Development Pack:
 Predefined queue:
 
 ```text
-PFC-01-NEW-INTENT-TRUTH        [DONE]
-  -> PFC-02-PRESTART-DISCARD   [DONE]
+PFC-01-NEW-INTENT-TRUTH          [DONE]
+  -> PFC-02-PRESTART-DISCARD     [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
-    -> PFC-07-FULL-FLOW-E2E        [BLOCKED]
+  -> PFC-07A-QUERY-MODE-NAV-STATE [READY]
+  -> PFC-07-FULL-FLOW-E2E         [DEFERRED]
   -> null
 ```
 
-Only the first eligible task may run. Successors are already Owner-authorized but remain locked until predecessor external Architect PASS + merge + refreshed-main CI + state synchronization.
+Only the first eligible task may run. Successors remain locked until predecessor external Architect PASS + merge + refreshed-main CI + state synchronization.
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is blocked on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`: required verify CI run `33607067676` exposes a production route-state defect outside the Task Card's allowed test-only scope.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded.
 
-Its responsibility is intentionally narrow:
+PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed a remaining production route-state defect: `/interviews/new?mode=new` -> `继续未完成访谈` can change the query to `mode=resume` without re-rendering because App navigation state is pathname-only. The Product Owner authorized a bounded follow-up under the existing pack.
 
-- Home `新建访谈` must not silently resume an older local workflow;
-- unfinished creation gets an explicit `继续未完成访谈` entry;
-- stale IndexedDB recovery is reconciled against server project/session facts before it can become active again;
-- server facts outrank browser workflow state;
-- normal in-page progress must not falsely render “已恢复旧流程” copy;
-- no backend discard/delete is implemented in PFC-01; PFC-02 owns the safe server-authoritative pre-start discard.
+`PFC-07A-QUERY-MODE-NAV-STATE` is now the sole eligible `READY` task. `PFC-07-FULL-FLOW-E2E` is `DEFERRED`; its existing PR #133 is preserved and must be resumed after PFC-07A is merged and main-verified.
+
+Current task responsibility is intentionally narrow:
+
+- make same-path query/search navigation participate in App render state;
+- ensure `mode=new` -> `mode=resume` actually re-renders the New Interview route;
+- preserve existing pathname navigation, active-recording navigation guards and auth return-path safety;
+- no router rewrite, backend change, New Interview semantic change, P1-P6 change or new product behavior.
 
 Task source:
 
-- `docs/agent/tasks/PFC-01-NEW-INTENT-TRUTH.md`
+- `docs/agent/tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`
 
 ## Product-flow closure invariants
 
@@ -81,7 +84,7 @@ Task source:
 2. Button label and actual action must agree.
 3. A visible ordinary action either works end-to-end or is honestly unavailable in place; it must not route into a known placeholder/dead end.
 4. Formal recording cannot be silently left behind by SPA navigation/history/back/refresh/close.
-5. Once formal recording starts, safe End Interview is always available, including during calibration.
+5. Once formal recording starts, safe End Interview is always available, including calibration.
 6. Calibration failure cannot hard-lock completion and must never invent speaker identity.
 7. AI suggestion failure never stops recording and must have a visible retry path.
 8. One unresolved formal interview takes precedence over creating another.
@@ -124,13 +127,14 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 ## Current states
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
-- `BLOCKED`: `PFC-07-FULL-FLOW-E2E` on PR #133 at exact head `2749ffd719b4c9544caa97acaee5337072280202`; `PRODUCT_AMBIGUITY`: `/interviews/new?mode=new` -> `继续未完成访谈` does not render the project form because query-mode navigation changes without the pathname-driven app rerender; fixing `apps/web/src/app.tsx` is outside the Task Card's allowed scope.
+- `READY`: `PFC-07A-QUERY-MODE-NAV-STATE`, Owner-authorized bounded production fix for the query-only route-state defect exposed by PFC-07 PR #133.
+- `DEFERRED`: `PFC-07-FULL-FLOW-E2E`; existing PR #133 is preserved and must be resumed after PFC-07A DONE rather than replaced.
+- `BLOCKED`: none in the Product Flow Closure pack after the Owner resolved the reported scope ambiguity by authorizing PFC-07A.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
-- `BLOCKED`: `PFC-07-FULL-FLOW-E2E` / `PRODUCT_AMBIGUITY` pending an external decision on the out-of-scope production route-state defect.
-  - `DEFERRED`: `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
 - `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
+- Other deferred work remains P2-D/T26-T27/production activation decisions.
 
 ## Authority order
 
@@ -138,4 +142,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Remain blocked pending an external decision on the production route-state defect; no further repair worker is authorized for the current Task Card scope.
+Persist `PFC-07A-QUERY-MODE-NAV-STATE` from `READY` to `IN_PROGRESS`, then launch its declared `luna-high` Implementation Worker. After PFC-07A PASS + merge + refreshed-main CI, unlock `PFC-07-FULL-FLOW-E2E` and resume existing PR #133.

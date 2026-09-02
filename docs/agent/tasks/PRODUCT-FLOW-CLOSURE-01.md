@@ -10,6 +10,8 @@ Primary goal: **a listener can start from the ordinary home page, complete one r
 
 The Owner approved all audited defects F1-F20. The Owner also froze one product decision for v1: **no pause-then-resume feature is required.** User-facing consent/reminder copy must not promise a resumable pause. Existing stop/end and consent-withdrawal safety remain intact.
 
+PFC-07 browser acceptance later exposed one remaining production route-state defect: query-only navigation on `/interviews/new` can change `mode` without causing the App to re-render. The Product Owner authorized one bounded follow-up, `PFC-07A-QUERY-MODE-NAV-STATE`, under this existing pack. This does not reopen product scope or add a new feature; it repairs behavior already required by the approved New-vs-Resume contract.
+
 Predefined sequence:
 
 ```text
@@ -19,11 +21,12 @@ PFC-01-NEW-INTENT-TRUTH
   -> PFC-04-SUGGESTION-RECOVERY
   -> PFC-05-ROUTE-ACTION-CLOSURE
   -> PFC-06-ERROR-AUTH-RESILIENCE
+  -> PFC-07A-QUERY-MODE-NAV-STATE
   -> PFC-07-FULL-FLOW-E2E
   -> null
 ```
 
-Only `PFC-01-NEW-INTENT-TRUTH` begins `READY`. Every successor begins `DEFERRED` and may be unlocked only after the predecessor receives exact-head external Architect PASS, merges, and refreshed-main CI succeeds.
+Only the first eligible task may run. Every successor remains locked until the predecessor receives exact-head external Architect PASS, merges, and refreshed-main CI succeeds.
 
 ## Product invariants
 
@@ -74,7 +77,7 @@ Only `PFC-01-NEW-INTENT-TRUTH` begins `READY`. Every successor begins `DEFERRED`
 
 This pack is complete only when:
 
-- the seven tasks are `DONE` through exact-head Architect review + merge + refreshed-main CI;
+- the seven original PFC tasks plus the bounded `PFC-07A-QUERY-MODE-NAV-STATE` follow-up are `DONE` through exact-head Architect review + merge + refreshed-main CI;
 - the ordinary browser flow has a deterministic route/action contract for the primary lifecycle;
 - a browser E2E covers the visible chain `Home -> New/Resume -> Consent/Prepare -> Formal Recording -> Calibration/degrade -> Workbench -> End -> Save/Processing -> Review -> Home`;
 - recovery checks cover refresh/back/return at the critical pre-start and active-recording boundaries;
