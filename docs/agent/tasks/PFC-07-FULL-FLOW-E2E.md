@@ -11,7 +11,35 @@ Covers audited defect **F9** and is the acceptance gate for `PRODUCT-FLOW-CLOSUR
 ## Entry / dependencies
 
 - `PFC-06-ERROR-AUTH-RESILIENCE` is `DONE` through Architect PASS + merge + refreshed-main CI.
-- All prior PFC behavior is expected to be present on main before this task starts.
+- `PFC-07A-QUERY-MODE-NAV-STATE` must be `DONE` through Architect PASS + merge + refreshed-main CI.
+- All prior PFC behavior is expected to be present on main before this task resumes.
+
+## Deferred parking rule
+
+While `PFC-07A-QUERY-MODE-NAV-STATE` is not yet `DONE`, this task is intentionally parked as `DEFERRED`.
+
+During that parked period:
+
+- PR #133 and its historical failed exact-head CI remain durable evidence but are **not** an active `BLOCKED` / repair trigger;
+- Dispatcher must not let PR #133's failed CI suppress dispatch of the eligible predecessor/follow-up `PFC-07A-QUERY-MODE-NAV-STATE`;
+- do not launch a PFC-07 repair Worker, publish review context, or otherwise advance PR #133 while PFC-07A is unfinished;
+- once PFC-07A is `DONE` through PASS + merge + refreshed-main CI and this task is unlocked, resume normal durable reconciliation of PR #133 under the Existing PR resume contract below.
+
+This parking rule preserves all durable PR/CI evidence; it only defers when that evidence becomes actionable.
+
+## Existing PR resume contract
+
+PFC-07 already has canonical implementation PR #133 on branch `codex/pfc-07-full-flow-e2e`.
+
+When this task is unlocked after PFC-07A:
+
+- reuse PR #133; do not create a replacement PR;
+- update the existing PR branch with the refreshed main that contains the accepted PFC-07A production fix;
+- preserve the existing PFC-07 browser coverage and product-flow matrix unless a test-only adjustment is required by the accepted production behavior;
+- rerun the required exact-head CI on the resulting new PR head;
+- any new production defect found by the resumed browser suite must again stop with exact first-failing-transition evidence rather than silently widening scope.
+
+Historical blocked head `2749ffd719b4c9544caa97acaee5337072280202` and CI run `33607067676` remain evidence only; they are not the resumed review head.
 
 ## Required browser contract
 
@@ -112,6 +140,6 @@ Use the repository’s actual E2E command if named differently; report the exact
 
 ## Completion
 
-Exactly one implementation PR. Worker stops at `REVIEW`. Architect exact-head review includes verifying the browser contract is behaviorally meaningful rather than a mocked DOM-only path. Dispatcher merges/verifies main only after PASS.
+Canonical implementation PR remains **#133**. Worker stops at `REVIEW`; Architect exact-head review includes verifying the browser contract is behaviorally meaningful rather than a mocked DOM-only path. Dispatcher merges/verifies main only after PASS.
 
 Next Task: `null`

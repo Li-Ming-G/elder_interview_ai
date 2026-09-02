@@ -375,6 +375,15 @@
       "worker_profile": "luna-high",
       "depends_on": ["PFC-05-ROUTE-ACTION-CLOSURE"],
       "pr": 132,
+      "next_task": "PFC-07A-QUERY-MODE-NAV-STATE"
+    },
+    {
+      "id": "PFC-07A-QUERY-MODE-NAV-STATE",
+      "status": "DONE",
+      "task_card": "docs/agent/tasks/PFC-07A-QUERY-MODE-NAV-STATE.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
+      "pr": 134,
       "next_task": "PFC-07-FULL-FLOW-E2E"
     },
     {
@@ -382,8 +391,8 @@
       "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
       "worker_profile": "luna-high",
-      "depends_on": ["PFC-06-ERROR-AUTH-RESILIENCE"],
-      "pr": null,
+      "depends_on": ["PFC-07A-QUERY-MODE-NAV-STATE"],
+      "pr": 133,
       "next_task": null
     }
   ]

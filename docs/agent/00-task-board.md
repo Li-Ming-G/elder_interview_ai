@@ -23,7 +23,7 @@
 | `P6R-01` | `DONE` | P5 complete through P5C-02; Owner-issued P6 Development Pack | [`tasks/P6R-01.md`](tasks/P6R-01.md) | `luna-high` | `99` | `P6R-02` |
 | `P6R-02` | `DONE` | P6R-01 external PASS + merge + main verification | [`tasks/P6R-02.md`](tasks/P6R-02.md) | `luna-high` | `100` | `P6R-03` |
 | `P6R-03` | `DONE` | P6R-02 external PASS + merge + main verification | [`tasks/P6R-03.md`](tasks/P6R-03.md) | `luna-high` | `101` | `P6R-04` |
-| `P6R-04` | `DONE` | P6R-03 external PASS + merge + main verification | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
+| `P6R-04` | `DONE` | P6R-03 accepted/merged/main-verified | [`tasks/P6R-04.md`](tasks/P6R-04.md) | `luna-high` | `102` | `P6R-05` |
 | `P6R-05` | `DONE` | P6R-04 merged and verified | [`tasks/P6R-05.md`](tasks/P6R-05.md) | `luna-high` | `103` | `null` |
 | `CPA-01` | `DONE` | P6R-05 DONE; Owner-issued Checkpoint A pack; accepted Checkpoint A contract | [`tasks/CPA-01.md`](tasks/CPA-01.md) | `luna-high` | `105` | `CPA-02` |
 | `CPA-02` | `DONE` | CPA-01 external PASS + merge + main verification | [`tasks/CPA-02.md`](tasks/CPA-02.md) | `luna-high` | `106` | `CPA-03` |
@@ -46,18 +46,21 @@
 | `PFC-03-RECORDING-NAV-SAFETY` | `DONE` | Architect PASS; PR #129 merged as `ee01cf0c42d7041bc7d4524c21a874eb51245787`; exact-current-main CI run `33534495664` succeeded and cleared `MAIN_VERIFY_FAILED` | [`tasks/PFC-03-RECORDING-NAV-SAFETY.md`](tasks/PFC-03-RECORDING-NAV-SAFETY.md) | `luna-high` | `129` | `PFC-04-SUGGESTION-RECOVERY` |
 | `PFC-04-SUGGESTION-RECOVERY` | `DONE` | Architect PASS; PR #130 merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; exact-current-main CI run `33545438599` succeeded | [`tasks/PFC-04-SUGGESTION-RECOVERY.md`](tasks/PFC-04-SUGGESTION-RECOVERY.md) | `luna-high` | `130` | `PFC-05-ROUTE-ACTION-CLOSURE` |
 | `PFC-05-ROUTE-ACTION-CLOSURE` | `DONE` | Architect PASS; PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; exact-current-main CI run `33580001375` succeeded | [`tasks/PFC-05-ROUTE-ACTION-CLOSURE.md`](tasks/PFC-05-ROUTE-ACTION-CLOSURE.md) | `luna-high` | `131` | `PFC-06-ERROR-AUTH-RESILIENCE` |
-| `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07-FULL-FLOW-E2E` |
-| `PFC-07-FULL-FLOW-E2E` | `IN_PROGRESS` | PFC-06 DONE through accepted merge and exact-current-main CI; persisted before declared worker launch | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `null` | `null` |
+| `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07A-QUERY-MODE-NAV-STATE` |
+| `PFC-07A-QUERY-MODE-NAV-STATE` | `DONE` | PFC-06 DONE; canonical PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9` merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `134` | `PFC-07-FULL-FLOW-E2E` |
+| `PFC-07-FULL-FLOW-E2E` | `IN_PROGRESS` | PFC-07A DONE through merged and exact-current-main-verified PR #134; existing PR #133 is preserved for resume | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 
 ## Current phase
 
 `PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded. `PFC-07-FULL-FLOW-E2E` is the sole active `IN_PROGRESS` task, persisted before its declared luna-high worker launch.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
+
+PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed the out-of-scope production route-state defect at the continue-unfinished-interview transition. The Product Owner resolved that scope ambiguity by authorizing `PFC-07A-QUERY-MODE-NAV-STATE` under the existing pack.
+
+`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is now `IN_PROGRESS`, retaining canonical PR #133 for resume.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
-
-`PFC-06-ERROR-AUTH-RESILIENCE` is persisted `DONE` after accepted merge and exact-current-main verification. `PFC-07-FULL-FLOW-E2E` is persisted `IN_PROGRESS` before its declared worker launch.
 
 ## Frozen product-flow boundaries
 
