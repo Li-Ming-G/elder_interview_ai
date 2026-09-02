@@ -94,7 +94,9 @@ test('ordinary listener completes the first interview from Home through Review a
   await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 B' })).toBeVisible();
   const project = page.locator('article.project-group').filter({ hasText: projectName });
   await expect(project).toBeVisible();
-  await expect(project.getByText('访谈已结束', { exact: true })).toBeVisible();
+  await expect(
+    project.locator('.session-list .status-badge').filter({ hasText: '访谈已结束' }),
+  ).toBeVisible();
   await expect(project.getByRole('button', { name: '查看回顾' })).toBeVisible();
   await expect(project.getByRole('button', { name: '继续准备' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '继续未完成访谈' })).toHaveCount(0);
