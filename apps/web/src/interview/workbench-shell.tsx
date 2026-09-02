@@ -29,7 +29,7 @@ import type {
   InterviewCaptureControllerSnapshot,
 } from './interview-capture-controller.js';
 import { requiresCaptureAttention } from './interview-capture-controller.js';
-import { preparationPath, reviewPath } from './routes.js';
+import { reviewPath } from './routes.js';
 import { SuggestionPanel } from './suggestion-panel.js';
 
 export interface WorkbenchNavigationRequest {
@@ -646,7 +646,6 @@ export function WorkbenchShell({
         onReconcile={() => void reconcile()}
         onReturnToLogin={onReturnToLogin}
         onResume={() => void resumeInterview()}
-        projectId={projectId}
         projectName={projectName}
         reviewHref={reviewPath(projectId, sessionId)}
         saveExpanded={saveExpanded}
@@ -688,7 +687,6 @@ interface WorkbenchViewProps {
   onReconcile: () => void;
   onReturnToLogin: () => void;
   onResume: () => void;
-  projectId: string;
   projectName: string;
   reviewHref: string;
   saveExpanded: boolean;
@@ -779,7 +777,6 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     onReconcile,
     onReturnToLogin,
     onResume,
-    projectId,
     projectName,
     reviewHref,
     saveExpanded,
@@ -903,7 +900,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
               setStatusExpanded(false);
             }}
             onPrepareAgain={() => {
-              navigate(preparationPath(projectId));
+              navigate('/', true);
             }}
             onRecheck={onRecheck}
             onReconcile={onReconcile}
@@ -1430,7 +1427,7 @@ function SessionStatePanel({
         ) : null}
         {state === 'no_audio' ? (
           <button className="button button--primary" onClick={onPrepareAgain} type="button">
-            重新准备一次访谈
+            返回工作区重新准备
           </button>
         ) : null}
         <button className="text-button" onClick={saveDetails} type="button">

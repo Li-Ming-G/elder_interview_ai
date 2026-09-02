@@ -184,6 +184,19 @@ describe('PreparationPage DEV-008A4 recovery route', () => {
     expect(await screen.findByText('最新正式授权当前无效。')).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '开始访谈' }).disabled).toBe(true);
   });
+
+  it('offers a workspace escape when preparation facts fail to load without mutating the session', async () => {
+    const api = createApi();
+    api.loadPreparation.mockRejectedValueOnce(new Error('load failed'));
+    const navigate = vi.fn();
+    renderPage(api, navigate);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('无法加载访谈恢复信息');
+    fireEvent.click(screen.getByRole('button', { name: '返回工作区' }));
+    expect(navigate).toHaveBeenCalledWith('/', true);
+    expect(api.deviceCheck).not.toHaveBeenCalled();
+    expect(api.captureStart).not.toHaveBeenCalled();
+  });
 });
 
 function renderPage(
