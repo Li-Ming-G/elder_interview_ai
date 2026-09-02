@@ -361,7 +361,7 @@
     },
     {
       "id": "PFC-05-ROUTE-ACTION-CLOSURE",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/PFC-05-ROUTE-ACTION-CLOSURE.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-04-SUGGESTION-RECOVERY"],
@@ -370,7 +370,7 @@
     },
     {
       "id": "PFC-06-ERROR-AUTH-RESILIENCE",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/PFC-06-ERROR-AUTH-RESILIENCE.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-05-ROUTE-ACTION-CLOSURE"],

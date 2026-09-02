@@ -50,8 +50,8 @@ PFC-01-NEW-INTENT-TRUTH        [DONE]
   -> PFC-02-PRESTART-DISCARD   [DONE]
   -> PFC-03-RECORDING-NAV-SAFETY [DONE]
   -> PFC-04-SUGGESTION-RECOVERY  [DONE]
-  -> PFC-05-ROUTE-ACTION-CLOSURE [REVIEW]
-  -> PFC-06-ERROR-AUTH-RESILIENCE [DEFERRED]
+  -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
+  -> PFC-06-ERROR-AUTH-RESILIENCE [READY]
   -> PFC-07-FULL-FLOW-E2E        [DEFERRED]
   -> null
 ```
@@ -60,7 +60,7 @@ Only the first eligible task may run. Successors are already Owner-authorized bu
 
 ## Current task truth
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY` are `DONE`. PR #130 was accepted and merged as `7c62e4a2d39af462a8c6c2d5d5da6d2bcb800132`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33545438599` succeeded. PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` passed its single bounded no-code CI rerun. `PFC-05-ROUTE-ACTION-CLOSURE` is back in `REVIEW` awaiting an exact-current-head external Architect verdict.
+`PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE` are `DONE`. PR #131 exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c` received external Architect PASS and was accepted and merged as `ec1ca9a9a752a2049e1b70bb8f716eb920ac3e1a`; the accepted merge is in exact-current-main ancestry and exact-current-main CI run `33580001375` succeeded. `PFC-06-ERROR-AUTH-RESILIENCE` is the sole eligible `READY` task.
 
 Its responsibility is intentionally narrow:
 
@@ -123,12 +123,13 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Current states
 
-- `REVIEW`: `PFC-05-ROUTE-ACTION-CLOSURE` on PR #131 at exact head `7d3ac2471a766a8eead29ee53aa8a2e4c740852c`; required PR CI attempt 2 succeeded and no current-head Architect verdict exists.
+- `READY`: `PFC-06-ERROR-AUTH-RESILIENCE`, mechanically unlocked after PFC-05 merge and exact-current-main verification.
+- `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
 - `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
 - `BLOCKED`: none in the Product Flow Closure pack.
-- `DEFERRED`: `PFC-06` through `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
-- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-04-SUGGESTION-RECOVERY`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
+- `DEFERRED`: `PFC-07`, plus prior P2-D/T26-T27/production activation decisions.
+- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 
 ## Authority order
 
@@ -136,4 +137,4 @@ Current Task Card -> Product Flow Closure Development Pack -> exact accepted low
 
 ## Next step
 
-Exact-head required CI run `33548669418` attempt 2 succeeded. Dispatcher returned the same task/PR to `REVIEW`; wait for the external Architect's exact-current-head `ARCHITECT_VERDICT_V1`.
+Persist `PFC-06-ERROR-AUTH-RESILIENCE` from `READY` to `IN_PROGRESS`, then launch its declared `luna-high` Implementation Worker in a later bounded pulse.
