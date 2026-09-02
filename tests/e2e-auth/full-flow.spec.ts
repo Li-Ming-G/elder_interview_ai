@@ -274,8 +274,22 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
   await page.addInitScript(() => {
     class SyntheticTrack {
       public readyState: MediaStreamTrackState = 'live';
+      private readonly listeners = new Map<string, Set<EventListener>>();
+
+      public addEventListener(type: string, listener: EventListener): void {
+        const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      public removeEventListener(type: string, listener: EventListener): void {
+        this.listeners.get(type)?.delete(listener);
+      }
+
       public stop(): void {
+        if (this.readyState === 'ended') return;
         this.readyState = 'ended';
+        for (const listener of this.listeners.get('ended') ?? []) listener(new Event('ended'));
       }
     }
 
