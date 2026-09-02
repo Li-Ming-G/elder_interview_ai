@@ -22,7 +22,7 @@ export function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [authReturnPath, setAuthReturnPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pathname, setPathname] = useState(globalThis.location.pathname);
+  const [locationPath, setLocationPath] = useState(currentLocationPath());
   const captureControllers = useRef(new Map<string, InterviewCaptureController>());
   const navigationGuard = useRef<
     ((request: { commit: () => void; path: string; replace: boolean }) => void) | null
@@ -35,7 +35,7 @@ export function App(): React.JSX.Element {
     if (replace) globalThis.history.replaceState(null, '', nextPath);
     else globalThis.history.pushState(null, '', nextPath);
     currentNavigationPath.current = nextPath;
-    setPathname(url.pathname);
+    setLocationPath(nextPath);
   }
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function App(): React.JSX.Element {
         // entry the user requested, so choosing stay leaves that same target
         // available for a later Back attempt.
         restoreGuardedHistoryEntry(previousPath);
-        setPathname(new URL(previousPath, globalThis.location.href).pathname);
+        setLocationPath(previousPath);
         guard({
           commit: () => {
             commitNavigation(targetPath, false);
@@ -60,7 +60,7 @@ export function App(): React.JSX.Element {
         return;
       }
       currentNavigationPath.current = targetPath;
-      setPathname(globalThis.location.pathname);
+      setLocationPath(targetPath);
     }
     globalThis.addEventListener('popstate', onPopState);
     return function cleanupPopState(): void {
@@ -247,7 +247,8 @@ export function App(): React.JSX.Element {
     );
   }
 
-  const route = parseInterviewRoute(pathname);
+  const currentUrl = new URL(locationPath, globalThis.location.href);
+  const route = parseInterviewRoute(currentUrl.pathname);
   if (route?.kind === 'preparation') {
     return (
       <PreparationPage
@@ -280,7 +281,7 @@ export function App(): React.JSX.Element {
   }
 
   if (route?.kind === 'new_interview') {
-    const mode = new URLSearchParams(globalThis.location.search).get('mode');
+    const mode = currentUrl.searchParams.get('mode');
     return (
       <NewInterviewPage
         actorId={user.id}
@@ -326,7 +327,7 @@ export function App(): React.JSX.Element {
     );
   }
 
-  if (pathname === '/') {
+  if (currentUrl.pathname === '/') {
     return (
       <HomeShell
         api={interviewApi}

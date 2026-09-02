@@ -5,6 +5,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App, restoreGuardedHistoryEntry } from './app.js';
 
+vi.mock('./interview/new-interview-page.js', () => ({
+  NewInterviewPage: ({
+    intent,
+    navigate,
+  }: {
+    intent?: 'new' | 'resume';
+    navigate: (path: string, replace?: boolean) => void;
+  }): React.JSX.Element => (
+    <section>
+      <output data-testid="new-interview-intent">{intent ?? 'undefined'}</output>
+      <button
+        onClick={() => {
+          navigate('/interviews/new?mode=resume');
+        }}
+        type="button"
+      >
+        继续未完成访谈
+      </button>
+    </section>
+  ),
+}));
+
 describe('App', () => {
   afterEach(() => {
     cleanup();
@@ -49,6 +71,38 @@ describe('App', () => {
     render(<App />);
     expect((await screen.findByRole('alert')).textContent).toContain('无法恢复已有会话');
     expect(screen.queryByRole('heading', { name: '已登录' })).toBeNull();
+  });
+
+  it('re-renders the New Interview intent for query-only SPA navigation', async () => {
+    globalThis.history.replaceState(null, '', '/interviews/new?mode=new');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            display_name: '虚构倾听员 A',
+            id: 'u',
+            role: 'interviewer',
+            status: 'active',
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ csrf_token: 'opaque' }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+
+    expect((await screen.findByTestId('new-interview-intent')).textContent).toBe('new');
+    fireEvent.click(screen.getByRole('button', { name: '继续未完成访谈' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('new-interview-intent').textContent).toBe('resume');
+    });
+    expect(globalThis.location.pathname).toBe('/interviews/new');
+    expect(globalThis.location.search).toBe('?mode=resume');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('clears the cached authenticated app state when a workbench load returns 401', async () => {
