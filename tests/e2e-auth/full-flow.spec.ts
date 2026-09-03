@@ -120,6 +120,7 @@ test('new intent exposes an explicit continue choice and preserves workflow iden
   await expect(page.getByLabel('姓名、昵称或项目代号')).toHaveCount(0);
   await page.getByRole('button', { name: '继续未完成访谈' }).click();
   await expect(page).toHaveURL(/\/interviews\/new\?mode=resume$/u);
+  await page.reload();
   await expect(page.getByRole('heading', { name: '最低项目信息' })).toBeVisible();
   await expect(page.getByLabel('姓名、昵称或项目代号')).toHaveValue('');
   const after = await readActiveWorkflowIdentity(page);
