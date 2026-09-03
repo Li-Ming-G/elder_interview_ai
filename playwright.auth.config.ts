@@ -10,6 +10,7 @@ const baseURL = `http://127.0.0.1:${String(webPort)}`;
 export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   testDir: './tests/e2e-auth',
+  workers: 1,
   webServer: [
     {
       command: 'node apps/api/dist/main.js',
