@@ -1,6 +1,8 @@
 # 当前任务索引
 
-本文件是供人快速查看的机械索引；canonical queue topology 来自本文件与正式 Task Card，`dispatcher/dispatcher-state.json` 是可重建的 last-known projection，不是唯一运行真相。GitHub durable PR/head/verdict/merge/CI facts 可以纠正 stale projection。治理模型是单 Dispatcher 顺序队列，外部 Architect 负责 PR Review。
+本文件是供人快速查看的机械索引；canonical queue topology 来自本文件与正式 Task Card，`dispatcher/dispatcher-state.json` 是可重建的 last-known projection，不是唯一运行真相。GitHub durable PR/head/Directive ACK/verdict/merge/CI facts 可以纠正 stale projection。治理模型是单 Dispatcher 顺序队列：Product Owner 保留产品与架构决策权，External/Web Architect 通过 issue #135 上的 `ARCHITECT_DIRECTIVE_V1` 获得受限 implementation execution authority，并继续负责 PR Review。
+
+Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state；本表与 freshly reconciled canonical state 的运行状态优先。Worker 的有效执行范围是 base Task Card 加当前任务所有已成功 ACK 的 Directive additive overlays。
 
 状态只允许：`READY`、`IN_PROGRESS`、`REVIEW`、`BLOCKED`、`DEFERRED`、`DONE`。
 
@@ -58,7 +60,7 @@
 
 PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed the out-of-scope production route-state defect at the continue-unfinished-interview transition. The Product Owner resolved that scope ambiguity by authorizing `PFC-07A-QUERY-MODE-NAV-STATE` under the existing pack.
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is now `IN_PROGRESS`, retaining canonical PR #133 for resume.
+`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is `IN_PROGRESS`, retaining canonical PR #133. PR #133 is currently open at `8c9b7192376280b2e7860fc01bbb20afeb708802` with exact-head CI run `33659276060` failed; its matching legacy repair fingerprint has already been consumed. The migration does not repair that business defect or publish a Directive.
 
 The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
 
@@ -79,6 +81,8 @@ The Product Owner approved all audited F1-F20 fixes and froze v1 product behavio
 - historical `MEMORY-T5-T8-P2-C-RUNTIME-001` remains `DONE` and must not become active from stale projection;
 - GitHub durable PR/head/verdict/merge/CI facts override stale local projections;
 - Dispatcher must scan the full freshly fetched canonical queue after reconciliation;
-- Dispatcher never invents Product Flow tasks or product behavior;
-- external Architect owns exact-head review and verdict;
-- Worker implements only the current Task Card and canonical PR.
+- Dispatcher never invents Product Flow tasks or product behavior and never judges an Architect's technical choice;
+- External Architect owns bounded implementation commands, effective-envelope exact-head review, and verdict;
+- valid unique Directives are reconciled before ordinary waits/no-ops and may recover the same current task/PR without creating a successor;
+- Worker implements only the base Task Card plus all applied Directive overlays on the canonical task/PR;
+- no Directive may bypass CI/review/PASS/merge/exact-main verification or change Owner-frozen decisions, Accepted Contracts, architecture boundaries, task identity, or queue topology.

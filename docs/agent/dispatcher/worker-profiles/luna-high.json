@@ -9,6 +9,9 @@
   "visibility": "sidebar-visible-task",
   "launcher_role": "DISPATCHER",
   "requires_task_card": true,
+  "task_source": "canonical runtime authorization + base Task Card + all successful ARCHITECT_DIRECTIVE_V1 ACK overlays",
+  "execution_authority": "effective execution envelope",
+  "accepts_applied_directives": true,
   "forbid_custom_agent_framework": true,
   "verification": {
     "desktop_version": "26.818.3698.0",

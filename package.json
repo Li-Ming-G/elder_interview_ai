@@ -18,6 +18,7 @@
   "scripts": {
     "build": "pnpm --recursive --if-present run build",
     "checkpoint-a:start": "pnpm build && node --env-file=.env.local scripts/start-checkpoint-a.mjs",
+    "check:dispatcher": "node docs/agent/dispatcher/dispatcher-dry-run.mjs",
     "local:env:migrate-db-ports": "node scripts/migrate-local-db-ports.mjs",
     "test:local-operability": "node --test scripts/local-operability.test.mjs",
     "db:generate": "node scripts/generate-prisma.mjs",
