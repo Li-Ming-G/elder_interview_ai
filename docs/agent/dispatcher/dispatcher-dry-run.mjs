@@ -203,6 +203,8 @@ function parseDirectiveAck(comment, controlPlane) {
   if (!comment.topLevel || !comment.body?.includes(directiveAckMarker)) return { kind: 'ignore' };
   const fields = parseMachineFields(comment.body, directiveAckMarker);
   if (!fields || fields.invalid) return { kind: 'invalid' };
+  const action = fields?.ACTION;
+  const launchFailureAttempt = fields?.RESULT?.match(/^WORKER_LAUNCH_FAILED_ATTEMPT_([1-3])$/);
   if (
     Object.keys(fields).length !== ackFields.length ||
     ackFields.some((field) => !(field in fields)) ||
@@ -210,8 +212,12 @@ function parseDirectiveAck(comment, controlPlane) {
     !controlPlane.authorized_dispatcher_logins.includes(comment.author?.login) ||
     !/^[0-9a-f]{64}$/.test(fields.DIRECTIVE_SHA256) ||
     !['LAUNCHED', 'APPLIED', 'LAUNCH_FAILED', 'REJECTED_STALE', 'REJECTED_INVALID'].includes(
-      fields.ACTION,
-    )
+      action,
+    ) ||
+    (['LAUNCHED', 'APPLIED'].includes(action) &&
+      (!fields.WORKER_REF || fields.WORKER_REF === 'none')) ||
+    (action === 'LAUNCH_FAILED' && (fields.WORKER_REF !== 'none' || !launchFailureAttempt)) ||
+    (['REJECTED_STALE', 'REJECTED_INVALID'].includes(action) && fields.WORKER_REF !== 'none')
   )
     return { kind: 'invalid' };
   return { kind: 'valid', fields, createdAt: comment.createdAt || '' };
@@ -268,6 +274,24 @@ function matchingDirectiveOutcome(allAcks, identity, actions) {
       ack.fields.DIRECTIVE_SHA256 === identity.digest &&
       actions.includes(ack.fields.ACTION),
   );
+}
+
+function directiveLaunchFailureSequence(allAcks, identity) {
+  const failures = allAcks
+    .filter(
+      (ack) =>
+        ack.fields.DIRECTIVE_ID === identity.id &&
+        ack.fields.DIRECTIVE_SHA256 === identity.digest &&
+        ack.fields.ACTION === 'LAUNCH_FAILED',
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const attempts = failures.map((ack) =>
+    Number(ack.fields.RESULT.match(/^WORKER_LAUNCH_FAILED_ATTEMPT_([1-3])$/)?.[1]),
+  );
+  return {
+    kind: attempts.every((attempt, index) => attempt === index + 1) ? 'valid' : 'invalid',
+    count: attempts.length,
+  };
 }
 
 function reconcileDirective(canonicalQueue, local, github, controlPlane) {
@@ -351,21 +375,6 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
       )
     )
       continue;
-    const launchFailures = allAcks.filter(
-      (ack) =>
-        ack.fields.DIRECTIVE_ID === id &&
-        ack.fields.DIRECTIVE_SHA256 === directive.digest &&
-        ack.fields.ACTION === 'LAUNCH_FAILED',
-    );
-    if (launchFailures.length >= 3)
-      return {
-        canonicalTaskId: task.id,
-        status: 'BLOCKED',
-        action: 'WORKER_FAILED',
-        directiveLaunch: false,
-        error: 'WORKER_FAILED',
-        detail: 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED',
-      };
     if (directive.fields.TASK !== task.id)
       return {
         canonicalTaskId: task.id,
@@ -430,8 +439,91 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
     const existingWorker = (github.workers || []).find(
       (worker) => worker.identity === workerIdentity,
     );
-    const ackAction = existingWorker ? 'APPLIED' : 'LAUNCHED';
-    const workerRef = existingWorker?.ref || `new:${workerIdentity}`;
+    if (existingWorker)
+      return {
+        canonicalTaskId: task.id,
+        previousStatus: runtime.status,
+        status: 'IN_PROGRESS',
+        pr: boundPr?.number ?? null,
+        action: 'EXECUTE_ARCHITECT_DIRECTIVE',
+        directiveId: id,
+        directiveDigest: directive.digest,
+        directiveLaunch: false,
+        workerIdentity,
+        workerRef: existingWorker.ref,
+        effectiveEnvelope: envelope,
+        reviewFence: true,
+        ack: directiveAckBody(
+          directive,
+          task,
+          boundPr?.number ?? null,
+          boundPr?.head.sha ?? null,
+          'APPLIED',
+          existingWorker.ref,
+          envelope,
+          'RECOVERED_EXISTING_WORKER',
+        ),
+      };
+
+    const launchFailures = directiveLaunchFailureSequence(allAcks, identity);
+    if (launchFailures.kind === 'invalid')
+      return {
+        canonicalTaskId: task.id,
+        status: 'BLOCKED',
+        action: 'REJECTED_INVALID',
+        directiveLaunch: false,
+        error: 'PRODUCT_AMBIGUITY',
+        detail: 'INVALID_LAUNCH_FAILED_SEQUENCE',
+      };
+    if (launchFailures.count >= 3)
+      return {
+        canonicalTaskId: task.id,
+        status: 'BLOCKED',
+        action: 'WORKER_FAILED',
+        directiveLaunch: false,
+        error: 'WORKER_FAILED',
+        detail: 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED',
+      };
+
+    const attempt = launchFailures.count + 1;
+    const nativeLaunch = github.nativeDirectiveLaunch || { completed: true, workerRef: null };
+    const workerRef =
+      typeof nativeLaunch.workerRef === 'string' &&
+      nativeLaunch.workerRef.trim() &&
+      nativeLaunch.workerRef !== 'none'
+        ? nativeLaunch.workerRef
+        : null;
+    if (nativeLaunch.completed && !workerRef) {
+      const thirdFailure = attempt === 3;
+      return {
+        canonicalTaskId: task.id,
+        previousStatus: runtime.status,
+        status: thirdFailure ? 'BLOCKED' : 'IN_PROGRESS',
+        pr: boundPr?.number ?? null,
+        action: thirdFailure ? 'WORKER_FAILED' : 'LAUNCH_FAILED',
+        directiveId: id,
+        directiveDigest: directive.digest,
+        directiveLaunch: true,
+        launchAttempt: attempt,
+        workerIdentity,
+        workerRef: null,
+        effectiveEnvelope: envelope,
+        reviewFence: false,
+        error: thirdFailure ? 'WORKER_FAILED' : undefined,
+        detail: thirdFailure ? 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED' : undefined,
+        ack: directiveAckBody(
+          directive,
+          task,
+          boundPr?.number ?? null,
+          boundPr?.head.sha ?? null,
+          'LAUNCH_FAILED',
+          'none',
+          envelope,
+          `WORKER_LAUNCH_FAILED_ATTEMPT_${attempt}`,
+        ),
+      };
+    }
+    assert(nativeLaunch.completed, 'fixture launch operation must reach a terminal result');
     return {
       canonicalTaskId: task.id,
       previousStatus: runtime.status,
@@ -440,7 +532,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
       action: 'EXECUTE_ARCHITECT_DIRECTIVE',
       directiveId: id,
       directiveDigest: directive.digest,
-      directiveLaunch: !existingWorker,
+      directiveLaunch: true,
+      launchAttempt: attempt,
       workerIdentity,
       workerRef,
       effectiveEnvelope: envelope,
@@ -450,10 +543,10 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         task,
         boundPr?.number ?? null,
         boundPr?.head.sha ?? null,
-        ackAction,
+        'LAUNCHED',
         workerRef,
         envelope,
-        existingWorker ? 'RECOVERED_EXISTING_WORKER' : 'WORKER_LAUNCHED',
+        'WORKER_LAUNCHED',
       ),
     };
   }
@@ -984,9 +1077,13 @@ function buildDirectiveScenario(protocol, overrides) {
   const head = 'head' in overrides ? overrides.head : base.head;
   const fields = {
     ...base.directive,
+    DIRECTIVE_ID: overrides.directive_id ?? base.directive.DIRECTIVE_ID,
     TASK: overrides.directive_task ?? base.directive.TASK,
     PR: overrides.directive_pr ?? base.directive.PR,
     HEAD: overrides.directive_head ?? base.directive.HEAD,
+    ADD_ALLOWED_FILES: overrides.add_allowed_files ?? base.directive.ADD_ALLOWED_FILES,
+    ADD_REQUIRED_TESTS: overrides.add_required_tests ?? base.directive.ADD_REQUIRED_TESTS,
+    INSTRUCTION: overrides.instruction ?? base.directive.INSTRUCTION,
     KEEP_SAME_PR: overrides.keep_same_pr ?? base.directive.KEEP_SAME_PR,
   };
   const comments = [];
@@ -1188,6 +1285,13 @@ function buildDirectiveScenario(protocol, overrides) {
             },
           ]
         : [],
+      nativeDirectiveLaunch: {
+        completed: true,
+        workerRef:
+          overrides.launch_returns_stable_ref === false
+            ? null
+            : (overrides.launch_worker_ref ?? 'worker-created-0001'),
+      },
       main: { status: 'pending' },
     },
     fields,
@@ -1748,6 +1852,72 @@ assert.equal(afterMalformedRejection.directiveId, 'DIR-PFC07-0001');
 const directiveY = directiveResults.Y_rejected_stale_before_valid.result;
 assert.equal(directiveY.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
 assert.equal(directiveY.directiveId, 'DIR-PFC07-0001');
+
+const directiveZ = directiveResults.Z_launch_without_stable_ref_attempt_1.result;
+assert.equal(directiveZ.status, 'IN_PROGRESS');
+assert.equal(directiveZ.action, 'LAUNCH_FAILED');
+assert.equal(directiveZ.launchAttempt, 1);
+assert.equal(directiveZ.workerRef, null);
+assert.match(directiveZ.ack, /ACTION: LAUNCH_FAILED/);
+assert.match(directiveZ.ack, /WORKER_REF: none/);
+assert.match(directiveZ.ack, /RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_1/);
+
+const directiveAA = directiveResults.AA_failure_then_late_worker.result;
+assert.equal(directiveAA.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveAA.directiveLaunch, false);
+assert.equal(directiveAA.workerRef, 'worker-0001');
+assert.match(directiveAA.ack, /ACTION: APPLIED/);
+
+const directiveAB = directiveResults.AB_attempt_2_launch_allowed.result;
+assert.equal(directiveAB.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveAB.directiveLaunch, true);
+assert.equal(directiveAB.launchAttempt, 2);
+assert.match(directiveAB.ack, /ACTION: LAUNCHED/);
+
+const directiveAC = directiveResults.AC_attempt_2_fails.result;
+assert.equal(directiveAC.status, 'IN_PROGRESS');
+assert.equal(directiveAC.action, 'LAUNCH_FAILED');
+assert.equal(directiveAC.launchAttempt, 2);
+assert.match(directiveAC.ack, /RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_2/);
+
+const directiveAD = directiveResults.AD_attempt_3_launch_allowed.result;
+assert.equal(directiveAD.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveAD.directiveLaunch, true);
+assert.equal(directiveAD.launchAttempt, 3);
+assert.match(directiveAD.ack, /ACTION: LAUNCHED/);
+
+const directiveAE = directiveResults.AE_attempt_3_failure_blocks.result;
+assert.equal(directiveAE.status, 'BLOCKED');
+assert.equal(directiveAE.action, 'WORKER_FAILED');
+assert.equal(directiveAE.error, 'WORKER_FAILED');
+assert.equal(directiveAE.launchAttempt, 3);
+assert.match(directiveAE.ack, /ACTION: LAUNCH_FAILED/);
+assert.match(directiveAE.ack, /RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_3/);
+
+const scenarioAF = directiveResults.AF_success_ack_preserves_envelope.scenario;
+const acksAF = successfulDirectiveAcks(
+  scenarioAF.github.commandBus.comments,
+  directiveProtocol.canonicalQueue[0].id,
+  activeControlPlane,
+);
+const envelopeAF = effectiveEnvelope(directiveProtocol.canonicalQueue[0], acksAF);
+assert(envelopeAF.allowedFiles.includes('apps/web/src/interview/new-interview-page.tsx'));
+assert(envelopeAF.requiredTests.includes('pnpm test:unit --run'));
+
+const directiveAG = directiveResults.AG_existing_pfc07_directive_remains_valid.result;
+assert.equal(directiveAG.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveAG.directiveId, 'PFC07-REPAIR-20260903-01');
+assert.equal(directiveAG.launchAttempt, 1);
+assert.match(directiveAG.ack, /ACTION: LAUNCHED/);
+assert.equal(
+  directiveResults.AG_existing_pfc07_directive_remains_valid.scenario.github.prs[0].head.sha,
+  '8c9b7192376280b2e7860fc01bbb20afeb708802',
+);
+
+assert.doesNotMatch(
+  JSON.stringify(Object.values(directiveResults).map(({ result }) => result)),
+  /WORKER_SETUP_PENDING/,
+);
 
 const markerAuthFixture = fixture.prMarkerAuthentication;
 assert.equal(

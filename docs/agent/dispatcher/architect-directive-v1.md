@@ -113,10 +113,7 @@ During every later pulse the Dispatcher skips each authorized invalid or stale
 comment that has a matching authenticated rejection ACK and continues scanning
 the remaining comments in creation order. It may publish one missing rejection
 ACK and end that pulse, but a malformed, stale, rejected, or unauthorized comment
-can never permanently starve a later valid Directive. A transient launch failure is ACKed as `LAUNCH_FAILED` with
-`RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_<n>`. It may be retried only after fresh
-reconciliation, with the same deterministic Worker identity, and never more than
-three bounded launch attempts; the third failure becomes `WORKER_FAILED`.
+can never permanently starve a later valid Directive.
 
 Worker identity is deterministic:
 
@@ -128,6 +125,23 @@ Before any launch the Dispatcher scans existing Codex tasks for that identity.
 If the Worker exists but a success ACK was lost, the Dispatcher reconstructs and
 publishes `ACTION: APPLIED` with the existing stable `WORKER_REF`; it does not
 launch a duplicate.
+
+A native Worker creation operation is successful only when it returns a stable
+Worker reference. If the operation ends without one, the Dispatcher must publish
+an authenticated `ACTION: LAUNCH_FAILED`, `WORKER_REF: none`, and
+`RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_<n>` ACK in that pulse. It must not report
+`LAUNCHED`, and `WORKER_SETUP_PENDING` or any other undurable cross-pulse pending
+state is not a protocol outcome.
+
+Every later pulse repeats the deterministic Worker scan before considering a
+retry. A late-arriving Worker produces `APPLIED` with its stable reference and no
+new launch. If no Worker is found, authenticated matching `LAUNCH_FAILED` ACKs
+must form the monotonically numbered sequence `1` through `n`. When `n < 3`, the
+Dispatcher may make attempt `n + 1` with the same identity. A failed attempt is
+durably numbered before the pulse ends. If attempt 3 still has no stable reference
+and no Worker can be rediscovered, the Dispatcher persists canonical
+`BLOCKED / WORKER_FAILED`; it never waits indefinitely. Launch failures do not
+consume the Directive, so a later rediscovery may still produce `APPLIED`.
 
 ## Acknowledgement marker
 
@@ -148,13 +162,15 @@ EFFECTIVE_REQUIRED_TESTS: <semicolon-separated normalized union|none>
 RESULT: <single-line stable result code>
 ```
 
-`LAUNCHED` means the deterministic Worker was created successfully. `APPLIED`
-means the same Worker was durably rediscovered after ACK loss. Both are successful
-consumption and persist the additive overlay snapshot. `LAUNCH_FAILED` is not
-successful consumption and uses `WORKER_REF: none`; multiple such ACKs are
-permitted only for monotonically numbered attempts 1 through 3. Rejection ACKs
-also use `WORKER_REF: none` and do not add an overlay. There may be at most one
-success or rejection outcome for an exact normal or malformed identity/digest.
+`LAUNCHED` means the deterministic Worker was created successfully and includes
+its stable, non-`none` `WORKER_REF`. `APPLIED` means the same Worker was durably
+rediscovered after ACK loss and likewise includes its stable reference. Both are
+successful consumption and persist the additive overlay snapshot.
+`LAUNCH_FAILED` is not successful consumption, uses `WORKER_REF: none`, and has
+the exact numbered result described above; multiple such ACKs are permitted only
+for monotonically numbered attempts 1 through 3. Rejection ACKs also use
+`WORKER_REF: none` and do not add an overlay. There may be at most one success or
+rejection outcome for an exact normal or malformed identity/digest.
 
 The safe side-effect order is: persist any permitted runtime transition, create
 or rediscover the deterministic Worker, then publish the success ACK. The ACK is

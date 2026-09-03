@@ -22,7 +22,9 @@ Task Card when a successful Directive ACK authorizes it. Conversely, the Worker
 cannot enlarge the union itself. A Task Card header `Status: DEFERRED` is an
 issuance snapshot and cannot override canonical runtime `IN_PROGRESS`.
 
-If Desktop rejects the launch or the worker cannot confirm the requested profile, set `BLOCKED / WORKER_FAILED`.
+Directive launch handshake failures follow the bounded rules below. For an
+ordinary non-Directive launch, if Desktop rejects the launch or the Worker cannot
+confirm the requested profile, set `BLOCKED / WORKER_FAILED`.
 
 ## Same-task repair launch
 
@@ -58,6 +60,17 @@ existing Codex tasks for that identity. It persists any authorized runtime
 transition first, creates or rediscovers the Worker, and then publishes the ACK
 required by `architect-directive-v1.md`. Rediscovery after ACK loss produces
 `ACTION: APPLIED`, not a duplicate Worker.
+
+Native creation is `LAUNCHED` only after it returns a stable Worker reference.
+If the operation ends without one, Dispatcher publishes
+`ACTION: LAUNCH_FAILED`, `WORKER_REF: none`, and the next
+`WORKER_LAUNCH_FAILED_ATTEMPT_<n>` in the same pulse. It must never carry
+`WORKER_SETUP_PENDING` or another unacknowledged pending state into a later
+pulse. Each later pulse rescans the deterministic identity first: a late Worker
+is `APPLIED` without duplicate launch; otherwise fewer than three authenticated
+failures permit the next attempt. Failure to obtain or rediscover a stable ref on
+attempt 3 sets canonical `BLOCKED / WORKER_FAILED`. A launch-failure ACK does not
+consume the Directive.
 
 A successful Directive remains in the effective envelope until task `DONE`.
 Launching it creates an immediate review/merge fence: previous Review Context

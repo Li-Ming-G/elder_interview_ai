@@ -98,6 +98,14 @@ exists for an invalid or stale identity, later pulses skip it and keep scanning;
 unauthorized, malformed, stale, or rejected comments cannot starve a later valid
 Directive.
 
+A native Directive launch is successful only after it returns a stable Worker
+reference. An operation that ends without one is durably ACKed in that pulse as
+`LAUNCH_FAILED / WORKER_LAUNCH_FAILED_ATTEMPT_<n>`, never held as
+`WORKER_SETUP_PENDING`. Every later pulse rescans the deterministic identity
+first, converts a late Worker to `APPLIED` without duplicate launch, or advances
+the bounded sequence. Three failed attempts with no rediscovered Worker produce
+canonical `BLOCKED / WORKER_FAILED`; failures do not consume the Directive.
+
 ## Review, verdict, and completion
 
 After exact-head PR CI success, Dispatcher publishes a Review Context containing:
