@@ -44,7 +44,9 @@ Before a PR-CI failure launch, Dispatcher persists a top-level
 `DISPATCHER_REPAIR_V1` comment on the canonical PR with `TASK`, `PR`, `HEAD`,
 `FAILED_CHECK`, and `ACTION: LAUNCHED`. The tuple of those first four values is
 the durable fingerprint, so a matching marker suppresses duplicate launch for
-the same failure event. A new head or failed-check identity is a new event. A
+the same failure event only when its author is in the configured
+`authorized_dispatcher_logins`; unauthorized lookalikes are inert. A new head
+or failed-check identity is a new event. A
 new unique valid `ARCHITECT_DIRECTIVE_V1` is a separate execution authorization
 and is never suppressed by an old repair fingerprint.
 

@@ -83,8 +83,14 @@ identity, deterministic Worker discovery, and prior ACKs.
 
 The Dispatcher does not assess whether the Architect's technical judgment is
 good. `DECISION_CLASS: IMPLEMENTATION_ONLY` is the Architect's attestation.
-Machine-invalid or stale directives are not executed and receive at most one
-deterministic rejection ACK for their exact digest. Same ID/different digest,
+Directive-marker comments from a login outside `authorized_architect_logins`
+are inert: do not parse, reject, ACK, or let them affect scan order. Authorized
+machine-invalid or stale directives are not executed and receive at most one
+deterministic rejection ACK for their rejection identity. On a later pulse, an
+authorized Dispatcher rejection ACK for that exact identity makes the
+Dispatcher skip the rejected comment and continue scanning later comments in
+creation order. A rejected comment therefore cannot starve a later valid
+Directive. Same ID/different digest,
 crossing a protected governance/Accepted-Contract path, or another fact that
 cannot be mechanically reconciled is `PRODUCT_AMBIGUITY` and escalates to Owner.
 The Worker separately fails closed if the actual instruction conflicts with an
@@ -139,18 +145,22 @@ APPLIED_DIRECTIVES: <ordered directive ids or none>
 ```
 
 The Dispatcher mechanically publishes this only after exact-head required PR CI
-success. `TASK`, `PR`, and `CURRENT_HEAD` must match fresh facts;
+success. The comment author must be an exact member of
+`authorized_dispatcher_logins`; every other Review Context marker is inert.
+`TASK`, `PR`, and `CURRENT_HEAD` must match fresh facts;
 `BASE_MAIN_SHA` must come from durable task-start/Worker-launch/PR evidence and
 must never be guessed from current main; scope/tests/directives must exactly
 represent the effective envelope reconstructed from successful ACKs. Missing or
 stale context holds `REVIEW`. A successful later Directive invalidates it.
 
-The actionable review result is the latest valid top-level PR comment containing
-`ARCHITECT_VERDICT_V1` with required `TASK`, `PR`, `REVIEWED_HEAD`, `VERDICT`,
+The actionable review result is the latest valid top-level PR comment from an
+exact `authorized_architect_logins` member containing `ARCHITECT_VERDICT_V1`
+with required `TASK`, `PR`, `REVIEWED_HEAD`, `VERDICT`,
 `P0`, `P1`, and `P2`. `REVIEWED_HEAD` must equal the fresh current PR head and
 the verdict must be created after the valid current-envelope Review Context.
-Ordinary comments and GitHub native approval are inert. Multiple conflicting
-valid current-head verdicts are `PRODUCT_AMBIGUITY`.
+Ordinary comments, unauthorized marker comments, and GitHub native approval are
+inert. Multiple conflicting authorized valid current-head verdicts are
+`PRODUCT_AMBIGUITY`.
 
 `ARCHITECT_RECOVERY_V1` remains legacy/advisory compatibility and is never an
 execution command or extra approval gate. In Directive mode, implementation
@@ -172,7 +182,8 @@ Required PR CI is a first-class implementation gate for the current exact head:
 Before ordinary CI-failure repair, post `DISPATCHER_REPAIR_V1` with `TASK`, `PR`,
 `HEAD`, `FAILED_CHECK`, and `ACTION: LAUNCHED`. Its fingerprint is
 `(TASK, PR, HEAD, FAILED_CHECK)`. It deduplicates only that ordinary failure
-event. The repair launch includes the effective envelope, current PR/head, failed
+event, and only a marker from `authorized_dispatcher_logins` may suppress a
+launch; unauthorized lookalikes are inert. The repair launch includes the effective envelope, current PR/head, failed
 check/run evidence, and same-PR instruction. One plausible transient may receive
 one bounded no-code rerun; a second failure needs scoped repair or a concrete
 `WORKER_FAILED` / `PRODUCT_AMBIGUITY` hand-back.

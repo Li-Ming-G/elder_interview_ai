@@ -57,6 +57,7 @@ In particular, the Dispatcher must:
 - fresh-read `origin/main` before canonical queue and Task Card decisions;
 - prefer GitHub durable facts over a stale local projection;
 - reconcile against the exact current PR head and the latest valid current-head `ARCHITECT_VERDICT_V1`;
+- authenticate PR machine-marker issuers through `control-plane.json`: `ARCHITECT_VERDICT_V1` only from `authorized_architect_logins`, and `ARCHITECT_REVIEW_CONTEXT_V1` / `DISPATCHER_REPAIR_V1` only from `authorized_dispatcher_logins`; unauthorized marker comments are inert;
 - before ordinary wait/no-op/repair/verdict/merge handling, validate and execute any fresh, authorized, unconsumed current-task `ARCHITECT_DIRECTIVE_V1` mechanically;
 - reconstruct the task's effective execution envelope from its Task Card plus all successful Directive ACK snapshots until the task is `DONE`;
 - on `PASS`, merge and verify successful main CI before marking the task `DONE`;
@@ -66,7 +67,7 @@ In particular, the Dispatcher must:
 - unlock only a predefined `next_task`;
 - leave Architect review to the external Architect.
 
-The Dispatcher does not validate reviewer identity, review URL/id or GitHub native review state and has no revision, compare-and-swap or transactional/atomic queue semantics. These omissions do not waive exact-head, durable-verdict, merge or main-verification requirements in `transition-contract.md`.
+The Dispatcher validates only the exact GitHub login needed for the configured machine-marker allowlists. It does not validate a review URL/id or GitHub native review state and has no revision, compare-and-swap or transactional/atomic queue semantics. These omissions do not waive issuer authentication, exact-head, durable-verdict, merge, or main-verification requirements in `transition-contract.md`.
 
 The Dispatcher mechanically starts the first eligible `READY` task and launches the Task Card's worker profile. A valid Directive may also recover an authorized current `BLOCKED` task to `IN_PROGRESS` or relaunch the current Worker without creating a task or changing topology. When durable Worker handoff identifies a PR, the Dispatcher binds the PR, enters `REVIEW` and stops for external Architect review. It consumes Directives, Review Context, and verdicts only through the accepted durable contracts.
 
@@ -140,6 +141,6 @@ The effective execution envelope is the base Task Card plus every valid applied 
 
 ## Review and governance cadence
 
-Normal work reaches `REVIEW` when the Worker reports a PR number, then stops for external Architect exact-head review against the effective execution envelope. `REQUEST_CHANGES` or a fresh valid Directive returns the same task and PR to bounded implementation when a PR exists. A successful Directive invalidates earlier Review Context and verdict evidence even before the head changes. An external Architect `PASS` issued after current effective Review Context authorizes the Dispatcher to merge and verify main; only successful merge and main verification can produce `DONE` and then unlock a predefined `next_task`.
+Normal work reaches `REVIEW` when the Worker reports a PR number, then stops for external Architect exact-head review against the effective execution envelope. `REQUEST_CHANGES` or a fresh valid Directive returns the same task and PR to bounded implementation when a PR exists. A successful Directive invalidates earlier Review Context and verdict evidence even before the head changes. Only an `ARCHITECT_VERDICT_V1` from an authorized Architect login, issued after an effective Review Context from an authorized Dispatcher login, can authorize merge. Only successful merge and main verification can produce `DONE` and then unlock a predefined `next_task`.
 
 Do not create a per-task REV file, handoff file, traceability update, conflict-history update or ADR by default. Use Task Card + PR as the handoff. Update ADR only for a real architecture decision; maintain current open conflicts separately; batch traceability and historical indexes at stage end.

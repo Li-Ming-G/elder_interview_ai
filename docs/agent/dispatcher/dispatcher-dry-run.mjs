@@ -127,6 +127,21 @@ function directiveDigest(fields) {
   return createHash('sha256').update(normalizeDirective(fields), 'utf8').digest('hex');
 }
 
+function authorizedMarkerAuthor(comment, controlPlane, allowlistField) {
+  if (!controlPlane?.enabled) return true;
+  return (controlPlane[allowlistField] || []).includes(comment.author?.login);
+}
+
+function malformedDirectiveIdentity(comment) {
+  if (!comment.id) return null;
+  const stableCommentId = String(comment.id);
+  const normalizedBody = String(comment.body || '').replace(/\r\n/g, '\n');
+  const digest = createHash('sha256')
+    .update(`COMMENT_ID: ${stableCommentId}\n${normalizedBody}`, 'utf8')
+    .digest('hex');
+  return { id: `malformed:${digest}`, digest };
+}
+
 function protectedDirectivePath(path, task) {
   const protectedExact = new Set([
     'AGENTS.md',
@@ -147,6 +162,8 @@ function protectedDirectivePath(path, task) {
 
 function parseDirective(comment, controlPlane) {
   if (!comment.topLevel || !comment.body?.includes(directiveMarker)) return { kind: 'ignore' };
+  if (!authorizedMarkerAuthor(comment, controlPlane, 'authorized_architect_logins'))
+    return { kind: 'ignore' };
   const fields = parseMachineFields(comment.body, directiveMarker);
   if (!fields || fields.invalid) return { kind: 'invalid', reason: 'MALFORMED_FIELDS' };
   if (
@@ -155,8 +172,6 @@ function parseDirective(comment, controlPlane) {
     Object.keys(fields).some((field) => !directiveFields.includes(field))
   )
     return { kind: 'invalid', reason: 'FIELD_SET' };
-  if (!controlPlane.authorized_architect_logins.includes(comment.author?.login))
-    return { kind: 'invalid', reason: 'UNAUTHORIZED_AUTHOR', fields };
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(fields.DIRECTIVE_ID))
     return { kind: 'invalid', reason: 'DIRECTIVE_ID', fields };
   if (!/^[A-Z][A-Z0-9-]{2,119}$/.test(fields.TASK))
@@ -235,6 +250,26 @@ function directiveAckBody(directive, task, pr, head, action, workerRef, envelope
   return `${directiveAckMarker}\nDIRECTIVE_ID: ${directive.fields.DIRECTIVE_ID}\nDIRECTIVE_SHA256: ${directive.digest}\nTASK: ${task.id}\nPR: ${pr ?? 'null'}\nHEAD: ${head ?? 'null'}\nACTION: ${action}\nWORKER_REF: ${workerRef}\nEFFECTIVE_ALLOWED_FILES: ${envelope.allowedFiles.join(';') || 'none'}\nEFFECTIVE_REQUIRED_TESTS: ${envelope.requiredTests.join(';') || 'none'}\nRESULT: ${result}`;
 }
 
+function rejectionAckBody(identity, task, directive, action, result) {
+  const fields = directive.fields || {};
+  return `${directiveAckMarker}\nDIRECTIVE_ID: ${identity.id}\nDIRECTIVE_SHA256: ${identity.digest}\nTASK: ${task.id}\nPR: ${fields.PR ?? 'null'}\nHEAD: ${fields.HEAD ?? 'null'}\nACTION: ${action}\nWORKER_REF: none\nEFFECTIVE_ALLOWED_FILES: none\nEFFECTIVE_REQUIRED_TESTS: none\nRESULT: ${result}`;
+}
+
+function directiveIdentity(comment, directive) {
+  return directive.kind === 'valid'
+    ? { id: directive.fields.DIRECTIVE_ID, digest: directive.digest }
+    : malformedDirectiveIdentity(comment);
+}
+
+function matchingDirectiveOutcome(allAcks, identity, actions) {
+  return allAcks.some(
+    (ack) =>
+      ack.fields.DIRECTIVE_ID === identity.id &&
+      ack.fields.DIRECTIVE_SHA256 === identity.digest &&
+      actions.includes(ack.fields.ACTION),
+  );
+}
+
 function reconcileDirective(canonicalQueue, local, github, controlPlane) {
   if (!github.commandBus || !controlPlane?.enabled) return null;
   const active = canonicalQueue.filter((task) =>
@@ -246,7 +281,12 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
   const comments = github.commandBus.comments || [];
   const parsed = comments
     .map((comment) => ({ comment, directive: parseDirective(comment, controlPlane) }))
-    .filter(({ directive }) => directive.kind !== 'ignore');
+    .filter(({ directive }) => directive.kind !== 'ignore')
+    .sort(
+      (a, b) =>
+        (a.comment.createdAt || '').localeCompare(b.comment.createdAt || '') ||
+        String(a.comment.id || '').localeCompare(String(b.comment.id || '')),
+    );
   if (parsed.length === 0) return null;
   if (!task)
     return {
@@ -264,7 +304,18 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
   const found = discoverUnique(task, github);
   const boundPr = (github.prs || []).find((pr) => pr.number === runtime.pr) || found.candidate?.pr;
 
-  for (const { directive } of parsed) {
+  for (const { comment, directive } of parsed) {
+    const identity = directiveIdentity(comment, directive);
+    if (!identity)
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'WAIT_COMMAND_BUS_REFRESH',
+        directiveLaunch: false,
+        detail: 'MISSING_IMMUTABLE_COMMENT_ID',
+      };
+    if (matchingDirectiveOutcome(allAcks, identity, ['REJECTED_INVALID', 'REJECTED_STALE']))
+      continue;
     if (directive.kind === 'invalid')
       return {
         canonicalTaskId: task.id,
@@ -272,6 +323,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         action: 'REJECTED_INVALID',
         directiveLaunch: false,
         detail: directive.reason,
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(identity, task, directive, 'REJECTED_INVALID', directive.reason),
       };
     const id = directive.fields.DIRECTIVE_ID;
     const conflictingPayload = parsed.some(
@@ -280,7 +333,7 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         other.fields.DIRECTIVE_ID === id &&
         other.digest !== directive.digest,
     );
-    const conflictingAck = acks.some(
+    const conflictingAck = allAcks.some(
       (ack) => ack.fields.DIRECTIVE_ID === id && ack.fields.DIRECTIVE_SHA256 !== directive.digest,
     );
     if (conflictingPayload || conflictingAck)
@@ -320,6 +373,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         action: 'REJECTED_INVALID',
         directiveLaunch: false,
         detail: 'TASK_MISMATCH',
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(identity, task, directive, 'REJECTED_INVALID', 'TASK_MISMATCH'),
       };
     const addedFiles = listValue(directive.fields.ADD_ALLOWED_FILES);
     if (addedFiles.some((path) => protectedDirectivePath(path, task)))
@@ -330,6 +385,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         directiveLaunch: false,
         error: 'PRODUCT_AMBIGUITY',
         detail: 'PROTECTED_PATH',
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(identity, task, directive, 'REJECTED_INVALID', 'PROTECTED_PATH'),
       };
     const concrete = directive.fields.PR !== 'null';
     if (!concrete && boundPr)
@@ -339,6 +396,14 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         action: 'REJECTED_STALE',
         directiveLaunch: false,
         detail: 'PR_NULL_WHEN_PR_EXISTS',
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(
+          identity,
+          task,
+          directive,
+          'REJECTED_STALE',
+          'PR_NULL_WHEN_PR_EXISTS',
+        ),
       };
     if (concrete && (!boundPr || Number(directive.fields.PR) !== boundPr.number))
       return {
@@ -347,6 +412,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         action: 'REJECTED_STALE',
         directiveLaunch: false,
         detail: 'PR_MISMATCH',
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(identity, task, directive, 'REJECTED_STALE', 'PR_MISMATCH'),
       };
     if (concrete && directive.fields.HEAD.toLowerCase() !== boundPr.head.sha.toLowerCase())
       return {
@@ -355,6 +422,8 @@ function reconcileDirective(canonicalQueue, local, github, controlPlane) {
         action: 'REJECTED_STALE',
         directiveLaunch: false,
         detail: 'HEAD_MISMATCH',
+        rejectionIdentity: identity.id,
+        ack: rejectionAckBody(identity, task, directive, 'REJECTED_STALE', 'HEAD_MISMATCH'),
       };
     const envelope = effectiveEnvelope(task, acks, directive);
     const workerIdentity = `architect-directive/${task.id}/${id}`;
@@ -444,8 +513,10 @@ function discoverUnique(task, github) {
   return { kind: 'unique', candidate: best[0], candidates };
 }
 
-function parseVerdict(comment, taskId, prNumber) {
+function parseVerdict(comment, taskId, prNumber, controlPlane) {
   if (!comment.topLevel || !comment.body?.includes(verdictMarker)) return { kind: 'ignore' };
+  if (!authorizedMarkerAuthor(comment, controlPlane, 'authorized_architect_logins'))
+    return { kind: 'ignore' };
   const fields = {};
   for (const line of comment.body.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+):\s*(.+?)\s*$/);
@@ -480,7 +551,12 @@ function currentReviewContext(task, pr, github, controlPlane) {
     'APPLIED_DIRECTIVES',
   ];
   const valid = (pr.comments || [])
-    .filter((comment) => comment.topLevel && comment.body?.includes(reviewContextMarker))
+    .filter(
+      (comment) =>
+        comment.topLevel &&
+        comment.body?.includes(reviewContextMarker) &&
+        authorizedMarkerAuthor(comment, controlPlane, 'authorized_dispatcher_logins'),
+    )
     .map((comment) => ({
       fields: parseMachineFields(comment.body, reviewContextMarker),
       createdAt: comment.createdAt || '',
@@ -505,10 +581,12 @@ function currentReviewContext(task, pr, github, controlPlane) {
   return valid.length === 0 ? { kind: 'none' } : { kind: 'valid', ...valid.at(-1) };
 }
 
-function currentVerdict(task, pr, github = {}, controlPlane = activeControlPlane) {
+function currentVerdict(task, pr, github = {}, controlPlane = null) {
   const context = currentReviewContext(task, pr, github, controlPlane);
   if (github.directiveMode && context.kind !== 'valid') return { kind: 'none' };
-  const parsed = (pr.comments || []).map((comment) => parseVerdict(comment, task.id, pr.number));
+  const parsed = (pr.comments || []).map((comment) =>
+    parseVerdict(comment, task.id, pr.number, controlPlane),
+  );
   if (parsed.some((item) => item.kind === 'malformed'))
     return { kind: 'ambiguous', reason: 'PRODUCT_AMBIGUITY' };
   const valid = parsed.filter(
@@ -548,8 +626,10 @@ function failedCheckIdentity(attempt) {
   );
 }
 
-function parseRepairMarker(comment, task, pr, fingerprint) {
+function parseRepairMarker(comment, task, pr, fingerprint, controlPlane) {
   if (!comment.topLevel || !comment.body?.includes(repairMarker)) return { kind: 'ignore' };
+  if (!authorizedMarkerAuthor(comment, controlPlane, 'authorized_dispatcher_logins'))
+    return { kind: 'ignore' };
   const fields = {};
   for (const line of comment.body.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+):\s*(.+?)\s*$/);
@@ -568,7 +648,7 @@ function parseRepairMarker(comment, task, pr, fingerprint) {
   return { kind: 'valid', ...fields };
 }
 
-function repairLaunch(task, pr, failedCheck, reason) {
+function repairLaunch(task, pr, failedCheck, reason, controlPlane) {
   const fingerprint = {
     task: task.id,
     pr: pr.number,
@@ -577,7 +657,7 @@ function repairLaunch(task, pr, failedCheck, reason) {
   };
   const markerBody = `${repairMarker}\nTASK: ${task.id}\nPR: ${pr.number}\nHEAD: ${pr.head.sha}\nFAILED_CHECK: ${failedCheck}\nACTION: LAUNCHED`;
   const matchingMarker = (pr.comments || []).some(
-    (comment) => parseRepairMarker(comment, task, pr, fingerprint).kind === 'valid',
+    (comment) => parseRepairMarker(comment, task, pr, fingerprint, controlPlane).kind === 'valid',
   );
   return {
     status: 'IN_PROGRESS',
@@ -648,9 +728,9 @@ function acceptedImplementationMergeIsProven(pr, verdict) {
   );
 }
 
-function projectStatus(task, pr, github) {
+function projectStatus(task, pr, github, controlPlane = null) {
   if (!pr) return { status: 'IN_PROGRESS', pr: null, action: 'WAIT' };
-  const verdict = currentVerdict(task, pr, github);
+  const verdict = currentVerdict(task, pr, github, controlPlane);
   if (verdict.kind === 'ambiguous')
     return { status: 'BLOCKED', pr: pr.number, error: 'PRODUCT_AMBIGUITY' };
   if (pr.merged) {
@@ -696,7 +776,13 @@ function projectStatus(task, pr, github) {
   if (verdict.kind === 'valid' && verdict.verdict === 'PRODUCT_AMBIGUITY')
     return { status: 'BLOCKED', pr: pr.number, error: 'PRODUCT_AMBIGUITY' };
   if (verdict.kind === 'valid' && verdict.verdict === 'REQUEST_CHANGES')
-    return repairLaunch(task, pr, 'ARCHITECT_REQUEST_CHANGES', 'ARCHITECT_REQUEST_CHANGES');
+    return repairLaunch(
+      task,
+      pr,
+      'ARCHITECT_REQUEST_CHANGES',
+      'ARCHITECT_REQUEST_CHANGES',
+      controlPlane,
+    );
 
   const prCi = latestApplicablePrCi(pr, github);
   if (!prCi || prCi.status !== 'completed')
@@ -707,7 +793,7 @@ function projectStatus(task, pr, github) {
       detail: 'PR_CI_PENDING',
     };
   if (prCi.conclusion !== 'success')
-    return repairLaunch(task, pr, failedCheckIdentity(prCi), 'PR_CI_FAILURE');
+    return repairLaunch(task, pr, failedCheckIdentity(prCi), 'PR_CI_FAILURE', controlPlane);
   if (verdict.kind === 'valid' && verdict.verdict === 'PASS') {
     if (!github.freshRead || github.freshHeadSha?.toLowerCase() !== pr.head.sha.toLowerCase())
       return { status: 'REVIEW', pr: pr.number, action: 'FRESH_HEAD_RECHECK_REQUIRED' };
@@ -725,7 +811,7 @@ function prForTask(task, local, found, github) {
   );
 }
 
-function reconcileProjectedDone(local, candidatesByTask, github) {
+function reconcileProjectedDone(local, candidatesByTask, github, controlPlane) {
   for (const { task, found } of candidatesByTask) {
     if (local.tasks?.[task.id]?.status !== 'DONE') continue;
     if (found.kind === 'ambiguous')
@@ -736,7 +822,7 @@ function reconcileProjectedDone(local, candidatesByTask, github) {
         detail: 'equal PR candidates',
         candidates: found.candidates.map((item) => item.pr.number),
       };
-    const result = projectStatus(task, prForTask(task, local, found, github), github);
+    const result = projectStatus(task, prForTask(task, local, found, github), github, controlPlane);
     if (result.status !== 'DONE') return { canonicalTaskId: task.id, ...result };
   }
   return null;
@@ -775,7 +861,7 @@ function selectReadyTask(canonicalQueue, local) {
   return ready.length === 1 ? dispatchReadyTask(ready[0]) : null;
 }
 
-function reconcile(canonicalQueue, local, github, controlPlane = activeControlPlane) {
+function reconcile(canonicalQueue, local, github, controlPlane = null) {
   const ids = assertCanonicalTopology(canonicalQueue);
   const byId = taskMap(canonicalQueue);
   const localId = local.activeTaskId;
@@ -786,7 +872,7 @@ function reconcile(canonicalQueue, local, github, controlPlane = activeControlPl
     task,
     found: discoverUnique(task, github),
   }));
-  const projectedDone = reconcileProjectedDone(local, candidatesByTask, github);
+  const projectedDone = reconcileProjectedDone(local, candidatesByTask, github, controlPlane);
   if (projectedDone) return projectedDone;
   const relevantCandidates =
     localId && !invalidLocalId
@@ -829,7 +915,12 @@ function reconcile(canonicalQueue, local, github, controlPlane = activeControlPl
   const task = selected.task;
   const localTask = local.tasks?.[task.id] || { pr: null };
   if (localTask.status === 'DONE') {
-    const doneResult = projectStatus(task, prForTask(task, local, selected.found, github), github);
+    const doneResult = projectStatus(
+      task,
+      prForTask(task, local, selected.found, github),
+      github,
+      controlPlane,
+    );
     if (doneResult.status !== 'DONE') return { canonicalTaskId: task.id, ...doneResult };
     return selectReadyTask(canonicalQueue, local) || { canonicalTaskId: task.id, ...doneResult };
   }
@@ -838,7 +929,7 @@ function reconcile(canonicalQueue, local, github, controlPlane = activeControlPl
       selectReadyTask(canonicalQueue, local) || { status: 'NO_READY_TASK', error: 'NO_READY_TASK' }
     );
   const pr = prForTask(task, local, selected.found, github);
-  const result = projectStatus(task, pr, github);
+  const result = projectStatus(task, pr, github, controlPlane);
   return {
     canonicalTaskId: task.id,
     recoveredFrom: invalidLocalId ? localId : undefined,
@@ -899,8 +990,64 @@ function buildDirectiveScenario(protocol, overrides) {
     KEEP_SAME_PR: overrides.keep_same_pr ?? base.directive.KEEP_SAME_PR,
   };
   const comments = [];
+  if (overrides.unauthorized_before_valid) {
+    comments.push({
+      id: 'I_kwDO_UNAUTHORIZED_BEFORE_VALID',
+      topLevel: true,
+      author: { login: 'untrusted-commenter' },
+      createdAt: '2026-09-03T00:40:00Z',
+      body: machineBody(
+        directiveMarker,
+        { ...fields, DIRECTIVE_ID: 'DIR-PFC07-UNAUTHORIZED' },
+        directiveFields,
+      ),
+    });
+  }
+  if (overrides.malformed_before_valid) {
+    comments.push({
+      id: 'I_kwDO_MALFORMED_BEFORE_VALID',
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T00:45:00Z',
+      body: `${directiveMarker}\nDIRECTIVE_ID: DIR-PFC07-MALFORMED\nTASK: ${task.id}\nPR: 133`,
+    });
+  }
+  if (overrides.rejected_stale_before_valid) {
+    const staleFields = {
+      ...fields,
+      DIRECTIVE_ID: 'DIR-PFC07-STALE-EVIDENCED',
+      HEAD: '1111111111111111111111111111111111111111',
+    };
+    const staleDirective = {
+      kind: 'valid',
+      fields: staleFields,
+      digest: directiveDigest(staleFields),
+    };
+    const staleIdentity = { id: staleFields.DIRECTIVE_ID, digest: staleDirective.digest };
+    comments.push({
+      id: 'I_kwDO_STALE_BEFORE_VALID',
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T00:30:00Z',
+      body: machineBody(directiveMarker, staleFields, directiveFields),
+    });
+    comments.push({
+      id: 'I_kwDO_STALE_REJECTION_ACK',
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T00:35:00Z',
+      body: rejectionAckBody(
+        staleIdentity,
+        task,
+        staleDirective,
+        'REJECTED_STALE',
+        'HEAD_MISMATCH',
+      ),
+    });
+  }
   if (overrides.natural_language_only) {
     comments.push({
+      id: 'I_kwDO_CURRENT_DIRECTIVE',
       topLevel: true,
       author: { login: 'Li-Ming-G' },
       createdAt: '2026-09-03T01:00:00Z',
@@ -908,6 +1055,7 @@ function buildDirectiveScenario(protocol, overrides) {
     });
   } else if (!overrides.omit_directive) {
     comments.push({
+      id: 'I_kwDO_CURRENT_DIRECTIVE',
       topLevel: true,
       author: { login: overrides.architect_login || 'Li-Ming-G' },
       createdAt: '2026-09-03T01:00:00Z',
@@ -916,6 +1064,7 @@ function buildDirectiveScenario(protocol, overrides) {
   }
   if (overrides.mutated_duplicate) {
     comments.push({
+      id: 'I_kwDO_MUTATED_DUPLICATE',
       topLevel: true,
       author: { login: 'Li-Ming-G' },
       createdAt: '2026-09-03T01:01:00Z',
@@ -970,6 +1119,7 @@ function buildDirectiveScenario(protocol, overrides) {
   if (overrides.existing_repair_marker)
     prComments.push({
       topLevel: true,
+      author: { login: 'Li-Ming-G' },
       createdAt: '2026-09-03T00:10:00Z',
       body: `${repairMarker}\nTASK: ${task.id}\nPR: ${prNumber}\nHEAD: ${head}\nFAILED_CHECK: verify\nACTION: LAUNCHED`,
     });
@@ -991,12 +1141,14 @@ function buildDirectiveScenario(protocol, overrides) {
   if (overrides.valid_review_context || overrides.stale_review_context)
     prComments.push({
       topLevel: true,
+      author: { login: overrides.review_context_login || 'Li-Ming-G' },
       createdAt: '2026-09-03T03:00:00Z',
       body: machineBody(reviewContextMarker, contextFields, Object.keys(contextFields)),
     });
   if (overrides.old_pass)
     prComments.push({
       topLevel: true,
+      author: { login: overrides.verdict_login || 'Li-Ming-G' },
       createdAt: overrides.stale_review_context ? '2026-09-03T04:00:00Z' : '2026-09-03T00:30:00Z',
       body: `${verdictMarker}\nTASK: ${task.id}\nPR: ${prNumber}\nREVIEWED_HEAD: ${head}\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0`,
     });
@@ -1513,8 +1665,9 @@ validateStateShape({
 assert.equal(directiveResults.P_blocked_with_known_pr.result.status, 'IN_PROGRESS');
 
 const directiveQ = directiveResults.Q_unauthorized_author.result;
-assert.equal(directiveQ.action, 'REJECTED_INVALID');
-assert.equal(directiveQ.detail, 'UNAUTHORIZED_AUTHOR');
+assert.equal(directiveQ.action, 'WAIT_PR_CI');
+assert.notEqual(directiveQ.action, 'REJECTED_INVALID');
+assert.notEqual(directiveQ.directiveLaunch, true);
 
 const directiveR = directiveResults.R_same_id_mutated_payload.result;
 assert.equal(directiveR.status, 'BLOCKED');
@@ -1556,6 +1709,166 @@ assert.equal(directiveV.status, 'BLOCKED');
 assert.equal(directiveV.error, 'WORKER_FAILED');
 assert.equal(directiveV.detail, 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED');
 assert.equal(directiveV.directiveLaunch, false);
+
+const directiveW = directiveResults.W_unauthorized_before_valid.result;
+assert.equal(directiveW.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveW.directiveId, 'DIR-PFC07-0001');
+assert.equal(directiveW.directiveLaunch, true);
+
+const malformedScenario = directiveResults.X_malformed_before_valid.scenario;
+const firstMalformedResult = directiveResults.X_malformed_before_valid.result;
+assert.equal(firstMalformedResult.action, 'REJECTED_INVALID');
+assert.equal(firstMalformedResult.detail, 'FIELD_SET');
+assert.match(firstMalformedResult.rejectionIdentity, /^malformed:[0-9a-f]{64}$/);
+assert.match(firstMalformedResult.ack, /ACTION: REJECTED_INVALID/);
+const malformedComment = malformedScenario.github.commandBus.comments.find(
+  (comment) => comment.id === 'I_kwDO_MALFORMED_BEFORE_VALID',
+);
+assert.deepEqual(
+  malformedDirectiveIdentity(malformedComment),
+  malformedDirectiveIdentity({ ...malformedComment }),
+);
+const recoveredMalformedScenario = structuredClone(malformedScenario);
+recoveredMalformedScenario.github.commandBus.comments.push({
+  id: 'I_kwDO_MALFORMED_REJECTION_ACK',
+  topLevel: true,
+  author: { login: activeControlPlane.authorized_dispatcher_logins[0] },
+  createdAt: '2026-09-03T00:50:00Z',
+  body: firstMalformedResult.ack,
+});
+const afterMalformedRejection = reconcile(
+  directiveProtocol.canonicalQueue,
+  recoveredMalformedScenario.local,
+  recoveredMalformedScenario.github,
+  activeControlPlane,
+);
+assert.equal(afterMalformedRejection.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(afterMalformedRejection.directiveId, 'DIR-PFC07-0001');
+
+const directiveY = directiveResults.Y_rejected_stale_before_valid.result;
+assert.equal(directiveY.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveY.directiveId, 'DIR-PFC07-0001');
+
+const markerAuthFixture = fixture.prMarkerAuthentication;
+assert.equal(
+  markerAuthFixture.authorized_architect_login,
+  activeControlPlane.authorized_architect_logins[0],
+);
+assert.equal(
+  markerAuthFixture.authorized_dispatcher_login,
+  activeControlPlane.authorized_dispatcher_logins[0],
+);
+assert.deepEqual(markerAuthFixture.cases, [
+  'unauthorized_architect_verdict_is_inert',
+  'unauthorized_review_context_is_inert',
+  'unauthorized_repair_marker_is_inert',
+]);
+
+const markerTask = directiveProtocol.canonicalQueue[0];
+const markerHead = directiveProtocol.base.head;
+const markerPrNumber = directiveProtocol.base.pr_number;
+const baseContextFields = {
+  TASK: markerTask.id,
+  PR: String(markerPrNumber),
+  CURRENT_HEAD: markerHead,
+  BASE_MAIN_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  TASK_CARD: markerTask.task_card,
+  ALLOWED_SCOPE: markerTask.allowed_files.join(';'),
+  ACCEPTED_CONTRACTS: 'none declared in Task Card',
+  REQUIRED_TESTS: markerTask.required_tests.join(';'),
+  APPLIED_DIRECTIVES: 'none',
+};
+const validPassBody = `${verdictMarker}\nTASK: ${markerTask.id}\nPR: ${markerPrNumber}\nREVIEWED_HEAD: ${markerHead}\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0`;
+const markerPr = (comments, conclusion = 'success') => ({
+  number: markerPrNumber,
+  head: { sha: markerHead },
+  merged: false,
+  comments,
+  requiredCiAttempts: [
+    {
+      headSha: markerHead,
+      runId: 13701,
+      status: 'completed',
+      conclusion,
+      failedCheck: conclusion === 'success' ? undefined : 'verify',
+    },
+  ],
+});
+const authorizedContextComment = {
+  topLevel: true,
+  author: { login: markerAuthFixture.authorized_dispatcher_login },
+  createdAt: '2026-09-03T05:00:00Z',
+  body: machineBody(reviewContextMarker, baseContextFields, Object.keys(baseContextFields)),
+};
+
+const unauthorizedVerdictPr = markerPr([
+  authorizedContextComment,
+  {
+    topLevel: true,
+    author: { login: markerAuthFixture.unauthorized_login },
+    createdAt: '2026-09-03T05:10:00Z',
+    body: validPassBody,
+  },
+]);
+const unauthorizedVerdictStatus = projectStatus(
+  markerTask,
+  unauthorizedVerdictPr,
+  { directiveMode: true, commandBus: { comments: [] }, freshRead: true, freshHeadSha: markerHead },
+  activeControlPlane,
+);
+assert.equal(unauthorizedVerdictStatus.action, 'WAIT_FOR_VERDICT');
+
+const unauthorizedContextPr = markerPr([
+  {
+    ...authorizedContextComment,
+    author: { login: markerAuthFixture.unauthorized_login },
+  },
+  {
+    topLevel: true,
+    author: { login: markerAuthFixture.authorized_architect_login },
+    createdAt: '2026-09-03T05:10:00Z',
+    body: validPassBody,
+  },
+]);
+const unauthorizedContextGithub = {
+  directiveMode: true,
+  commandBus: { comments: [] },
+  freshRead: true,
+  freshHeadSha: markerHead,
+};
+assert.equal(
+  currentReviewContext(
+    markerTask,
+    unauthorizedContextPr,
+    unauthorizedContextGithub,
+    activeControlPlane,
+  ).kind,
+  'none',
+);
+assert.equal(
+  projectStatus(markerTask, unauthorizedContextPr, unauthorizedContextGithub, activeControlPlane)
+    .action,
+  'WAIT_FOR_VERDICT',
+);
+
+const unauthorizedRepairPr = markerPr(
+  [
+    {
+      topLevel: true,
+      author: { login: markerAuthFixture.unauthorized_login },
+      body: `${repairMarker}\nTASK: ${markerTask.id}\nPR: ${markerPrNumber}\nHEAD: ${markerHead}\nFAILED_CHECK: verify\nACTION: LAUNCHED`,
+    },
+  ],
+  'failure',
+);
+const unauthorizedRepairStatus = projectStatus(
+  markerTask,
+  unauthorizedRepairPr,
+  {},
+  activeControlPlane,
+);
+assert.equal(unauthorizedRepairStatus.action, 'REPAIR_SAME_PR');
+assert.equal(unauthorizedRepairStatus.repairLaunch, true);
 
 for (const result of Object.values(results)) {
   if (result.error) assert(stableErrors.has(result.error));

@@ -68,6 +68,11 @@ order. A directive is executable only when all of these facts hold:
   `DECISION_CLASS`; the Dispatcher does not judge technical merit or interpret
   product meaning.
 
+A marker comment whose author is not in `authorized_architect_logins` is inert:
+it is not parsed as a Directive, is not rejected or ACKed, and cannot delay a
+later authorized comment. ACK-like comments from outside
+`authorized_dispatcher_logins` are likewise inert.
+
 If a bounded instruction or added file would in fact change an Owner-frozen
 product decision, an Accepted Contract, an architecture boundary, task identity,
 `depends_on`/`next_task`, production provider/model/data-policy/cost, or another
@@ -87,8 +92,28 @@ The first valid payload observed for a `DIRECTIVE_ID` binds that ID. The same ID
 with a different normalized digest is `REJECTED_INVALID` and
 `PRODUCT_AMBIGUITY`; it is never a correction mechanism. Authors must publish a
 new ID. A successful `LAUNCHED` or `APPLIED` ACK consumes the ID permanently.
-A rejected exact digest receives at most one rejection ACK and is not retried on
-every pulse. A transient launch failure is ACKed as `LAUNCH_FAILED` with
+A rejected valid payload uses its `DIRECTIVE_ID` and normalized digest as its
+rejection identity. An authorized marker that cannot be normalized as a valid
+payload uses this deterministic malformed identity:
+
+```text
+source = "COMMENT_ID: " + <immutable GitHub comment node id> + "\n"
+       + <entire comment body with CRLF normalized to LF>
+digest = lowercase SHA-256(UTF-8(source))
+DIRECTIVE_ID = "malformed:" + digest
+DIRECTIVE_SHA256 = digest
+```
+
+If the immutable comment id cannot be read, the Dispatcher must refresh the
+comment rather than guess an identity or post an ACK. An edit changes the body
+and therefore produces a different rejection identity.
+
+A rejected exact identity receives at most one authenticated rejection ACK.
+During every later pulse the Dispatcher skips each authorized invalid or stale
+comment that has a matching authenticated rejection ACK and continues scanning
+the remaining comments in creation order. It may publish one missing rejection
+ACK and end that pulse, but a malformed, stale, rejected, or unauthorized comment
+can never permanently starve a later valid Directive. A transient launch failure is ACKed as `LAUNCH_FAILED` with
 `RESULT: WORKER_LAUNCH_FAILED_ATTEMPT_<n>`. It may be retried only after fresh
 reconciliation, with the same deterministic Worker identity, and never more than
 three bounded launch attempts; the third failure becomes `WORKER_FAILED`.
@@ -129,7 +154,7 @@ consumption and persist the additive overlay snapshot. `LAUNCH_FAILED` is not
 successful consumption and uses `WORKER_REF: none`; multiple such ACKs are
 permitted only for monotonically numbered attempts 1 through 3. Rejection ACKs
 also use `WORKER_REF: none` and do not add an overlay. There may be at most one
-success or rejection outcome for a directive digest.
+success or rejection outcome for an exact normal or malformed identity/digest.
 
 The safe side-effect order is: persist any permitted runtime transition, create
 or rediscover the deterministic Worker, then publish the success ACK. The ACK is

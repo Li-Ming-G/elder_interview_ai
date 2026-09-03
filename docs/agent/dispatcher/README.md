@@ -26,6 +26,12 @@ The control plane uses two distinct GitHub channels:
    exact-head CI, `ARCHITECT_REVIEW_CONTEXT_V1`, `ARCHITECT_VERDICT_V1`, and
    ordinary `DISPATCHER_REPAIR_V1` evidence.
 
+All machine markers are issuer-authenticated from `control-plane.json`.
+Directive and verdict comments require `authorized_architect_logins`; Directive
+ACK, Review Context, and repair comments require
+`authorized_dispatcher_logins`. Unauthorized marker lookalikes are inert and
+cannot authorize, reject, deduplicate, fence, or delay any transition.
+
 Natural-language comments are never commands or gates. GitHub native approval
 is not an Architect verdict. `ARCHITECT_RECOVERY_V1` remains legacy/advisory
 compatibility; in Directive mode, executable implementation commands use only
@@ -85,7 +91,12 @@ Each Directive has a globally unique ID and normalized SHA-256 payload digest.
 Successful `LAUNCHED`/`APPLIED` ACK means consumed. Same ID/different payload
 fails closed. Deterministic Worker identity and `WORKER_REF` prevent duplicate
 launch after ACK loss. An old `DISPATCHER_REPAIR_V1` fingerprint suppresses only
-that CI-failure event; a new Directive ID is a new authorization.
+that CI-failure event; a new Directive ID is a new authorization. Authorized
+malformed comments receive the deterministic `malformed:<sha256>` rejection
+identity defined by the Directive contract. Once an authenticated rejection ACK
+exists for an invalid or stale identity, later pulses skip it and keep scanning;
+unauthorized, malformed, stale, or rejected comments cannot starve a later valid
+Directive.
 
 ## Review, verdict, and completion
 

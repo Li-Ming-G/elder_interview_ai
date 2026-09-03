@@ -109,7 +109,7 @@ Historical `MEMORY-T5-T8-P2-C-RUNTIME-001` remains `DONE`; stale Dispatcher proj
 
 ## Governance
 
-Canonical Task Cards + canonical queue on refreshed main define authorized work. GitHub durable PR/head/top-level `ARCHITECT_VERDICT_V1`/merge/main-CI facts are runtime truth. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
+Canonical Task Cards + canonical queue on refreshed main define authorized work. GitHub durable PR/head/authenticated top-level machine-marker/merge/main-CI facts are runtime truth. `ARCHITECT_VERDICT_V1` and `ARCHITECT_DIRECTIVE_V1` require a configured `authorized_architect_logins` issuer; `ARCHITECT_REVIEW_CONTEXT_V1`, `DISPATCHER_REPAIR_V1`, and Directive ACKs require `authorized_dispatcher_logins`. Unauthorized marker comments are inert. `dispatcher-state.json` is a reconstructable projection/cache and cannot override durable facts.
 
 Accepted lifecycle:
 
@@ -122,6 +122,8 @@ The Product Owner retains product, architecture, cost, provider, model, data-pol
 Task Card `Status:` is an issuance/planning snapshot. Freshly reconciled canonical queue/state is runtime authority, so a legacy Task Card `Status: DEFERRED` does not block canonical `IN_PROGRESS` execution.
 
 A Directive never bypasses implementation, exact-head PR CI, effective-envelope Review Context, exact-head Architect verdict, `PASS`, merge ancestry, exact-current-main CI, `DONE`, or predefined-successor gates. Owner-frozen decisions, Accepted Contracts, architecture boundaries, task identity, and queue topology remain non-overridable.
+
+Authorized malformed/stale Directives receive deterministic rejection evidence. Later pulses skip exact identities with authenticated rejection ACKs and continue scanning, so rejected or unauthorized comments cannot starve a later valid Directive.
 
 ## Current states
 

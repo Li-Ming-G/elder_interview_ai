@@ -196,8 +196,21 @@
       "S_half_null_pr_head": { "directive_pr": "null" },
       "T_ack_loss_worker_recovery": { "existing_worker": true },
       "U_stale_context_missing_directive": { "successful_ack": true, "omit_directive": true, "stale_review_context": true, "old_pass": true },
-      "V_three_launch_failures_stop": { "launch_failures": 3 }
+      "V_three_launch_failures_stop": { "launch_failures": 3 },
+      "W_unauthorized_before_valid": { "unauthorized_before_valid": true },
+      "X_malformed_before_valid": { "malformed_before_valid": true },
+      "Y_rejected_stale_before_valid": { "rejected_stale_before_valid": true }
     }
+  },
+  "prMarkerAuthentication": {
+    "authorized_architect_login": "Li-Ming-G",
+    "authorized_dispatcher_login": "Li-Ming-G",
+    "unauthorized_login": "untrusted-commenter",
+    "cases": [
+      "unauthorized_architect_verdict_is_inert",
+      "unauthorized_review_context_is_inert",
+      "unauthorized_repair_marker_is_inert"
+    ]
   },
   "staleDoneCanonicalQueue": [
     { "id": "CKPT-A-LOCAL-START-01", "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md", "depends_on": [], "next_task": null },
