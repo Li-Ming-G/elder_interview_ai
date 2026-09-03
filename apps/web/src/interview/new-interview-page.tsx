@@ -99,6 +99,7 @@ export function NewInterviewPage({
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
+  const initializationIntent = useRef<'new' | 'resume' | null>(null);
   const initializationPromise = useRef<Promise<{
     newIntent: boolean;
     resumed: boolean;
@@ -111,6 +112,10 @@ export function NewInterviewPage({
 
   useEffect(() => {
     let cancelled = false;
+    if (initializationIntent.current !== intent) {
+      initializationIntent.current = intent;
+      initializationPromise.current = null;
+    }
     initializationPromise.current ??= (async (): Promise<{
       newIntent: boolean;
       resumed: boolean;
