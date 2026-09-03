@@ -44,6 +44,9 @@ const CONSENT_NOTICE = [
   '内容不会未经确认直接公开。',
 ] as const;
 
+const initialDocumentPath = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+let hasCommittedNewInterviewRoute = false;
+
 type PageState =
   | { kind: 'loading' }
   | { authenticationRequired: boolean; kind: 'error'; message: string }
@@ -114,7 +117,18 @@ export function NewInterviewPage({
   if (initialNavigationIsReload.current === null) {
     initialNavigationIsReload.current = isDocumentReload();
   }
-  const effectiveIntent = initialNavigationIsReload.current && intent === 'new' ? 'resume' : intent;
+  const effectiveIntent =
+    initialNavigationIsReload.current &&
+    intent === 'new' &&
+    !hasCommittedNewInterviewRoute &&
+    `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}` ===
+      initialDocumentPath
+      ? 'resume'
+      : intent;
+
+  useEffect(() => {
+    hasCommittedNewInterviewRoute = true;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
