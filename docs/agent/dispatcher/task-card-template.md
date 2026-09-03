@@ -2,6 +2,10 @@
 
 Status: `READY|IN_PROGRESS|REVIEW|BLOCKED|DEFERRED|DONE`
 
+`Status:` records the issuance/planning snapshot only. Runtime authorization is
+read from the freshly reconciled canonical queue/state. The header is not edited
+for every transition and cannot make a canonical `IN_PROGRESS` task ambiguous.
+
 ## Architecture Mapping (P1-P6/T0-T27)
 
 State every affected T number and P/Foundation layer. Mark all adjacent layers `UNCHANGED`, `DEFERRED` or `OUT OF SCOPE`.
@@ -12,11 +16,15 @@ One testable outcome.
 
 ## Scope
 
-The bounded work package. Task Card controls scope and entry/exit gates only.
+The bounded base work package. The Task Card controls task identity, goal, base
+scope/files, dependencies, required tests, completion semantics, entry/exit
+gates, and predefined queue topology.
 
 ## Allowed Files / Areas
 
-Exact paths or narrow globs. Anything else requires a new card or external correction.
+Exact paths or narrow globs. An authenticated `ARCHITECT_DIRECTIVE_V1` may add
+implementation files for this same task. Anything outside the base list plus all
+successful additive Directive ACK snapshots is unauthorized.
 
 ## Inputs
 
@@ -40,7 +48,10 @@ List adjacent work that must not be implemented.
 
 ## Tests
 
-Exact commands the worker must run before reporting a PR number. State any intentionally excluded full-suite or real-provider tests.
+Exact base commands the worker must run before reporting a PR number. Successful
+Directive ACK snapshots may add required tests; the effective required tests are
+the stable union. State any intentionally excluded full-suite or real-provider
+tests.
 
 ## Completion Criteria
 
@@ -48,7 +59,12 @@ Mechanical conditions for worker completion, including the reported PR number. W
 
 ## Review Gate
 
-External Architect PR review and explicit `STOP` at `REVIEW`. The Dispatcher stores only the worker-reported PR number and does not verify the review. Only the external Architect's `PASS` can close the gate. Ordinary tasks do not add iteration-coach or another internal Reviewer unless the Product Owner or Architect explicitly requests it.
+External Architect PR review and explicit `STOP` at `REVIEW`. Review uses the
+effective execution envelope and a current `ARCHITECT_REVIEW_CONTEXT_V1` listing
+all applied Directive IDs. Only an exact-head `PASS` created after that context
+can close the gate. A successful later Directive invalidates the earlier context
+and verdict. Ordinary tasks do not add iteration-coach or another internal
+Reviewer unless the Product Owner or Architect explicitly requests it.
 
 ## Next Task
 

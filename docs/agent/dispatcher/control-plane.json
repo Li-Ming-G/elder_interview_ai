@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "architect_directive_protocol": "ARCHITECT_DIRECTIVE_V1",
+  "architect_command_bus_repository": "Li-Ming-G/elder_interview_ai",
+  "architect_command_bus_issue": 135,
+  "authorized_architect_logins": ["Li-Ming-G"],
+  "authorized_dispatcher_logins": ["Li-Ming-G"],
+  "enabled": true
+}

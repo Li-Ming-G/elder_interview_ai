@@ -16,7 +16,11 @@ Covers audited defect **F9** and is the acceptance gate for `PRODUCT-FLOW-CLOSUR
 
 ## Deferred parking rule
 
-While `PFC-07A-QUERY-MODE-NAV-STATE` is not yet `DONE`, this task is intentionally parked as `DEFERRED`.
+The header status records the original issuance/planning snapshot. It is not a
+runtime gate. While `PFC-07A-QUERY-MODE-NAV-STATE` was not yet `DONE`, this task
+was intentionally parked as canonical `DEFERRED`; now that PFC-07A is `DONE`,
+fresh canonical runtime state authorizes PFC-07 as `IN_PROGRESS` even though this
+historical header remains `Status: DEFERRED`.
 
 During that parked period:
 
@@ -37,7 +41,12 @@ When this task is unlocked after PFC-07A:
 - update the existing PR branch with the refreshed main that contains the accepted PFC-07A production fix;
 - preserve the existing PFC-07 browser coverage and product-flow matrix unless a test-only adjustment is required by the accepted production behavior;
 - rerun the required exact-head CI on the resulting new PR head;
-- any new production defect found by the resumed browser suite must again stop with exact first-failing-transition evidence rather than silently widening scope.
+- any new production defect found by the resumed browser suite must stop with
+  exact first-failing-transition evidence; when it is implementation-only and
+  remains inside the Owner-authorized Product Flow Closure invariants, Architect
+  may issue an `ARCHITECT_DIRECTIVE_V1` that adds the needed files/tests and
+  repairs the same PFC-07 task and PR #133. No new task is required. Product or
+  architecture ambiguity still escalates to Owner.
 
 Historical blocked head `2749ffd719b4c9544caa97acaee5337072280202` and CI run `33607067676` remain evidence only; they are not the resumed review head.
 
@@ -106,7 +115,12 @@ This is a product contract/index, not a new architecture spec.
 - `docs/agent/product-flow-closure-matrix.md`;
 - minimal production test selectors/accessibility labels only if strictly necessary and behavior-neutral.
 
-Do not change product behavior in this task merely to make the test pass. If the browser test reveals a remaining product defect, stop and report the exact first failing user transition so Architect can issue a bounded follow-up under the same Owner-authorized pack.
+Do not change product behavior merely to make the test pass. If the browser test
+reveals a remaining defect, stop and report the exact first failing user
+transition. A valid Architect Directive may add implementation files/tests to
+the effective execution envelope and authorize same-task/same-PR repair. Files
+remain unauthorized unless named by the base list above or an applied Directive
+ACK; the Worker cannot widen scope on its own.
 
 ## Acceptance
 

@@ -86,6 +86,26 @@ This pack is complete only when:
 
 ## Governance
 
-External/web Architect owns this pack, Task Cards, exact-head review and `ARCHITECT_VERDICT_V1`. Dispatcher remains mechanical: reconcile -> launch exactly one eligible READY task -> bind canonical PR -> wait for exact-head review -> merge after PASS + exact-head CI -> verify refreshed main -> synchronize -> unlock predefined successor. Workers implement only the active Task Card.
+External/Web Architect owns this pack, Task Cards, bounded implementation
+commands, effective-envelope exact-head review, and `ARCHITECT_VERDICT_V1`.
+Dispatcher remains mechanical: reconcile -> execute one eligible READY transition
+or valid current-task Directive -> bind canonical PR -> require exact-head CI and
+effective Review Context -> wait for exact-head review -> merge only after PASS
+-> verify refreshed main -> synchronize -> unlock the predefined successor.
+
+If PFC-07 browser acceptance reveals an implementation-only production defect
+inside these already Owner-authorized Product Flow Closure invariants, keep the
+same canonical task and, when safe, the same PR. Architect may issue an
+`ARCHITECT_DIRECTIVE_V1` that adds the necessary implementation files/tests to
+the effective envelope and instructs the Worker to repair it. No follow-up task
+is required. Only a real product, architecture, Accepted Contract, provider,
+data-policy, cost, or other Owner-reserved ambiguity escalates to the Product
+Owner. A Directive cannot change this pack's frozen product invariants or queue
+topology.
+
+Task Card `Status:` is an issuance/planning snapshot. Fresh canonical queue/state
+is runtime authority. Workers implement only the base Task Card plus all applied
+Directive overlays, and every Directive remains subject to exact-head CI, review,
+PASS, merge, exact-main verification, and `DONE` gates.
 
 Planning baseline: `main@39fb739a6bdc0f42406e4191c5f885b63ece69ab`.

@@ -1,217 +1,254 @@
 # Single Dispatcher transition contract
 
-Assume one Dispatcher and one sequential task queue. The Dispatcher performs only the transitions below and never acts as reviewer.
+Assume one low-intelligence Dispatcher and one sequential task queue. The
+Dispatcher reconciles durable facts, validates machine protocols, performs
+idempotent state changes, and launches the declared Worker. It never acts as
+Architect, performs technical review, invents a task, or changes queue topology.
+
+`architect-directive-v1.md` is the sole syntax, identity, digest, ACK, and
+effective-overlay contract for Directives. This file defines where Directive
+reconciliation enters the task state machine.
 
 > **PRE-MERGE MAIN-CI GUARD:** Main CI is task main-verification evidence only
-> after an accepted implementation PR exists, is proven merged from the exact
-> Architect-reviewed `PASS` head, and its accepted merge commit is proven to be
-> an ancestor of refreshed current main. Before all of those facts hold, any
-> main CI result—including `FAILURE` or `SUCCESS` from a Worker-launch or state-
-> projection commit—MUST NOT produce `MAIN_VERIFY_FAILED` or `DONE`.
+> after an accepted implementation PR is proven merged from the exact
+> Architect-reviewed `PASS` head and its accepted merge commit is an ancestor
+> of refreshed current main. Before those facts hold, no main CI result can
+> produce `MAIN_VERIFY_FAILED` or `DONE`.
 
-## Authority and projection semantics
+## Authority and runtime projection
 
-Canonical task identity and topology are read from the formal Task Cards and
-predefined queue on refreshed `main`: `id`, `task_card`, `depends_on`, and
-`next_task`. The Dispatcher never creates, renames, or derives an ID. GitHub
-durable facts override stale local projection: matching PR, current head,
-top-level verdict, merge state, and CI. `dispatcher-state.json` is therefore a
-reconstructable projection plus canonical topology, not the only runtime truth.
-Every pulse reconciles fresh durable facts, including recoverable main-CI
-blockers, before any status-based stop or ordinary dispatch decision. A local
-`BLOCKED` projection cannot suppress a mechanically authorized recovery.
-`DONE` is also only a projection: it is never exempt from that reconciliation,
-even when its `next_task` is `null`. A cached `DONE` may cause a pulse to stop
-only after the accepted merge is proven in refreshed current-main ancestry and
-the latest applicable required CI for that exact current-main SHA is terminal
-`SUCCESS`.
+Product Owner decisions and exact Accepted Contracts control product behavior,
+architecture boundaries, provider/model/data-policy/cost decisions, and
+reserved/deferred choices. The Task Card controls base task identity, goal,
+scope, dependencies, tests, completion gates, and immutable `depends_on` /
+`next_task`. Successful current-task Directive ACK snapshots add implementation
+files, tests, and bounded instructions. They cannot subtract or override.
 
-**Remote-main refresh is mandatory before canonical queue reads.** At the start
-of every bounded pulse, first run a safe `git fetch origin main`. Canonical queue
-and Task Card reads must come from freshly fetched `origin/main` (or from a
-local `main` that has just been proven equal to `origin/main`). A stale local
-checkout/worktree is never evidence that no READY task or predefined successor
-exists. The Dispatcher may inspect canonical files directly from `origin/main`
-without mutating the working tree. If a local main/worktree must be synchronized
-for dispatch, use only a safe fast-forward after checking repository identity and
-working-tree safety; never force-reset or overwrite unknown changes.
-
-At the start of every bounded pulse, validate the active local ID against the
-canonical queue. An invalid ID such as `P4C-02-ASSEMBLY` is never used as a
-GitHub search key or dispatch target. Search all canonical IDs using combined
-Task Card, PR title/body, branch, predecessor/`next_task`, and phase evidence.
-One clear candidate may recover; equal candidates are `PRODUCT_AMBIGUITY`.
-
-## Architect Verdict Protocol V1
-
-The actionable review result is the latest valid top-level GitHub PR
-conversation comment containing `<!-- ARCHITECT_VERDICT_V1 -->` and the
-required TASK, PR, REVIEWED_HEAD, VERDICT, P0, P1 and P2 fields. GitHub native
-`APPROVED` and ordinary comments are not architecture gates. `REVIEWED_HEAD`
-must equal a fresh current PR head SHA; old-head verdicts are stale and
-ignored. Multiple valid verdicts on one head use the latest valid comment;
-malformed or conflicting current-head evidence is `PRODUCT_AMBIGUITY`. No
-current-head verdict leaves an open PR in `REVIEW`.
-
-`ARCHITECT_RECOVERY_V1` is recovery guidance, not an extra approval gate. A
-missing, stale or malformed recovery comment must never block a transition that
-is already mechanically authorized by the canonical Task Card, durable GitHub
-facts and a valid current-head `ARCHITECT_VERDICT_V1`. Recovery metadata may
-help resolve a mechanical stall, but it does not supersede or add prerequisites
-to the closed transition table below.
-
-## Required PR CI and same-task repair
-
-For the current canonical task, PR, and exact PR head, required PR CI is a
-first-class implementation gate. The Dispatcher fresh-reads the applicable
-required PR CI before treating an open PR as review-only:
-
-- missing or pending required PR CI is `REVIEW` / wait for PR CI;
-- terminal `SUCCESS` permits the normal external Architect review gate;
-- terminal failure is unfinished implementation and returns the same task and
-  same PR to `IN_PROGRESS` for a bounded `luna-high` repair worker.
-
-A current-head `REQUEST_CHANGES` is also same-task/same-PR repair. It is an
-actionable external finding even when the PR-CI result is pending. A current-
-head `PASS` never bypasses the PR-CI gate: pending/missing or failed PR CI is
-not merge-eligible; only exact-head PR CI `SUCCESS` can reach the existing
-fresh-head merge gate.
-
-Before launching repair for a PR-CI failure, the Dispatcher writes this
-top-level PR comment to GitHub:
+The effective execution envelope is:
 
 ```text
-<!-- DISPATCHER_REPAIR_V1 -->
-TASK: <task_id>
-PR: <pr_number>
-HEAD: <full_sha>
-FAILED_CHECK: <stable job/check/step identity>
-ACTION: LAUNCHED
+base Task Card
++ every successful ARCHITECT_DIRECTIVE_V1 ACK overlay for the current task
 ```
 
-The tuple `(TASK, PR, HEAD, FAILED_CHECK)` is the durable repair-event
-fingerprint. A matching marker suppresses another launch for that exact event;
-a new head or different failing check is a new event. The repair launch must
-include the Task Card verbatim, PR number, current head, failed-check/run
-evidence, and an instruction to keep the same PR. A plausible transient may
-receive at most one bounded no-code rerun, whose terminal result must be
-observed before handoff; a second failure requires a scoped same-PR repair or a
-concrete `WORKER_FAILED` / `PRODUCT_AMBIGUITY` report.
+Task Card `Status:` is an issuance/planning snapshot. Runtime status is read
+from the freshly reconciled canonical queue/state. `Status: DEFERRED` in a card
+plus canonical `IN_PROGRESS` is mechanically valid and never
+`PRODUCT_AMBIGUITY`.
+
+`dispatcher-state.json` is a reconstructable projection plus canonical
+topology, not a sole truth source. GitHub durable PR/head/directive-ACK/review-
+context/verdict/merge/CI facts correct stale projection. `IN_PROGRESS` and
+`BLOCKED` may retain an implementation PR; projection status never erases it.
+
+## Mandatory bounded-pulse order
+
+Every pulse advances at most one safe stage and uses this exact priority:
+
+1. first external action: `git fetch origin main`;
+2. record exact `origin/main`, then read canonical governance, control-plane
+   configuration, queue/state, active Task Card, and its declared contracts from
+   that exact SHA;
+3. read the configured Architect Command Bus issue, including comment authors,
+   markers, timestamps, and ACKs;
+4. read the active or uniquely discoverable PR, exact head, exact-head required
+   CI, top-level comments, merge state, accepted merge, current main ancestry,
+   and exact-current-main CI as applicable;
+5. reconcile all durable facts, including projected `DONE` and recoverable
+   `BLOCKED / MAIN_VERIFY_FAILED`, before any cached-status stop;
+6. evaluate the next valid unconsumed current-task Directive;
+7. only when no Directive action applies, execute the ordinary task-state action.
+
+Directive handling therefore outranks ordinary `BLOCKED` no-op,
+`WAIT_FOR_WORKER_PR`, `WAIT_FOR_ARCHITECT_VERDICT`, an existing
+`DISPATCHER_REPAIR_V1` dedupe marker, and an unmerged old `PASS`. It never
+outranks or bypasses the implementation, exact-head PR CI, Review Context,
+Architect review, `PASS`, merge, ancestry, exact-main CI, `DONE`, or predefined-
+successor gates.
+
+Remote-main refresh is mandatory before canonical reads. A local checkout may
+be used only after it is proven equal to freshly fetched `origin/main`. Never
+force-reset or overwrite unknown changes. Temporary network/GitHub/CI absence is
+a wait/no-op, not invented evidence.
+
+## Directive reconciliation
+
+Read `control-plane.json` from exact refreshed main. If absent, disabled, or not
+naming `ARCHITECT_DIRECTIVE_V1`, issue #135 comments remain inert and the pulse
+uses legacy ordinary transitions. If enabled, validate directives exactly as
+`architect-directive-v1.md` requires: configured repository/issue and authorized
+author, exact field set, normalized digest, current task/runtime state, satisfied
+dependencies, protected paths, `PR`/`HEAD` pair freshness, duplicate/conflict
+identity, deterministic Worker discovery, and prior ACKs.
+
+The Dispatcher does not assess whether the Architect's technical judgment is
+good. `DECISION_CLASS: IMPLEMENTATION_ONLY` is the Architect's attestation.
+Directive-marker comments from a login outside `authorized_architect_logins`
+are inert: do not parse, reject, ACK, or let them affect scan order. Authorized
+machine-invalid or stale directives are not executed and receive at most one
+deterministic rejection ACK for their rejection identity. On a later pulse, an
+authorized Dispatcher rejection ACK for that exact identity makes the
+Dispatcher skip the rejected comment and continue scanning later comments in
+creation order. A rejected comment therefore cannot starve a later valid
+Directive. Same ID/different digest,
+crossing a protected governance/Accepted-Contract path, or another fact that
+cannot be mechanically reconciled is `PRODUCT_AMBIGUITY` and escalates to Owner.
+The Worker separately fails closed if the actual instruction conflicts with an
+Owner-frozen decision, Accepted Contract, architecture boundary, identity,
+topology, provider/model/data-policy/cost decision, or Owner-deferred choice.
+
+For a valid Directive:
+
+1. reconstruct prior overlays only from successful ACK snapshots;
+2. compute effective allowed files/tests as stable base-plus-overlay unions;
+3. if runtime is `READY` or `BLOCKED`, persist `IN_PROGRESS` without modifying
+   task identity, PR binding, dependencies, or `next_task`;
+4. if runtime is `IN_PROGRESS` or `REVIEW`, retain the task and return it to
+   `IN_PROGRESS` as needed;
+5. discover the deterministic Directive Worker identity; create exactly one
+   `luna-high` Worker if absent, otherwise recover it after ACK loss;
+6. publish the success ACK with digest, `WORKER_REF`, and complete effective
+   overlay snapshots;
+7. end the pulse.
+
+`DEFERRED` and `DONE` cannot be revived by Directive. A null `PR`/`HEAD` pair is
+valid only when no canonical PR is bound or durably discoverable and supports
+pre-PR/failed-launch/never-created-PR recovery. A concrete pair must match the
+current canonical PR/head and retains the same PR. No Directive creates a new
+Task or successor.
+
+A matching old `DISPATCHER_REPAIR_V1` fingerprint suppresses only its own
+failure event. A new unique valid Directive is a new execution authorization and
+must be allowed to launch. Successful overlays remain effective across later
+heads, ordinary repairs, `REQUEST_CHANGES`, CI repairs, and review until `DONE`.
+
+Successful Directive consumption creates an immediate review/merge fence. All
+Review Context and verdict comments created before the latest successful ACK are
+stale even if the head has not changed. No merge is eligible until a post-ACK
+current-envelope Review Context exists and a later exact-head verdict is valid.
+
+## Review Context and verdict
+
+Formal review requires the latest valid top-level comment:
+
+```text
+<!-- ARCHITECT_REVIEW_CONTEXT_V1 -->
+TASK: <task id>
+PR: <pr number>
+CURRENT_HEAD: <full sha>
+BASE_MAIN_SHA: <full sha>
+TASK_CARD: <canonical path>
+ALLOWED_SCOPE: <base + applied overlay union, semicolon-separated>
+ACCEPTED_CONTRACTS: <Task Card declarations or none declared in Task Card>
+REQUIRED_TESTS: <base + applied overlay union, semicolon-separated>
+APPLIED_DIRECTIVES: <ordered directive ids or none>
+```
+
+The Dispatcher mechanically publishes this only after exact-head required PR CI
+success. The comment author must be an exact member of
+`authorized_dispatcher_logins`; every other Review Context marker is inert.
+`TASK`, `PR`, and `CURRENT_HEAD` must match fresh facts;
+`BASE_MAIN_SHA` must come from durable task-start/Worker-launch/PR evidence and
+must never be guessed from current main; scope/tests/directives must exactly
+represent the effective envelope reconstructed from successful ACKs. Missing or
+stale context holds `REVIEW`. A successful later Directive invalidates it.
+
+The actionable review result is the latest valid top-level PR comment from an
+exact `authorized_architect_logins` member containing `ARCHITECT_VERDICT_V1`
+with required `TASK`, `PR`, `REVIEWED_HEAD`, `VERDICT`,
+`P0`, `P1`, and `P2`. `REVIEWED_HEAD` must equal the fresh current PR head and
+the verdict must be created after the valid current-envelope Review Context.
+Ordinary comments, unauthorized marker comments, and GitHub native approval are
+inert. Multiple conflicting authorized valid current-head verdicts are
+`PRODUCT_AMBIGUITY`.
+
+`ARCHITECT_RECOVERY_V1` remains legacy/advisory compatibility and is never an
+execution command or extra approval gate. In Directive mode, implementation
+execution commands use only `ARCHITECT_DIRECTIVE_V1` on the configured bus.
+
+## Exact-head PR CI and ordinary repair
+
+Required PR CI is a first-class implementation gate for the current exact head:
+
+- missing/pending: `REVIEW`, wait;
+- terminal failure: same-task/same-PR `IN_PROGRESS` repair;
+- terminal success: publish/validate effective Review Context and wait for the
+  later external Architect verdict;
+- current-context `REQUEST_CHANGES`: same-task/same-PR repair even when CI is
+  pending;
+- current-context `PASS`: merge-eligible only after exact-head CI success and a
+  fresh head/context/verdict/CI recheck.
+
+Before ordinary CI-failure repair, post `DISPATCHER_REPAIR_V1` with `TASK`, `PR`,
+`HEAD`, `FAILED_CHECK`, and `ACTION: LAUNCHED`. Its fingerprint is
+`(TASK, PR, HEAD, FAILED_CHECK)`. It deduplicates only that ordinary failure
+event, and only a marker from `authorized_dispatcher_logins` may suppress a
+launch; unauthorized lookalikes are inert. The repair launch includes the effective envelope, current PR/head, failed
+check/run evidence, and same-PR instruction. One plausible transient may receive
+one bounded no-code rerun; a second failure needs scoped repair or a concrete
+`WORKER_FAILED` / `PRODUCT_AMBIGUITY` hand-back.
 
 ## Closed transitions
 
 | From | Event | To | Mechanical effect |
 | --- | --- | --- | --- |
-| `READY` | start | `IN_PROGRESS` | Persist before launching the declared worker |
-| `IN_PROGRESS` | reconciliation finds unique PR | `REVIEW` or `IN_PROGRESS` | Bind canonical PR; open/no verdict is `REVIEW`, current-head `REQUEST_CHANGES` is same-PR `IN_PROGRESS` |
-| `REVIEW` | current exact-head required PR CI pending/missing | `REVIEW` | Wait; do not launch repair or merge |
-| `REVIEW` | current exact-head required PR CI failure | `IN_PROGRESS` | Same-task/same-PR repair; launch once per durable `(TASK, PR, HEAD, FAILED_CHECK)` marker |
-| `REVIEW` | current-head `PASS` with required PR CI not `SUCCESS` | `REVIEW` or `IN_PROGRESS` | Pending/missing waits; failure uses same-task/same-PR repair; never merge |
-| `IN_PROGRESS` | worker failed | `BLOCKED` | Stop current pulse |
-| `REVIEW` | current-head `PASS`, fresh exact-head recheck, merge, refreshed main CI succeeds | `DONE` | Verify main, mark current `DONE`, then only predefined `next_task` becomes `READY` |
-| `REVIEW` | current-head `REQUEST_CHANGES` | `IN_PROGRESS` | Return the same canonical task and PR to implementation |
-| `BLOCKED / MAIN_VERIFY_FAILED` | accepted implementation PR remains merged from the exact Architect-reviewed `PASS` head; its accepted merge is in refreshed current-main ancestry; latest applicable required CI for exact refreshed current main is terminal `SUCCESS` | `DONE` | Clear stale `MAIN_VERIFY_FAILED`; mark current `DONE`; synchronize the three current-state files; unlock only predefined `next_task`, or unlock nothing when `next_task` is `null`; stop the current pulse |
-| any active state | product or architecture ambiguity | `BLOCKED` | Stop current pulse and request a decision |
+| `READY` | ordinary start | `IN_PROGRESS` | Persist, then launch declared Worker with effective envelope |
+| `READY` | valid Directive | `IN_PROGRESS` | Persist, launch deterministic Directive Worker, ACK, end pulse |
+| `IN_PROGRESS` | unique PR discovered | `REVIEW` or `IN_PROGRESS` | Bind PR and reconcile exact-head facts |
+| `IN_PROGRESS` | valid Directive, including `PR:null` | `IN_PROGRESS` | Launch/recover current Worker, ACK, end pulse |
+| `REVIEW` | valid Directive | `IN_PROGRESS` | Fence old review/PASS, launch same-task Worker, ACK, end pulse |
+| `BLOCKED` | valid implementation Directive | `IN_PROGRESS` | Mechanically recover same task/PR, launch Worker, ACK, end pulse |
+| `REVIEW` | exact-head PR CI pending/missing | `REVIEW` | Wait |
+| `REVIEW` | exact-head PR CI failure | `IN_PROGRESS` | Ordinary fingerprinted same-PR repair |
+| `REVIEW` | valid current-context `REQUEST_CHANGES` | `IN_PROGRESS` | Same-task/same-PR repair |
+| `REVIEW` | valid current-context `PASS` + exact-head CI success + fresh recheck + merge + refreshed-main CI success | `DONE` | Synchronize, then unlock only predefined successor |
+| `BLOCKED / MAIN_VERIFY_FAILED` | accepted PASS head merge remains in current-main ancestry and latest exact-main CI succeeds | `DONE` | Clear blocker; no Directive, Worker, recovery marker, or Owner signal required |
+| any active state | product/architecture/identity/evidence ambiguity | `BLOCKED` | Stop pulse and escalate |
 
-There is no transaction, revision, compare-and-swap, reviewer-identity
-validation, review-URL validation, or GitHub native-review validation in the
-Dispatcher. The external Architect owns actual PR inspection and review.
+No Directive can produce `DONE` or `READY` for a successor.
 
-## Persistent scheduler / heartbeat invariant
+## Merge and exact-main verification
 
-The Dispatcher is a persistent scheduled executor made of bounded pulses.
-Ending a pulse is never permission to disable or delete the schedule that will
-run future pulses.
+`PASS` alone is never `DONE`. Immediately before merge, fresh-read the exact PR
+head, exact-head CI, current-envelope Review Context, post-context verdict, and
+unconsumed Directives. If a Directive exists, it wins ordering and merge stops.
+After merge, refresh main, prove the accepted merge commit is an ancestor of the
+exact current-main SHA, and select the latest applicable required CI attempt for
+that exact SHA. Success permits `DONE`; pending/missing waits; failure becomes
+`BLOCKED / MAIN_VERIFY_FAILED`. Success for another SHA is irrelevant.
 
-- `NO_READY_TASK`, `REVIEW`, `BLOCKED`, `DEFERRED`, `DONE`, `next_task: null`, and an Owner Checkpoint end only the current pulse.
-- When no eligible `READY` task exists, the current pulse performs no implementation action and exits cleanly; the dispatcher-loop heartbeat remains installed and enabled.
-- At an Owner Checkpoint, future pulses may continue to fresh-read and no-op until the external/web Architect publishes a newly Owner-authorized Development Pack with a `READY` task.
-- No Dispatcher, Implementation Worker, or Codex-hosted agent may delete, disable, pause, or replace the persistent dispatcher-loop heartbeat because a queue is empty or a stage is complete.
-- Only an explicit Product Owner instruction may disable or delete the persistent dispatcher-loop schedule.
+Every later pulse rechecks a projected `BLOCKED / MAIN_VERIFY_FAILED`. A later
+successful exact-current-main rerun mechanically clears it, synchronizes exactly
+`AI-DEVELOPMENT-CURRENT.md`, `docs/agent/00-task-board.md`, and
+`docs/agent/dispatcher/dispatcher-state.json`, and unlocks only predefined
+`next_task` (or nothing when null). A projected `DONE`, including
+`next_task:null`, is also revalidated before no-op.
 
-## Stop rules
+## Queue selection, pulse boundaries, and safety
 
-- **Stop means end the current bounded pulse only. It never means stop the persistent scheduler.**
-- After mandatory durable and recoverable-blocker reconciliation, stop the current pulse at `REVIEW`, a still-`BLOCKED` task, `DEFERRED`, and `DONE`. `BLOCKED` is not globally terminal across future pulses.
-- If no eligible `READY` task exists on freshly fetched `origin/main`, end the current pulse with `NO_READY_TASK` and leave the dispatcher heartbeat untouched.
-- A Task Card/Accepted Contract conflict or unresolved product/architecture meaning is `PRODUCT_AMBIGUITY` and blocks dispatch for the current pulse.
-- Synthetic launch evidence proves only that the worker profile can be launched.
-- `PASS` alone does not unlock a downstream task. The current PR must first be merged into `main`; refresh and verify the accepted task on main, then mark `DONE` and unlock only predefined `next_task`.
-- On main CI failure after a valid PASS merge whose accepted merge commit is proven in refreshed current-main ancestry, do not mark `DONE` or unlock `next_task`; set `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED` and report the exact main SHA and CI failure. Before that merge proof exists, main CI is not task verification evidence and cannot cause `MAIN_VERIFY_FAILED` or `DONE`.
-- Pending/missing main CI is retriable and must not produce `DONE` or successor `READY`.
-- On `REQUEST_CHANGES`, retain the same Task Card and PR and repair only the findings. On `PRODUCT_AMBIGUITY`, set `BLOCKED` and stop the current pulse for an external decision.
-- An open PR's exact-head required CI is a first-class gate: pending/missing is `REVIEW` wait; terminal failure is same-task/same-PR `IN_PROGRESS` repair with one durable launch per `(TASK, PR, HEAD, FAILED_CHECK)` marker. `REQUEST_CHANGES` is same-task/same-PR repair; `PASS` cannot bypass pending/missing/failed PR CI.
-- Never run two READY tasks concurrently or advance beyond predefined `next_task`.
+After reconciliation, one active task has priority. Only when none exists may the
+Dispatcher scan the complete canonical queue: exactly one eligible `READY`
+dispatches, zero yields `NO_READY_TASK`, and more than one yields
+`TASK_BLOCKED / DISPATCHER_STATE_INVALID`. Only dependencies that are canonical
+task IDs resolve through queue status; durable pack/main prerequisites are not
+invented missing tasks.
 
-## Reconciliation and safety gates
+Before any side effect, persist the authorized state transition. Fresh-read the
+relevant external fact immediately before dispatch, Directive ACK, Review Context,
+verdict handling, merge, `DONE`, and successor unlock. Unsafe local sync is
+`TASK_BLOCKED / LOCAL_SYNC_UNSAFE`; never force-reset unknown work.
 
-- Every Scheduled Run is a bounded pulse. Do not wait for Workers, reviews, CI, or external state changes; persist the projection and end the pulse when a future event is required. The recurring schedule remains enabled for the next pulse.
-- The first external action of every pulse is a safe `git fetch origin main`; only after that may the Dispatcher determine canonical queue/task-card state.
-- After the refresh, reconcile durable GitHub/main facts and every projected `BLOCKED / MAIN_VERIFY_FAILED` task before applying any status-based stop or ordinary dispatch logic. Never return early merely because the cached status is `BLOCKED`.
-- After the refresh, reconcile every projected `DONE` task as well as every projected `BLOCKED / MAIN_VERIFY_FAILED` task before applying any status-based stop or ordinary dispatch logic. Pending/missing exact-current-main CI restores the verification wait path; terminal failure projects `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`; only terminal success confirms `DONE`.
-- `next_task: null` is not a reconciliation exemption. Once durable reconciliation confirms completion, scan the complete freshly fetched canonical queue for eligible `READY` work; an old `DONE + next_task:null` pointer cannot suppress an independently Owner-authorized READY task.
-- Queue-wide READY selection is authoritative after reconciliation: exactly one eligible READY task transitions to `IN_PROGRESS`, zero yields `NO_READY_TASK`, and more than one yields `DISPATCHER_STATE_INVALID`. For `depends_on`, only entries matching a task ID in the freshly read canonical queue are resolved through local task status; durable pack, `main@...`, and other non-task prerequisites are not implicit missing-task blockers.
-- Before any side effect, persist the state transition successfully, then perform the external action. In particular, persist `READY → IN_PROGRESS` before launching a Worker.
-- `IN_PROGRESS` is the default wait state only when no durable GitHub fact can advance it. A stale status or missing local PR cannot deny a matching GitHub PR.
-- Fresh reads are mandatory immediately before merge, verdict handling, dispatch, `DONE`, and `READY` unlock: PR state/head/comments, canonical queue from freshly fetched `origin/main`, and actual main SHA/CI must be read at the gate.
-- If local `pr` is null or status is stale, fresh-query `Li-Ming-G/elder_interview_ai` across open and merged PRs. Use combined canonical Task Card, title/body, branch, predecessor/`next_task`, and phase evidence; no one marker is mandatory. Zero candidates is a no-op; one clear candidate is persisted and reconciled; equal candidates are `PRODUCT_AMBIGUITY`.
-- Open + current-head `REQUEST_CHANGES` is same canonical task `IN_PROGRESS`; open + no current-head verdict is `REVIEW`; open + current-head `PASS` requires a fresh exact-head recheck before merge. Merged PRs skip merge and continue through main verification.
-- For an open PR, fresh-read exact-head required PR CI before the review/merge decision: pending/missing waits, terminal failure returns the same task and PR to repair, and only terminal success permits the Architect gate. A matching `DISPATCHER_REPAIR_V1` marker suppresses duplicate repair for the same task, PR, head, and failed-check identity.
-- Formal REVIEW requires `ARCHITECT_REVIEW_CONTEXT_V1` with `TASK`, `PR`, `CURRENT_HEAD`, `BASE_MAIN_SHA`, `TASK_CARD`, `ALLOWED_SCOPE`, `ACCEPTED_CONTRACTS`, and `REQUIRED_TESTS`; missing context holds `REVIEW` and is not a verdict.
-- If an already-accepted PR is merged, skip merge and perform main verification. Merge conflict/rejection and closed-unmerged PRs use stable `TASK_BLOCKED` with a specific reason.
-- Pending/missing main CI and temporary GitHub API/network/rate-limit/auth/service failures are wait/no-op conditions retried on the next cadence without business-state mutation. Confirmed main CI failure is `BLOCKED / TASK_BLOCKED` with reason `MAIN_VERIFY_FAILED`, main SHA, and CI run recorded.
-- Before main sync, verify repository identity and safe local working-tree state; unsafe dirty sync is `BLOCKED / TASK_BLOCKED` with reason `LOCAL_SYNC_UNSAFE`. Never force-reset or overwrite unknown changes.
-- More than one active task or READY task is `BLOCKED / TASK_BLOCKED` with reason `DISPATCHER_STATE_INVALID`; Dispatcher never chooses between contradictory queue entries.
-- A pulse advances at most one safe stage.
-
-### Applicable current-main CI and blocker recovery
-
-For a candidate refreshed current-main SHA `M`, the accepted implementation
-merge commit `A` must be proven as an ancestor of `M`. Required CI is then read
-for exact `M`, not for an earlier main SHA or an unrelated successful SHA. If
-the workflow has been rerun on exact `M`, the latest applicable run attempt is
-authoritative:
-
-- latest attempt `SUCCESS`: current-main verification succeeds;
-- latest attempt pending, or no applicable attempt: wait and retry on the next pulse;
-- latest attempt `FAILURE`: remain `BLOCKED / MAIN_VERIFY_FAILED` and retry on the next pulse;
-- `SUCCESS` for a SHA whose ancestry does not contain `A`: fail closed and never clear the blocker.
-
-When exact-current-main verification later succeeds, the closed transition
-from `BLOCKED / MAIN_VERIFY_FAILED` to `DONE` is automatic. It requires no new
-Architect verdict, `ARCHITECT_RECOVERY_V1`, Worker repair commit, Worker PR, or
-Product Owner signal because the implementation was already accepted. Clear
-the stale blocker, perform the required three-file synchronization, and unlock
-only the predefined `next_task`; if it is `null`, unlock nothing and end the
-current pulse.
-
-## Permanent stage-end state synchronization
-
-Every completed development stage follows this mechanical sequence:
-
-`Architect PASS → merge accepted PR → refresh latest main → verify accepted exact head landed → mark completed task/stage DONE → synchronize current-state files → unlock only predefined next task`.
-
-The synchronization must update exactly:
-
-- `AI-DEVELOPMENT-CURRENT.md`
-- `docs/agent/00-task-board.md`
-- `docs/agent/dispatcher/dispatcher-state.json`
-
-Only accepted and merged facts may advance these files. Do not rewrite
-historical archives, alter Accepted Contracts, invent product or architecture
-decisions, or change business code during state synchronization. If these
-files disagree with accepted merged repository facts, the merged facts are
-authoritative; repair the files before further development starts. Architect
-`PASS` alone does not advance stage state.
+Waiting for Worker, PR, CI, Architect, or external state ends the current bounded
+pulse. `NO_READY_TASK`, `REVIEW`, `BLOCKED`, `DEFERRED`, `DONE`, `next_task:null`,
+and Owner Checkpoint never disable/delete/replace the persistent dispatcher
+heartbeat. Only an explicit Product Owner instruction may do so.
 
 ## Stable errors
 
-Only these codes are valid:
-
 | Code | Meaning |
 | --- | --- |
-| `NO_READY_TASK` | No queue item is eligible to start; end the current pulse only and keep the persistent dispatcher heartbeat enabled |
-| `WORKER_FAILED` | Worker could not complete and report a PR number |
-| `REVIEW_REQUIRED` | A PR number was reported; external Architect review is required |
-| `PRODUCT_AMBIGUITY` | Product, architecture, identity, or evidence meaning needs an external decision |
-| `TASK_BLOCKED` | The current task cannot proceed |
+| `NO_READY_TASK` | No canonical queue item is eligible; end only this pulse |
+| `WORKER_FAILED` | Worker could not be launched/recovered or report a PR |
+| `REVIEW_REQUIRED` | A PR is ready for external Architect review |
+| `PRODUCT_AMBIGUITY` | Product, architecture, identity, command, or evidence meaning needs external/Owner decision |
+| `TASK_BLOCKED` | A mechanically identified blocker prevents progress |
