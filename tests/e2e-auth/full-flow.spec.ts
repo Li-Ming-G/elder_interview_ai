@@ -217,7 +217,7 @@ test('calibration skip keeps recording usable, exposes suggestion retry, and gua
   await expect(page.getByRole('button', { name: '重新加载问题建议' })).toBeVisible();
   await page.getByRole('button', { name: '重新加载问题建议' }).click();
   await expect(page.getByRole('button', { name: '重新加载问题建议' })).toHaveCount(0);
-  await expect(page.locator('.transcript-line').first()).toBeVisible();
+  await expect(page.getByTestId('transcript-viewport')).toBeVisible();
   await expect(page.getByRole('button', { name: '结束访谈' })).toBeEnabled();
 
   await page.goBack();
