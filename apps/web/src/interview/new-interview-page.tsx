@@ -103,6 +103,7 @@ export function NewInterviewPage({
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
   const initialNavigationIsReload = useRef<boolean | null>(null);
+  const effectiveIntentRef = useRef<'new' | 'resume' | null>(null);
   const initializationIntent = useRef<'new' | 'resume' | null>(null);
   const initializationPromise = useRef<Promise<{
     newIntent: boolean;
@@ -117,13 +118,16 @@ export function NewInterviewPage({
   if (initialNavigationIsReload.current === null) {
     initialNavigationIsReload.current = isDocumentReload();
   }
-  const effectiveIntent =
-    initialNavigationIsReload.current &&
-    intent === 'new' &&
-    !hasCommittedNewInterviewRoute &&
-    documentNavigationPath() === initialDocumentPath
-      ? 'resume'
-      : intent;
+  if (effectiveIntentRef.current === null) {
+    effectiveIntentRef.current =
+      initialNavigationIsReload.current &&
+      intent === 'new' &&
+      !hasCommittedNewInterviewRoute &&
+      documentNavigationPath() === initialDocumentPath
+        ? 'resume'
+        : intent;
+  }
+  const effectiveIntent = effectiveIntentRef.current;
 
   useEffect(() => {
     hasCommittedNewInterviewRoute = true;
