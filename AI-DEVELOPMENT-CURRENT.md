@@ -63,20 +63,15 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 `PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded.
 
-PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed a remaining production route-state defect: `/interviews/new?mode=new` -> `继续未完成访谈` can change the query to `mode=resume` without re-rendering because App navigation state is pathname-only. The Product Owner authorized a bounded follow-up under the existing pack.
+PFC-07 PR #133 remains open at exact head `8c9b7192376280b2e7860fc01bbb20afeb708802`; exact-head CI run `33659276060` failed in the authenticated browser flow. Its matching legacy `DISPATCHER_REPAIR_V1` event has already been launched and is stalled. No new Directive has been published; the cutover itself does not repair the product defect.
 
 `PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded. `PFC-07-FULL-FLOW-E2E` is now the active `IN_PROGRESS` task, resuming existing PR #133.
 
-Current task responsibility is intentionally narrow:
-
-- make same-path query/search navigation participate in App render state;
-- ensure `mode=new` -> `mode=resume` actually re-renders the New Interview route;
-- preserve existing pathname navigation, active-recording navigation guards and auth return-path safety;
-- no router rewrite, backend change, New Interview semantic change, P1-P6 change or new product behavior.
+Current task responsibility remains the full browser-flow acceptance in the PFC-07 Task Card. If that acceptance exposes an implementation-only defect inside the already authorized Product Flow Closure invariants, the External/Web Architect may keep PFC-07 and PR #133 and issue an `ARCHITECT_DIRECTIVE_V1` additive overlay for the needed files/tests. Product or architecture ambiguity still escalates to the Product Owner.
 
 Task source:
 
-- `docs/agent/tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`
+- `docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md`
 
 ## Product-flow closure invariants
 
@@ -122,7 +117,11 @@ Accepted lifecycle:
 READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> external Architect PASS -> merge -> refreshed-main CI -> DONE -> predefined successor
 ```
 
-Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flow tasks or product behavior. Worker implements only the active Task Card.
+The Product Owner retains product, architecture, cost, provider, model, data-policy, deployment, and Accepted Contract authority. The External/Web Architect plans/reviews and has bounded implementation execution authority only through `ARCHITECT_DIRECTIVE_V1` on standing Command Bus issue #135. The Dispatcher mechanically validates and executes valid Directives before ordinary waits/no-ops; it does not judge their technical merit. The Worker executes the effective envelope: base Task Card plus all successful Directive ACK overlays.
+
+Task Card `Status:` is an issuance/planning snapshot. Freshly reconciled canonical queue/state is runtime authority, so a legacy Task Card `Status: DEFERRED` does not block canonical `IN_PROGRESS` execution.
+
+A Directive never bypasses implementation, exact-head PR CI, effective-envelope Review Context, exact-head Architect verdict, `PASS`, merge ancestry, exact-current-main CI, `DONE`, or predefined-successor gates. Owner-frozen decisions, Accepted Contracts, architecture boundaries, task identity, and queue topology remain non-overridable.
 
 ## Current states
 
@@ -138,8 +137,8 @@ Architect plans/reviews. Dispatcher is mechanical and may not invent Product Flo
 
 ## Authority order
 
-Current Task Card -> Product Flow Closure Development Pack -> exact accepted lower-level contracts/invariants -> this file -> stable architecture specs -> history. Any unresolvable contradiction is `PRODUCT_AMBIGUITY`.
+Product Owner decisions and exact Accepted Contracts -> base Task Card identity/goal/topology/gates -> successful additive Architect Directive ACK overlays -> freshly reconciled canonical runtime state -> Product Flow Closure Development Pack -> this file -> stable architecture specs -> history. A Task Card header status is only a planning snapshot. Any non-additive or otherwise unresolvable contradiction is `PRODUCT_AMBIGUITY`.
 
 ## Next step
 
-PFC-07A is complete. PFC-07-FULL-FLOW-E2E is now `IN_PROGRESS`; resume existing PR #133 with its declared `luna-high` Implementation Worker.
+PFC-07A is complete. PFC-07-FULL-FLOW-E2E remains canonical `IN_PROGRESS` on PR #133. After this migration reaches `main`, a real, authenticated Architect Directive may authorize its implementation-only repair under the same task and PR; this migration publishes no such Directive.

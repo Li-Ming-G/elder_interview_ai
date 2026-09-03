@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,33 @@ const root = dirname(fileURLToPath(import.meta.url));
 const taskFields = ['id', 'status', 'task_card', 'worker_profile', 'depends_on', 'pr', 'next_task'];
 const verdictMarker = '<!-- ARCHITECT_VERDICT_V1 -->';
 const repairMarker = '<!-- DISPATCHER_REPAIR_V1 -->';
+const directiveMarker = '<!-- ARCHITECT_DIRECTIVE_V1 -->';
+const directiveAckMarker = '<!-- DISPATCHER_DIRECTIVE_ACK_V1 -->';
+const reviewContextMarker = '<!-- ARCHITECT_REVIEW_CONTEXT_V1 -->';
+const directiveFields = [
+  'DIRECTIVE_ID',
+  'TASK',
+  'PR',
+  'HEAD',
+  'DECISION_CLASS',
+  'ACTION',
+  'ADD_ALLOWED_FILES',
+  'ADD_REQUIRED_TESTS',
+  'INSTRUCTION',
+  'KEEP_SAME_PR',
+];
+const ackFields = [
+  'DIRECTIVE_ID',
+  'DIRECTIVE_SHA256',
+  'TASK',
+  'PR',
+  'HEAD',
+  'ACTION',
+  'WORKER_REF',
+  'EFFECTIVE_ALLOWED_FILES',
+  'EFFECTIVE_REQUIRED_TESTS',
+  'RESULT',
+];
 const stableErrors = new Set([
   'NO_READY_TASK',
   'WORKER_FAILED',
@@ -45,12 +73,322 @@ function assertCanonicalTopology(canonicalQueue) {
 function validateStateShape(state) {
   assert.deepEqual(Object.keys(state).sort(), ['$schema', 'queue'].sort());
   assert(Array.isArray(state.queue) && state.queue.length > 0);
-  for (const task of state.queue)
+  for (const task of state.queue) {
     assert.deepEqual(Object.keys(task).sort(), [...taskFields].sort());
+    if (['READY', 'DEFERRED'].includes(task.status)) assert.equal(task.pr, null);
+    if (['REVIEW', 'DONE'].includes(task.status)) assert(Number.isInteger(task.pr) && task.pr > 0);
+    if (['IN_PROGRESS', 'BLOCKED'].includes(task.status))
+      assert(task.pr === null || (Number.isInteger(task.pr) && task.pr > 0));
+  }
 }
 
 function textOf(pr) {
   return `${pr.title || ''}\n${pr.body || ''}`.toLowerCase();
+}
+
+function parseMachineFields(body, marker) {
+  if (typeof body !== 'string' || !body.includes(marker)) return null;
+  const fields = {};
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line === marker) continue;
+    const match = line.match(/^([A-Z0-9_]+):\s*(.*?)\s*$/);
+    if (!match || match[1] in fields) return { invalid: true };
+    fields[match[1]] = match[2];
+  }
+  return fields;
+}
+
+function listValue(value) {
+  if (value === 'none') return [];
+  return [
+    ...new Set(
+      String(value)
+        .split(';')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function normalizeList(value) {
+  const values = listValue(value);
+  return values.length === 0 ? 'none' : values.join(';');
+}
+
+function normalizeDirective(fields) {
+  const normalized = { ...fields };
+  normalized.ADD_ALLOWED_FILES = normalizeList(fields.ADD_ALLOWED_FILES);
+  normalized.ADD_REQUIRED_TESTS = normalizeList(fields.ADD_REQUIRED_TESTS);
+  return directiveFields.map((field) => `${field}: ${normalized[field].trim()}`).join('\n');
+}
+
+function directiveDigest(fields) {
+  return createHash('sha256').update(normalizeDirective(fields), 'utf8').digest('hex');
+}
+
+function protectedDirectivePath(path, task) {
+  const protectedExact = new Set([
+    'AGENTS.md',
+    'AI-DEVELOPMENT-CURRENT.md',
+    'docs/agent/00-task-board.md',
+    task.task_card,
+    ...(task.accepted_contracts || []),
+  ]);
+  return (
+    protectedExact.has(path) ||
+    path.startsWith('docs/agent/dispatcher/') ||
+    path.includes('..') ||
+    path.startsWith('/') ||
+    /^[A-Za-z]:/.test(path) ||
+    ['*', '?', '[', ']'].some((token) => path.includes(token))
+  );
+}
+
+function parseDirective(comment, controlPlane) {
+  if (!comment.topLevel || !comment.body?.includes(directiveMarker)) return { kind: 'ignore' };
+  const fields = parseMachineFields(comment.body, directiveMarker);
+  if (!fields || fields.invalid) return { kind: 'invalid', reason: 'MALFORMED_FIELDS' };
+  if (
+    Object.keys(fields).length !== directiveFields.length ||
+    directiveFields.some((field) => !(field in fields)) ||
+    Object.keys(fields).some((field) => !directiveFields.includes(field))
+  )
+    return { kind: 'invalid', reason: 'FIELD_SET' };
+  if (!controlPlane.authorized_architect_logins.includes(comment.author?.login))
+    return { kind: 'invalid', reason: 'UNAUTHORIZED_AUTHOR', fields };
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(fields.DIRECTIVE_ID))
+    return { kind: 'invalid', reason: 'DIRECTIVE_ID', fields };
+  if (!/^[A-Z][A-Z0-9-]{2,119}$/.test(fields.TASK))
+    return { kind: 'invalid', reason: 'TASK', fields };
+  const prNull = fields.PR === 'null';
+  const headNull = fields.HEAD === 'null';
+  if (prNull !== headNull)
+    return { kind: 'invalid', reason: 'PR_HEAD_PAIR', fields, digest: directiveDigest(fields) };
+  if (!prNull && (!/^\d+$/.test(fields.PR) || !/^[0-9a-f]{40}$/i.test(fields.HEAD)))
+    return { kind: 'invalid', reason: 'PR_HEAD_FORMAT', fields };
+  if (
+    fields.DECISION_CLASS !== 'IMPLEMENTATION_ONLY' ||
+    fields.ACTION !== 'IMPLEMENT' ||
+    !['true', 'false'].includes(fields.KEEP_SAME_PR) ||
+    (!prNull && fields.KEEP_SAME_PR !== 'true') ||
+    !fields.INSTRUCTION ||
+    /[\r\n]/.test(fields.INSTRUCTION)
+  )
+    return { kind: 'invalid', reason: 'FIXED_VALUES', fields };
+  return {
+    kind: 'valid',
+    fields,
+    digest: directiveDigest(fields),
+    createdAt: comment.createdAt || '',
+  };
+}
+
+function parseDirectiveAck(comment, controlPlane) {
+  if (!comment.topLevel || !comment.body?.includes(directiveAckMarker)) return { kind: 'ignore' };
+  const fields = parseMachineFields(comment.body, directiveAckMarker);
+  if (!fields || fields.invalid) return { kind: 'invalid' };
+  if (
+    Object.keys(fields).length !== ackFields.length ||
+    ackFields.some((field) => !(field in fields)) ||
+    Object.keys(fields).some((field) => !ackFields.includes(field)) ||
+    !controlPlane.authorized_dispatcher_logins.includes(comment.author?.login) ||
+    !/^[0-9a-f]{64}$/.test(fields.DIRECTIVE_SHA256) ||
+    !['LAUNCHED', 'APPLIED', 'LAUNCH_FAILED', 'REJECTED_STALE', 'REJECTED_INVALID'].includes(
+      fields.ACTION,
+    )
+  )
+    return { kind: 'invalid' };
+  return { kind: 'valid', fields, createdAt: comment.createdAt || '' };
+}
+
+function successfulDirectiveAcks(comments, taskId, controlPlane) {
+  return (comments || [])
+    .map((comment) => parseDirectiveAck(comment, controlPlane))
+    .filter(
+      (ack) =>
+        ack.kind === 'valid' &&
+        ack.fields.TASK === taskId &&
+        ['LAUNCHED', 'APPLIED'].includes(ack.fields.ACTION),
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function effectiveEnvelope(task, acks, pendingDirective = null) {
+  const allowedFiles = [...(task.allowed_files || [])];
+  const requiredTests = [...(task.required_tests || [])];
+  for (const ack of acks) {
+    allowedFiles.push(...listValue(ack.fields.EFFECTIVE_ALLOWED_FILES));
+    requiredTests.push(...listValue(ack.fields.EFFECTIVE_REQUIRED_TESTS));
+  }
+  if (pendingDirective) {
+    allowedFiles.push(...listValue(pendingDirective.fields.ADD_ALLOWED_FILES));
+    requiredTests.push(...listValue(pendingDirective.fields.ADD_REQUIRED_TESTS));
+  }
+  return {
+    allowedFiles: [...new Set(allowedFiles)],
+    requiredTests: [...new Set(requiredTests)],
+  };
+}
+
+function directiveAckBody(directive, task, pr, head, action, workerRef, envelope, result) {
+  return `${directiveAckMarker}\nDIRECTIVE_ID: ${directive.fields.DIRECTIVE_ID}\nDIRECTIVE_SHA256: ${directive.digest}\nTASK: ${task.id}\nPR: ${pr ?? 'null'}\nHEAD: ${head ?? 'null'}\nACTION: ${action}\nWORKER_REF: ${workerRef}\nEFFECTIVE_ALLOWED_FILES: ${envelope.allowedFiles.join(';') || 'none'}\nEFFECTIVE_REQUIRED_TESTS: ${envelope.requiredTests.join(';') || 'none'}\nRESULT: ${result}`;
+}
+
+function reconcileDirective(canonicalQueue, local, github, controlPlane) {
+  if (!github.commandBus || !controlPlane?.enabled) return null;
+  const active = canonicalQueue.filter((task) =>
+    ['READY', 'IN_PROGRESS', 'REVIEW', 'BLOCKED'].includes(local.tasks?.[task.id]?.status),
+  );
+  const task =
+    active.find((candidate) => candidate.id === local.activeTaskId) ||
+    (active.length === 1 ? active[0] : null);
+  const comments = github.commandBus.comments || [];
+  const parsed = comments
+    .map((comment) => ({ comment, directive: parseDirective(comment, controlPlane) }))
+    .filter(({ directive }) => directive.kind !== 'ignore');
+  if (parsed.length === 0) return null;
+  if (!task)
+    return {
+      status: 'BLOCKED',
+      action: 'REJECTED_INVALID',
+      directiveLaunch: false,
+      error: 'PRODUCT_AMBIGUITY',
+      detail: 'NO_SINGLE_CURRENT_TASK',
+    };
+  const runtime = local.tasks[task.id];
+  const acks = successfulDirectiveAcks(comments, task.id, controlPlane);
+  const allAcks = comments
+    .map((comment) => parseDirectiveAck(comment, controlPlane))
+    .filter((ack) => ack.kind === 'valid');
+  const found = discoverUnique(task, github);
+  const boundPr = (github.prs || []).find((pr) => pr.number === runtime.pr) || found.candidate?.pr;
+
+  for (const { directive } of parsed) {
+    if (directive.kind === 'invalid')
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'REJECTED_INVALID',
+        directiveLaunch: false,
+        detail: directive.reason,
+      };
+    const id = directive.fields.DIRECTIVE_ID;
+    const conflictingPayload = parsed.some(
+      ({ directive: other }) =>
+        other.kind === 'valid' &&
+        other.fields.DIRECTIVE_ID === id &&
+        other.digest !== directive.digest,
+    );
+    const conflictingAck = acks.some(
+      (ack) => ack.fields.DIRECTIVE_ID === id && ack.fields.DIRECTIVE_SHA256 !== directive.digest,
+    );
+    if (conflictingPayload || conflictingAck)
+      return {
+        canonicalTaskId: task.id,
+        status: 'BLOCKED',
+        action: 'REJECTED_INVALID',
+        directiveLaunch: false,
+        error: 'PRODUCT_AMBIGUITY',
+        detail: 'DIRECTIVE_ID_PAYLOAD_CONFLICT',
+      };
+    if (
+      acks.some(
+        (ack) => ack.fields.DIRECTIVE_ID === id && ack.fields.DIRECTIVE_SHA256 === directive.digest,
+      )
+    )
+      continue;
+    const launchFailures = allAcks.filter(
+      (ack) =>
+        ack.fields.DIRECTIVE_ID === id &&
+        ack.fields.DIRECTIVE_SHA256 === directive.digest &&
+        ack.fields.ACTION === 'LAUNCH_FAILED',
+    );
+    if (launchFailures.length >= 3)
+      return {
+        canonicalTaskId: task.id,
+        status: 'BLOCKED',
+        action: 'WORKER_FAILED',
+        directiveLaunch: false,
+        error: 'WORKER_FAILED',
+        detail: 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED',
+      };
+    if (directive.fields.TASK !== task.id)
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'REJECTED_INVALID',
+        directiveLaunch: false,
+        detail: 'TASK_MISMATCH',
+      };
+    const addedFiles = listValue(directive.fields.ADD_ALLOWED_FILES);
+    if (addedFiles.some((path) => protectedDirectivePath(path, task)))
+      return {
+        canonicalTaskId: task.id,
+        status: 'BLOCKED',
+        action: 'REJECTED_INVALID',
+        directiveLaunch: false,
+        error: 'PRODUCT_AMBIGUITY',
+        detail: 'PROTECTED_PATH',
+      };
+    const concrete = directive.fields.PR !== 'null';
+    if (!concrete && boundPr)
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'REJECTED_STALE',
+        directiveLaunch: false,
+        detail: 'PR_NULL_WHEN_PR_EXISTS',
+      };
+    if (concrete && (!boundPr || Number(directive.fields.PR) !== boundPr.number))
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'REJECTED_STALE',
+        directiveLaunch: false,
+        detail: 'PR_MISMATCH',
+      };
+    if (concrete && directive.fields.HEAD.toLowerCase() !== boundPr.head.sha.toLowerCase())
+      return {
+        canonicalTaskId: task.id,
+        status: runtime.status,
+        action: 'REJECTED_STALE',
+        directiveLaunch: false,
+        detail: 'HEAD_MISMATCH',
+      };
+    const envelope = effectiveEnvelope(task, acks, directive);
+    const workerIdentity = `architect-directive/${task.id}/${id}`;
+    const existingWorker = (github.workers || []).find(
+      (worker) => worker.identity === workerIdentity,
+    );
+    const ackAction = existingWorker ? 'APPLIED' : 'LAUNCHED';
+    const workerRef = existingWorker?.ref || `new:${workerIdentity}`;
+    return {
+      canonicalTaskId: task.id,
+      previousStatus: runtime.status,
+      status: 'IN_PROGRESS',
+      pr: boundPr?.number ?? null,
+      action: 'EXECUTE_ARCHITECT_DIRECTIVE',
+      directiveId: id,
+      directiveDigest: directive.digest,
+      directiveLaunch: !existingWorker,
+      workerIdentity,
+      workerRef,
+      effectiveEnvelope: envelope,
+      reviewFence: true,
+      ack: directiveAckBody(
+        directive,
+        task,
+        boundPr?.number ?? null,
+        boundPr?.head.sha ?? null,
+        ackAction,
+        workerRef,
+        envelope,
+        existingWorker ? 'RECOVERED_EXISTING_WORKER' : 'WORKER_LAUNCHED',
+      ),
+    };
+  }
+  return null;
 }
 
 function slug(id) {
@@ -124,13 +462,60 @@ function parseVerdict(comment, taskId, prNumber) {
   return { kind: 'valid', ...fields, createdAt: comment.createdAt || '' };
 }
 
-function currentVerdict(task, pr) {
+function currentReviewContext(task, pr, github, controlPlane) {
+  if (!github.directiveMode) return { kind: 'legacy' };
+  const acks = successfulDirectiveAcks(github.commandBus?.comments, task.id, controlPlane);
+  const envelope = effectiveEnvelope(task, acks);
+  const expectedIds = acks.map((ack) => ack.fields.DIRECTIVE_ID).join(';') || 'none';
+  const latestAckAt = acks.at(-1)?.createdAt || '';
+  const required = [
+    'TASK',
+    'PR',
+    'CURRENT_HEAD',
+    'BASE_MAIN_SHA',
+    'TASK_CARD',
+    'ALLOWED_SCOPE',
+    'ACCEPTED_CONTRACTS',
+    'REQUIRED_TESTS',
+    'APPLIED_DIRECTIVES',
+  ];
+  const valid = (pr.comments || [])
+    .filter((comment) => comment.topLevel && comment.body?.includes(reviewContextMarker))
+    .map((comment) => ({
+      fields: parseMachineFields(comment.body, reviewContextMarker),
+      createdAt: comment.createdAt || '',
+    }))
+    .filter(
+      ({ fields, createdAt }) =>
+        fields &&
+        !fields.invalid &&
+        Object.keys(fields).length === required.length &&
+        required.every((field) => field in fields) &&
+        fields.TASK === task.id &&
+        Number(fields.PR) === pr.number &&
+        fields.CURRENT_HEAD.toLowerCase() === pr.head.sha.toLowerCase() &&
+        /^[0-9a-f]{40}$/i.test(fields.BASE_MAIN_SHA) &&
+        fields.TASK_CARD === task.task_card &&
+        normalizeList(fields.ALLOWED_SCOPE) === normalizeList(envelope.allowedFiles.join(';')) &&
+        normalizeList(fields.REQUIRED_TESTS) === normalizeList(envelope.requiredTests.join(';')) &&
+        fields.APPLIED_DIRECTIVES === expectedIds &&
+        createdAt > latestAckAt,
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return valid.length === 0 ? { kind: 'none' } : { kind: 'valid', ...valid.at(-1) };
+}
+
+function currentVerdict(task, pr, github = {}, controlPlane = activeControlPlane) {
+  const context = currentReviewContext(task, pr, github, controlPlane);
+  if (github.directiveMode && context.kind !== 'valid') return { kind: 'none' };
   const parsed = (pr.comments || []).map((comment) => parseVerdict(comment, task.id, pr.number));
   if (parsed.some((item) => item.kind === 'malformed'))
     return { kind: 'ambiguous', reason: 'PRODUCT_AMBIGUITY' };
   const valid = parsed.filter(
     (item) =>
-      item.kind === 'valid' && item.REVIEWED_HEAD.toLowerCase() === pr.head.sha.toLowerCase(),
+      item.kind === 'valid' &&
+      item.REVIEWED_HEAD.toLowerCase() === pr.head.sha.toLowerCase() &&
+      (!github.directiveMode || item.createdAt > context.createdAt),
   );
   if (valid.length === 0) return { kind: 'none' };
   const verdicts = new Set(valid.map((item) => item.VERDICT));
@@ -265,7 +650,7 @@ function acceptedImplementationMergeIsProven(pr, verdict) {
 
 function projectStatus(task, pr, github) {
   if (!pr) return { status: 'IN_PROGRESS', pr: null, action: 'WAIT' };
-  const verdict = currentVerdict(task, pr);
+  const verdict = currentVerdict(task, pr, github);
   if (verdict.kind === 'ambiguous')
     return { status: 'BLOCKED', pr: pr.number, error: 'PRODUCT_AMBIGUITY' };
   if (pr.merged) {
@@ -390,11 +775,13 @@ function selectReadyTask(canonicalQueue, local) {
   return ready.length === 1 ? dispatchReadyTask(ready[0]) : null;
 }
 
-function reconcile(canonicalQueue, local, github) {
+function reconcile(canonicalQueue, local, github, controlPlane = activeControlPlane) {
   const ids = assertCanonicalTopology(canonicalQueue);
   const byId = taskMap(canonicalQueue);
   const localId = local.activeTaskId;
   const invalidLocalId = Boolean(localId && !ids.has(localId));
+  const directiveResult = reconcileDirective(canonicalQueue, local, github, controlPlane);
+  if (directiveResult) return directiveResult;
   const candidatesByTask = canonicalQueue.map((task) => ({
     task,
     found: discoverUnique(task, github),
@@ -493,7 +880,179 @@ function validateSmokeFixture() {
   assert.equal(state.queue[1].status, 'READY');
 }
 
+function machineBody(marker, fields, order) {
+  return [marker, ...order.map((field) => `${field}: ${fields[field]}`)].join('\n');
+}
+
+function buildDirectiveScenario(protocol, overrides) {
+  const base = protocol.base;
+  const task = protocol.canonicalQueue[0];
+  const runtimeStatus = overrides.runtime_status ?? base.runtime_status;
+  const runtimePr = 'runtime_pr' in overrides ? overrides.runtime_pr : base.runtime_pr;
+  const prNumber = 'pr_number' in overrides ? overrides.pr_number : base.pr_number;
+  const head = 'head' in overrides ? overrides.head : base.head;
+  const fields = {
+    ...base.directive,
+    TASK: overrides.directive_task ?? base.directive.TASK,
+    PR: overrides.directive_pr ?? base.directive.PR,
+    HEAD: overrides.directive_head ?? base.directive.HEAD,
+    KEEP_SAME_PR: overrides.keep_same_pr ?? base.directive.KEEP_SAME_PR,
+  };
+  const comments = [];
+  if (overrides.natural_language_only) {
+    comments.push({
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T01:00:00Z',
+      body: 'Please repair the current task. This prose is not a command.',
+    });
+  } else if (!overrides.omit_directive) {
+    comments.push({
+      topLevel: true,
+      author: { login: overrides.architect_login || 'Li-Ming-G' },
+      createdAt: '2026-09-03T01:00:00Z',
+      body: machineBody(directiveMarker, fields, directiveFields),
+    });
+  }
+  if (overrides.mutated_duplicate) {
+    comments.push({
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T01:01:00Z',
+      body: machineBody(
+        directiveMarker,
+        { ...fields, INSTRUCTION: 'A different payload reusing the same identity.' },
+        directiveFields,
+      ),
+    });
+  }
+  const directive = {
+    kind: 'valid',
+    fields,
+    digest: directiveDigest(fields),
+  };
+  const appliedEnvelope = effectiveEnvelope(task, [], directive);
+  if (overrides.successful_ack) {
+    comments.push({
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: '2026-09-03T02:00:00Z',
+      body: directiveAckBody(
+        directive,
+        task,
+        base.pr_number,
+        base.head,
+        'LAUNCHED',
+        'worker-0001',
+        appliedEnvelope,
+        'WORKER_LAUNCHED',
+      ),
+    });
+  }
+  for (let attempt = 1; attempt <= (overrides.launch_failures || 0); attempt += 1) {
+    comments.push({
+      topLevel: true,
+      author: { login: 'Li-Ming-G' },
+      createdAt: `2026-09-03T02:0${attempt}:00Z`,
+      body: directiveAckBody(
+        directive,
+        task,
+        base.pr_number,
+        base.head,
+        'LAUNCH_FAILED',
+        'none',
+        appliedEnvelope,
+        `WORKER_LAUNCH_FAILED_ATTEMPT_${attempt}`,
+      ),
+    });
+  }
+  const prComments = [];
+  if (overrides.existing_repair_marker)
+    prComments.push({
+      topLevel: true,
+      createdAt: '2026-09-03T00:10:00Z',
+      body: `${repairMarker}\nTASK: ${task.id}\nPR: ${prNumber}\nHEAD: ${head}\nFAILED_CHECK: verify\nACTION: LAUNCHED`,
+    });
+  const contextFields = {
+    TASK: task.id,
+    PR: String(prNumber),
+    CURRENT_HEAD: head,
+    BASE_MAIN_SHA: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    TASK_CARD: task.task_card,
+    ALLOWED_SCOPE: overrides.stale_review_context
+      ? task.allowed_files.join(';')
+      : appliedEnvelope.allowedFiles.join(';'),
+    ACCEPTED_CONTRACTS: 'none declared in Task Card',
+    REQUIRED_TESTS: overrides.stale_review_context
+      ? task.required_tests.join(';')
+      : appliedEnvelope.requiredTests.join(';'),
+    APPLIED_DIRECTIVES: overrides.stale_review_context ? 'none' : fields.DIRECTIVE_ID,
+  };
+  if (overrides.valid_review_context || overrides.stale_review_context)
+    prComments.push({
+      topLevel: true,
+      createdAt: '2026-09-03T03:00:00Z',
+      body: machineBody(reviewContextMarker, contextFields, Object.keys(contextFields)),
+    });
+  if (overrides.old_pass)
+    prComments.push({
+      topLevel: true,
+      createdAt: overrides.stale_review_context ? '2026-09-03T04:00:00Z' : '2026-09-03T00:30:00Z',
+      body: `${verdictMarker}\nTASK: ${task.id}\nPR: ${prNumber}\nREVIEWED_HEAD: ${head}\nVERDICT: PASS\nP0: 0\nP1: 0\nP2: 0`,
+    });
+  const prs =
+    prNumber === null
+      ? []
+      : [
+          {
+            number: prNumber,
+            title: `[${task.id}] deterministic directive fixture`,
+            body: task.id,
+            head: { ref: 'codex/pfc-07-full-flow-e2e', sha: head },
+            base: { ref: 'main' },
+            state: 'open',
+            merged: false,
+            comments: prComments,
+            requiredCiAttempts: [
+              { headSha: head, runId: 13501, status: 'in_progress', conclusion: null },
+            ],
+          },
+        ];
+  return {
+    local: {
+      activeTaskId: task.id,
+      tasks: { [task.id]: { status: runtimeStatus, pr: runtimePr } },
+    },
+    github: {
+      prs,
+      commandBus: { issue: 135, comments },
+      directiveMode:
+        overrides.valid_review_context || overrides.stale_review_context || overrides.old_pass,
+      workers: overrides.existing_worker
+        ? [
+            {
+              identity: `architect-directive/${task.id}/${fields.DIRECTIVE_ID}`,
+              ref: 'worker-0001',
+            },
+          ]
+        : [],
+      main: { status: 'pending' },
+    },
+    fields,
+    appliedEnvelope,
+  };
+}
+
+const activeControlPlane = await load('control-plane.json');
+const stateSchema = await load('dispatcher-state.schema.json');
+const canonicalState = await load('dispatcher-state.json');
 const fixture = await load('fixtures/reconciliation-cases.json');
+assert.equal(activeControlPlane.architect_directive_protocol, 'ARCHITECT_DIRECTIVE_V1');
+assert.equal(activeControlPlane.architect_command_bus_issue, 135);
+assert.equal(activeControlPlane.enabled, true);
+assert(stateSchema.$defs.task.allOf[0].if.properties.status.enum.includes('READY'));
+assert(!stateSchema.$defs.task.allOf[0].if.properties.status.enum.includes('BLOCKED'));
+validateStateShape(canonicalState);
 validateSmokeFixture();
 const canonical = fixture.canonicalQueue;
 const results = {};
@@ -832,8 +1391,186 @@ assert.equal(results.O_staleDonePointer.action, 'DISPATCH_READY');
 assert.equal(results.O_staleDonePointer.previousStatus, 'READY');
 assert.equal(results.O_staleDonePointer.pr, null);
 
+const directiveProtocol = fixture.directiveProtocol;
+const directiveResults = {};
+for (const [name, overrides] of Object.entries(directiveProtocol.cases)) {
+  const scenario = buildDirectiveScenario(directiveProtocol, overrides);
+  directiveResults[name] = {
+    scenario,
+    result: reconcile(
+      directiveProtocol.canonicalQueue,
+      scenario.local,
+      scenario.github,
+      activeControlPlane,
+    ),
+  };
+}
+
+const directiveA = directiveResults.A_valid_directive_launches.result;
+assert.equal(directiveA.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveA.directiveLaunch, true);
+assert.equal(directiveA.status, 'IN_PROGRESS');
+assert.match(directiveA.ack, /ACTION: LAUNCHED/);
+
+const directiveB = directiveResults.B_success_ack_dedupes.result;
+assert.notEqual(directiveB.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.notEqual(directiveB.directiveLaunch, true);
+assert.equal(directiveB.action, 'WAIT_PR_CI');
+
+const directiveC = directiveResults.C_old_repair_plus_unique_directive.result;
+assert.equal(directiveC.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveC.directiveLaunch, true);
+
+const directiveD = directiveResults.D_stale_head_rejected.result;
+assert.equal(directiveD.action, 'REJECTED_STALE');
+assert.equal(directiveD.detail, 'HEAD_MISMATCH');
+assert.equal(directiveD.directiveLaunch, false);
+
+const directiveE = directiveResults.E_task_mismatch_rejected.result;
+assert.equal(directiveE.action, 'REJECTED_INVALID');
+assert.equal(directiveE.detail, 'TASK_MISMATCH');
+
+const directiveF = directiveResults.F_pr_mismatch_rejected.result;
+assert.equal(directiveF.action, 'REJECTED_STALE');
+assert.equal(directiveF.detail, 'PR_MISMATCH');
+
+const directiveG = directiveResults.G_null_pr_launches.result;
+assert.equal(directiveG.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveG.pr, null);
+assert.equal(directiveG.directiveLaunch, true);
+
+const directiveH = directiveResults.H_blocked_recovers.result;
+assert.equal(directiveH.previousStatus, 'BLOCKED');
+assert.equal(directiveH.status, 'IN_PROGRESS');
+assert.equal(directiveH.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+
+const directiveI = directiveResults.I_add_allowed_file.result;
+assert(
+  directiveI.effectiveEnvelope.allowedFiles.includes(
+    'apps/web/src/interview/new-interview-page.tsx',
+  ),
+);
+
+const scenarioJ = directiveResults.J_overlay_survives_new_head.scenario;
+const acksJ = successfulDirectiveAcks(
+  scenarioJ.github.commandBus.comments,
+  directiveProtocol.canonicalQueue[0].id,
+  activeControlPlane,
+);
+const envelopeJ = effectiveEnvelope(directiveProtocol.canonicalQueue[0], acksJ);
+assert(envelopeJ.allowedFiles.includes('apps/web/src/interview/new-interview-page.tsx'));
+assert.equal(scenarioJ.github.prs[0].head.sha, '2222222222222222222222222222222222222222');
+
+const directiveK = directiveResults.K_natural_language_inert.result;
+assert.notEqual(directiveK.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveK.action, 'WAIT_PR_CI');
+
+const scenarioL = directiveResults.L_review_context_effective.scenario;
+const contextL = currentReviewContext(
+  directiveProtocol.canonicalQueue[0],
+  scenarioL.github.prs[0],
+  scenarioL.github,
+  activeControlPlane,
+);
+assert.equal(contextL.kind, 'valid');
+assert.equal(contextL.fields.APPLIED_DIRECTIVES, 'DIR-PFC07-0001');
+assert(contextL.fields.ALLOWED_SCOPE.includes('apps/web/src/interview/new-interview-page.tsx'));
+
+const directiveM = directiveResults.M_new_directive_fences_old_pass.result;
+assert.equal(directiveM.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveM.reviewFence, true);
+const scenarioM = directiveResults.M_new_directive_fences_old_pass.scenario;
+const nextHeadPr = {
+  ...scenarioM.github.prs[0],
+  head: { ...scenarioM.github.prs[0].head, sha: '3333333333333333333333333333333333333333' },
+};
+assert.equal(currentVerdict(directiveProtocol.canonicalQueue[0], nextHeadPr).kind, 'none');
+
+const directiveN = directiveResults.N_directive_cannot_complete.result;
+assert.equal(directiveN.status, 'IN_PROGRESS');
+assert.notEqual(directiveN.status, 'DONE');
+assert.notEqual(directiveN.action, 'MERGE_ELIGIBLE_AFTER_FRESH_HEAD_RECHECK');
+
+const directiveO = directiveResults.O_legacy_deferred_header_runtime_active.result;
+assert.equal(directiveProtocol.canonicalQueue[0].task_card_status, 'DEFERRED');
+assert.equal(directiveO.status, 'IN_PROGRESS');
+assert.notEqual(directiveO.error, 'PRODUCT_AMBIGUITY');
+
+validateStateShape({
+  $schema: './dispatcher-state.schema.json',
+  queue: [
+    {
+      id: 'PFC-07-FULL-FLOW-E2E',
+      status: 'BLOCKED',
+      task_card: 'docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md',
+      worker_profile: 'luna-high',
+      depends_on: ['PFC-07A-QUERY-MODE-NAV-STATE'],
+      pr: 133,
+      next_task: null,
+    },
+  ],
+});
+assert.equal(directiveResults.P_blocked_with_known_pr.result.status, 'IN_PROGRESS');
+
+const directiveQ = directiveResults.Q_unauthorized_author.result;
+assert.equal(directiveQ.action, 'REJECTED_INVALID');
+assert.equal(directiveQ.detail, 'UNAUTHORIZED_AUTHOR');
+
+const directiveR = directiveResults.R_same_id_mutated_payload.result;
+assert.equal(directiveR.status, 'BLOCKED');
+assert.equal(directiveR.error, 'PRODUCT_AMBIGUITY');
+assert.equal(directiveR.detail, 'DIRECTIVE_ID_PAYLOAD_CONFLICT');
+
+const directiveS = directiveResults.S_half_null_pr_head.result;
+assert.equal(directiveS.action, 'REJECTED_INVALID');
+assert.equal(directiveS.detail, 'PR_HEAD_PAIR');
+
+const directiveT = directiveResults.T_ack_loss_worker_recovery.result;
+assert.equal(directiveT.action, 'EXECUTE_ARCHITECT_DIRECTIVE');
+assert.equal(directiveT.directiveLaunch, false);
+assert.match(directiveT.ack, /ACTION: APPLIED/);
+assert.equal(directiveT.workerRef, 'worker-0001');
+
+const scenarioU = directiveResults.U_stale_context_missing_directive.scenario;
+assert.equal(
+  currentReviewContext(
+    directiveProtocol.canonicalQueue[0],
+    scenarioU.github.prs[0],
+    scenarioU.github,
+    activeControlPlane,
+  ).kind,
+  'none',
+);
+assert.equal(
+  currentVerdict(
+    directiveProtocol.canonicalQueue[0],
+    scenarioU.github.prs[0],
+    scenarioU.github,
+    activeControlPlane,
+  ).kind,
+  'none',
+);
+
+const directiveV = directiveResults.V_three_launch_failures_stop.result;
+assert.equal(directiveV.status, 'BLOCKED');
+assert.equal(directiveV.error, 'WORKER_FAILED');
+assert.equal(directiveV.detail, 'DIRECTIVE_LAUNCH_ATTEMPTS_EXHAUSTED');
+assert.equal(directiveV.directiveLaunch, false);
+
 for (const result of Object.values(results)) {
   if (result.error) assert(stableErrors.has(result.error));
 }
 
-process.stdout.write(`${JSON.stringify({ result: 'PASS', cases: results }, null, 2)}\n`);
+process.stdout.write(
+  `${JSON.stringify(
+    {
+      result: 'PASS',
+      cases: results,
+      directiveCases: Object.fromEntries(
+        Object.entries(directiveResults).map(([name, value]) => [name, value.result]),
+      ),
+    },
+    null,
+    2,
+  )}\n`,
+);

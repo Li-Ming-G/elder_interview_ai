@@ -67,7 +67,7 @@
         {
           "if": {
             "properties": {
-              "status": { "enum": ["READY", "IN_PROGRESS", "BLOCKED", "DEFERRED"] }
+              "status": { "enum": ["READY", "DEFERRED"] }
             },
             "required": ["status"]
           },

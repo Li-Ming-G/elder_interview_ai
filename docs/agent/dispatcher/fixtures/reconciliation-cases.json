@@ -143,6 +143,62 @@
       "github": { "prs": [{ "number": 208, "title": "[P4C-02] repair", "body": "P4C-02", "head": { "ref": "codex/p4c-02", "sha": "3333333333333333333333333333333333333333" }, "base": { "ref": "main" }, "state": "open", "merged": false, "requiredCiAttempts": [{ "headSha": "3333333333333333333333333333333333333333", "runId": 2080, "status": "completed", "conclusion": "failure", "failedCheck": "lint" }], "comments": [] }], "main": { "status": "pending" } }
     }
   },
+  "directiveProtocol": {
+    "canonicalQueue": [
+      {
+        "id": "PFC-07-FULL-FLOW-E2E",
+        "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
+        "depends_on": ["PFC-07A-QUERY-MODE-NAV-STATE"],
+        "next_task": null,
+        "allowed_files": ["tests/e2e-auth/pfc-07.spec.ts", "docs/agent/product-flow-closure-matrix.md"],
+        "required_tests": ["pnpm test:e2e:auth -- --project=chromium"],
+        "accepted_contracts": [],
+        "task_card_status": "DEFERRED"
+      }
+    ],
+    "base": {
+      "runtime_status": "REVIEW",
+      "runtime_pr": 133,
+      "pr_number": 133,
+      "head": "8c9b7192376280b2e7860fc01bbb20afeb708802",
+      "directive": {
+        "DIRECTIVE_ID": "DIR-PFC07-0001",
+        "TASK": "PFC-07-FULL-FLOW-E2E",
+        "PR": "133",
+        "HEAD": "8c9b7192376280b2e7860fc01bbb20afeb708802",
+        "DECISION_CLASS": "IMPLEMENTATION_ONLY",
+        "ACTION": "IMPLEMENT",
+        "ADD_ALLOWED_FILES": "apps/web/src/interview/new-interview-page.tsx",
+        "ADD_REQUIRED_TESTS": "pnpm test:unit --run",
+        "INSTRUCTION": "Repair the first failing PFC-07 transition without changing product semantics.",
+        "KEEP_SAME_PR": "true"
+      }
+    },
+    "cases": {
+      "A_valid_directive_launches": {},
+      "B_success_ack_dedupes": { "successful_ack": true },
+      "C_old_repair_plus_unique_directive": { "existing_repair_marker": true },
+      "D_stale_head_rejected": { "directive_head": "1111111111111111111111111111111111111111" },
+      "E_task_mismatch_rejected": { "directive_task": "PFC-06-ERROR-AUTH-RESILIENCE" },
+      "F_pr_mismatch_rejected": { "directive_pr": "132" },
+      "G_null_pr_launches": { "runtime_status": "IN_PROGRESS", "runtime_pr": null, "pr_number": null, "head": null, "directive_pr": "null", "directive_head": "null", "keep_same_pr": "false" },
+      "H_blocked_recovers": { "runtime_status": "BLOCKED" },
+      "I_add_allowed_file": {},
+      "J_overlay_survives_new_head": { "successful_ack": true, "omit_directive": true, "head": "2222222222222222222222222222222222222222" },
+      "K_natural_language_inert": { "natural_language_only": true },
+      "L_review_context_effective": { "successful_ack": true, "omit_directive": true, "valid_review_context": true },
+      "M_new_directive_fences_old_pass": { "old_pass": true },
+      "N_directive_cannot_complete": {},
+      "O_legacy_deferred_header_runtime_active": {},
+      "P_blocked_with_known_pr": { "runtime_status": "BLOCKED" },
+      "Q_unauthorized_author": { "architect_login": "untrusted-commenter" },
+      "R_same_id_mutated_payload": { "mutated_duplicate": true },
+      "S_half_null_pr_head": { "directive_pr": "null" },
+      "T_ack_loss_worker_recovery": { "existing_worker": true },
+      "U_stale_context_missing_directive": { "successful_ack": true, "omit_directive": true, "stale_review_context": true, "old_pass": true },
+      "V_three_launch_failures_stop": { "launch_failures": 3 }
+    }
+  },
   "staleDoneCanonicalQueue": [
     { "id": "CKPT-A-LOCAL-START-01", "task_card": "docs/agent/tasks/CKPT-A-LOCAL-START-01.md", "depends_on": [], "next_task": null },
     { "id": "DISPATCHER-STALE-DONE-RECONCILIATION-01", "task_card": "docs/agent/tasks/DISPATCHER-STALE-DONE-RECONCILIATION-01.md", "depends_on": ["CKPT-A-LOCAL-START-01", "DISPATCHER-STALE-DONE-RECONCILIATION-PACK"], "next_task": "FIRST-INTERVIEW-LEGACY-DRAFT-RECOVERY-01" },
