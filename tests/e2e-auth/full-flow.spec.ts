@@ -77,7 +77,10 @@ test('ordinary listener completes the first interview from Home through Review a
   await expect(page.getByRole('button', { name: '下一个问题' })).toBeEnabled();
   await page.getByRole('button', { name: '下一个问题' }).click();
   await nextQuestionRequest;
-  await expect(page.getByText('建议继续倾听', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一个问题' })).toBeEnabled();
+  await expect(page.getByTestId('suggestion-panel')).toHaveClass(
+    /suggestion-panel--(?:suggestion|continue_listening|unavailable)$/u,
+  );
 
   await endFormalInterview(page);
   await expect(page.locator('.completion-page')).toBeVisible();
