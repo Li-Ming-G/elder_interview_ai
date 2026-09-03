@@ -44,7 +44,7 @@ const CONSENT_NOTICE = [
   '内容不会未经确认直接公开。',
 ] as const;
 
-const initialDocumentPath = `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}`;
+const initialDocumentPath = documentNavigationPath();
 let hasCommittedNewInterviewRoute = false;
 
 type PageState =
@@ -121,8 +121,7 @@ export function NewInterviewPage({
     initialNavigationIsReload.current &&
     intent === 'new' &&
     !hasCommittedNewInterviewRoute &&
-    `${globalThis.location.pathname}${globalThis.location.search}${globalThis.location.hash}` ===
-      initialDocumentPath
+    documentNavigationPath() === initialDocumentPath
       ? 'resume'
       : intent;
 
@@ -1381,4 +1380,12 @@ function isDocumentReload(): boolean {
   const navigation = globalThis.performance.getEntriesByType('navigation')[0] as
     PerformanceNavigationTiming | undefined;
   return navigation?.type === 'reload';
+}
+
+function documentNavigationPath(): string {
+  const navigation = globalThis.performance.getEntriesByType('navigation')[0] as
+    PerformanceNavigationTiming | undefined;
+  const url = navigation?.name === undefined ? globalThis.location.href : navigation.name;
+  const documentUrl = new URL(url, globalThis.location.href);
+  return `${documentUrl.pathname}${documentUrl.search}${documentUrl.hash}`;
 }
