@@ -170,10 +170,11 @@ test('refresh before formal start requires a fresh microphone check and keeps id
   await page.getByRole('button', { name: '建立会话并检查麦克风' }).click();
   await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
   const before = await readActiveWorkflowIdentity(page);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: '已有一条未完成访谈' })).toBeVisible();
+  await page.getByRole('button', { name: '返回工作区' }).click();
+  await expect(page.getByRole('button', { name: '继续未完成访谈' })).toBeVisible();
   await page.getByRole('button', { name: '继续未完成访谈' }).click();
   await expect(page).toHaveURL(/\/interviews\/new\?mode=resume$/u);
+  await page.reload();
   await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
   await expect(page.getByRole('button', { name: '检查当前页麦克风' })).toBeVisible();
   await expect(page.getByRole('button', { name: '录制授权' })).toBeDisabled();
