@@ -99,6 +99,7 @@ export function NewInterviewPage({
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
+  const initialNavigationIsReload = useRef<boolean | null>(null);
   const initializationIntent = useRef<'new' | 'resume' | null>(null);
   const initializationPromise = useRef<Promise<{
     newIntent: boolean;
@@ -110,11 +111,17 @@ export function NewInterviewPage({
   const captureUnsubscribe = useRef<(() => void) | null>(null);
   const mounted = useRef(true);
 
+  if (initialNavigationIsReload.current === null) {
+    initialNavigationIsReload.current = isDocumentReload();
+  }
+  const effectiveIntent = initialNavigationIsReload.current && intent === 'new' ? 'resume' : intent;
+
   useEffect(() => {
     let cancelled = false;
-    if (initializationIntent.current !== intent) {
-      initializationIntent.current = intent;
+    if (initializationIntent.current !== effectiveIntent) {
+      initializationIntent.current = effectiveIntent;
       initializationPromise.current = null;
+      setPage({ kind: 'loading' });
     }
     initializationPromise.current ??= (async (): Promise<{
       newIntent: boolean;
@@ -137,19 +144,20 @@ export function NewInterviewPage({
           const prestart = await recoverServerPrestartWorkflow(
             reconciliation.workflow,
             recoveryApi,
-            intent,
+            effectiveIntent,
           );
           if (prestart === null) {
-            if (intent === 'new') throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
+            if (effectiveIntent === 'new')
+              throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
             await store.retire(reconciliation.workflow);
             workflow = await store.create(actorId);
           } else {
             workflow = prestart;
-            newIntent = intent === 'new';
+            newIntent = effectiveIntent === 'new';
             if (!newIntent) resumed = true;
             await store.put(workflow);
           }
-        } else if (intent === 'new') {
+        } else if (effectiveIntent === 'new') {
           workflow = reconciliation.workflow;
           newIntent = true;
         } else {
@@ -176,7 +184,7 @@ export function NewInterviewPage({
     return (): void => {
       cancelled = true;
     };
-  }, [actorId, api, intent, store]);
+  }, [actorId, api, effectiveIntent, store]);
 
   useEffect(() => {
     mounted.current = true;
@@ -1353,4 +1361,10 @@ function workflowInitializationError(error: unknown): string {
     return '暂时无法核对未完成的新建访谈，尚未开始新的访谈；请返回工作区，待权威状态可用后重试。';
   }
   return '浏览器无法建立可靠的新建访谈记录，请检查存储权限后重试。';
+}
+
+function isDocumentReload(): boolean {
+  const navigation = globalThis.performance.getEntriesByType('navigation')[0] as
+    PerformanceNavigationTiming | undefined;
+  return navigation?.type === 'reload';
 }
