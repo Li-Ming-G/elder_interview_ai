@@ -275,7 +275,9 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
       webSocketEvents.push(`sent:${webSocketMessageType(payload)}`);
     });
     socket.on('framereceived', ({ payload }) => {
-      webSocketEvents.push(`received:${webSocketMessageType(payload)}`);
+      const type = webSocketMessageType(payload);
+      const code = webSocketMessageCode(payload);
+      webSocketEvents.push(`received:${type}${code === null ? '' : `:${code}`}`);
     });
     socket.on('socketerror', (error) => webSocketEvents.push(`error:${error}`));
     socket.on('close', () => webSocketEvents.push('closed'));
@@ -403,6 +405,16 @@ function webSocketMessageType(payload: string | Buffer): string {
     return typeof parsed.type === 'string' ? parsed.type : 'unknown';
   } catch {
     return 'invalid-json';
+  }
+}
+
+function webSocketMessageCode(payload: string | Buffer): string | null {
+  if (typeof payload !== 'string') return null;
+  try {
+    const parsed = JSON.parse(payload) as { payload?: { code?: unknown } };
+    return typeof parsed.payload?.code === 'string' ? parsed.payload.code : null;
+  } catch {
+    return null;
   }
 }
 
