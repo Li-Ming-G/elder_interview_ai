@@ -195,7 +195,7 @@ test('calibration skip keeps recording usable, exposes suggestion retry, and gua
   let suggestionReads = 0;
   await page.route('**/api/v1/sessions/*/suggestions/current', async (route) => {
     suggestionReads += 1;
-    if (suggestionReads === 1) {
+    if (suggestionReads <= 2) {
       await route.fulfill({
         contentType: 'application/json',
         json: { code: 'AI_PROVIDER_UNAVAILABLE', message: 'synthetic suggestion failure' },
