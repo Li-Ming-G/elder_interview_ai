@@ -163,6 +163,7 @@ test('refresh before formal start requires a fresh microphone check and keeps id
   await page.getByLabel('姓名、昵称或项目代号').fill('虚构刷新恢复流程');
   await page.getByRole('button', { name: '创建项目并继续' }).click();
   await page.getByRole('button', { name: '建立会话并检查麦克风' }).click();
+  await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
   const before = await readActiveWorkflowIdentity(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: '完整朗读，再请长者明确同意' })).toBeVisible();
