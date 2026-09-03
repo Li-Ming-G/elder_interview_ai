@@ -53,7 +53,7 @@ PFC-01-NEW-INTENT-TRUTH          [DONE]
   -> PFC-05-ROUTE-ACTION-CLOSURE [DONE]
   -> PFC-06-ERROR-AUTH-RESILIENCE [DONE]
   -> PFC-07A-QUERY-MODE-NAV-STATE [DONE]
-  -> PFC-07-FULL-FLOW-E2E         [IN_PROGRESS]
+  -> PFC-07-FULL-FLOW-E2E         [DONE]
   -> null
 ```
 
@@ -63,7 +63,7 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 `PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`; PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`, with exact-current-main CI run `33595083657` succeeded.
 
-PFC-07 PR #133 remains open at exact head `8c9b7192376280b2e7860fc01bbb20afeb708802`; exact-head CI run `33659276060` failed in the authenticated browser flow. Its matching legacy `DISPATCHER_REPAIR_V1` event has already been launched and is stalled. No new Directive has been published; the cutover itself does not repair the product defect.
+PFC-07 PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c` was merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded. The task is complete.
 
 `PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded. `PFC-07-FULL-FLOW-E2E` is now the active `IN_PROGRESS` task, resuming existing PR #133.
 
@@ -129,7 +129,7 @@ Authorized malformed/stale Directives receive deterministic rejection evidence. 
 
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
 - `DONE`: `PFC-07A-QUERY-MODE-NAV-STATE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded.
-- `IN_PROGRESS`: `PFC-07-FULL-FLOW-E2E`, existing PR #133 is preserved for resume.
+- `DONE`: `PFC-07-FULL-FLOW-E2E` through PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded.
 - `BLOCKED`: none in the Product Flow Closure pack after the Owner resolved the reported scope ambiguity by authorizing PFC-07A.
 - `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
 - `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
@@ -143,4 +143,4 @@ Product Owner decisions and exact Accepted Contracts -> base Task Card identity/
 
 ## Next step
 
-PFC-07A is complete. PFC-07-FULL-FLOW-E2E remains canonical `IN_PROGRESS` on PR #133. After this migration reaches `main`, a real, authenticated Architect Directive may authorize its implementation-only repair under the same task and PR; this migration publishes no such Directive.
+PFC-07A and PFC-07-FULL-FLOW-E2E are complete. PFC-07-FULL-FLOW-E2E is canonical `DONE` on PR #133 after merge commit `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed` and exact-current-main CI run `33794204208` succeeded. Its predefined `next_task` is `null`.

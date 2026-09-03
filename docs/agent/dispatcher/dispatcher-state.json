@@ -388,7 +388,7 @@
     },
     {
       "id": "PFC-07-FULL-FLOW-E2E",
-      "status": "BLOCKED",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/PFC-07-FULL-FLOW-E2E.md",
       "worker_profile": "luna-high",
       "depends_on": ["PFC-07A-QUERY-MODE-NAV-STATE"],
