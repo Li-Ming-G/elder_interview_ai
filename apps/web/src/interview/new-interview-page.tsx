@@ -44,9 +44,6 @@ const CONSENT_NOTICE = [
   '内容不会未经确认直接公开。',
 ] as const;
 
-const initialDocumentPath = documentNavigationPath();
-let hasCommittedNewInterviewRoute = false;
-
 type PageState =
   | { kind: 'loading' }
   | { authenticationRequired: boolean; kind: 'error'; message: string }
@@ -102,10 +99,6 @@ export function NewInterviewPage({
   const [authenticationRequired, setAuthenticationRequired] = useState(false);
   const [unknownReplayGeneration, setUnknownReplayGeneration] = useState(0);
   const actionLock = useRef(false);
-  const initialNavigationIsReload = useRef<boolean | null>(null);
-  const effectiveIntentRef = useRef<'new' | 'resume' | undefined>(undefined);
-  const lastIntent = useRef<'new' | 'resume' | undefined>(undefined);
-  const initializationIntent = useRef<'new' | 'resume' | null>(null);
   const initializationPromise = useRef<Promise<{
     newIntent: boolean;
     resumed: boolean;
@@ -116,32 +109,8 @@ export function NewInterviewPage({
   const captureUnsubscribe = useRef<(() => void) | null>(null);
   const mounted = useRef(true);
 
-  if (initialNavigationIsReload.current === null) {
-    initialNavigationIsReload.current = isDocumentReload();
-  }
-  if (effectiveIntentRef.current === undefined || lastIntent.current !== intent) {
-    lastIntent.current = intent;
-    effectiveIntentRef.current =
-      initialNavigationIsReload.current &&
-      intent === 'new' &&
-      !hasCommittedNewInterviewRoute &&
-      documentNavigationPath() === initialDocumentPath
-        ? 'resume'
-        : intent;
-  }
-  const effectiveIntent = effectiveIntentRef.current;
-
-  useEffect(() => {
-    hasCommittedNewInterviewRoute = true;
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
-    if (initializationIntent.current !== effectiveIntent) {
-      initializationIntent.current = effectiveIntent;
-      initializationPromise.current = null;
-      setPage({ kind: 'loading' });
-    }
     initializationPromise.current ??= (async (): Promise<{
       newIntent: boolean;
       resumed: boolean;
@@ -163,20 +132,19 @@ export function NewInterviewPage({
           const prestart = await recoverServerPrestartWorkflow(
             reconciliation.workflow,
             recoveryApi,
-            effectiveIntent,
+            intent,
           );
           if (prestart === null) {
-            if (effectiveIntent === 'new')
-              throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
+            if (intent === 'new') throw new Error('NEW_INTERVIEW_DISCARD_BLOCKED_ADVANCED');
             await store.retire(reconciliation.workflow);
             workflow = await store.create(actorId);
           } else {
             workflow = prestart;
-            newIntent = effectiveIntent === 'new';
+            newIntent = intent === 'new';
             if (!newIntent) resumed = true;
             await store.put(workflow);
           }
-        } else if (effectiveIntent === 'new') {
+        } else if (intent === 'new') {
           workflow = reconciliation.workflow;
           newIntent = true;
         } else {
@@ -203,7 +171,7 @@ export function NewInterviewPage({
     return (): void => {
       cancelled = true;
     };
-  }, [actorId, api, effectiveIntent, store]);
+  }, [actorId, api, intent, store]);
 
   useEffect(() => {
     mounted.current = true;
@@ -1380,18 +1348,4 @@ function workflowInitializationError(error: unknown): string {
     return '暂时无法核对未完成的新建访谈，尚未开始新的访谈；请返回工作区，待权威状态可用后重试。';
   }
   return '浏览器无法建立可靠的新建访谈记录，请检查存储权限后重试。';
-}
-
-function isDocumentReload(): boolean {
-  const navigation = globalThis.performance.getEntriesByType('navigation')[0] as
-    PerformanceNavigationTiming | undefined;
-  return navigation?.type === 'reload';
-}
-
-function documentNavigationPath(): string {
-  const navigation = globalThis.performance.getEntriesByType('navigation')[0] as
-    PerformanceNavigationTiming | undefined;
-  const url = navigation?.name === undefined ? globalThis.location.href : navigation.name;
-  const documentUrl = new URL(url, globalThis.location.href);
-  return `${documentUrl.pathname}${documentUrl.search}${documentUrl.hash}`;
 }

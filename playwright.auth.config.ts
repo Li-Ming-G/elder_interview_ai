@@ -10,7 +10,6 @@ const baseURL = `http://127.0.0.1:${String(webPort)}`;
 export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   testDir: './tests/e2e-auth',
-  workers: 1,
   webServer: [
     {
       command: 'node apps/api/dist/main.js',
@@ -18,7 +17,6 @@ export default defineConfig({
         API_HOST: '127.0.0.1',
         API_PORT: String(apiPort),
         APP_ENV: 'test',
-        ASR_PROVIDER: 'deterministic_fixture',
         AUTH_ALLOWED_ORIGINS: baseURL,
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
         AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',

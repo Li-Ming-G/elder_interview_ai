@@ -504,9 +504,7 @@ describe('WorkbenchShell', () => {
     }
     if (status === 'completed') {
       const completedHeading = screen.getByRole('heading', { name: '录音和转录已完成' });
-      await waitFor(() => {
-        expect(completedHeading).toBe(document.activeElement);
-      });
+      expect(completedHeading).toBe(document.activeElement);
       expect(screen.getByRole('button', { name: '查看回顾' })).toBeTruthy();
       expect(screen.getByRole('button', { name: '返回工作区' })).toBeTruthy();
       expect(screen.queryByRole('heading', { name: '当前对话' })).toBeNull();
