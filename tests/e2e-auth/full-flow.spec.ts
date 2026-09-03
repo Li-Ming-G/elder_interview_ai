@@ -388,6 +388,7 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
         onmessage: ((event: MessageEvent<{ pcm: ArrayBuffer; type: string }>) => void) | null;
       };
       private readonly timers: ReturnType<typeof globalThis.setTimeout>[] = [];
+      private framesEmitted = false;
       public constructor() {
         this.port = {
           close: (): void => {
@@ -406,7 +407,8 @@ async function installDeterministicBrowserMedia(page: Page): Promise<void> {
         this.port.close();
       }
       public emitFrames(): void {
-        if (!pcmFramesReleased) return;
+        if (!pcmFramesReleased || this.framesEmitted) return;
+        this.framesEmitted = true;
         for (const delay of [100, 180]) {
           this.timers.push(
             globalThis.setTimeout(() => {

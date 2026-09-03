@@ -353,7 +353,14 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.goto(
     `/engineering-harness.html?realtime_harness=1&session_id=${encodeURIComponent(sessionId)}`,
   );
-  await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
+  try {
+    await expect(page.getByTestId('realtime-connection')).toHaveText('connected');
+  } catch (error) {
+    throw new Error(
+      `initial realtime connection failed: ${webSocketEvents.join(',')}; ${await page.locator('main').innerText()}`,
+      { cause: error },
+    );
+  }
   await page.getByRole('button', { name: '发送一帧合成 PCM' }).click();
   await expect.poll(() => webSocketEvents).toContain('received:asr.interim');
   await expect(page.getByTestId('realtime-finals').locator('li')).toHaveCount(1);
