@@ -199,7 +199,21 @@
       "V_three_launch_failures_stop": { "launch_failures": 3 },
       "W_unauthorized_before_valid": { "unauthorized_before_valid": true },
       "X_malformed_before_valid": { "malformed_before_valid": true },
-      "Y_rejected_stale_before_valid": { "rejected_stale_before_valid": true }
+      "Y_rejected_stale_before_valid": { "rejected_stale_before_valid": true },
+      "Z_launch_without_stable_ref_attempt_1": { "launch_returns_stable_ref": false },
+      "AA_failure_then_late_worker": { "launch_failures": 1, "existing_worker": true },
+      "AB_attempt_2_launch_allowed": { "launch_failures": 1 },
+      "AC_attempt_2_fails": { "launch_failures": 1, "launch_returns_stable_ref": false },
+      "AD_attempt_3_launch_allowed": { "launch_failures": 2 },
+      "AE_attempt_3_failure_blocks": { "launch_failures": 2, "launch_returns_stable_ref": false },
+      "AF_success_ack_preserves_envelope": { "successful_ack": true, "omit_directive": true },
+      "AG_existing_pfc07_directive_remains_valid": {
+        "runtime_status": "IN_PROGRESS",
+        "directive_id": "PFC07-REPAIR-20260903-01",
+        "add_allowed_files": "none",
+        "add_required_tests": "pnpm test:e2e:auth -- --project=chromium",
+        "instruction": "Recover the stalled same-PR repair by reproducing the exact-head authenticated Chromium E2E failure, applying the smallest implementation-only fix within the effective execution envelope without changing Owner-frozen product behavior, updating PR #133, and rerunning the required checks."
+      }
     }
   },
   "prMarkerAuthentication": {

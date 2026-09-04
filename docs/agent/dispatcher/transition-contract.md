@@ -105,11 +105,23 @@ For a valid Directive:
    task identity, PR binding, dependencies, or `next_task`;
 4. if runtime is `IN_PROGRESS` or `REVIEW`, retain the task and return it to
    `IN_PROGRESS` as needed;
-5. discover the deterministic Directive Worker identity; create exactly one
-   `luna-high` Worker if absent, otherwise recover it after ACK loss;
-6. publish the success ACK with digest, `WORKER_REF`, and complete effective
-   overlay snapshots;
-7. end the pulse.
+5. scan Codex tasks for the deterministic Directive Worker identity before any
+   launch decision; if found, publish `APPLIED` with its stable `WORKER_REF` and
+   do not launch again;
+6. if absent, read the authenticated matching `LAUNCH_FAILED` ACK sequence; if
+   fewer than three attempts have failed, create exactly one `luna-high` Worker
+   using the next monotonically numbered attempt;
+7. publish `LAUNCHED` only when creation returns a stable Worker reference. If
+   the native operation ends without one, publish `LAUNCH_FAILED`,
+   `WORKER_REF: none`, and `WORKER_LAUNCH_FAILED_ATTEMPT_<n>` in that pulse;
+8. after a third failed attempt with no rediscovered Worker, persist
+   `BLOCKED / WORKER_FAILED`; otherwise end the pulse after its durable ACK.
+
+Native creation returning no stable reference is not success and cannot survive
+as an undurable waiting state. `WORKER_SETUP_PENDING` is not a state, action, or
+ACK in this contract. A later pulse always rescans first, recovers a late Worker
+as `APPLIED`, or advances the bounded attempt sequence. `LAUNCH_FAILED` does not
+consume the Directive.
 
 `DEFERRED` and `DONE` cannot be revived by Directive. A null `PR`/`HEAD` pair is
 valid only when no canonical PR is bound or durably discoverable and supports
@@ -196,6 +208,9 @@ one bounded no-code rerun; a second failure needs scoped repair or a concrete
 | `READY` | valid Directive | `IN_PROGRESS` | Persist, launch deterministic Directive Worker, ACK, end pulse |
 | `IN_PROGRESS` | unique PR discovered | `REVIEW` or `IN_PROGRESS` | Bind PR and reconcile exact-head facts |
 | `IN_PROGRESS` | valid Directive, including `PR:null` | `IN_PROGRESS` | Launch/recover current Worker, ACK, end pulse |
+| `IN_PROGRESS` | Directive native launch ends without stable Worker ref, attempt 1 or 2 | `IN_PROGRESS` | ACK numbered `LAUNCH_FAILED`; retry only after next-pulse deterministic scan |
+| `IN_PROGRESS` | late deterministic Directive Worker discovered | `IN_PROGRESS` | ACK `APPLIED` with stable ref; do not duplicate launch |
+| `IN_PROGRESS` | Directive native launch attempt 3 ends without stable Worker ref and scan still finds none | `BLOCKED` | ACK attempt 3 as `LAUNCH_FAILED`; persist `WORKER_FAILED` |
 | `REVIEW` | valid Directive | `IN_PROGRESS` | Fence old review/PASS, launch same-task Worker, ACK, end pulse |
 | `BLOCKED` | valid implementation Directive | `IN_PROGRESS` | Mechanically recover same task/PR, launch Worker, ACK, end pulse |
 | `REVIEW` | exact-head PR CI pending/missing | `REVIEW` | Wait |
