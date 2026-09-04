@@ -397,7 +397,7 @@
     },
     {
       "id": "RIU-01-DIRECTOR-LANDING",
-      "status": "BLOCKED",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/RIU-01-DIRECTOR-LANDING.md",
       "worker_profile": "luna-high",
       "depends_on": ["REAL-INTERVIEW-USABILITY-01", "PFC-07-FULL-FLOW-E2E", "checkpoint-a-configurable-director-v2@DURABLE_REQUIRED"],
