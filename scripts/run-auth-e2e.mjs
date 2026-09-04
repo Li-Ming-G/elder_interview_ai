@@ -41,6 +41,5 @@ run(process.execPath, [
   'test',
   '--config',
   'playwright.auth.config.ts',
-  '--workers=1',
   ...forwarded,
 ]);
