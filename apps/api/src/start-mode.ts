@@ -9,7 +9,7 @@ export const CHECKPOINT_A_START_ARGUMENT = '--checkpoint-a' as const;
 
 /**
  * The generic API entry point has no networked Director. Checkpoint A is selected only by the
- * dedicated command-line argument; an ambient OPENROUTER_API_KEY is never enough.
+ * dedicated command-line argument; ambient Director credentials are never enough.
  */
 export function resolveApiStartMode(
   argv: readonly string[] = process.argv.slice(2),

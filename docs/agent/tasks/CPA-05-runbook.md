@@ -19,9 +19,12 @@ ordinary real interview data.
    It changes only recognized local `DATABASE_URL`/`TEST_DATABASE_URL` host ports and preserves
    the rest of the file. If it reports an ambiguous URL, stop and correct that local configuration
    deliberately; do not work around it with a process-level `DATABASE_URL` override.
-3. Put the already provisioned Tencent realtime ASR configuration and the new
-   `OPENROUTER_API_KEY` in a local-only `.env.local`. Do not commit it, print it, or paste it into
-   a terminal transcript. The only new secret for this checkpoint is `OPENROUTER_API_KEY`.
+3. Put the already provisioned Tencent realtime ASR configuration and the active Director
+   configuration in the single local-only `.env.local` described by
+   [`docs/local-ai-model-configuration.md`](../../local-ai-model-configuration.md). Use exactly one
+   documented three-variable `ANTHROPIC_*` or `OPENAI_*` group, or the optional advanced
+   `AI_DIRECTOR_*` group. Do not commit or print that file, paste it into a terminal transcript, or
+   put a real key in tracked documentation.
 4. The Tencent ASR values must be real configuration for the accepted ASR path. The deterministic
    fixture is rejected by the checkpoint start command and cannot prove audio reached the Director.
 
@@ -57,13 +60,13 @@ and play the selected public audio. Synthetic identities such as `listener-a@exa
 The visible path is:
 
 ```text
-audio -> real finalized ASR transcript -> accepted P1-P6 runtime -> Owner Prompt -> OpenRouter/Ox
+audio -> real finalized ASR transcript -> accepted P1-P6 runtime -> Owner Prompt -> configured Director API
 -> current Question Presentation -> SuggestionPanel
 ```
 
 The SuggestionPanel must visibly show a next question, `继续倾听`, or `问题建议暂不可用` on an
 accepted fail-closed error. Click `下一个问题` once to verify that manual-next uses the same
-OpenRouter-backed Director path. Recording and finalized transcript must continue if the provider
+configured Director path. Recording and finalized transcript must continue if the provider
 times out or fails.
 
 No backend JSON, logs, Decision Trace, prompt, context, transcript, evidence, provider body or

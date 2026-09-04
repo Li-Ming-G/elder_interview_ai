@@ -1,6 +1,10 @@
 # Checkpoint A OpenRouter Director V1
 
-Status: `ACCEPTED / OWNER-AUTHORIZED / CHECKPOINT-A-ONLY`
+Status: `SUPERSEDED BY checkpoint-a-configurable-director-v2.md`
+
+This historical binding was superseded after `stealth/ox-alpha` became unavailable. It remains in
+the repository as evidence of the original Checkpoint A decision and must not be used as current
+runtime configuration.
 
 ## Authority and purpose
 
