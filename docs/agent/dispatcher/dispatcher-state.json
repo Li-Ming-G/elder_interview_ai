@@ -397,16 +397,16 @@
     },
     {
       "id": "RIU-01-DIRECTOR-LANDING",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/RIU-01-DIRECTOR-LANDING.md",
       "worker_profile": "luna-high",
       "depends_on": ["REAL-INTERVIEW-USABILITY-01", "PFC-07-FULL-FLOW-E2E", "checkpoint-a-configurable-director-v2@DURABLE_REQUIRED"],
-      "pr": null,
+      "pr": 142,
       "next_task": "RIU-02-CALIBRATION-USABLE"
     },
     {
       "id": "RIU-02-CALIBRATION-USABLE",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/RIU-02-CALIBRATION-USABLE.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-01-DIRECTOR-LANDING"],

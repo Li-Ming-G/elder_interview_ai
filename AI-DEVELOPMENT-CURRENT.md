@@ -39,8 +39,8 @@ Development Pack:
 Predefined queue:
 
 ```text
-RIU-01-DIRECTOR-LANDING          [IN_PROGRESS]
-  -> RIU-02-CALIBRATION-USABLE   [DEFERRED]
+RIU-01-DIRECTOR-LANDING          [DONE]
+  -> RIU-02-CALIBRATION-USABLE   [READY]
   -> RIU-03-AI-STATUS-CONTRACT   [DEFERRED]
   -> RIU-04-AI-STATUS-UI         [DEFERRED]
   -> RIU-05-REPO-HEALTH          [DEFERRED]
@@ -101,11 +101,11 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 ## Current task truth
 
-`RIU-01-DIRECTOR-LANDING` is the first task of the new pack and is formally issued; canonical runtime state is now `IN_PROGRESS` under the authorized Directive Worker. The Product Flow Closure dependency baseline is satisfied: `PFC-07-FULL-FLOW-E2E` is `DONE` through PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`, with successful post-merge main CI.
+`RIU-01-DIRECTOR-LANDING` is complete: Architect PASS was issued for exact head `ce2381b8babc670de29f10aa25c6cfff1fd68eee`, PR #142 was merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`, and exact-current-main CI run `33881518632` succeeded. `RIU-02-CALIBRATION-USABLE` is now the sole eligible `READY` task.
 
-The declared Accepted Contract `docs/contracts/checkpoint-a-configurable-director-v2.md` is now durable on GitHub main. The authorized current-task Directive `RIU01-SEED-20260904-01` launched the deterministic Worker from durable seed `wip/riu-01-director-v2@d4a311c0ce04ec5f51f1e34a1f0a629fe259b751`; the same RIU-01 task remains active and no new implementation task is required.
+The declared Accepted Contract `docs/contracts/checkpoint-a-configurable-director-v2.md` is durable on GitHub main. The authorized current-task Directive `RIU01-SEED-20260904-01` launched the deterministic Worker from durable seed `wip/riu-01-director-v2@d4a311c0ce04ec5f51f1e34a1f0a629fe259b751`; its effective overlay remains recorded through stage completion.
 
-`RIU-01` lands the Checkpoint A Configurable Director V2 implementation, corrects the `anthropic_messages` profile to send the documented `x-api-key` authentication header alongside the existing bearer header, and adds the non-blocking startup binding diagnostic.
+`RIU-01` landed the Checkpoint A Configurable Director V2 implementation, corrected the `anthropic_messages` profile to send the documented `x-api-key` authentication header alongside the existing bearer header, and added the non-blocking startup binding diagnostic.
 
 Task source:
 
