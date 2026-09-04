@@ -23,7 +23,10 @@ describe('API start mode', () => {
       loadApiConfigForStart(
         {
           ...baseEnvironment,
-          OPENROUTER_API_KEY: 'ambient-fictional-key',
+          AI_DIRECTOR_API_KEY: 'ambient-fictional-key',
+          AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+          AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+          AI_DIRECTOR_MODEL: 'deepseek-chat',
         },
         [],
       ),
@@ -34,7 +37,13 @@ describe('API start mode', () => {
     expect(resolveApiStartMode([CHECKPOINT_A_START_ARGUMENT])).toBe('checkpoint_a');
     expect(() =>
       loadApiConfigForStart(
-        { ...baseEnvironment, OPENROUTER_API_KEY: 'fictional-openrouter-key' },
+        {
+          ...baseEnvironment,
+          AI_DIRECTOR_API_KEY: 'fictional-director-key',
+          AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+          AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+          AI_DIRECTOR_MODEL: 'deepseek-chat',
+        },
         [CHECKPOINT_A_START_ARGUMENT],
       ),
     ).toThrow('ASR_PROVIDER');
@@ -43,8 +52,11 @@ describe('API start mode', () => {
       loadApiConfigForStart(
         {
           ...baseEnvironment,
+          AI_DIRECTOR_API_KEY: 'fictional-director-key',
+          AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+          AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+          AI_DIRECTOR_MODEL: 'deepseek-chat',
           ASR_PROVIDER: 'tencent_realtime_asr_v2',
-          OPENROUTER_API_KEY: 'fictional-openrouter-key',
           TENCENT_ASR_APP_ID: '1250000000',
           TENCENT_ASR_SECRET_ID: 'fictional-tencent-id',
           TENCENT_ASR_SECRET_KEY: 'fictional-tencent-key',
@@ -53,7 +65,7 @@ describe('API start mode', () => {
       ),
     ).toMatchObject({
       asr: { provider: 'tencent_realtime_asr_v2' },
-      checkpointA: { mode: 'checkpoint_a', model: 'stealth/ox-alpha' },
+      checkpointA: { mode: 'checkpoint_a', model: 'deepseek-chat' },
     });
   });
 

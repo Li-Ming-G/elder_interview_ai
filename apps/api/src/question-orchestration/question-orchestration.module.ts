@@ -3,10 +3,10 @@ import { type DynamicModule, Module } from '@nestjs/common';
 
 import { API_CONFIG } from '../api-config.js';
 import {
-  OPENROUTER_FETCH,
-  OpenRouterQuestionDirector,
-  type OpenRouterFetch,
-} from './openrouter-question-director.js';
+  CONFIGURED_DIRECTOR_FETCH,
+  ConfiguredQuestionDirector,
+  type ConfiguredDirectorFetch,
+} from './configured-question-director.js';
 import { QuestionDirectorContract } from './question-director-contract.js';
 import {
   LocalTestQuestionDirector,
@@ -34,7 +34,7 @@ export function createQuestionOrchestrationModule(
   const localOrTest = ['local', 'test'].includes(config.appEnv);
   const director =
     config.checkpointA.mode === 'checkpoint_a'
-      ? OpenRouterQuestionDirector
+      ? ConfiguredQuestionDirector
       : localOrTest
         ? LocalTestQuestionDirector
         : UnavailableQuestionDirector;
@@ -53,7 +53,7 @@ export function createQuestionOrchestrationModule(
     module: QuestionOrchestrationModule,
     providers: [
       { provide: API_CONFIG, useValue: config },
-      { provide: OPENROUTER_FETCH, useValue: globalOpenRouterFetch },
+      { provide: CONFIGURED_DIRECTOR_FETCH, useValue: globalConfiguredDirectorFetch },
       director,
       {
         provide: QuestionDirector,
@@ -73,4 +73,5 @@ export function createQuestionOrchestrationModule(
   };
 }
 
-const globalOpenRouterFetch: OpenRouterFetch = (input, init) => globalThis.fetch(input, init);
+const globalConfiguredDirectorFetch: ConfiguredDirectorFetch = (input, init) =>
+  globalThis.fetch(input, init);

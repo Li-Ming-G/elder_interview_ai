@@ -113,6 +113,28 @@ describe('QuestionDirectorContract', () => {
     expect(contract.modelConfigVersion).toBe(DIRECTOR_MODEL_CONFIG_VERSION);
   });
 
+  it('binds Checkpoint A provenance to the effective non-secret Director configuration', () => {
+    const base = {
+      allowFallback: false,
+      apiProfile: 'openai_chat_completions',
+      endpoint: 'https://gateway.example.test/v1/chat/completions',
+      mode: 'checkpoint_a' as const,
+      model: 'deepseek-chat',
+      provider: 'configured_api',
+      requireParameters: true,
+      responseFormat: 'json_object',
+    };
+    const first = new QuestionDirectorContract({ modelConfig: base, promptBundle: 'checkpoint_a' });
+    const second = new QuestionDirectorContract({
+      modelConfig: { ...base, model: 'deepseek-reasoner' },
+      promptBundle: 'checkpoint_a',
+    });
+
+    expect(first.modelConfigDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(second.modelConfigDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.modelConfigDigest).not.toBe(second.modelConfigDigest);
+  });
+
   it('fails closed when formal bundle bytes are mutated instead of retaining identity', () => {
     const root = copyPromptFixtures();
     try {

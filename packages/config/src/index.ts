@@ -2,10 +2,20 @@ import { z } from 'zod';
 
 const appEnvironmentSchema = z.enum(['local', 'test', 'staging', 'production']);
 
-export const CHECKPOINT_A_OPENROUTER_ENDPOINT =
-  'https://openrouter.ai/api/v1/chat/completions' as const;
-export const CHECKPOINT_A_OPENROUTER_MODEL = 'stealth/ox-alpha' as const;
-export const CHECKPOINT_A_OPENROUTER_SECRET_REF = 'OPENROUTER_API_KEY' as const;
+export const CHECKPOINT_A_DIRECTOR_ENDPOINT_REF = 'AI_DIRECTOR_ENDPOINT' as const;
+export const CHECKPOINT_A_DIRECTOR_MODEL_REF = 'AI_DIRECTOR_MODEL' as const;
+export const CHECKPOINT_A_DIRECTOR_PROFILE_REF = 'AI_DIRECTOR_API_PROFILE' as const;
+export const CHECKPOINT_A_DIRECTOR_SECRET_REF = 'AI_DIRECTOR_API_KEY' as const;
+export const CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF = 'OPENROUTER_API_KEY' as const;
+export const CHECKPOINT_A_ANTHROPIC_BASE_URL_REF = 'ANTHROPIC_BASE_URL' as const;
+export const CHECKPOINT_A_ANTHROPIC_MODEL_REF = 'ANTHROPIC_MODEL' as const;
+export const CHECKPOINT_A_ANTHROPIC_SECRET_REF = 'ANTHROPIC_AUTH_TOKEN' as const;
+export const CHECKPOINT_A_OPENAI_BASE_URL_REF = 'OPENAI_BASE_URL' as const;
+export const CHECKPOINT_A_OPENAI_MODEL_REF = 'OPENAI_MODEL' as const;
+export const CHECKPOINT_A_OPENAI_SECRET_REF = 'OPENAI_API_KEY' as const;
+
+export type CheckpointADirectorApiProfile =
+  'anthropic_messages' | 'openai_chat_completions' | 'openrouter_chat_completions';
 
 export type CheckpointAStartMode = 'generic' | 'checkpoint_a';
 
@@ -15,22 +25,27 @@ export interface CheckpointADirectorDisabledConfig {
   readonly networkEnabled: false;
 }
 
-export interface CheckpointAOpenRouterConfig {
+export interface CheckpointAConfiguredDirectorConfig {
   readonly allowFallback: false;
-  readonly endpoint: typeof CHECKPOINT_A_OPENROUTER_ENDPOINT;
-  readonly model: typeof CHECKPOINT_A_OPENROUTER_MODEL;
+  readonly apiProfile: CheckpointADirectorApiProfile;
+  readonly endpoint: string;
+  readonly model: string;
   readonly mode: 'checkpoint_a';
   readonly networkEnabled: true;
-  readonly provider: 'openrouter';
+  readonly provider: 'configured_api';
   readonly requireParameters: true;
-  readonly responseFormat: 'json_object';
-  readonly secretRef: typeof CHECKPOINT_A_OPENROUTER_SECRET_REF;
+  readonly responseFormat: 'json_object' | 'prompt_only_json';
+  readonly secretRef:
+    | typeof CHECKPOINT_A_DIRECTOR_SECRET_REF
+    | typeof CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF
+    | typeof CHECKPOINT_A_ANTHROPIC_SECRET_REF
+    | typeof CHECKPOINT_A_OPENAI_SECRET_REF;
   /** Server-only credential. It is deliberately non-enumerable and redacted by toJSON(). */
   readonly apiKey: string;
 }
 
 export type CheckpointADirectorConfig =
-  CheckpointADirectorDisabledConfig | CheckpointAOpenRouterConfig;
+  CheckpointADirectorDisabledConfig | CheckpointAConfiguredDirectorConfig;
 
 export interface ApiConfigLoadOptions {
   /** This option is server-owned; browser input must never be used to select a start mode. */
@@ -224,35 +239,41 @@ export function loadCheckpointADirectorConfig(
     throw new ConfigValidationError(['APP_ENV']);
   }
 
-  const apiKey = environment[CHECKPOINT_A_OPENROUTER_SECRET_REF];
-  if (apiKey === undefined || apiKey.trim().length === 0) {
-    throw new ConfigValidationError([CHECKPOINT_A_OPENROUTER_SECRET_REF]);
-  }
-
-  return createCheckpointAOpenRouterConfig(apiKey);
+  return createCheckpointAConfiguredDirectorConfig(resolveCheckpointADirectorInput(environment));
 }
 
 function isCheckpointAStartMode(value: unknown): value is CheckpointAStartMode {
   return value === 'generic' || value === 'checkpoint_a';
 }
 
-function createCheckpointAOpenRouterConfig(apiKey: string): CheckpointAOpenRouterConfig {
+function createCheckpointAConfiguredDirectorConfig(input: {
+  apiKey: string;
+  apiProfile: CheckpointADirectorApiProfile;
+  endpoint: string;
+  model: string;
+  secretRef:
+    | typeof CHECKPOINT_A_DIRECTOR_SECRET_REF
+    | typeof CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF
+    | typeof CHECKPOINT_A_ANTHROPIC_SECRET_REF
+    | typeof CHECKPOINT_A_OPENAI_SECRET_REF;
+}): CheckpointAConfiguredDirectorConfig {
   const config = {
     allowFallback: false,
-    endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
-    model: CHECKPOINT_A_OPENROUTER_MODEL,
+    apiProfile: input.apiProfile,
+    endpoint: input.endpoint,
+    model: input.model,
     mode: 'checkpoint_a',
     networkEnabled: true,
-    provider: 'openrouter',
+    provider: 'configured_api',
     requireParameters: true,
-    responseFormat: 'json_object',
-    secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
-  } as CheckpointAOpenRouterConfig;
+    responseFormat: input.apiProfile === 'anthropic_messages' ? 'prompt_only_json' : 'json_object',
+    secretRef: input.secretRef,
+  } as CheckpointAConfiguredDirectorConfig;
 
   Object.defineProperty(config, 'apiKey', {
     configurable: false,
     enumerable: false,
-    value: apiKey,
+    value: input.apiKey,
     writable: false,
   });
   Object.defineProperty(config, 'toJSON', {
@@ -260,19 +281,174 @@ function createCheckpointAOpenRouterConfig(apiKey: string): CheckpointAOpenRoute
     enumerable: false,
     value: () => ({
       allowFallback: false,
-      endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
-      model: CHECKPOINT_A_OPENROUTER_MODEL,
+      apiProfile: input.apiProfile,
+      endpoint: input.endpoint,
+      model: input.model,
       mode: 'checkpoint_a',
       networkEnabled: true,
-      provider: 'openrouter',
+      provider: 'configured_api',
       requireParameters: true,
-      responseFormat: 'json_object',
-      secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
+      responseFormat:
+        input.apiProfile === 'anthropic_messages' ? 'prompt_only_json' : 'json_object',
+      secretRef: input.secretRef,
     }),
     writable: false,
   });
 
   return Object.freeze(config);
+}
+
+function readRequiredValue(
+  environment: NodeJS.ProcessEnv,
+  key: string,
+  invalidKeys: string[],
+): string | undefined {
+  const value = environment[key]?.trim();
+  if (value === undefined || value.length === 0) {
+    invalidKeys.push(key);
+    return undefined;
+  }
+  return value;
+}
+
+function isCheckpointADirectorApiProfile(value: unknown): value is CheckpointADirectorApiProfile {
+  return (
+    value === 'anthropic_messages' ||
+    value === 'openai_chat_completions' ||
+    value === 'openrouter_chat_completions'
+  );
+}
+
+function resolveCheckpointADirectorInput(environment: NodeJS.ProcessEnv): {
+  apiKey: string;
+  apiProfile: CheckpointADirectorApiProfile;
+  endpoint: string;
+  model: string;
+  secretRef:
+    | typeof CHECKPOINT_A_DIRECTOR_SECRET_REF
+    | typeof CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF
+    | typeof CHECKPOINT_A_ANTHROPIC_SECRET_REF
+    | typeof CHECKPOINT_A_OPENAI_SECRET_REF;
+} {
+  const hasAnthropic = hasAnyValue(environment, [
+    CHECKPOINT_A_ANTHROPIC_SECRET_REF,
+    CHECKPOINT_A_ANTHROPIC_BASE_URL_REF,
+    CHECKPOINT_A_ANTHROPIC_MODEL_REF,
+  ]);
+  const hasOpenAi = hasAnyValue(environment, [
+    CHECKPOINT_A_OPENAI_SECRET_REF,
+    CHECKPOINT_A_OPENAI_BASE_URL_REF,
+    CHECKPOINT_A_OPENAI_MODEL_REF,
+  ]);
+  if (hasAnthropic && hasOpenAi) {
+    throw new ConfigValidationError([
+      CHECKPOINT_A_ANTHROPIC_BASE_URL_REF,
+      CHECKPOINT_A_OPENAI_BASE_URL_REF,
+    ]);
+  }
+
+  const invalidKeys: string[] = [];
+  if (hasAnthropic) {
+    const apiKey = readRequiredValue(environment, CHECKPOINT_A_ANTHROPIC_SECRET_REF, invalidKeys);
+    const baseUrl = readRequiredValue(
+      environment,
+      CHECKPOINT_A_ANTHROPIC_BASE_URL_REF,
+      invalidKeys,
+    );
+    const model =
+      environment[CHECKPOINT_A_DIRECTOR_MODEL_REF]?.trim() ||
+      readRequiredValue(environment, CHECKPOINT_A_ANTHROPIC_MODEL_REF, invalidKeys);
+    const endpoint = resolveEndpoint(baseUrl, 'v1/messages');
+    if (baseUrl !== undefined && endpoint === undefined)
+      invalidKeys.push(CHECKPOINT_A_ANTHROPIC_BASE_URL_REF);
+    throwIfInvalid(invalidKeys);
+    return {
+      apiKey: apiKey as string,
+      apiProfile: 'anthropic_messages',
+      endpoint: endpoint as string,
+      model: model as string,
+      secretRef: CHECKPOINT_A_ANTHROPIC_SECRET_REF,
+    };
+  }
+
+  if (hasOpenAi) {
+    const apiKey = readRequiredValue(environment, CHECKPOINT_A_OPENAI_SECRET_REF, invalidKeys);
+    const baseUrl = readRequiredValue(environment, CHECKPOINT_A_OPENAI_BASE_URL_REF, invalidKeys);
+    const model =
+      environment[CHECKPOINT_A_DIRECTOR_MODEL_REF]?.trim() ||
+      readRequiredValue(environment, CHECKPOINT_A_OPENAI_MODEL_REF, invalidKeys);
+    const endpoint = resolveEndpoint(baseUrl, 'chat/completions');
+    if (baseUrl !== undefined && endpoint === undefined)
+      invalidKeys.push(CHECKPOINT_A_OPENAI_BASE_URL_REF);
+    throwIfInvalid(invalidKeys);
+    return {
+      apiKey: apiKey as string,
+      apiProfile: 'openai_chat_completions',
+      endpoint: endpoint as string,
+      model: model as string,
+      secretRef: CHECKPOINT_A_OPENAI_SECRET_REF,
+    };
+  }
+
+  const preferredApiKey = environment[CHECKPOINT_A_DIRECTOR_SECRET_REF]?.trim();
+  const legacyApiKey = environment[CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF]?.trim();
+  const apiKey = preferredApiKey || legacyApiKey;
+  if (apiKey === undefined || apiKey.length === 0)
+    invalidKeys.push(CHECKPOINT_A_DIRECTOR_SECRET_REF);
+  const apiProfileValue = readRequiredValue(
+    environment,
+    CHECKPOINT_A_DIRECTOR_PROFILE_REF,
+    invalidKeys,
+  );
+  const endpoint = readRequiredValue(environment, CHECKPOINT_A_DIRECTOR_ENDPOINT_REF, invalidKeys);
+  const model = readRequiredValue(environment, CHECKPOINT_A_DIRECTOR_MODEL_REF, invalidKeys);
+  if (!isCheckpointADirectorApiProfile(apiProfileValue) || apiProfileValue === 'anthropic_messages')
+    invalidKeys.push(CHECKPOINT_A_DIRECTOR_PROFILE_REF);
+  if (endpoint !== undefined && !isAllowedDirectorEndpoint(endpoint))
+    invalidKeys.push(CHECKPOINT_A_DIRECTOR_ENDPOINT_REF);
+  throwIfInvalid(invalidKeys);
+  return {
+    apiKey: apiKey as string,
+    apiProfile: apiProfileValue as CheckpointADirectorApiProfile,
+    endpoint: endpoint as string,
+    model: model as string,
+    secretRef: preferredApiKey
+      ? CHECKPOINT_A_DIRECTOR_SECRET_REF
+      : CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF,
+  };
+}
+
+function hasAnyValue(environment: NodeJS.ProcessEnv, keys: readonly string[]): boolean {
+  return keys.some((key) => (environment[key]?.trim().length ?? 0) > 0);
+}
+
+function throwIfInvalid(invalidKeys: string[]): void {
+  if (invalidKeys.length > 0) throw new ConfigValidationError([...new Set(invalidKeys)].sort());
+}
+
+function resolveEndpoint(baseUrl: string | undefined, suffix: string): string | undefined {
+  if (baseUrl === undefined || !isAllowedDirectorEndpoint(baseUrl)) return undefined;
+  return `${baseUrl.replace(/\/+$/u, '')}/${suffix}`;
+}
+
+function isAllowedDirectorEndpoint(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (
+      url.username.length > 0 ||
+      url.password.length > 0 ||
+      url.search.length > 0 ||
+      url.hash.length > 0
+    )
+      return false;
+    if (url.protocol === 'https:') return true;
+    return (
+      url.protocol === 'http:' &&
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function loadAppEnvironment(environment: NodeJS.ProcessEnv): AppEnvironment {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CHECKPOINT_A_OPENROUTER_ENDPOINT,
-  CHECKPOINT_A_OPENROUTER_MODEL,
-  CHECKPOINT_A_OPENROUTER_SECRET_REF,
+  CHECKPOINT_A_DIRECTOR_ENDPOINT_REF,
+  CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF,
+  CHECKPOINT_A_DIRECTOR_MODEL_REF,
+  CHECKPOINT_A_DIRECTOR_PROFILE_REF,
+  CHECKPOINT_A_DIRECTOR_SECRET_REF,
   ConfigValidationError,
   loadApiConfig,
   loadCheckpointADirectorConfig,
@@ -143,42 +145,159 @@ describe('loadApiConfig', () => {
   it('loads the exact local Checkpoint A binding only when explicitly selected', () => {
     const apiKey = 'fictional-checkpoint-a-key';
     const config = loadCheckpointADirectorConfig(
-      { APP_ENV: 'local', OPENROUTER_API_KEY: apiKey },
+      {
+        AI_DIRECTOR_API_KEY: apiKey,
+        AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+        AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+        AI_DIRECTOR_MODEL: 'deepseek-chat',
+        APP_ENV: 'local',
+      },
       'checkpoint_a',
     );
 
     expect(config).toMatchObject({
       allowFallback: false,
-      endpoint: CHECKPOINT_A_OPENROUTER_ENDPOINT,
-      model: CHECKPOINT_A_OPENROUTER_MODEL,
+      apiProfile: 'openai_chat_completions',
+      endpoint: 'https://gateway.example.test/v1/chat/completions',
+      model: 'deepseek-chat',
       mode: 'checkpoint_a',
       networkEnabled: true,
-      provider: 'openrouter',
+      provider: 'configured_api',
       requireParameters: true,
       responseFormat: 'json_object',
-      secretRef: CHECKPOINT_A_OPENROUTER_SECRET_REF,
+      secretRef: CHECKPOINT_A_DIRECTOR_SECRET_REF,
     });
     expect(config).toHaveProperty('apiKey', apiKey);
   });
 
-  it('reports only the key name when Checkpoint A key is missing', () => {
-    expect(() => loadCheckpointADirectorConfig({ APP_ENV: 'local' }, 'checkpoint_a')).toThrow(
-      CHECKPOINT_A_OPENROUTER_SECRET_REF,
-    );
+  it('reports only generic Director key names when Checkpoint A config is incomplete', () => {
+    expect(() =>
+      loadCheckpointADirectorConfig(
+        {
+          AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+          AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+          AI_DIRECTOR_MODEL: 'deepseek-chat',
+          APP_ENV: 'local',
+        },
+        'checkpoint_a',
+      ),
+    ).toThrow(CHECKPOINT_A_DIRECTOR_SECRET_REF);
     try {
       loadCheckpointADirectorConfig({ APP_ENV: 'local' }, 'checkpoint_a');
     } catch (error: unknown) {
-      expect(String(error)).toBe(
-        `ConfigValidationError: Invalid configuration keys: ${CHECKPOINT_A_OPENROUTER_SECRET_REF}`,
-      );
+      expect(String(error)).toContain(CHECKPOINT_A_DIRECTOR_ENDPOINT_REF);
+      expect(String(error)).toContain(CHECKPOINT_A_DIRECTOR_MODEL_REF);
+      expect(String(error)).toContain(CHECKPOINT_A_DIRECTOR_PROFILE_REF);
+      expect(String(error)).toContain(CHECKPOINT_A_DIRECTOR_SECRET_REF);
       expect(String(error)).not.toContain('undefined');
     }
   });
 
+  it('accepts the legacy OpenRouter-named secret without requiring its value to be copied', () => {
+    const config = loadCheckpointADirectorConfig(
+      {
+        AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+        AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+        AI_DIRECTOR_MODEL: 'deepseek-chat',
+        APP_ENV: 'local',
+        OPENROUTER_API_KEY: 'fictional-legacy-key',
+      },
+      'checkpoint_a',
+    );
+
+    expect(config).toMatchObject({ secretRef: CHECKPOINT_A_DIRECTOR_LEGACY_SECRET_REF });
+    expect(config).toHaveProperty('apiKey', 'fictional-legacy-key');
+    expect(JSON.stringify(config)).not.toContain('fictional-legacy-key');
+  });
+
+  it('loads the standard three-variable Anthropic-compatible group', () => {
+    const config = loadCheckpointADirectorConfig(
+      {
+        ANTHROPIC_AUTH_TOKEN: 'fictional-agentrouter-key',
+        ANTHROPIC_BASE_URL: 'https://co.example.test',
+        ANTHROPIC_MODEL: 'claude-opus-example',
+        APP_ENV: 'local',
+      },
+      'checkpoint_a',
+    );
+
+    expect(config).toMatchObject({
+      apiProfile: 'anthropic_messages',
+      endpoint: 'https://co.example.test/v1/messages',
+      model: 'claude-opus-example',
+      responseFormat: 'prompt_only_json',
+      secretRef: 'ANTHROPIC_AUTH_TOKEN',
+    });
+    expect(JSON.stringify(config)).not.toContain('fictional-agentrouter-key');
+  });
+
+  it('loads the standard three-variable OpenAI-compatible group', () => {
+    const config = loadCheckpointADirectorConfig(
+      {
+        APP_ENV: 'local',
+        OPENAI_API_KEY: 'fictional-agentrouter-key',
+        OPENAI_BASE_URL: 'https://co.example.test/v1',
+        OPENAI_MODEL: 'deepseek-example',
+      },
+      'checkpoint_a',
+    );
+
+    expect(config).toMatchObject({
+      apiProfile: 'openai_chat_completions',
+      endpoint: 'https://co.example.test/v1/chat/completions',
+      model: 'deepseek-example',
+      secretRef: 'OPENAI_API_KEY',
+    });
+  });
+
+  it('rejects ambiguous simultaneous Anthropic and OpenAI variable groups', () => {
+    expect(() =>
+      loadCheckpointADirectorConfig(
+        {
+          ANTHROPIC_AUTH_TOKEN: 'fictional-anthropic-key',
+          ANTHROPIC_BASE_URL: 'https://anthropic.example.test',
+          ANTHROPIC_MODEL: 'claude-example',
+          APP_ENV: 'local',
+          OPENAI_API_KEY: 'fictional-openai-key',
+          OPENAI_BASE_URL: 'https://openai.example.test/v1',
+          OPENAI_MODEL: 'deepseek-example',
+        },
+        'checkpoint_a',
+      ),
+    ).toThrow('ANTHROPIC_BASE_URL, OPENAI_BASE_URL');
+  });
+
+  it('rejects insecure remote endpoints and credentials embedded in URLs', () => {
+    const base = {
+      AI_DIRECTOR_API_KEY: 'fictional-key',
+      AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+      AI_DIRECTOR_MODEL: 'deepseek-chat',
+      APP_ENV: 'local',
+    };
+    for (const endpoint of [
+      'http://gateway.example.test/v1/chat/completions',
+      'https://user:password@gateway.example.test/v1/chat/completions',
+      'https://gateway.example.test/v1/chat/completions?api_key=fictional-secret',
+    ]) {
+      expect(() =>
+        loadCheckpointADirectorConfig({ ...base, AI_DIRECTOR_ENDPOINT: endpoint }, 'checkpoint_a'),
+      ).toThrow(CHECKPOINT_A_DIRECTOR_ENDPOINT_REF);
+    }
+    expect(
+      loadCheckpointADirectorConfig(
+        { ...base, AI_DIRECTOR_ENDPOINT: 'http://127.0.0.1:11434/v1/chat/completions' },
+        'checkpoint_a',
+      ),
+    ).toMatchObject({ endpoint: 'http://127.0.0.1:11434/v1/chat/completions' });
+  });
+
   it('keeps generic startup deterministic even when an ambient key exists', () => {
     const config = loadCheckpointADirectorConfig({
+      AI_DIRECTOR_API_KEY: 'ambient-key-must-not-activate',
+      AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+      AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+      AI_DIRECTOR_MODEL: 'deepseek-chat',
       APP_ENV: 'local',
-      OPENROUTER_API_KEY: 'ambient-key-must-not-activate',
     });
 
     expect(config).toEqual({
@@ -192,8 +311,11 @@ describe('loadApiConfig', () => {
         AUTH_ALLOWED_ORIGINS: 'http://127.0.0.1:4173',
         AUTH_LOGIN_THROTTLE_PEPPER: 'test-only-login-throttle-pepper',
         AI_RETENTION_CLEANUP_PEPPER: 'test-only-retention-cleanup-pepper',
+        AI_DIRECTOR_API_KEY: 'ambient-key-must-not-activate',
+        AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+        AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+        AI_DIRECTOR_MODEL: 'deepseek-chat',
         DATABASE_URL: 'postgresql://app:test@127.0.0.1:5433/app_test',
-        OPENROUTER_API_KEY: 'ambient-key-must-not-activate',
       }).checkpointA,
     ).toMatchObject({ mode: 'generic', networkEnabled: false });
   });
@@ -202,7 +324,13 @@ describe('loadApiConfig', () => {
     for (const appEnv of ['test', 'staging', 'production'] as const) {
       expect(() =>
         loadCheckpointADirectorConfig(
-          { APP_ENV: appEnv, OPENROUTER_API_KEY: 'fictional-key' },
+          {
+            AI_DIRECTOR_API_KEY: 'fictional-key',
+            AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+            AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+            AI_DIRECTOR_MODEL: 'deepseek-chat',
+            APP_ENV: appEnv,
+          },
           'checkpoint_a',
         ),
       ).toThrow('APP_ENV');
@@ -212,7 +340,13 @@ describe('loadApiConfig', () => {
   it('does not serialize the Checkpoint A secret', () => {
     const apiKey = 'fictional-secret-must-not-serialize';
     const config = loadCheckpointADirectorConfig(
-      { APP_ENV: 'local', OPENROUTER_API_KEY: apiKey },
+      {
+        AI_DIRECTOR_API_KEY: apiKey,
+        AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+        AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+        AI_DIRECTOR_MODEL: 'deepseek-chat',
+        APP_ENV: 'local',
+      },
       'checkpoint_a',
     );
 

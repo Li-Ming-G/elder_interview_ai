@@ -14,7 +14,7 @@ export const CHECKPOINT_A_DIRECTOR_PROMPT_BUNDLE_VERSION =
   'interview-director-prompt-checkpoint-a-v1';
 export const DIRECTOR_CONTEXT_BUILDER_VERSION = 'interview-director-context-builder-v1';
 export const DIRECTOR_MODEL_CONFIG_VERSION = 'local-test-director-v1';
-export const CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION = 'checkpoint-a-openrouter-ox-alpha-v1';
+export const CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION = 'checkpoint-a-configured-director-v2';
 
 export type DirectorPromptBundleSelection = 'v1' | 'checkpoint_a';
 
@@ -31,6 +31,7 @@ export interface QuestionDirectorContractOptions {
   readonly repositoryRoot?: string;
   readonly modelConfig?: {
     readonly allowFallback?: boolean;
+    readonly apiProfile?: string;
     readonly endpoint?: string;
     readonly mode?: 'generic' | 'checkpoint_a';
     readonly model?: string;
@@ -184,15 +185,6 @@ const CHECKPOINT_A_OWNER_PROMPT_DIGEST =
   'd43e44d2400bec4e6d96b632b8d0071406dff9a037dec9b54e01172cff534b3b';
 const CHECKPOINT_A_PROMPT_BUNDLE_MANIFEST =
   'docs/prompts/interview-director/checkpoint-a-v1/manifest.json';
-const CHECKPOINT_A_MODEL_CONFIG = {
-  allowFallback: false,
-  endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-  model: 'stealth/ox-alpha',
-  provider: 'openrouter',
-  requireParameters: true,
-  responseFormat: 'json_object',
-} as const;
-
 export function loadDirectorPromptBundle(root: string, selection: unknown): DirectorPromptBundle {
   if (selection === 'v1') {
     const system = readPromptFile(root, 'docs/prompts/interview-director/v1/system.md');
@@ -312,21 +304,39 @@ function resolveModelConfig(options: QuestionDirectorContractOptions): {
     };
   }
   const supplied = options.modelConfig;
+  if (supplied === undefined) {
+    return {
+      digest: sha256(CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION),
+      version: CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION,
+    };
+  }
   if (
-    supplied !== undefined &&
-    canonicalJson({
-      allowFallback: supplied.allowFallback,
-      endpoint: supplied.endpoint,
-      model: supplied.model,
-      provider: supplied.provider,
-      requireParameters: supplied.requireParameters,
-      responseFormat: supplied.responseFormat,
-    }) !== canonicalJson(CHECKPOINT_A_MODEL_CONFIG)
+    supplied.mode !== 'checkpoint_a' ||
+    supplied.provider !== 'configured_api' ||
+    !['anthropic_messages', 'openai_chat_completions', 'openrouter_chat_completions'].includes(
+      supplied.apiProfile ?? '',
+    ) ||
+    typeof supplied.endpoint !== 'string' ||
+    supplied.endpoint.length === 0 ||
+    typeof supplied.model !== 'string' ||
+    supplied.model.length === 0 ||
+    (supplied.apiProfile === 'anthropic_messages'
+      ? supplied.responseFormat !== 'prompt_only_json'
+      : supplied.responseFormat !== 'json_object')
   ) {
     throw new Error('CHECKPOINT_A_MODEL_CONFIG_MISMATCH');
   }
+  const effectiveConfig = {
+    allowFallback: supplied.allowFallback,
+    apiProfile: supplied.apiProfile,
+    endpoint: supplied.endpoint,
+    model: supplied.model,
+    provider: supplied.provider,
+    requireParameters: supplied.requireParameters,
+    responseFormat: supplied.responseFormat,
+  };
   return {
-    digest: sha256(canonicalJson(CHECKPOINT_A_MODEL_CONFIG)),
+    digest: sha256(canonicalJson(effectiveConfig)),
     version: CHECKPOINT_A_DIRECTOR_MODEL_CONFIG_VERSION,
   };
 }

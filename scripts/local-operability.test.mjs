@@ -26,7 +26,7 @@ async function withFixture(contents, callback) {
 const legacyEnv = [
   'DATABASE_URL=postgresql://owner:synthetic-password@127.0.0.1:5432/elder_interview_local',
   'TEST_DATABASE_URL=postgresql://test-owner:synthetic-test-password@127.0.0.1:5433/elder_interview_test',
-  'OPENROUTER_API_KEY=synthetic-openrouter-secret',
+  'AI_DIRECTOR_API_KEY=synthetic-director-secret',
   'TENCENT_ASR_SECRET_KEY=synthetic-tencent-secret',
   'CUSTOM_VALUE=preserve-this-byte-for-byte',
 ].join('\r\n');
@@ -38,7 +38,7 @@ test('migrates only legacy local DB ports and preserves unrelated values', async
     const migrated = await readFile(filePath, 'utf8');
     assert.match(migrated, /DATABASE_URL=.*127\.0\.0\.1:15432\/elder_interview_local/u);
     assert.match(migrated, /TEST_DATABASE_URL=.*127\.0\.0\.1:15433\/elder_interview_test/u);
-    assert.match(migrated, /OPENROUTER_API_KEY=synthetic-openrouter-secret/u);
+    assert.match(migrated, /AI_DIRECTOR_API_KEY=synthetic-director-secret/u);
     assert.match(migrated, /TENCENT_ASR_SECRET_KEY=synthetic-tencent-secret/u);
     assert.match(migrated, /CUSTOM_VALUE=preserve-this-byte-for-byte/u);
   });
@@ -111,19 +111,43 @@ test('passes the web working directory to the Vite child process', () => {
 
 test('keeps backend-only secrets out of the Vite child environment', () => {
   const { apiEnvironment, webEnvironment } = createCheckpointAEnvironments({
+    ANTHROPIC_AUTH_TOKEN: 'synthetic-anthropic-secret',
+    ANTHROPIC_BASE_URL: 'https://anthropic.example.test',
+    ANTHROPIC_MODEL: 'claude-example',
     DATABASE_URL: 'synthetic-db-url',
     TEST_DATABASE_URL: 'synthetic-test-db-url',
-    OPENROUTER_API_KEY: 'synthetic-openrouter-secret',
+    AI_DIRECTOR_API_KEY: 'synthetic-director-secret',
+    AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+    AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+    AI_DIRECTOR_MODEL: 'deepseek-chat',
+    AI_P1_API_KEY: 'inactive-synthetic-p1-secret',
+    AI_P2_API_KEY: 'inactive-synthetic-p2-secret',
+    OPENROUTER_API_KEY: 'synthetic-legacy-director-secret',
+    OPENAI_API_KEY: 'synthetic-openai-secret',
+    OPENAI_BASE_URL: 'https://openai.example.test/v1',
+    OPENAI_MODEL: 'deepseek-example',
     TENCENT_ASR_SECRET_KEY: 'synthetic-tencent-secret',
     PUBLIC_FLAG: 'preserved',
   });
   assert.equal(apiEnvironment.DATABASE_URL, 'synthetic-db-url');
-  assert.equal(apiEnvironment.OPENROUTER_API_KEY, 'synthetic-openrouter-secret');
+  assert.equal(apiEnvironment.AI_DIRECTOR_API_KEY, 'synthetic-director-secret');
   assert.equal(webEnvironment.PUBLIC_FLAG, 'preserved');
   for (const key of [
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+    'ANTHROPIC_MODEL',
     'DATABASE_URL',
     'TEST_DATABASE_URL',
+    'AI_DIRECTOR_API_KEY',
+    'AI_DIRECTOR_API_PROFILE',
+    'AI_DIRECTOR_ENDPOINT',
+    'AI_DIRECTOR_MODEL',
+    'AI_P1_API_KEY',
+    'AI_P2_API_KEY',
     'OPENROUTER_API_KEY',
+    'OPENAI_API_KEY',
+    'OPENAI_BASE_URL',
+    'OPENAI_MODEL',
     'TENCENT_ASR_SECRET_KEY',
   ]) {
     assert.equal(webEnvironment[key], undefined);
