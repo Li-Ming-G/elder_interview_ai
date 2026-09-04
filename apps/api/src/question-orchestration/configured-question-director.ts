@@ -32,6 +32,14 @@ export type ConfiguredDirectorFetch = (
   },
 ) => Promise<ConfiguredDirectorResponse>;
 
+export type ConfiguredDirectorBindingProbeOutcome =
+  | { readonly outcome: 'reachable'; readonly status: number }
+  | { readonly outcome: 'http_error'; readonly status: number }
+  | { readonly outcome: 'timeout' }
+  | { readonly outcome: 'unreachable' };
+
+export const CHECKPOINT_A_DIRECTOR_BINDING_PROBE_TIMEOUT_MS = 1_500;
+
 export class ConfiguredQuestionDirectorError extends Error {
   public constructor(
     public readonly code:
@@ -99,6 +107,57 @@ export class ConfiguredQuestionDirector extends QuestionDirector {
   }
 }
 
+/**
+ * Performs the single bounded startup probe used only by the explicit Checkpoint A launcher.
+ * It deliberately does not read the response body: the probe reports transport reachability,
+ * never provider payload content. Any failure is returned as a sanitized outcome so startup can
+ * continue and recording remains available.
+ */
+export async function probeConfiguredDirectorBinding(
+  config: CheckpointAConfiguredDirectorConfig,
+  transport: ConfiguredDirectorFetch = defaultConfiguredDirectorFetch,
+  timeoutMs = CHECKPOINT_A_DIRECTOR_BINDING_PROBE_TIMEOUT_MS,
+): Promise<ConfiguredDirectorBindingProbeOutcome> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const fetchPromise = transport(config.endpoint, {
+      body: JSON.stringify(buildBindingProbeBody(config)),
+      headers: buildHeaders(config),
+      method: 'POST',
+      signal: controller.signal,
+    });
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('AI_PROVIDER_TIMEOUT'));
+      }, timeoutMs);
+    });
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    return response.ok
+      ? { outcome: 'reachable', status: response.status }
+      : { outcome: 'http_error', status: response.status };
+  } catch (error: unknown) {
+    if (isAbortError(error)) return { outcome: 'timeout' };
+    return { outcome: 'unreachable' };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+export function checkpointADirectorEndpointEnvironmentVariable(
+  config: CheckpointAConfiguredDirectorConfig,
+): string {
+  switch (config.apiProfile) {
+    case 'anthropic_messages':
+      return 'ANTHROPIC_BASE_URL';
+    case 'openai_chat_completions':
+      return 'OPENAI_BASE_URL';
+    case 'openrouter_chat_completions':
+      return 'AI_DIRECTOR_ENDPOINT';
+  }
+}
+
 function buildRequestBody(
   request: QuestionDirectorRequest,
   config: CheckpointAConfiguredDirectorConfig,
@@ -139,13 +198,43 @@ function buildRequestBody(
   return body;
 }
 
+function buildBindingProbeBody(
+  config: CheckpointAConfiguredDirectorConfig,
+): Record<string, unknown> {
+  if (config.apiProfile === 'anthropic_messages') {
+    return {
+      max_tokens: 1,
+      messages: [{ content: '{}', role: 'user' }],
+      model: config.model,
+    };
+  }
+  const body: Record<string, unknown> = {
+    max_tokens: 1,
+    messages: [{ content: '{}', role: 'user' }],
+    model: config.model,
+    response_format: { type: config.responseFormat },
+  };
+  if (config.apiProfile === 'openrouter_chat_completions') {
+    body.provider = {
+      allow_fallbacks: config.allowFallback,
+      require_parameters: config.requireParameters,
+    };
+  }
+  return body;
+}
+
 function buildHeaders(config: CheckpointAConfiguredDirectorConfig): Record<string, string> {
   return {
     Authorization: `Bearer ${config.apiKey}`,
     'Content-Type': 'application/json',
-    ...(config.apiProfile === 'anthropic_messages' ? { 'anthropic-version': '2023-06-01' } : {}),
+    ...(config.apiProfile === 'anthropic_messages'
+      ? { 'anthropic-version': '2023-06-01', 'x-api-key': config.apiKey }
+      : {}),
   };
 }
+
+const defaultConfiguredDirectorFetch: ConfiguredDirectorFetch = (input, init) =>
+  globalThis.fetch(input, init);
 
 function parseConfiguredDirectorBody(
   body: string,

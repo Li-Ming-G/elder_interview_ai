@@ -7,6 +7,7 @@ import {
   CONFIGURED_DIRECTOR_EVIDENCE_CALL_SCHEMA_INSTRUCTION,
   CONFIGURED_DIRECTOR_FIRST_CALL_SCHEMA_INSTRUCTION,
   ConfiguredQuestionDirector,
+  probeConfiguredDirectorBinding,
   type ConfiguredDirectorFetch,
   type ConfiguredDirectorResponse,
 } from './configured-question-director.js';
@@ -114,6 +115,7 @@ describe('ConfiguredQuestionDirector', () => {
       Authorization: `Bearer ${secret}`,
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
+      'x-api-key': secret,
     });
     const body = JSON.parse(calls[0]?.init.body ?? '') as Record<string, unknown>;
     expect(body).toMatchObject({
@@ -275,6 +277,78 @@ describe('ConfiguredQuestionDirector', () => {
     expect(() => contract.parseOutput(raw, validContext())).toThrow(
       'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT',
     );
+  });
+
+  it('reports a sanitized HTTP probe outcome without blocking or reading provider payloads', async () => {
+    const calls: Array<{ input: string; init: Parameters<ConfiguredDirectorFetch>[1] }> = [];
+    const checkpointA = loadCheckpointADirectorConfig(
+      {
+        ANTHROPIC_AUTH_TOKEN: secret,
+        ANTHROPIC_BASE_URL: 'https://co.example.test',
+        ANTHROPIC_MODEL: 'claude-opus-example',
+        APP_ENV: 'local',
+      },
+      'checkpoint_a',
+    );
+    const outcome = await probeConfiguredDirectorBinding(checkpointA, (input, init) => {
+      calls.push({ init, input });
+      return Promise.resolve(
+        responseText('fictional-provider-payload', { ok: false, status: 401 }),
+      );
+    });
+
+    expect(outcome).toEqual({ outcome: 'http_error', status: 401 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.input).toBe('https://co.example.test/v1/messages');
+    expect(calls[0]?.init.headers).toMatchObject({
+      Authorization: `Bearer ${secret}`,
+      'anthropic-version': '2023-06-01',
+      'x-api-key': secret,
+    });
+    expect(calls[0]?.init.body).not.toContain(secret);
+  });
+
+  it('classifies an unreachable or timed-out probe without throwing', async () => {
+    await expect(
+      probeConfiguredDirectorBinding(
+        loadCheckpointADirectorConfig(
+          {
+            AI_DIRECTOR_API_KEY: secret,
+            AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+            AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+            AI_DIRECTOR_MODEL: 'deepseek-chat',
+            APP_ENV: 'local',
+          },
+          'checkpoint_a',
+        ),
+        () => Promise.reject(new Error('fictional unreachable endpoint')),
+      ),
+    ).resolves.toEqual({ outcome: 'unreachable' });
+
+    let aborted = false;
+    await expect(
+      probeConfiguredDirectorBinding(
+        loadCheckpointADirectorConfig(
+          {
+            AI_DIRECTOR_API_KEY: secret,
+            AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+            AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+            AI_DIRECTOR_MODEL: 'deepseek-chat',
+            APP_ENV: 'local',
+          },
+          'checkpoint_a',
+        ),
+        (_input, init) =>
+          new Promise<ConfiguredDirectorResponse>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => {
+              aborted = true;
+              reject(new DOMException('aborted', 'AbortError'));
+            });
+          }),
+        10,
+      ),
+    ).resolves.toEqual({ outcome: 'timeout' });
+    expect(aborted).toBe(true);
   });
 });
 
