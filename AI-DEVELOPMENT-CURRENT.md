@@ -39,7 +39,7 @@ Development Pack:
 Predefined queue:
 
 ```text
-RIU-01-DIRECTOR-LANDING          [READY]
+RIU-01-DIRECTOR-LANDING          [BLOCKED]
   -> RIU-02-CALIBRATION-USABLE   [DEFERRED]
   -> RIU-03-AI-STATUS-CONTRACT   [DEFERRED]
   -> RIU-04-AI-STATUS-UI         [DEFERRED]
@@ -101,16 +101,11 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 ## Current task truth
 
-`RIU-01-DIRECTOR-LANDING` is the first eligible task and is `READY`. Its dependency baseline is the
-closed Product Flow Closure pack: `PFC-07-FULL-FLOW-E2E` is `DONE` through PR #133 exact
-Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as
-`a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`, with exact-current-main CI run `33794204208` succeeded.
+`RIU-01-DIRECTOR-LANDING` is the first task of the new pack and is formally issued, but canonical runtime state is `BLOCKED`. The Product Flow Closure dependency baseline is satisfied: `PFC-07-FULL-FLOW-E2E` is `DONE` through PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`, with successful post-merge main CI.
 
-`RIU-01` lands the Checkpoint A Configurable Director V2 implementation that currently exists in the
-working tree without a Task Card, corrects the `anthropic_messages` profile to send the documented
-`x-api-key` authentication header alongside the existing bearer header, and adds the non-blocking
-startup binding diagnostic. Its Accepted Contract is
-`docs/contracts/checkpoint-a-configurable-director-v2.md`.
+The blocker is durability of the task's declared Accepted Contract: `docs/contracts/checkpoint-a-configurable-director-v2.md` is reported to exist in the Owner/Cloud local working tree but is not present on GitHub main or the planning branch. Because Accepted Contract contents are Owner authority and may not be invented or reconstructed by Architect, Dispatcher, or Worker, RIU-01 must not launch in a fresh Workspace until that exact accepted artifact is durably available. The same RIU-01 task will resume after this blocker is cleared; no new implementation task is required.
+
+`RIU-01` then lands the Checkpoint A Configurable Director V2 implementation, corrects the `anthropic_messages` profile to send the documented `x-api-key` authentication header alongside the existing bearer header, and adds the non-blocking startup binding diagnostic.
 
 Task source:
 
@@ -186,7 +181,7 @@ READY -> IN_PROGRESS -> canonical PR -> REVIEW/repair loop -> external Architect
 
 The Product Owner retains product, architecture, cost, provider, model, data-policy, deployment, and Accepted Contract authority. The External/Web Architect plans/reviews and has bounded implementation execution authority only through `ARCHITECT_DIRECTIVE_V1` on standing Command Bus issue #135. The Dispatcher mechanically validates and executes valid Directives before ordinary waits/no-ops; it does not judge their technical merit. The Worker executes the effective envelope: base Task Card plus all successful Directive ACK overlays.
 
-Task Card `Status:` is an issuance/planning snapshot. Freshly reconciled canonical queue/state is runtime authority, so a legacy Task Card `Status: DEFERRED` does not block canonical `IN_PROGRESS` execution.
+Task Card `Status:` is an issuance/planning snapshot. Freshly reconciled canonical queue/state is runtime authority, so a legacy Task Card `Status: READY` does not override canonical `BLOCKED` state.
 
 A Directive never bypasses implementation, exact-head PR CI, effective-envelope Review Context, exact-head Architect verdict, `PASS`, merge ancestry, exact-current-main CI, `DONE`, or predefined-successor gates. Owner-frozen decisions, Accepted Contracts, architecture boundaries, task identity, and queue topology remain non-overridable.
 
@@ -194,17 +189,12 @@ Authorized malformed/stale Directives receive deterministic rejection evidence. 
 
 ## Current states
 
-- `READY`: `RIU-01-DIRECTOR-LANDING` is the first eligible task of the Real Interview Usability pack. No PR is bound yet.
+- `BLOCKED`: `RIU-01-DIRECTOR-LANDING` is the formally issued first task; blocker is the missing durable copy of `docs/contracts/checkpoint-a-configurable-director-v2.md`.
+- `READY`: none.
 - `DEFERRED`: `RIU-02-CALIBRATION-USABLE`, `RIU-03-AI-STATUS-CONTRACT`, `RIU-04-AI-STATUS-UI`, `RIU-05-REPO-HEALTH`, each locked until its predecessor reaches `DONE`.
-- `BLOCKED`: none.
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
 - `DONE`: `PFC-07A-QUERY-MODE-NAV-STATE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded.
 - `DONE`: `PFC-07-FULL-FLOW-E2E` through PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded.
-- `BLOCKED`: none remained in the Product Flow Closure pack after the Owner resolved the reported scope ambiguity by authorizing PFC-07A.
-- `DONE`: `PFC-05-ROUTE-ACTION-CLOSURE` through PR #131 and exact-current-main CI run `33580001375`.
-- `DONE`: `PFC-04-SUGGESTION-RECOVERY` through PR #130 and exact-current-main CI run `33545438599`.
-- `DONE`: `PFC-03-RECORDING-NAV-SAFETY` through PR #129 and exact-current-main CI run `33534495664`.
-- `DONE`: `PFC-01-NEW-INTENT-TRUTH` through `PFC-05-ROUTE-ACTION-CLOSURE`, Checkpoint A maintenance through PR #126, and prior accepted baseline tasks.
 - Other deferred work remains P2-D/T26-T27/production activation decisions.
 
 ## Authority order
@@ -215,6 +205,6 @@ Product Owner decisions and exact Accepted Contracts -> base Task Card identity/
 
 The Product Flow Closure pack is closed: PFC-07A and PFC-07-FULL-FLOW-E2E are canonical `DONE`, and PFC-07's predefined `next_task` was `null`.
 
-The Product Owner has authorized a new Development Pack, `REAL INTERVIEW USABILITY 01`, from the findings of the first real end-to-end browser interview. The next step is `RIU-01-DIRECTOR-LANDING`, which is `READY` and has no bound PR yet. It lands the working-tree Checkpoint A Configurable Director V2 implementation under a Task Card, corrects the `anthropic_messages` authentication header, and adds the non-blocking startup binding diagnostic.
+The Product Owner has authorized the new Development Pack `REAL INTERVIEW USABILITY 01`. `RIU-01-DIRECTOR-LANDING` is now formally present in the canonical queue but remains `BLOCKED` until the exact Owner-accepted `docs/contracts/checkpoint-a-configurable-director-v2.md` from the local working tree is made durable in GitHub. Do not recreate that contract from memory or Task Card prose. Once the exact artifact is durable, resume the same task; no new task or topology change is needed.
 
 Separately and in parallel, the Owner action item stands: repair `.env.local` so `ANTHROPIC_BASE_URL` is `https://co.agentrouter.org` and the Director credential is valid. Until that is done, no AI-visible acceptance in this pack can be exercised against a working provider.
