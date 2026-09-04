@@ -7,10 +7,12 @@ const typedFiles = ['apps/**/*.{ts,tsx}', 'packages/*/src/**/*.ts', 'tests/**/*.
 export default tseslint.config(
   {
     ignores: [
+      '.claude/**',
       '**/coverage/**',
       '**/dist/**',
       '**/generated/**',
       '**/node_modules/**',
+      'tmp/**',
       'docs/contracts/**',
       '**/tmp/**',
     ],

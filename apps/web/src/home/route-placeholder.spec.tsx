@@ -2,7 +2,6 @@
 
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectSessionListItem } from '@elder-interview/contracts';
 
 import { SessionSaveFactsRoute } from './route-placeholder.js';
 
@@ -17,7 +16,24 @@ describe('SessionSaveFactsRoute', () => {
       getSession: vi.fn().mockResolvedValue(saveFactsSession()),
       listProjects: vi.fn(),
       listProjectSessions: vi.fn().mockResolvedValue({
-        items: [sessionItem('view_save_facts', 'unavailable')],
+        items: [
+          {
+            capture: null,
+            capture_failure_code: null,
+            created_at: '2026-08-12T08:00:00.000Z',
+            duration_seconds: null,
+            ended_at: null,
+            finalization: null,
+            home_state: 'save_failed',
+            id: SESSION_ID,
+            primary_action: 'view_save_facts',
+            project_id: PROJECT_ID,
+            review_access: 'unavailable',
+            sequence_no: 1,
+            started_at: null,
+            status: 'completed',
+          },
+        ],
         next_cursor: null,
       }),
     };
@@ -39,36 +55,6 @@ describe('SessionSaveFactsRoute', () => {
     expect(api.getSession).toHaveBeenCalledWith(SESSION_ID);
   });
 });
-
-function sessionItem(
-  primaryAction: 'continue_preparation' | 'view_review' | 'view_save_facts',
-  reviewAccess: 'read_only' | 'unavailable',
-): ProjectSessionListItem {
-  return {
-    capture: null,
-    capture_failure_code: null,
-    created_at: '2026-08-12T08:00:00.000Z',
-    duration_seconds: null,
-    ended_at: null,
-    finalization: null,
-    home_state:
-      primaryAction === 'view_review'
-        ? 'review_ready'
-        : primaryAction === 'view_save_facts'
-          ? 'save_failed'
-          : 'preparation_required',
-    id: SESSION_ID,
-    primary_action: primaryAction,
-    project_id: PROJECT_ID,
-    review_access: reviewAccess,
-    sequence_no: 1,
-    started_at: null,
-    status:
-      primaryAction === 'view_review' || primaryAction === 'view_save_facts'
-        ? 'completed'
-        : 'created',
-  };
-}
 
 function saveFactsSession(): import('@elder-interview/contracts').InterviewSessionResponse {
   return {

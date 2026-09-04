@@ -385,7 +385,9 @@ describe('WorkbenchShell', () => {
       return Promise.reject(authError);
     });
 
-    fireEvent(globalThis.window, new Event('online'));
+    act(() => {
+      fireEvent(globalThis.window, new Event('online'));
+    });
     const returnToLogin = await screen.findByRole('button', { name: '返回登录' });
     expect(screen.queryByRole('button', { name: '继续同一次访谈' })).toBeNull();
     expect(screen.queryByRole('button', { name: '安全结束已有音频' })).toBeNull();
