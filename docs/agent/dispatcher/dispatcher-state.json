@@ -394,6 +394,51 @@
       "depends_on": ["PFC-07A-QUERY-MODE-NAV-STATE"],
       "pr": 133,
       "next_task": null
+    },
+    {
+      "id": "RIU-01-DIRECTOR-LANDING",
+      "status": "BLOCKED",
+      "task_card": "docs/agent/tasks/RIU-01-DIRECTOR-LANDING.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["REAL-INTERVIEW-USABILITY-01", "PFC-07-FULL-FLOW-E2E", "checkpoint-a-configurable-director-v2@DURABLE_REQUIRED"],
+      "pr": null,
+      "next_task": "RIU-02-CALIBRATION-USABLE"
+    },
+    {
+      "id": "RIU-02-CALIBRATION-USABLE",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/RIU-02-CALIBRATION-USABLE.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["RIU-01-DIRECTOR-LANDING"],
+      "pr": null,
+      "next_task": "RIU-03-AI-STATUS-CONTRACT"
+    },
+    {
+      "id": "RIU-03-AI-STATUS-CONTRACT",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/RIU-03-AI-STATUS-CONTRACT.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["RIU-02-CALIBRATION-USABLE"],
+      "pr": null,
+      "next_task": "RIU-04-AI-STATUS-UI"
+    },
+    {
+      "id": "RIU-04-AI-STATUS-UI",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/RIU-04-AI-STATUS-UI.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["RIU-03-AI-STATUS-CONTRACT"],
+      "pr": null,
+      "next_task": "RIU-05-REPO-HEALTH"
+    },
+    {
+      "id": "RIU-05-REPO-HEALTH",
+      "status": "DEFERRED",
+      "task_card": "docs/agent/tasks/RIU-05-REPO-HEALTH.md",
+      "worker_profile": "luna-high",
+      "depends_on": ["RIU-04-AI-STATUS-UI"],
+      "pr": null,
+      "next_task": null
     }
   ]
 }
