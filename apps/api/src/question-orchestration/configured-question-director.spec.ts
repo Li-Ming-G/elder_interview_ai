@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { assembleP4DirectorContextV2 } from './p4-context-v2-consumer.js';
 import { QuestionDirectorContract } from './question-director-contract.js';
 import {
-  OPENROUTER_EVIDENCE_CALL_SCHEMA_INSTRUCTION,
-  OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION,
-  OpenRouterQuestionDirector,
-  type OpenRouterFetch,
-  type OpenRouterResponse,
-} from './openrouter-question-director.js';
+  CONFIGURED_DIRECTOR_EVIDENCE_CALL_SCHEMA_INSTRUCTION,
+  CONFIGURED_DIRECTOR_FIRST_CALL_SCHEMA_INSTRUCTION,
+  ConfiguredQuestionDirector,
+  type ConfiguredDirectorFetch,
+  type ConfiguredDirectorResponse,
+} from './configured-question-director.js';
 import type { QuestionDirectorRequest } from './question-director.js';
 import { runQuestionDirectorEvidenceRound } from './question-director-evidence-round.js';
 import type { InterviewDirectorContextV1 } from './question-director-contract.js';
@@ -27,9 +27,9 @@ const ids = {
   session: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
 };
 
-describe('OpenRouterQuestionDirector', () => {
-  it('sends the frozen prompt, context and exact Checkpoint A transport settings', async () => {
-    const calls: Array<{ input: string; init: Parameters<OpenRouterFetch>[1] }> = [];
+describe('ConfiguredQuestionDirector', () => {
+  it('sends the frozen prompt and context through an OpenAI-compatible endpoint', async () => {
+    const calls: Array<{ input: string; init: Parameters<ConfiguredDirectorFetch>[1] }> = [];
     const director = createDirector((input, init) => {
       calls.push({ init, input });
       return Promise.resolve(response(output('suggest')));
@@ -37,7 +37,7 @@ describe('OpenRouterQuestionDirector', () => {
 
     await expect(director.generate(request())).resolves.toMatchObject({ decision: 'suggest' });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.input).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(calls[0]?.input).toBe('https://gateway.example.test/v1/chat/completions');
     expect(calls[0]?.init).toMatchObject({
       headers: {
         Authorization: `Bearer ${secret}`,
@@ -51,19 +51,78 @@ describe('OpenRouterQuestionDirector', () => {
       provider: { allow_fallbacks: boolean; require_parameters: boolean };
       response_format: { type: string };
     };
-    expect(body.model).toBe('stealth/ox-alpha');
-    expect(body.provider).toEqual({ allow_fallbacks: false, require_parameters: true });
-    expect(body.provider).not.toHaveProperty('allow_fallback');
+    expect(body.model).toBe('deepseek-chat');
+    expect(body).not.toHaveProperty('provider');
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.messages).toEqual([
       { content: 'frozen system', role: 'system' },
       { content: 'frozen task', role: 'user' },
       expect.objectContaining({ role: 'user' }),
     ]);
-    expect(body.messages[2]?.content).toContain(OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION);
+    expect(body.messages[2]?.content).toContain(CONFIGURED_DIRECTOR_FIRST_CALL_SCHEMA_INSTRUCTION);
     expect(body.messages[2]?.content).toContain('request_evidence');
     expect(body.messages[2]?.content).toContain(ids.segment);
     expect(body.messages[2]?.content).toContain('P5 evidence JSON: none');
+    expect(calls[0]?.init.body).not.toContain(secret);
+  });
+
+  it('adds routing controls only for the explicitly selected OpenRouter profile', async () => {
+    const calls: Array<{ init: Parameters<ConfiguredDirectorFetch>[1] }> = [];
+    const checkpointA = loadCheckpointADirectorConfig(
+      {
+        AI_DIRECTOR_API_KEY: secret,
+        AI_DIRECTOR_API_PROFILE: 'openrouter_chat_completions',
+        AI_DIRECTOR_ENDPOINT: 'https://openrouter.example.test/api/v1/chat/completions',
+        AI_DIRECTOR_MODEL: 'deepseek/deepseek-chat',
+        APP_ENV: 'local',
+      },
+      'checkpoint_a',
+    );
+    const director = new ConfiguredQuestionDirector(
+      { checkpointA } as ApiConfig,
+      (_input, init) => {
+        calls.push({ init });
+        return Promise.resolve(response(output('suggest')));
+      },
+    );
+
+    await director.generate(request());
+
+    const body = JSON.parse(calls[0]?.init.body ?? '') as Record<string, unknown>;
+    expect(body.provider).toEqual({ allow_fallbacks: false, require_parameters: true });
+  });
+
+  it('uses Anthropic Messages when the standard Anthropic variable group is selected', async () => {
+    const calls: Array<{ input: string; init: Parameters<ConfiguredDirectorFetch>[1] }> = [];
+    const checkpointA = loadCheckpointADirectorConfig(
+      {
+        ANTHROPIC_AUTH_TOKEN: secret,
+        ANTHROPIC_BASE_URL: 'https://co.example.test',
+        ANTHROPIC_MODEL: 'claude-opus-example',
+        APP_ENV: 'local',
+      },
+      'checkpoint_a',
+    );
+    const director = new ConfiguredQuestionDirector({ checkpointA } as ApiConfig, (input, init) => {
+      calls.push({ init, input });
+      return Promise.resolve(anthropicResponse(output('suggest')));
+    });
+
+    await expect(director.generate(request())).resolves.toMatchObject({ decision: 'suggest' });
+    expect(calls[0]?.input).toBe('https://co.example.test/v1/messages');
+    expect(calls[0]?.init.headers).toMatchObject({
+      Authorization: `Bearer ${secret}`,
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+    });
+    const body = JSON.parse(calls[0]?.init.body ?? '') as Record<string, unknown>;
+    expect(body).toMatchObject({
+      max_tokens: 4096,
+      model: 'claude-opus-example',
+      system: 'frozen system',
+    });
+    expect(body).not.toHaveProperty('provider');
+    expect(body).not.toHaveProperty('response_format');
     expect(calls[0]?.init.body).not.toContain(secret);
   });
 
@@ -80,7 +139,7 @@ describe('OpenRouterQuestionDirector', () => {
   );
 
   it('keeps one provider binding and one deadline across the optional evidence round', async () => {
-    const calls: Array<{ init: Parameters<OpenRouterFetch>[1] }> = [];
+    const calls: Array<{ init: Parameters<ConfiguredDirectorFetch>[1] }> = [];
     const director = createDirector((_input, init) => {
       calls.push({ init });
       return Promise.resolve(
@@ -133,20 +192,29 @@ describe('OpenRouterQuestionDirector', () => {
     const secondBody = JSON.parse(calls[1]?.init.body ?? '') as {
       messages: Array<{ content: string; role: string }>;
     };
-    expect(firstBody.messages[2]?.content).toContain(OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION);
+    expect(firstBody.messages[2]?.content).toContain(
+      CONFIGURED_DIRECTOR_FIRST_CALL_SCHEMA_INSTRUCTION,
+    );
     expect(firstBody.messages[2]?.content).toContain('request_evidence');
-    expect(secondBody.messages[2]?.content).toContain(OPENROUTER_EVIDENCE_CALL_SCHEMA_INSTRUCTION);
-    expect(secondBody.messages[2]?.content).not.toContain(OPENROUTER_FIRST_CALL_SCHEMA_INSTRUCTION);
+    expect(secondBody.messages[2]?.content).toContain(
+      CONFIGURED_DIRECTOR_EVIDENCE_CALL_SCHEMA_INSTRUCTION,
+    );
+    expect(secondBody.messages[2]?.content).not.toContain(
+      CONFIGURED_DIRECTOR_FIRST_CALL_SCHEMA_INSTRUCTION,
+    );
     expect(secondBody.messages[2]?.content).toContain('P5 evidence JSON:');
   });
 
-  const invalidResponses: Array<[string, () => OpenRouterResponse]> = [
-    ['empty', (): OpenRouterResponse => responseText('')],
-    ['non-JSON', (): OpenRouterResponse => responseText('not-json')],
-    ['response-shape', (): OpenRouterResponse => responseText(JSON.stringify({ choices: [] }))],
+  const invalidResponses: Array<[string, () => ConfiguredDirectorResponse]> = [
+    ['empty', (): ConfiguredDirectorResponse => responseText('')],
+    ['non-JSON', (): ConfiguredDirectorResponse => responseText('not-json')],
+    [
+      'response-shape',
+      (): ConfiguredDirectorResponse => responseText(JSON.stringify({ choices: [] })),
+    ],
     [
       'malformed output JSON',
-      (): OpenRouterResponse =>
+      (): ConfiguredDirectorResponse =>
         responseText(JSON.stringify({ choices: [{ message: { content: '{' } }] })),
     ],
   ];
@@ -177,7 +245,7 @@ describe('OpenRouterQuestionDirector', () => {
     let aborted = false;
     const director = createDirector(
       (_input, init) =>
-        new Promise<OpenRouterResponse>((_resolve, reject) => {
+        new Promise<ConfiguredDirectorResponse>((_resolve, reject) => {
           init.signal.addEventListener('abort', () => {
             aborted = true;
             reject(new DOMException('aborted', 'AbortError'));
@@ -210,12 +278,18 @@ describe('OpenRouterQuestionDirector', () => {
   });
 });
 
-function createDirector(transport: OpenRouterFetch): OpenRouterQuestionDirector {
+function createDirector(transport: ConfiguredDirectorFetch): ConfiguredQuestionDirector {
   const checkpointA = loadCheckpointADirectorConfig(
-    { APP_ENV: 'local', OPENROUTER_API_KEY: secret },
+    {
+      AI_DIRECTOR_API_KEY: secret,
+      AI_DIRECTOR_API_PROFILE: 'openai_chat_completions',
+      AI_DIRECTOR_ENDPOINT: 'https://gateway.example.test/v1/chat/completions',
+      AI_DIRECTOR_MODEL: 'deepseek-chat',
+      APP_ENV: 'local',
+    },
     'checkpoint_a',
   );
-  return new OpenRouterQuestionDirector({ checkpointA } as ApiConfig, transport);
+  return new ConfiguredQuestionDirector({ checkpointA } as ApiConfig, transport);
 }
 
 function request(): QuestionDirectorRequest {
@@ -313,16 +387,20 @@ function evidenceResult(request: EvidenceRequestEnvelope): EvidenceResultEnvelop
   };
 }
 
-function response(body: Record<string, unknown>): OpenRouterResponse {
+function response(body: Record<string, unknown>): ConfiguredDirectorResponse {
   return responseText(
     JSON.stringify({ choices: [{ message: { content: JSON.stringify(body) } }] }),
   );
 }
 
+function anthropicResponse(body: Record<string, unknown>): ConfiguredDirectorResponse {
+  return responseText(JSON.stringify({ content: [{ text: JSON.stringify(body), type: 'text' }] }));
+}
+
 function responseText(
   body: string,
-  overrides: Partial<OpenRouterResponse> = {},
-): OpenRouterResponse {
+  overrides: Partial<ConfiguredDirectorResponse> = {},
+): ConfiguredDirectorResponse {
   return {
     ok: true,
     status: 200,
