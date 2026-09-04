@@ -51,18 +51,28 @@ Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state
 | `PFC-06-ERROR-AUTH-RESILIENCE` | `DONE` | PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded | [`tasks/PFC-06-ERROR-AUTH-RESILIENCE.md`](tasks/PFC-06-ERROR-AUTH-RESILIENCE.md) | `luna-high` | `132` | `PFC-07A-QUERY-MODE-NAV-STATE` |
 | `PFC-07A-QUERY-MODE-NAV-STATE` | `DONE` | PFC-06 DONE; canonical PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9` merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `134` | `PFC-07-FULL-FLOW-E2E` |
 | `PFC-07-FULL-FLOW-E2E` | `DONE` | PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c` merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
+| `RIU-01-DIRECTOR-LANDING` | `BLOCKED` | Product Flow Closure pack closed; `checkpoint-a-configurable-director-v2.md` must be durably available before Worker execution | [`tasks/RIU-01-DIRECTOR-LANDING.md`](tasks/RIU-01-DIRECTOR-LANDING.md) | `luna-high` | `null` | `RIU-02-CALIBRATION-USABLE` |
+| `RIU-02-CALIBRATION-USABLE` | `DEFERRED` | `RIU-01-DIRECTOR-LANDING` DONE | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `null` | `RIU-03-AI-STATUS-CONTRACT` |
+| `RIU-03-AI-STATUS-CONTRACT` | `DEFERRED` | `RIU-02-CALIBRATION-USABLE` DONE | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `null` | `RIU-04-AI-STATUS-UI` |
+| `RIU-04-AI-STATUS-UI` | `DEFERRED` | `RIU-03-AI-STATUS-CONTRACT` DONE | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `null` | `RIU-05-REPO-HEALTH` |
+| `RIU-05-REPO-HEALTH` | `DEFERRED` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
-`PRODUCT-FLOW-CLOSURE-01` is Owner-authorized and active. The first goal is a complete ordinary first-interview chain rather than deeper feature expansion or visual polish.
+`REAL-INTERVIEW-USABILITY-01` is Product Owner-authorized and is now the canonical next Development Pack after the closed Product Flow Closure sequence.
 
-`PFC-01-NEW-INTENT-TRUTH` through `PFC-06-ERROR-AUTH-RESILIENCE` are `DONE`. PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95` was accepted and merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
+Canonical queue:
 
-PFC-07 PR #133 exact head `2749ffd719b4c9544caa97acaee5337072280202` and verify CI run `33607067676` exposed the out-of-scope production route-state defect at the continue-unfinished-interview transition. The Product Owner resolved that scope ambiguity by authorizing `PFC-07A-QUERY-MODE-NAV-STATE` under the existing pack.
+```text
+RIU-01-DIRECTOR-LANDING          [BLOCKED]
+  -> RIU-02-CALIBRATION-USABLE   [DEFERRED]
+  -> RIU-03-AI-STATUS-CONTRACT   [DEFERRED]
+  -> RIU-04-AI-STATUS-UI         [DEFERRED]
+  -> RIU-05-REPO-HEALTH          [DEFERRED]
+  -> null
+```
 
-`PFC-07A-QUERY-MODE-NAV-STATE` is `DONE` through canonical PR #134 exact Architect-reviewed PASS head, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`, with exact-current-main CI run `33654978336` successful. `PFC-07-FULL-FLOW-E2E` is `DONE` through canonical PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c`, merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded.
-
-The Product Owner approved all audited F1-F20 fixes and froze v1 product behavior: **no deliberate pause-then-resume feature.** Existing interruption recovery remains a safety mechanism only.
+`RIU-01-DIRECTOR-LANDING` is formally issued but blocked because its declared Accepted Contract, `docs/contracts/checkpoint-a-configurable-director-v2.md`, is not yet durable in GitHub. The Product Owner reported that this contract and the already-implemented Configurable Director V2 change set currently exist only in a local working tree. The blocker must not be cleared by inventing or reconstructing Accepted Contract text. Once the exact accepted artifact is durably available, the same task may resume under the existing Task Card and no new task is required.
 
 ## Frozen product-flow boundaries
 
@@ -74,15 +84,14 @@ The Product Owner approved all audited F1-F20 fixes and froze v1 product behavio
 - AI suggestion failure never stops recording and gets a visible retry path;
 - no known placeholder/dead route may remain behind an ordinary visible action in the audited lifecycle;
 - no deliberate pause/resume product feature;
-- P1-P6 semantics, provider bindings, evidence authority and consent/capture safety remain unchanged.
+- P1-P6 semantics, evidence authority and consent/capture safety remain unchanged.
 
 ## Maintenance / governance
 
 - historical `MEMORY-T5-T8-P2-C-RUNTIME-001` remains `DONE` and must not become active from stale projection;
 - GitHub durable PR/head/verdict/merge/CI facts override stale local projections;
 - Dispatcher must scan the full freshly fetched canonical queue after reconciliation;
-- Dispatcher never invents Product Flow tasks or product behavior and never judges an Architect's technical choice;
+- Dispatcher never invents tasks, product behavior, Accepted Contract contents, or missing local implementation artifacts;
 - External Architect owns bounded implementation commands, effective-envelope exact-head review, and verdict;
-- valid unique Directives are reconciled before ordinary waits/no-ops and may recover the same current task/PR without creating a successor;
 - Worker implements only the base Task Card plus all applied Directive overlays on the canonical task/PR;
 - no Directive may bypass CI/review/PASS/merge/exact-main verification or change Owner-frozen decisions, Accepted Contracts, architecture boundaries, task identity, or queue topology.
