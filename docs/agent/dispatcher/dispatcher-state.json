@@ -415,11 +415,11 @@
     },
     {
       "id": "RIU-03-AI-STATUS-CONTRACT",
-      "status": "BLOCKED",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/RIU-03-AI-STATUS-CONTRACT.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-02-CALIBRATION-USABLE"],
-      "pr": null,
+      "pr": 144,
       "next_task": "RIU-04-AI-STATUS-UI"
     },
     {
