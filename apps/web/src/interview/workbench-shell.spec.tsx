@@ -970,6 +970,8 @@ describe('WorkbenchShell', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '跳过说话人确认并继续访谈' }));
     expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
+    expect(screen.getByText('说话人身份尚未确认')).toBeTruthy();
+    expect(screen.getByText(/这不影响本次录音和转录/)).toBeTruthy();
 
     act(() => {
       harness.emit(

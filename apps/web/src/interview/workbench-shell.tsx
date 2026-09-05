@@ -598,6 +598,7 @@ export function WorkbenchShell({
                 snapshot.realtime.failureKind,
               )
             ) {
+              setCalibrationOutcome('skipped');
               setCalibrationGateDismissed(true);
             }
           }}
