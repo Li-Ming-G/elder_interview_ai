@@ -410,7 +410,7 @@
       "task_card": "docs/agent/tasks/RIU-02-CALIBRATION-USABLE.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-01-DIRECTOR-LANDING"],
-      "pr": null,
+      "pr": 143,
       "next_task": "RIU-03-AI-STATUS-CONTRACT"
     },
     {
