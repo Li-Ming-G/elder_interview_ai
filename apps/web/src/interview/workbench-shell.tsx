@@ -101,6 +101,7 @@ export function WorkbenchShell({
   const [calibrationBusy, setCalibrationBusy] = useState(false);
   const [calibrationError, setCalibrationError] = useState<string | null>(null);
   const [calibrationGateDismissed, setCalibrationGateDismissed] = useState(false);
+  const [calibrationOutcome, setCalibrationOutcome] = useState<'failed' | 'skipped' | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<WorkbenchNavigationRequest | null>(
     null,
   );
@@ -216,6 +217,7 @@ export function WorkbenchShell({
       calibrationBegin.current = { requestId: crypto.randomUUID(), streamId };
       setCalibrationBusy(true);
       setCalibrationError(null);
+      setCalibrationOutcome(null);
       try {
         await api.beginSpeakerCalibration(sessionId, {
           request_id: calibrationBegin.current.requestId,
@@ -286,6 +288,9 @@ export function WorkbenchShell({
       if (['confirmed', 'failed', 'skipped'].includes(resolved.status)) {
         calibrationResolve.current = null;
         setCalibrationGateDismissed(true);
+        setCalibrationOutcome(
+          resolved.status === 'failed' || resolved.status === 'skipped' ? resolved.status : null,
+        );
       }
     } catch (error) {
       setCalibrationError(readableActionError(error, '说话人确认未完成，原始录音仍在继续。'));
@@ -558,6 +563,9 @@ export function WorkbenchShell({
     snapshot.serverSession.capture?.status === 'interrupted';
 
   const calibrationConfirmed = snapshot.realtime.calibration?.status === 'confirmed';
+  const calibrationUnconfirmed =
+    calibrationOutcome !== null ||
+    ['failed', 'skipped'].includes(snapshot.realtime.calibration?.status ?? '');
   if (state === 'completed') {
     return (
       <CompletedInterviewPage
@@ -590,6 +598,7 @@ export function WorkbenchShell({
                 snapshot.realtime.failureKind,
               )
             ) {
+              setCalibrationOutcome('skipped');
               setCalibrationGateDismissed(true);
             }
           }}
@@ -656,6 +665,7 @@ export function WorkbenchShell({
         statusExpanded={statusExpanded}
         validConsent={validConsent}
         speakerCorrections={api}
+        calibrationUnconfirmed={calibrationUnconfirmed}
         suggestionApi={api}
       />
       {pendingNavigation === null ? null : (
@@ -676,6 +686,7 @@ interface WorkbenchViewProps {
   canAbandon: boolean;
   canFinalizeExisting: boolean;
   canResume: boolean;
+  calibrationUnconfirmed: boolean;
   endMode: EndMode | null;
   endTrigger: React.RefObject<HTMLElement | null>;
   navigate: (path: string, replace?: boolean) => void;
@@ -766,6 +777,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
     canAbandon,
     canFinalizeExisting,
     canResume,
+    calibrationUnconfirmed,
     endMode,
     endTrigger,
     navigate,
@@ -941,6 +953,7 @@ function WorkbenchView(props: WorkbenchViewProps): React.JSX.Element {
             </div>
           </div>
           {saveExpanded ? <SaveFacts snapshot={snapshot} /> : null}
+          {calibrationUnconfirmed ? <UnconfirmedSpeakerDisclosure /> : null}
           {state === 'recording' && realtimeFailure !== null ? (
             <div className="transcript-notice" role="alert">
               <strong>{realtimeFailure.title}</strong>
@@ -1075,6 +1088,7 @@ function CalibrationGate({
           校准已绑定本次正式实时流。这里听到的校准内容只保留为原始证据，不会出现在普通访谈转录、回顾正文或
           AI 普通上下文中。
         </p>
+        <p>请让两位说话人各自连续说话约 5—10 秒；只有两个人都被听到，才能继续确认说话人角色。</p>
         <SpeakerCalibrationPanel
           busy={busy}
           error={error}
@@ -1120,10 +1134,12 @@ function SpeakerCalibrationPanel({
   onResolve: (action: 'confirm' | 'fail' | 'skip', mappings?: SpeakerCalibrationMapping[]) => void;
   snapshot: SpeakerCalibrationSnapshot | null | undefined;
 }): React.JSX.Element {
-  const [reversed, setReversed] = useState(false);
+  const [assignments, setAssignments] = useState<
+    Record<string, '' | SpeakerCalibrationMapping['speaker_role']>
+  >({});
   const attemptId = snapshot?.attempt?.id ?? null;
   useEffect(() => {
-    setReversed(false);
+    setAssignments({});
   }, [attemptId]);
 
   if (snapshot?.status === 'confirmed') {
@@ -1136,39 +1152,60 @@ function SpeakerCalibrationPanel({
   }
 
   if (snapshot?.status === 'collecting' && snapshot.attempt !== null) {
-    const labels = snapshot.attempt.observed_provider_labels.slice(0, 2);
-    const firstLabel = labels[0];
-    const secondLabel = labels[1];
-    const mappings: SpeakerCalibrationMapping[] =
-      firstLabel !== undefined && secondLabel !== undefined
-        ? [
+    const labels = snapshot.attempt.observed_provider_labels;
+    const mappings: SpeakerCalibrationMapping[] = labels.flatMap((label) => {
+      const role = assignments[label];
+      return role === undefined || role === ''
+        ? []
+        : [
             {
-              authority: 'user_confirmed',
-              speaker_provider_id: firstLabel,
-              speaker_role: reversed ? 'elder' : 'interviewer',
+              authority: 'user_confirmed' as const,
+              speaker_provider_id: label,
+              speaker_role: role,
             },
-            {
-              authority: 'user_confirmed',
-              speaker_provider_id: secondLabel,
-              speaker_role: reversed ? 'interviewer' : 'elder',
-            },
-          ]
-        : [];
+          ];
+    });
+    const roles = new Set(mappings.map(({ speaker_role }) => speaker_role));
+    const canConfirm = mappings.length === 2 && roles.size === 2;
     return (
       <section className="speaker-calibration" aria-labelledby="speaker-calibration-title">
         <div className="speaker-calibration__copy" aria-live="polite">
           <strong id="speaker-calibration-title">正在录音 · 正在确认说话人</strong>
           {labels.length < 2 ? (
             <p>
-              请先由访谈员说“我是访谈员”，再请长者说“我是受访长者”。已听到 {labels.length}/2 位。
+              请让另一位说话人继续说话。已听到 {labels.length}/2
+              个不同声音；听到两位后才能确认角色。
             </p>
           ) : (
             <p>
-              当前对应：
-              {mappings[0]?.speaker_role === 'interviewer' ? '第一位是访谈员' : '第一位是长者'}，
-              {mappings[1]?.speaker_role === 'elder' ? '第二位是长者' : '第二位是访谈员'}。
+              已听到 {labels.length}{' '}
+              个不同声音。请明确选择其中一位为长者、另一位为倾听员；不会根据先后顺序自动判断。
             </p>
           )}
+          <p>请让两位说话人各自连续说话约 5—10 秒，录音会继续保存。</p>
+          {labels.length > 0 ? (
+            <div className="speaker-calibration__assignments">
+              {labels.map((label, index) => (
+                <label key={label}>
+                  观察到的声音 {index + 1} 的角色
+                  <select
+                    aria-label={`观察到的声音 ${String(index + 1)} 的角色`}
+                    disabled={busy}
+                    onChange={(event) => {
+                      const value = event.target.value as
+                        '' | SpeakerCalibrationMapping['speaker_role'];
+                      setAssignments((current) => ({ ...current, [label]: value }));
+                    }}
+                    value={assignments[label] ?? ''}
+                  >
+                    <option value="">尚未选择</option>
+                    <option value="elder">长者</option>
+                    <option value="interviewer">倾听员</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+          ) : null}
           {error === null ? null : (
             <p className="speaker-calibration__error" role="alert">
               {error}
@@ -1176,30 +1213,6 @@ function SpeakerCalibrationPanel({
           )}
         </div>
         <div className="speaker-calibration__actions">
-          {labels.length === 2 ? (
-            <>
-              <button
-                className="button button--secondary"
-                disabled={busy}
-                onClick={() => {
-                  setReversed((value) => !value);
-                }}
-                type="button"
-              >
-                交换对应关系
-              </button>
-              <button
-                className="button"
-                disabled={busy}
-                onClick={() => {
-                  onResolve('confirm', mappings);
-                }}
-                type="button"
-              >
-                {busy ? '确认中…' : '确认说话人'}
-              </button>
-            </>
-          ) : null}
           <button
             className="text-button"
             disabled={busy}
@@ -1220,6 +1233,39 @@ function SpeakerCalibrationPanel({
           >
             无法辨认
           </button>
+          {labels.length >= 2 ? (
+            <button
+              className="button button--secondary"
+              disabled={busy || !canConfirm}
+              onClick={() => {
+                if (!canConfirm) return;
+                const first = mappings[0];
+                const second = mappings[1];
+                if (first === undefined || second === undefined) return;
+                setAssignments((current) => ({
+                  ...current,
+                  [first.speaker_provider_id]: second.speaker_role,
+                  [second.speaker_provider_id]: first.speaker_role,
+                }));
+              }}
+              type="button"
+            >
+              交换角色选择
+            </button>
+          ) : null}
+          {labels.length >= 2 ? (
+            <button
+              className="button"
+              disabled={busy || !canConfirm}
+              onClick={() => {
+                if (!canConfirm) return;
+                onResolve('confirm', mappings);
+              }}
+              type="button"
+            >
+              {busy ? '确认中…' : canConfirm ? '确认说话人' : '请先选择两种角色'}
+            </button>
+          ) : null}
         </div>
       </section>
     );
@@ -1244,6 +1290,17 @@ function SpeakerCalibrationPanel({
         {busy ? '正在准备…' : '重试确认'}
       </button>
     </section>
+  );
+}
+
+function UnconfirmedSpeakerDisclosure(): React.JSX.Element {
+  return (
+    <div className="transcript-notice" role="status">
+      <strong>说话人身份尚未确认</strong>
+      <p>
+        这不影响本次录音和转录。需要时，可在每段转录旁使用“修正角色”来补充说话人角色；修正不会改写原始证据。
+      </p>
+    </div>
   );
 }
 

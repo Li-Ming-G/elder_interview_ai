@@ -228,8 +228,14 @@ test('dedicated calibration gate remains accessible on small screens and exits t
   await expect(page.locator('.transcript-stage')).toHaveCount(0);
   await expect(panel.locator('strong')).toBeVisible();
   await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+  await expect(panel).toContainText('两位说话人各自连续说话约 5—10 秒');
   await expect(panel.locator('[aria-live="polite"]')).toBeVisible();
-  await expect(panel.getByRole('button')).toHaveCount(4);
+  await emitCalibration(page, calibrationSnapshot('collecting', 0, ['speaker_1']));
+  await expect(panel).toContainText('请让另一位说话人继续说话');
+  await expect(panel).toContainText('已听到 1/2 个不同声音');
+  await expect(panel.getByRole('button', { name: '暂时跳过' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: '无法辨认' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: '确认说话人' })).toHaveCount(0);
   const micRequests = await page.evaluate(() => Number(Reflect.get(globalThis, '__micRequests')));
 
   for (const viewport of [
@@ -930,6 +936,7 @@ async function emitCalibration(page: Page, snapshot: unknown): Promise<void> {
 function calibrationSnapshot(
   status: 'collecting' | 'confirmed' | 'failed' | 'skipped',
   revision: number,
+  observedLabels = ['speaker_1', 'speaker_2'],
 ): unknown {
   const resolved = status !== 'collecting';
   return {
@@ -957,7 +964,7 @@ function calibrationSnapshot(
             ]
           : [],
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      observed_provider_labels: ['speaker_1', 'speaker_2'],
+      observed_provider_labels: observedLabels,
       resolved_at: resolved ? '2026-08-08T08:00:02.000Z' : null,
       started_at: '2026-08-08T08:00:01.000Z',
       status,
