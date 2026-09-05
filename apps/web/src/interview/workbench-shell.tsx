@@ -1212,18 +1212,6 @@ function SpeakerCalibrationPanel({
           )}
         </div>
         <div className="speaker-calibration__actions">
-          {canConfirm ? (
-            <button
-              className="button"
-              disabled={busy}
-              onClick={() => {
-                onResolve('confirm', mappings);
-              }}
-              type="button"
-            >
-              {busy ? '确认中…' : '确认说话人'}
-            </button>
-          ) : null}
           <button
             className="text-button"
             disabled={busy}
@@ -1244,6 +1232,39 @@ function SpeakerCalibrationPanel({
           >
             无法辨认
           </button>
+          {labels.length >= 2 ? (
+            <button
+              className="button button--secondary"
+              disabled={busy || !canConfirm}
+              onClick={() => {
+                if (!canConfirm) return;
+                const first = mappings[0];
+                const second = mappings[1];
+                if (first === undefined || second === undefined) return;
+                setAssignments((current) => ({
+                  ...current,
+                  [first.speaker_provider_id]: second.speaker_role,
+                  [second.speaker_provider_id]: first.speaker_role,
+                }));
+              }}
+              type="button"
+            >
+              交换角色选择
+            </button>
+          ) : null}
+          {labels.length >= 2 ? (
+            <button
+              className="button"
+              disabled={busy || !canConfirm}
+              onClick={() => {
+                if (!canConfirm) return;
+                onResolve('confirm', mappings);
+              }}
+              type="button"
+            >
+              {busy ? '确认中…' : canConfirm ? '确认说话人' : '请先选择两种角色'}
+            </button>
+          ) : null}
         </div>
       </section>
     );
