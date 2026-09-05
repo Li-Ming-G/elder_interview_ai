@@ -180,6 +180,21 @@ describe('WorkbenchShell', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('keeps confirmation unavailable until two observed speakers are present', async () => {
+    const harness = createHarness(recordingSession(), {
+      realtime: {
+        ...EMPTY_REALTIME,
+        calibration: calibrationSnapshot('collecting', ['speaker_1']),
+      },
+    });
+    renderWorkbench(harness);
+
+    expect(await screen.findByText(/已听到 1\/2 个不同声音/)).toBeTruthy();
+    expect(screen.getByText(/请让另一位说话人继续说话/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '确认说话人' })).toBeNull();
+    expect(screen.getByRole('button', { name: '暂时跳过' })).toBeTruthy();
+  });
+
   it('guards navigation with stay and end-and-leave choices', async () => {
     const harness = createHarness(recordingSession());
     let guard: ((request: WorkbenchNavigationRequest) => void) | null = null;
@@ -823,7 +838,7 @@ describe('WorkbenchShell', () => {
     );
   });
 
-  it('keeps recording explicit while confirming, skipping, and retrying speaker calibration', async () => {
+  it('requires explicit role assignment and keeps skipped calibration visible in the Workbench', async () => {
     const resolveSpeakerCalibration = vi.fn(() =>
       Promise.resolve(calibrationSnapshot('confirmed')),
     );
@@ -835,8 +850,13 @@ describe('WorkbenchShell', () => {
     renderWorkbench(harness);
 
     expect(await screen.findByText('正在录音 · 正在确认说话人')).toBeTruthy();
-    expect(screen.getByText(/第一位是访谈员/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '交换对应关系' }));
+    expect(screen.queryByRole('button', { name: '确认说话人' })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: '观察到的声音 1 的角色' }), {
+      target: { value: 'elder' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: '观察到的声音 2 的角色' }), {
+      target: { value: 'interviewer' },
+    });
     fireEvent.click(screen.getByRole('button', { name: '确认说话人' }));
     await waitFor(() => {
       expect(resolveSpeakerCalibration).toHaveBeenCalledTimes(1);
@@ -860,7 +880,8 @@ describe('WorkbenchShell', () => {
       );
     });
     expect(await screen.findByRole('heading', { name: '当前对话' })).toBeTruthy();
-    expect(screen.queryByText('正在录音 · 已跳过说话人确认')).toBeNull();
+    expect(screen.getByText('说话人身份尚未确认')).toBeTruthy();
+    expect(screen.getByText(/每段转录旁使用“修正角色”/)).toBeTruthy();
 
     act(() => {
       harness.emit(
@@ -1408,6 +1429,7 @@ const EMPTY_REALTIME: InterviewCaptureControllerSnapshot['realtime'] = {
 
 function calibrationSnapshot(
   status: 'collecting' | 'confirmed' | 'skipped',
+  observedLabels = ['speaker_1', 'speaker_2'],
 ): SpeakerCalibrationSnapshot {
   return {
     attempt: {
@@ -1434,7 +1456,7 @@ function calibrationSnapshot(
             ]
           : [],
       id: '55555555-5555-4555-8555-555555555555',
-      observed_provider_labels: ['speaker_1', 'speaker_2'],
+      observed_provider_labels: observedLabels,
       resolved_at: status === 'collecting' ? null : VERIFIED_AT,
       started_at: VERIFIED_AT,
       status,
