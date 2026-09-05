@@ -406,7 +406,7 @@
     },
     {
       "id": "RIU-02-CALIBRATION-USABLE",
-      "status": "IN_PROGRESS",
+      "status": "BLOCKED",
       "task_card": "docs/agent/tasks/RIU-02-CALIBRATION-USABLE.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-01-DIRECTOR-LANDING"],
