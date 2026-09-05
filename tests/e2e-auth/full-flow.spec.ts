@@ -221,8 +221,8 @@ test('calibration skip keeps recording usable, exposes suggestion retry, and gua
   await login(page);
   await startFormalInterviewFromHome(page, '虚构校准跳过流程');
   await expect(page.getByRole('heading', { name: '先确认两位说话人' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '暂时跳过' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '确认说话人' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '暂时跳过' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '确认说话人' })).toHaveCount(0);
   await page.getByRole('button', { name: '暂时跳过' }).click();
   await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('问题建议暂不可用');
