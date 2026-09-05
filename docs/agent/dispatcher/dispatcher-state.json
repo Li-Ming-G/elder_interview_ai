@@ -406,7 +406,7 @@
     },
     {
       "id": "RIU-02-CALIBRATION-USABLE",
-      "status": "REVIEW",
+      "status": "DONE",
       "task_card": "docs/agent/tasks/RIU-02-CALIBRATION-USABLE.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-01-DIRECTOR-LANDING"],
@@ -415,7 +415,7 @@
     },
     {
       "id": "RIU-03-AI-STATUS-CONTRACT",
-      "status": "DEFERRED",
+      "status": "READY",
       "task_card": "docs/agent/tasks/RIU-03-AI-STATUS-CONTRACT.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-02-CALIBRATION-USABLE"],

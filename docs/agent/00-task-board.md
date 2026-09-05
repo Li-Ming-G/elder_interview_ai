@@ -52,8 +52,8 @@ Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state
 | `PFC-07A-QUERY-MODE-NAV-STATE` | `DONE` | PFC-06 DONE; canonical PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9` merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded | [`tasks/PFC-07A-QUERY-MODE-NAV-STATE.md`](tasks/PFC-07A-QUERY-MODE-NAV-STATE.md) | `luna-high` | `134` | `PFC-07-FULL-FLOW-E2E` |
 | `PFC-07-FULL-FLOW-E2E` | `DONE` | PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c` merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 | `RIU-01-DIRECTOR-LANDING` | `DONE` | Architect PASS; PR #142 merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`; exact-current-main CI run `33881518632` succeeded | [`tasks/RIU-01-DIRECTOR-LANDING.md`](tasks/RIU-01-DIRECTOR-LANDING.md) | `luna-high` | `142` | `RIU-02-CALIBRATION-USABLE` |
-| `RIU-02-CALIBRATION-USABLE` | `IN_PROGRESS` | `RIU-01-DIRECTOR-LANDING` DONE; deterministic Worker launch in progress | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `null` | `RIU-03-AI-STATUS-CONTRACT` |
-| `RIU-03-AI-STATUS-CONTRACT` | `DEFERRED` | `RIU-02-CALIBRATION-USABLE` DONE | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `null` | `RIU-04-AI-STATUS-UI` |
+| `RIU-02-CALIBRATION-USABLE` | `DONE` | Architect PASS; PR #143 exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb` merged as `5b020695b75646f238ffffd7c2b16714e0420c84`; exact-current-main CI run `101329694130` succeeded | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `143` | `RIU-03-AI-STATUS-CONTRACT` |
+| `RIU-03-AI-STATUS-CONTRACT` | `READY` | `RIU-02-CALIBRATION-USABLE` DONE | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `null` | `RIU-04-AI-STATUS-UI` |
 | `RIU-04-AI-STATUS-UI` | `DEFERRED` | `RIU-03-AI-STATUS-CONTRACT` DONE | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `null` | `RIU-05-REPO-HEALTH` |
 | `RIU-05-REPO-HEALTH` | `DEFERRED` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
 
@@ -65,14 +65,14 @@ Canonical queue:
 
 ```text
 RIU-01-DIRECTOR-LANDING          [DONE]
-  -> RIU-02-CALIBRATION-USABLE   [IN_PROGRESS]
-  -> RIU-03-AI-STATUS-CONTRACT   [DEFERRED]
+  -> RIU-02-CALIBRATION-USABLE   [DONE]
+  -> RIU-03-AI-STATUS-CONTRACT   [READY]
   -> RIU-04-AI-STATUS-UI         [DEFERRED]
   -> RIU-05-REPO-HEALTH          [DEFERRED]
   -> null
 ```
 
-`RIU-01-DIRECTOR-LANDING` is formally issued but blocked because its declared Accepted Contract, `docs/contracts/checkpoint-a-configurable-director-v2.md`, is not yet durable in GitHub. The Product Owner reported that this contract and the already-implemented Configurable Director V2 change set currently exist only in a local working tree. The blocker must not be cleared by inventing or reconstructing Accepted Contract text. Once the exact accepted artifact is durably available, the same task may resume under the existing Task Card and no new task is required.
+`RIU-03-AI-STATUS-CONTRACT` is now the sole eligible `READY` task after `RIU-02-CALIBRATION-USABLE` passed Architect review, merge, exact-current-main CI, and stage-end synchronization. Later successors remain locked until their predefined predecessor gates complete.
 
 ## Frozen product-flow boundaries
 
