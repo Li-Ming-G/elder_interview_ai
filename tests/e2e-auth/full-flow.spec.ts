@@ -225,6 +225,10 @@ test('calibration skip keeps recording usable, exposes suggestion retry, and gua
   await expect(page.getByRole('button', { name: '确认说话人' })).toHaveCount(0);
   await page.getByRole('button', { name: '暂时跳过' }).click();
   await expect(page.getByRole('heading', { name: '当前对话' })).toBeVisible();
+  const unconfirmedDisclosure = page.locator('.transcript-notice[role="status"]');
+  await expect(unconfirmedDisclosure).toContainText('说话人身份尚未确认');
+  await expect(unconfirmedDisclosure).toContainText('这不影响本次录音和转录');
+  await expect(unconfirmedDisclosure).toContainText('修正角色');
   await expect(page.getByRole('alert')).toContainText('问题建议暂不可用');
   await expect(page.getByRole('button', { name: '重新加载问题建议' })).toBeVisible();
   await page.getByRole('button', { name: '重新加载问题建议' }).click();

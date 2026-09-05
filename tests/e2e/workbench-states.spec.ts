@@ -228,8 +228,10 @@ test('dedicated calibration gate remains accessible on small screens and exits t
   await expect(page.locator('.transcript-stage')).toHaveCount(0);
   await expect(panel.locator('strong')).toBeVisible();
   await expect(panel).toContainText('\u6b63\u5728\u5f55\u97f3');
+  await expect(panel).toContainText('两位说话人各自连续说话约 5—10 秒');
   await expect(panel.locator('[aria-live="polite"]')).toBeVisible();
   await emitCalibration(page, calibrationSnapshot('collecting', 0, ['speaker_1']));
+  await expect(panel).toContainText('请让另一位说话人继续说话');
   await expect(panel).toContainText('已听到 1/2 个不同声音');
   await expect(panel.getByRole('button', { name: '暂时跳过' })).toBeVisible();
   await expect(panel.getByRole('button', { name: '无法辨认' })).toBeVisible();
