@@ -752,6 +752,49 @@ export type SuggestionWithdrawalReason =
   | 'access_revoked'
   | 'policy_unavailable';
 
+export type AutomaticQuestionAttemptOutcome = 'succeeded' | 'in_flight' | 'failed';
+
+export type AutomaticQuestionFailureCode =
+  | 'AI_UNAVAILABLE'
+  | 'AI_CONTEXT_SCHEMA_INVALID'
+  | 'AI_EVIDENCE_OUTSIDE_FROZEN_INPUT'
+  | 'AI_JOB_CANCELLED'
+  | 'AI_JOB_NOT_RUNNING'
+  | 'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT'
+  | 'AI_OUTPUT_SCHEMA_INVALID'
+  | 'AI_PROVIDER_TIMEOUT'
+  | 'AI_PROVIDER_UNAVAILABLE'
+  | 'AI_REQUEST_IDENTITY_CONFLICT'
+  | 'AI_SESSION_SCOPE_INVALID'
+  | 'CONTEXT_BUILD_FAILED'
+  | 'DIRECTOR_FAILED'
+  | 'EVIDENCE_TIMEOUT'
+  | 'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE'
+  | 'MEMORY_TRACE_PROVENANCE_UNAVAILABLE'
+  | 'MEMORY_UNJUDGED'
+  | 'MEMORY_UNJUDGED_JOB_DRIFT'
+  | 'PROVIDER_FAILED'
+  | 'QUESTION_PREPARATION_FAILED'
+  | 'SYSTEM_COORDINATOR_RESTARTED'
+  | 'SYSTEM_REJECTION_FAILED'
+  | 'TEST_CONTEXT_ATTACHMENT_FAILED'
+  | 'WRITEBACK_FAILED';
+
+export type AutomaticQuestionWaitingReason = 'minimum_interval' | 'new_conversation' | 'debounce';
+
+export interface AutomaticQuestionGenerationStatus {
+  latest_attempt: {
+    attempt_id: string;
+    outcome: AutomaticQuestionAttemptOutcome;
+    failure_code: AutomaticQuestionFailureCode | null;
+    completed_at: string | null;
+  } | null;
+  waiting: {
+    reason: AutomaticQuestionWaitingReason;
+    next_attempt_at: string | null;
+  } | null;
+}
+
 export interface SuggestionHistorySummary {
   has_previous: boolean;
 }
@@ -767,6 +810,8 @@ export interface SuggestionPresentationResponse {
   displayed_at: string | null;
   withdrawal_reason: SuggestionWithdrawalReason | null;
   history: SuggestionHistorySummary;
+  /** Additive server-authoritative status for automatic AI assistance. */
+  ai_status?: AutomaticQuestionGenerationStatus;
 }
 
 export interface SuggestionHistoryItem {

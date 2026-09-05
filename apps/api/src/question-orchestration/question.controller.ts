@@ -38,7 +38,11 @@ export class QuestionController {
     @Param('id') id: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<SuggestionPresentationResponse> {
-    return this.presentations.current(await this.actors.from(request), validateUuid(id));
+    const actor = await this.actors.from(request);
+    const sessionId = validateUuid(id);
+    const current = await this.presentations.current(actor, sessionId);
+    const aiStatus = await this.orchestration.automaticStatus(sessionId);
+    return { ...current, ai_status: aiStatus };
   }
 
   @Get('sessions/:id/suggestions/history')

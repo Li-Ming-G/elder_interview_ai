@@ -45,6 +45,7 @@ describe('QuestionOrchestrationService automatic lane reservation', () => {
       QuestionOrchestrationService.prototype,
     ) as QuestionOrchestrationService;
     const internals = service as unknown as {
+      automaticScheduledAt: Map<string, number>;
       automaticInFlight: Set<string>;
       complete: typeof complete;
       finalizedBuffer: FinalizedTranscriptBuffer;
@@ -58,6 +59,7 @@ describe('QuestionOrchestrationService automatic lane reservation', () => {
       timers: Map<string, ReturnType<typeof setTimeout>>;
     };
     internals.automaticInFlight = new Set();
+    internals.automaticScheduledAt = new Map();
     internals.complete = complete;
     internals.finalizedBuffer = new FinalizedTranscriptBuffer();
     internals.prepare = prepare;
@@ -94,6 +96,107 @@ describe('QuestionOrchestrationService automatic lane reservation', () => {
     expect(internals.finalizedBuffer.ids('session-1')).toEqual(['segment-2']);
 
     service.onModuleDestroy();
+  });
+});
+
+describe('QuestionOrchestrationService automatic status projection', () => {
+  it('projects sanitized failure, completion, and waiting state without mutating runtime state', async () => {
+    vi.useFakeTimers();
+    try {
+      const service = statusService({
+        attempt: {
+          completedAt: new Date('2026-09-06T10:00:05.000Z'),
+          failureCode: 'RAW_PROVIDER_BODY_AND_SECRET',
+          id: 'attempt-1',
+          status: 'failed',
+        },
+        providerStartedAt: new Date('2026-09-06T10:00:00.000Z'),
+      });
+      const buffer = (service as unknown as { finalizedBuffer: FinalizedTranscriptBuffer })
+        .finalizedBuffer;
+      const timers = (service as unknown as { timers: Map<string, unknown> }).timers;
+      buffer.append('session-1', 'segment-1');
+      const beforeIds = buffer.ids('session-1');
+      const beforeTimerCount = timers.size;
+
+      vi.setSystemTime(new Date('2026-09-06T10:00:10.000Z'));
+      const status = await service.automaticStatus('session-1');
+
+      expect(status).toEqual({
+        latest_attempt: {
+          attempt_id: 'attempt-1',
+          completed_at: '2026-09-06T10:00:05.000Z',
+          failure_code: 'AI_UNAVAILABLE',
+          outcome: 'failed',
+        },
+        waiting: {
+          next_attempt_at: '2026-09-06T10:00:20.000Z',
+          reason: 'minimum_interval',
+        },
+      });
+      expect(buffer.ids('session-1')).toEqual(beforeIds);
+      expect(timers.size).toBe(beforeTimerCount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ['succeeded', 'succeeded', null, new Date('2026-09-06T10:00:05.000Z')],
+    ['pending', 'in_flight', null, null],
+    ['running', 'in_flight', null, null],
+  ] as const)(
+    'projects %s automatic attempts',
+    async (databaseStatus, outcome, failureCode, completedAt) => {
+      const service = statusService({
+        attempt: {
+          completedAt,
+          failureCode,
+          id: 'attempt-1',
+          status: databaseStatus,
+        },
+        providerStartedAt: null,
+      });
+
+      await expect(service.automaticStatus('session-1')).resolves.toMatchObject({
+        latest_attempt: {
+          attempt_id: 'attempt-1',
+          completed_at: completedAt?.toISOString() ?? null,
+          failure_code: null,
+          outcome,
+        },
+      });
+    },
+  );
+
+  it('reports open interval and no finalized conversation as waiting for new conversation', async () => {
+    const service = statusService({
+      attempt: null,
+      providerStartedAt: new Date('2026-09-06T09:00:00.000Z'),
+    });
+
+    await expect(service.automaticStatus('session-1')).resolves.toEqual({
+      latest_attempt: null,
+      waiting: { next_attempt_at: null, reason: 'new_conversation' },
+    });
+  });
+
+  it('reports a scheduled debounce instant when finalized conversation is pending', async () => {
+    const service = statusService({ attempt: null, providerStartedAt: null, pending: true });
+    const internals = service as unknown as {
+      automaticScheduledAt: Map<string, number>;
+      finalizedBuffer: FinalizedTranscriptBuffer;
+    };
+    internals.automaticScheduledAt.set('session-1', Date.parse('2026-09-06T10:00:01.500Z'));
+    internals.finalizedBuffer.append('session-1', 'segment-1');
+
+    await expect(service.automaticStatus('session-1')).resolves.toEqual({
+      latest_attempt: null,
+      waiting: {
+        next_attempt_at: '2026-09-06T10:00:01.500Z',
+        reason: 'debounce',
+      },
+    });
   });
 });
 
@@ -174,6 +277,52 @@ function serviceRunAutomatic(
   return (service as unknown as { runAutomatic(id: string): Promise<void> }).runAutomatic(
     sessionId,
   );
+}
+
+function statusService(input: {
+  attempt: {
+    completedAt: Date | null;
+    failureCode: string | null;
+    id: string;
+    status: string;
+  } | null;
+  pending?: boolean;
+  providerStartedAt: Date | null;
+}): QuestionOrchestrationService {
+  const service = Object.create(
+    QuestionOrchestrationService.prototype,
+  ) as QuestionOrchestrationService;
+  const finalizedBuffer = new FinalizedTranscriptBuffer();
+  if (input.pending === true) finalizedBuffer.append('session-1', 'pending-segment');
+  const internals = service as unknown as {
+    automaticScheduledAt: Map<string, number>;
+    finalizedBuffer: FinalizedTranscriptBuffer;
+    prisma: {
+      aiProviderCall: { findFirst: ReturnType<typeof vi.fn> };
+      questionGenerationAttempt: {
+        findFirst: ReturnType<typeof vi.fn>;
+        findMany: ReturnType<typeof vi.fn>;
+      };
+    };
+    timers: Map<string, unknown>;
+  };
+  internals.automaticScheduledAt = new Map();
+  internals.finalizedBuffer = finalizedBuffer;
+  internals.prisma = {
+    aiProviderCall: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(
+          input.providerStartedAt === null ? null : { startedAt: input.providerStartedAt },
+        ),
+    },
+    questionGenerationAttempt: {
+      findFirst: vi.fn().mockResolvedValue(input.attempt),
+      findMany: vi.fn().mockResolvedValue(input.attempt === null ? [] : [{ aiJobId: 'job-1' }]),
+    },
+  };
+  internals.timers = new Map();
+  return service;
 }
 
 function deferred<T>(): {
