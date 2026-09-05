@@ -61,6 +61,10 @@ test('ordinary listener completes the first interview from Home through Review a
   );
   await expect(page.getByRole('heading', { name: '先确认两位说话人' })).toBeVisible();
   await releaseDeterministicPcmFrames(page);
+  const observedSpeakerRoles = page.getByRole('combobox', { name: /观察到的声音 \d+ 的角色/u });
+  await expect(observedSpeakerRoles).toHaveCount(2);
+  await observedSpeakerRoles.nth(0).selectOption('elder');
+  await observedSpeakerRoles.nth(1).selectOption('interviewer');
   await expect(page.getByRole('button', { name: '确认说话人' })).toBeVisible();
   await expectNoDeadPage(page);
 
