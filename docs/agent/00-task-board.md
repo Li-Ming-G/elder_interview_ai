@@ -55,7 +55,7 @@ Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state
 | `RIU-02-CALIBRATION-USABLE` | `DONE` | Architect PASS; PR #143 exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb` merged as `5b020695b75646f238ffffd7c2b16714e0420c84`; exact-current-main CI run `101329694130` succeeded | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `143` | `RIU-03-AI-STATUS-CONTRACT` |
 | `RIU-03-AI-STATUS-CONTRACT` | `DONE` | Architect PASS; PR #144 exact head `bd9e83a5fb0d4fac579b8f4a9dee0ffaf017422f` merged as `3d361faa853f86a99e2abb672b323bd1126d084e`; exact-current-main CI run `34001459694` succeeded | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `144` | `RIU-04-AI-STATUS-UI` |
 | `RIU-04-AI-STATUS-UI` | `DONE` | Architect PASS; PR #145 exact head `370d13171314318f225ecfb1098670754c14c936` merged as `b2b8d2b82b8d4091787950a1a2ea1dd75231af74`; exact-current-main CI run `34023472262` succeeded | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `145` | `RIU-05-REPO-HEALTH` |
-| `RIU-05-REPO-HEALTH` | `READY` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
+| `RIU-05-REPO-HEALTH` | `DONE` | PR #146 merged as `297b7e69014b4cdc50a4051e65507aab99c4f792`; exact-current-main CI run `34029636296` succeeded | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `146` | `null` |
 
 ## Current phase
 
@@ -68,11 +68,11 @@ RIU-01-DIRECTOR-LANDING          [DONE]
   -> RIU-02-CALIBRATION-USABLE   [DONE]
   -> RIU-03-AI-STATUS-CONTRACT   [DONE]
   -> RIU-04-AI-STATUS-UI         [DONE]
-  -> RIU-05-REPO-HEALTH          [READY]
+  -> RIU-05-REPO-HEALTH          [DONE]
   -> null
 ```
 
-`RIU-05-REPO-HEALTH` is now the sole eligible `READY` task after `RIU-04-AI-STATUS-UI` passed Architect review, merge, exact-current-main CI, and stage-end synchronization.
+`RIU-05-REPO-HEALTH` is complete after PR #146 merge, exact-current-main CI, and stage-end synchronization; no predefined successor remains.
 
 ## Frozen product-flow boundaries
 
