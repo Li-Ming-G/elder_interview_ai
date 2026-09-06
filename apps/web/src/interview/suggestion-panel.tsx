@@ -280,14 +280,13 @@ export function SuggestionPanel({
                 ? '建议服务暂时无法给出可靠问题，录音和转录仍会继续。'
                 : '长者正在讲述时，不必急着追问。'}
         </p>
+        <p className="suggestion-panel__status" role="status">
+          <span>{statusCopy.announcement}</span>
+          {statusCopy.countdown === null ? null : (
+            <span aria-hidden="true"> {statusCopy.countdown}</span>
+          )}
+        </p>
       </div>
-
-      <p className="suggestion-panel__status" role="status">
-        <span>{statusCopy.announcement}</span>
-        {statusCopy.countdown === null ? null : (
-          <span aria-hidden="true"> {statusCopy.countdown}</span>
-        )}
-      </p>
 
       <div className="suggestion-panel__actions" aria-label="问题导航">
         {view.kind === 'current' ? (
