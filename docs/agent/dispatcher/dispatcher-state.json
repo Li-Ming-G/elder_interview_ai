@@ -424,7 +424,7 @@
     },
     {
       "id": "RIU-04-AI-STATUS-UI",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/RIU-04-AI-STATUS-UI.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-03-AI-STATUS-CONTRACT"],
