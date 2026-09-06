@@ -41,8 +41,8 @@ Predefined queue:
 ```text
 RIU-01-DIRECTOR-LANDING          [DONE]
   -> RIU-02-CALIBRATION-USABLE   [DONE]
-  -> RIU-03-AI-STATUS-CONTRACT   [READY]
-  -> RIU-04-AI-STATUS-UI         [DEFERRED]
+  -> RIU-03-AI-STATUS-CONTRACT   [DONE]
+  -> RIU-04-AI-STATUS-UI         [READY]
   -> RIU-05-REPO-HEALTH          [DEFERRED]
   -> null
 ```
@@ -101,7 +101,7 @@ Only the first eligible task may run. Successors remain locked until predecessor
 
 ## Current task truth
 
-`RIU-01-DIRECTOR-LANDING` is complete: Architect PASS was issued for exact head `ce2381b8babc670de29f10aa25c6cfff1fd68eee`, PR #142 was merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`, and exact-current-main CI run `33881518632` succeeded. `RIU-02-CALIBRATION-USABLE` is complete: Architect PASS was issued for exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb`, PR #143 was merged as `5b020695b75646f238ffffd7c2b16714e0420c84`, and exact-current-main CI run `101329694130` succeeded. `RIU-03-AI-STATUS-CONTRACT` is now the sole eligible `READY` task.
+`RIU-01-DIRECTOR-LANDING` is complete: Architect PASS was issued for exact head `ce2381b8babc670de29f10aa25c6cfff1fd68eee`, PR #142 was merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`, and exact-current-main CI run `33881518632` succeeded. `RIU-02-CALIBRATION-USABLE` is complete: Architect PASS was issued for exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb`, PR #143 was merged as `5b020695b75646f238ffffd7c2b16714e0420c84`, and exact-current-main CI run `101329694130` succeeded. `RIU-03-AI-STATUS-CONTRACT` is complete: Architect PASS was issued for exact head `bd9e83a5fb0d4fac579b8f4a9dee0ffaf017422f`, PR #144 was merged as `3d361faa853f86a99e2abb672b323bd1126d084e`, and exact-current-main CI run `34001459694` succeeded. `RIU-04-AI-STATUS-UI` is now the sole eligible `READY` task.
 
 The declared Accepted Contract `docs/contracts/checkpoint-a-configurable-director-v2.md` is durable on GitHub main. The authorized current-task Directive `RIU01-SEED-20260904-01` launched the deterministic Worker from durable seed `wip/riu-01-director-v2@d4a311c0ce04ec5f51f1e34a1f0a629fe259b751`; its effective overlay remains recorded through stage completion.
 
@@ -189,9 +189,9 @@ Authorized malformed/stale Directives receive deterministic rejection evidence. 
 
 ## Current states
 
-- `DONE`: `RIU-01-DIRECTOR-LANDING` and `RIU-02-CALIBRATION-USABLE` have passed their Architect, merge, exact-current-main CI, and stage-end synchronization gates.
-- `READY`: `RIU-03-AI-STATUS-CONTRACT`.
-- `DEFERRED`: `RIU-04-AI-STATUS-UI`, `RIU-05-REPO-HEALTH`, each locked until its predecessor reaches `DONE`.
+- `DONE`: `RIU-01-DIRECTOR-LANDING`, `RIU-02-CALIBRATION-USABLE`, and `RIU-03-AI-STATUS-CONTRACT` have passed their Architect, merge, exact-current-main CI, and stage-end synchronization gates.
+- `READY`: `RIU-04-AI-STATUS-UI`.
+- `DEFERRED`: `RIU-05-REPO-HEALTH`, locked until its predecessor reaches `DONE`.
 - `DONE`: `RIU-02-CALIBRATION-USABLE` through PR #143 exact Architect-reviewed PASS head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb`, merged as `5b020695b75646f238ffffd7c2b16714e0420c84`; exact-current-main CI run `101329694130` succeeded.
 - `DONE`: `PFC-06-ERROR-AUTH-RESILIENCE` through PR #132 exact Architect-reviewed PASS head `899b112bdde58a872c2537a132264170a7884f95`, merged as `48f5130a097c7aebbfe46d15ace36b41fd1fe272`; exact-current-main CI run `33595083657` succeeded.
 - `DONE`: `PFC-07A-QUERY-MODE-NAV-STATE` through PR #134 exact Architect-reviewed PASS head `e2549929f4d1d0ccdc2996a2390c5159ebb342e9`, merged as `6b0dbd8f73c6bca44cf55f68a7ebd3f324eb20f2`; exact-current-main CI run `33654978336` succeeded.
@@ -206,6 +206,6 @@ Product Owner decisions and exact Accepted Contracts -> base Task Card identity/
 
 The Product Flow Closure pack is closed: PFC-07A and PFC-07-FULL-FLOW-E2E are canonical `DONE`, and PFC-07's predefined `next_task` was `null`.
 
-The Product Owner has authorized the new Development Pack `REAL INTERVIEW USABILITY 01`. `RIU-01-DIRECTOR-LANDING` and `RIU-02-CALIBRATION-USABLE` are complete through their predefined gates. `RIU-03-AI-STATUS-CONTRACT` is the sole next eligible task; do not unlock later tasks until its predecessor gates complete.
+The Product Owner has authorized the new Development Pack `REAL INTERVIEW USABILITY 01`. `RIU-01-DIRECTOR-LANDING`, `RIU-02-CALIBRATION-USABLE`, and `RIU-03-AI-STATUS-CONTRACT` are complete through their predefined gates. `RIU-04-AI-STATUS-UI` is the sole next eligible task; do not unlock later tasks until its predecessor gates complete.
 
 Separately and in parallel, the Owner action item stands: repair `.env.local` so `ANTHROPIC_BASE_URL` is `https://co.agentrouter.org` and the Director credential is valid. Until that is done, no AI-visible acceptance in this pack can be exercised against a working provider.
