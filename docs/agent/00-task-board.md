@@ -53,8 +53,8 @@ Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state
 | `PFC-07-FULL-FLOW-E2E` | `DONE` | PR #133 exact Architect-reviewed PASS head `3aeb06975a60c8987200b7eaf03b9cce6fd1ad6c` merged as `a7a49e69dd15d6e4fb3f41b4e0f5f531c3f388ed`; exact-current-main CI run `33794204208` succeeded | [`tasks/PFC-07-FULL-FLOW-E2E.md`](tasks/PFC-07-FULL-FLOW-E2E.md) | `luna-high` | `133` | `null` |
 | `RIU-01-DIRECTOR-LANDING` | `DONE` | Architect PASS; PR #142 merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`; exact-current-main CI run `33881518632` succeeded | [`tasks/RIU-01-DIRECTOR-LANDING.md`](tasks/RIU-01-DIRECTOR-LANDING.md) | `luna-high` | `142` | `RIU-02-CALIBRATION-USABLE` |
 | `RIU-02-CALIBRATION-USABLE` | `DONE` | Architect PASS; PR #143 exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb` merged as `5b020695b75646f238ffffd7c2b16714e0420c84`; exact-current-main CI run `101329694130` succeeded | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `143` | `RIU-03-AI-STATUS-CONTRACT` |
-| `RIU-03-AI-STATUS-CONTRACT` | `READY` | `RIU-02-CALIBRATION-USABLE` DONE | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `null` | `RIU-04-AI-STATUS-UI` |
-| `RIU-04-AI-STATUS-UI` | `DEFERRED` | `RIU-03-AI-STATUS-CONTRACT` DONE | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `null` | `RIU-05-REPO-HEALTH` |
+| `RIU-03-AI-STATUS-CONTRACT` | `DONE` | Architect PASS; PR #144 exact head `bd9e83a5fb0d4fac579b8f4a9dee0ffaf017422f` merged as `3d361faa853f86a99e2abb672b323bd1126d084e`; exact-current-main CI run `34000825041` succeeded | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `144` | `RIU-04-AI-STATUS-UI` |
+| `RIU-04-AI-STATUS-UI` | `READY` | `RIU-03-AI-STATUS-CONTRACT` DONE | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `null` | `RIU-05-REPO-HEALTH` |
 | `RIU-05-REPO-HEALTH` | `DEFERRED` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
@@ -66,13 +66,13 @@ Canonical queue:
 ```text
 RIU-01-DIRECTOR-LANDING          [DONE]
   -> RIU-02-CALIBRATION-USABLE   [DONE]
-  -> RIU-03-AI-STATUS-CONTRACT   [READY]
-  -> RIU-04-AI-STATUS-UI         [DEFERRED]
+  -> RIU-03-AI-STATUS-CONTRACT   [DONE]
+  -> RIU-04-AI-STATUS-UI         [READY]
   -> RIU-05-REPO-HEALTH          [DEFERRED]
   -> null
 ```
 
-`RIU-03-AI-STATUS-CONTRACT` is now the sole eligible `READY` task after `RIU-02-CALIBRATION-USABLE` passed Architect review, merge, exact-current-main CI, and stage-end synchronization. Later successors remain locked until their predefined predecessor gates complete.
+`RIU-04-AI-STATUS-UI` is now the sole eligible `READY` task after `RIU-03-AI-STATUS-CONTRACT` passed Architect review, merge, exact-current-main CI, and stage-end synchronization. Later successors remain locked until their predefined predecessor gates complete.
 
 ## Frozen product-flow boundaries
 
