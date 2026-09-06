@@ -326,7 +326,7 @@ describe('SuggestionPanel', () => {
     expect(screen.queryByText(/秒/)).toBeNull();
   });
 
-  it('keeps a historical snapshot visible while current status changes', async () => {
+  it('keeps the historical snapshot visible while preserving the current failure disclosure', async () => {
     const api = suggestionApi({
       getCurrentSuggestion: vi.fn(() => Promise.resolve(failedAutomaticSuggestion())),
     });
@@ -335,6 +335,8 @@ describe('SuggestionPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '上一个问题' }));
     expect(await screen.findByRole('heading', { name: '更早的问题' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: '问题建议暂不可用' })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('可以重新尝试');
+    expect(screen.getByRole('button', { name: '重试问题建议' })).toBeTruthy();
   });
 
   it.each([

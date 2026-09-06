@@ -234,11 +234,13 @@ export function SuggestionPanel({
   const historyItem = view.kind === 'history' ? view.items[view.index] : null;
   const presentation = historyItem ?? current;
   const automaticFailure =
-    view.kind === 'current' && current?.ai_status?.latest_attempt?.outcome === 'failed'
+    current?.ai_status?.latest_attempt?.outcome === 'failed'
       ? current.ai_status.latest_attempt
       : null;
   const failedContinueListening =
-    automaticFailure !== null && presentation?.kind === 'continue_listening';
+    view.kind === 'current' &&
+    automaticFailure !== null &&
+    presentation?.kind === 'continue_listening';
   const kind =
     failedContinueListening || (current === null && error !== null)
       ? 'unavailable'
