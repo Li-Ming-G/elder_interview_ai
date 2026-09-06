@@ -431,14 +431,14 @@
       "pr": 145,
       "next_task": "RIU-05-REPO-HEALTH"
     },
-    {
-      "id": "RIU-05-REPO-HEALTH",
-      "status": "IN_PROGRESS",
-      "task_card": "docs/agent/tasks/RIU-05-REPO-HEALTH.md",
-      "worker_profile": "luna-high",
-      "depends_on": ["RIU-04-AI-STATUS-UI"],
-      "pr": null,
-      "next_task": null
-    }
+      {
+        "id": "RIU-05-REPO-HEALTH",
+        "status": "IN_PROGRESS",
+        "task_card": "docs/agent/tasks/RIU-05-REPO-HEALTH.md",
+        "worker_profile": "luna-high",
+        "depends_on": ["RIU-04-AI-STATUS-UI"],
+        "pr": 146,
+        "next_task": null
+      }
   ]
 }
