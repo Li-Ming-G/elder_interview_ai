@@ -285,13 +285,11 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
   await page.goto('/');
   await page.locator('input[name="email"]').fill('listener-a@example.test');
   await page.locator('input[name="password"]').fill('Fictional-only-Password-42!');
-  const loginResponse = page.waitForResponse(
-    (response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200,
-  );
   await page.locator('form button[type="submit"]').click();
-  const login = (await (await loginResponse).json()) as { csrf_token: string };
   await expect(page.getByRole('heading', { name: '今天好，虚构倾听员 A' })).toBeVisible();
-  const { audioStreamId, sessionId } = await page.evaluate(async (csrf) => {
+  const { audioStreamId, sessionId } = await page.evaluate(async () => {
+    const csrfResponse = await fetch('/api/v1/auth/csrf', { cache: 'no-store' });
+    const { csrf_token: csrf } = (await csrfResponse.json()) as { csrf_token: string };
     async function write(path: string, body?: unknown): Promise<Record<string, unknown>> {
       const createRequest =
         path === '/projects' || /^\/projects\/[^/]+\/(service-terms|consents|sessions)$/.test(path);
@@ -337,17 +335,6 @@ test('real Chromium streams synthetic PCM, renders interim/final, reconnects, an
       request_id: crypto.randomUUID(),
     });
     return { audioStreamId, sessionId: id };
-  }, login.csrf_token);
-
-  // The engineering harness is intentionally rendered under StrictMode. Its setup-cleanup-setup
-  // cycle may rotate CSRF twice concurrently, leaving the transport with the losing token. Keep
-  // both setup reads on the authenticated login token so this test exercises the real WS join.
-  await page.route('**/api/v1/auth/csrf', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      json: { csrf_token: login.csrf_token },
-      status: 200,
-    });
   });
 
   await page.addInitScript((captureAudioStreamId) => {

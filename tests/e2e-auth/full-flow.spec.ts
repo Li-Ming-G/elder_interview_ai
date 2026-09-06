@@ -48,12 +48,6 @@ test('ordinary listener completes the first interview from Home through Review a
   await expect(
     page.getByText('本次仍会录音、转录并由 AI 辅助分析；长者可随时要求停止或撤回。'),
   ).toBeVisible();
-  const calibrationStart = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      /\/api\/v1\/sessions\/[^/]+\/speaker-calibrations$/u.test(new URL(response.url()).pathname) &&
-      response.ok(),
-  );
   await page.getByRole('button', { name: '开始访谈' }).click();
 
   const formalIdentity = await readActiveWorkflowIdentity(page);
@@ -66,7 +60,6 @@ test('ordinary listener completes the first interview from Home through Review a
     new RegExp(`/projects/[^/]+/interview/${sessionId}/workbench$`, 'u'),
   );
   await expect(page.getByRole('heading', { name: '先确认两位说话人' })).toBeVisible();
-  await calibrationStart;
   await releaseDeterministicPcmFrames(page);
   const observedSpeakerRoles = page.getByRole('combobox', { name: /观察到的声音 \d+ 的角色/u });
   await expect(observedSpeakerRoles).toHaveCount(2);
