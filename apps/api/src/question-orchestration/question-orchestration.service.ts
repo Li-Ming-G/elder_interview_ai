@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 
 import type { ApiConfig } from '@elder-interview/config';
-import type { SuggestionRequestAcceptedResponse } from '@elder-interview/contracts';
+import type {
+  AutomaticQuestionFailureCode,
+  AutomaticQuestionGenerationStatus,
+  SuggestionRequestAcceptedResponse,
+} from '@elder-interview/contracts';
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import { API_CONFIG } from '../api-config.js';
@@ -77,6 +81,33 @@ const DEBOUNCE_MS = 1_500;
 const DEADLINE_MS = 8_000;
 const AUTO_MIN_INTERVAL_MS = 20_000;
 
+const AUTOMATIC_FAILURE_CODES = new Set<AutomaticQuestionFailureCode>([
+  'AI_UNAVAILABLE',
+  'AI_CONTEXT_SCHEMA_INVALID',
+  'AI_EVIDENCE_OUTSIDE_FROZEN_INPUT',
+  'AI_JOB_CANCELLED',
+  'AI_JOB_NOT_RUNNING',
+  'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT',
+  'AI_OUTPUT_SCHEMA_INVALID',
+  'AI_PROVIDER_TIMEOUT',
+  'AI_PROVIDER_UNAVAILABLE',
+  'AI_REQUEST_IDENTITY_CONFLICT',
+  'AI_SESSION_SCOPE_INVALID',
+  'CONTEXT_BUILD_FAILED',
+  'DIRECTOR_FAILED',
+  'EVIDENCE_TIMEOUT',
+  'MEMORY_TRIGGER_PROVENANCE_UNAVAILABLE',
+  'MEMORY_TRACE_PROVENANCE_UNAVAILABLE',
+  'MEMORY_UNJUDGED',
+  'MEMORY_UNJUDGED_JOB_DRIFT',
+  'PROVIDER_FAILED',
+  'QUESTION_PREPARATION_FAILED',
+  'SYSTEM_COORDINATOR_RESTARTED',
+  'SYSTEM_REJECTION_FAILED',
+  'TEST_CONTEXT_ATTACHMENT_FAILED',
+  'WRITEBACK_FAILED',
+]);
+
 export class FinalizedTranscriptBuffer {
   private readonly segments = new Map<string, Set<string>>();
 
@@ -116,6 +147,7 @@ export class FinalizedTranscriptBuffer {
 @Injectable()
 export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestroy {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly automaticScheduledAt = new Map<string, number>();
   private readonly finalizedBuffer = new FinalizedTranscriptBuffer();
   private readonly automaticInFlight = new Set<string>();
   private unsubscribeFinal: (() => void) | null = null;
@@ -149,8 +181,56 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     this.unsubscribeFinal?.();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    this.automaticScheduledAt.clear();
     this.finalizedBuffer.clearAll();
     this.automaticInFlight.clear();
+  }
+
+  /**
+   * Read-only projection used by the existing Workbench current-suggestion read.
+   * Authorization is deliberately provided by QuestionPresentationService before
+   * the controller calls this internal session-scoped projection.
+   */
+  public async automaticStatus(sessionId: string): Promise<AutomaticQuestionGenerationStatus> {
+    const [latestAttempt, recentAttempts] = await Promise.all([
+      this.prisma.questionGenerationAttempt.findFirst({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { completedAt: true, failureCode: true, id: true, status: true },
+        where: { attemptKind: 'automatic', sessionId },
+      }),
+      this.prisma.questionGenerationAttempt.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { aiJobId: true },
+        take: 100,
+        where: { attemptKind: 'automatic', sessionId },
+      }),
+    ]);
+
+    const latestCall =
+      recentAttempts.length === 0
+        ? null
+        : await this.prisma.aiProviderCall.findFirst({
+            orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+            select: { startedAt: true },
+            where: { aiJobId: { in: recentAttempts.map(({ aiJobId }) => aiJobId) } },
+          });
+
+    const latestStatus =
+      latestAttempt === null
+        ? null
+        : {
+            attempt_id: latestAttempt.id,
+            completed_at: latestAttempt.completedAt?.toISOString() ?? null,
+            failure_code: automaticFailureCode(latestAttempt.status, latestAttempt.failureCode),
+            outcome: automaticAttemptOutcome(latestAttempt.status),
+          };
+
+    const waiting = this.automaticWaitingStatus(
+      sessionId,
+      latestAttempt?.status,
+      latestCall?.startedAt.getTime() ?? null,
+    );
+    return { latest_attempt: latestStatus, waiting };
   }
 
   public async requestManualNext(
@@ -1110,17 +1190,17 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
   private scheduleAutomatic(sessionId: string, delayMs: number): void {
     const existing = this.timers.get(sessionId);
     if (existing !== undefined) clearTimeout(existing);
+    const safeDelayMs = Math.max(0, delayMs);
+    this.automaticScheduledAt.set(sessionId, Date.now() + safeDelayMs);
     this.timers.set(
       sessionId,
-      setTimeout(
-        () => {
-          this.timers.delete(sessionId);
-          void this.runAutomatic(sessionId).catch(() => {
-            if (this.finalizedBuffer.has(sessionId)) this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
-          });
-        },
-        Math.max(0, delayMs),
-      ),
+      setTimeout(() => {
+        this.timers.delete(sessionId);
+        this.automaticScheduledAt.delete(sessionId);
+        void this.runAutomatic(sessionId).catch(() => {
+          if (this.finalizedBuffer.has(sessionId)) this.scheduleAutomatic(sessionId, DEBOUNCE_MS);
+        });
+      }, safeDelayMs),
     );
   }
 
@@ -1128,7 +1208,36 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     const timer = this.timers.get(sessionId);
     if (timer !== undefined) clearTimeout(timer);
     this.timers.delete(sessionId);
+    this.automaticScheduledAt.delete(sessionId);
     this.finalizedBuffer.clear(sessionId);
+  }
+
+  private automaticWaitingStatus(
+    sessionId: string,
+    latestAttemptStatus: string | undefined,
+    latestCallStartedAt: number | null,
+  ): AutomaticQuestionGenerationStatus['waiting'] {
+    if (latestAttemptStatus === 'pending' || latestAttemptStatus === 'running') return null;
+
+    const now = Date.now();
+    const earliestNextAttemptAt =
+      latestCallStartedAt === null ? null : latestCallStartedAt + AUTO_MIN_INTERVAL_MS;
+    if (earliestNextAttemptAt !== null && earliestNextAttemptAt > now) {
+      return {
+        next_attempt_at: new Date(earliestNextAttemptAt).toISOString(),
+        reason: 'minimum_interval',
+      };
+    }
+
+    if (this.finalizedBuffer.has(sessionId)) {
+      const scheduledAt = this.automaticScheduledAt.get(sessionId);
+      return {
+        next_attempt_at: scheduledAt === undefined ? null : new Date(scheduledAt).toISOString(),
+        reason: 'debounce',
+      };
+    }
+
+    return { next_attempt_at: null, reason: 'new_conversation' };
   }
 
   private async automaticProviderWaitMs(sessionId: string): Promise<number> {
@@ -1147,6 +1256,23 @@ export class QuestionOrchestrationService implements OnModuleInit, OnModuleDestr
     if (latestCall === null) return 0;
     return Math.max(0, latestCall.startedAt.getTime() + AUTO_MIN_INTERVAL_MS - Date.now());
   }
+}
+
+function automaticAttemptOutcome(status: string): 'succeeded' | 'in_flight' | 'failed' {
+  if (status === 'succeeded') return 'succeeded';
+  if (status === 'pending' || status === 'running') return 'in_flight';
+  return 'failed';
+}
+
+function automaticFailureCode(
+  status: string,
+  failureCode: string | null,
+): AutomaticQuestionFailureCode | null {
+  if (status !== 'failed' && status !== 'cancelled') return null;
+  const candidate = failureCode as AutomaticQuestionFailureCode;
+  return typeof failureCode === 'string' && AUTOMATIC_FAILURE_CODES.has(candidate)
+    ? candidate
+    : 'AI_UNAVAILABLE';
 }
 
 function automaticRequestId(sessionId: string, segmentIds: readonly string[]): string {

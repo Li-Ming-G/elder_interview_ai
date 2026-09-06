@@ -5,4 +5,75 @@ info:
   description: >-
     占位文件。REST API 的当前正式依据是根目录
     05-API与实时事件契约.md。此文件完成并通过审查前不得用于代码生成。
-paths: {}
+paths:
+  /sessions/{id}/suggestions/current:
+    get:
+      summary: Read the current suggestion and automatic AI assistance status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current suggestion projection with additive AI status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestionPresentationResponse'
+components:
+  schemas:
+    SuggestionPresentationResponse:
+      type: object
+      required:
+        - session_id
+        - presentation_revision
+        - kind
+        - snapshot_id
+        - display_sequence
+        - question
+        - reason
+        - displayed_at
+        - withdrawal_reason
+        - history
+      properties:
+        session_id: { type: string, format: uuid }
+        presentation_revision: { type: integer, minimum: 0 }
+        kind: { type: string, enum: [suggestion, continue_listening, unavailable, withdrawn] }
+        snapshot_id: { type: [string, 'null'], format: uuid }
+        display_sequence: { type: [integer, 'null'], minimum: 0 }
+        question: { type: [string, 'null'] }
+        reason: { type: [string, 'null'] }
+        displayed_at: { type: [string, 'null'], format: date-time }
+        withdrawal_reason: { type: [string, 'null'] }
+        history:
+          type: object
+          required: [has_previous]
+          properties:
+            has_previous: { type: boolean }
+        ai_status:
+          $ref: '#/components/schemas/AutomaticQuestionGenerationStatus'
+    AutomaticQuestionGenerationStatus:
+      type: object
+      required: [latest_attempt, waiting]
+      properties:
+        latest_attempt:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [attempt_id, outcome, failure_code, completed_at]
+              properties:
+                attempt_id: { type: string, format: uuid }
+                outcome: { type: string, enum: [succeeded, in_flight, failed] }
+                failure_code: { type: [string, 'null'] }
+                completed_at: { type: [string, 'null'], format: date-time }
+        waiting:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [reason, next_attempt_at]
+              properties:
+                reason: { type: string, enum: [minimum_interval, new_conversation, debounce] }
+                next_attempt_at: { type: [string, 'null'], format: date-time }

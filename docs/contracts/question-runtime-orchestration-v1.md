@@ -64,3 +64,45 @@ Decision Trace remains append-only/reference-oriented under the accepted T0 cont
 Machine artifact: [`question-runtime-orchestration-v1.schema.json`](question-runtime-orchestration-v1.schema.json).
 
 Fixtures: [`fixtures/question-runtime-orchestration-v1/fixtures.json`](fixtures/question-runtime-orchestration-v1/fixtures.json).
+
+## 9. Workbench automatic assistance status projection
+
+The existing `GET /sessions/:id/suggestions/current` read may include the additive
+`ai_status` projection. It does not add a transport, polling loop, generation trigger or second
+state authority. Existing consumers may ignore the field.
+
+```json
+{
+  "ai_status": {
+    "latest_attempt": {
+      "attempt_id": "uuid",
+      "outcome": "failed",
+      "failure_code": "AI_UNAVAILABLE",
+      "completed_at": "2026-09-06T10:00:05.000Z"
+    },
+    "waiting": {
+      "reason": "minimum_interval",
+      "next_attempt_at": "2026-09-06T10:00:20.000Z"
+    }
+  }
+}
+```
+
+`latest_attempt.outcome` is `succeeded`, `in_flight` (covering persisted `pending` and `running`),
+or `failed` (covering a persisted cancellation). `failure_code` is null unless the projected
+outcome is failed, and is restricted to the existing accepted sanitized AI error-code set; unknown
+or legacy values project as `AI_UNAVAILABLE`. `completed_at` is the persisted completion instant and
+is null while an attempt is in flight.
+
+`waiting.reason=minimum_interval` includes the server-authoritative absolute earliest instant at
+which another automatic attempt may start. `waiting.reason=new_conversation` means the interval is
+open but no finalized conversation is pending, so `next_attempt_at` is null. While a finalized
+conversation is in the existing debounce buffer, `waiting.reason=debounce` may expose the existing
+server timer instant; it is an eligibility instant, not a promise that a provider call will start.
+`waiting` is null while the latest automatic attempt is in flight.
+
+The projection contains only attempt identity, safe outcome/error code and timing facts. It never
+contains prompt, context, transcript text, provider request/response payloads, credentials, endpoint
+material or raw provider errors. The controller performs the existing current-suggestion access
+check before requesting this internal projection; unauthorized actors receive the existing access
+failure and no status DTO.
