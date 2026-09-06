@@ -54,8 +54,8 @@ Task Card 顶部 `Status:` 是 issuance/planning snapshot，不是 runtime state
 | `RIU-01-DIRECTOR-LANDING` | `DONE` | Architect PASS; PR #142 merged as `3967ac79fc01925fa7d6c53884ca7a5b21488bf1`; exact-current-main CI run `33881518632` succeeded | [`tasks/RIU-01-DIRECTOR-LANDING.md`](tasks/RIU-01-DIRECTOR-LANDING.md) | `luna-high` | `142` | `RIU-02-CALIBRATION-USABLE` |
 | `RIU-02-CALIBRATION-USABLE` | `DONE` | Architect PASS; PR #143 exact head `1e7aa3752adfcc41189fc1ae0b7a24554b3444cb` merged as `5b020695b75646f238ffffd7c2b16714e0420c84`; exact-current-main CI run `101329694130` succeeded | [`tasks/RIU-02-CALIBRATION-USABLE.md`](tasks/RIU-02-CALIBRATION-USABLE.md) | `luna-high` | `143` | `RIU-03-AI-STATUS-CONTRACT` |
 | `RIU-03-AI-STATUS-CONTRACT` | `DONE` | Architect PASS; PR #144 exact head `bd9e83a5fb0d4fac579b8f4a9dee0ffaf017422f` merged as `3d361faa853f86a99e2abb672b323bd1126d084e`; exact-current-main CI run `34001459694` succeeded | [`tasks/RIU-03-AI-STATUS-CONTRACT.md`](tasks/RIU-03-AI-STATUS-CONTRACT.md) | `luna-high` | `144` | `RIU-04-AI-STATUS-UI` |
-| `RIU-04-AI-STATUS-UI` | `READY` | `RIU-03-AI-STATUS-CONTRACT` DONE | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `null` | `RIU-05-REPO-HEALTH` |
-| `RIU-05-REPO-HEALTH` | `DEFERRED` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
+| `RIU-04-AI-STATUS-UI` | `DONE` | Architect PASS; PR #145 exact head `370d13171314318f225ecfb1098670754c14c936` merged as `b2b8d2b82b8d4091787950a1a2ea1dd75231af74`; exact-current-main CI run `34023472262` succeeded | [`tasks/RIU-04-AI-STATUS-UI.md`](tasks/RIU-04-AI-STATUS-UI.md) | `luna-high` | `145` | `RIU-05-REPO-HEALTH` |
+| `RIU-05-REPO-HEALTH` | `READY` | `RIU-04-AI-STATUS-UI` DONE | [`tasks/RIU-05-REPO-HEALTH.md`](tasks/RIU-05-REPO-HEALTH.md) | `luna-high` | `null` | `null` |
 
 ## Current phase
 
@@ -67,12 +67,12 @@ Canonical queue:
 RIU-01-DIRECTOR-LANDING          [DONE]
   -> RIU-02-CALIBRATION-USABLE   [DONE]
   -> RIU-03-AI-STATUS-CONTRACT   [DONE]
-  -> RIU-04-AI-STATUS-UI         [READY]
-  -> RIU-05-REPO-HEALTH          [DEFERRED]
+  -> RIU-04-AI-STATUS-UI         [DONE]
+  -> RIU-05-REPO-HEALTH          [READY]
   -> null
 ```
 
-`RIU-04-AI-STATUS-UI` is now the sole eligible `READY` task after `RIU-03-AI-STATUS-CONTRACT` passed Architect review, merge, exact-current-main CI, and stage-end synchronization. Later successors remain locked until their predefined predecessor gates complete.
+`RIU-05-REPO-HEALTH` is now the sole eligible `READY` task after `RIU-04-AI-STATUS-UI` passed Architect review, merge, exact-current-main CI, and stage-end synchronization.
 
 ## Frozen product-flow boundaries
 
