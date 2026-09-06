@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AutomaticQuestionFailureCode,
+  AutomaticQuestionGenerationStatus,
   SuggestionHistoryItem,
   SuggestionPresentationResponse,
   SuggestionRequestStatusResponse,
@@ -36,7 +38,17 @@ export function SuggestionPanel({
   const [manualBusy, setManualBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const mounted = useRef(true);
+
+  useEffect(() => {
+    const timer = globalThis.setInterval(() => {
+      setNow(Date.now());
+    }, 1_000);
+    return (): void => {
+      globalThis.clearInterval(timer);
+    };
+  }, []);
 
   const readCurrent = useCallback(
     async (announce = false): Promise<SuggestionPresentationResponse | null> => {
@@ -221,9 +233,22 @@ export function SuggestionPanel({
   if (typeof api.getCurrentSuggestion !== 'function') return <LegacySuggestionSeam />;
   const historyItem = view.kind === 'history' ? view.items[view.index] : null;
   const presentation = historyItem ?? current;
-  const kind = presentation?.kind ?? 'continue_listening';
+  const automaticFailure =
+    current?.ai_status?.latest_attempt?.outcome === 'failed'
+      ? current.ai_status.latest_attempt
+      : null;
+  const failedContinueListening =
+    view.kind === 'current' &&
+    automaticFailure !== null &&
+    presentation?.kind === 'continue_listening';
+  const kind =
+    failedContinueListening || (current === null && error !== null)
+      ? 'unavailable'
+      : (presentation?.kind ?? 'continue_listening');
   const question = presentation?.question ?? null;
   const reason = presentation?.reason ?? null;
+  const aiStatus = current?.ai_status ?? null;
+  const statusCopy = automaticStatusCopy(aiStatus, now);
   const previousDisabled =
     loading || historyLoading || current === null || !current.history.has_previous;
   const canRetryCurrent =
@@ -256,6 +281,12 @@ export function SuggestionPanel({
               : kind === 'unavailable'
                 ? '建议服务暂时无法给出可靠问题，录音和转录仍会继续。'
                 : '长者正在讲述时，不必急着追问。'}
+        </p>
+        <p className="suggestion-panel__status" role="status">
+          <span>{statusCopy.announcement}</span>
+          {statusCopy.countdown === null ? null : (
+            <span aria-hidden="true"> {statusCopy.countdown}</span>
+          )}
         </p>
       </div>
 
@@ -323,7 +354,23 @@ export function SuggestionPanel({
         )}
       </div>
 
-      {error === null ? null : (
+      {automaticFailure === null ? null : (
+        <div className="suggestion-panel__failure" role="alert">
+          <p className="suggestion-panel__error">
+            {automaticFailureText(automaticFailure.failure_code)}录音和转录仍会继续。
+          </p>
+          <button
+            className="button button--secondary"
+            disabled={loading || manualBusy || current === null}
+            onClick={() => void nextQuestion()}
+            type="button"
+          >
+            {manualBusy ? '正在重试…' : '重试问题建议'}
+          </button>
+        </div>
+      )}
+
+      {error === null || automaticFailure !== null ? null : (
         <p className="suggestion-panel__error" role="alert">
           {error}
         </p>
@@ -333,6 +380,101 @@ export function SuggestionPanel({
       </span>
     </aside>
   );
+}
+
+function automaticStatusCopy(
+  status: AutomaticQuestionGenerationStatus | null,
+  now: number,
+): { announcement: string; countdown: string | null } {
+  const latest = status?.latest_attempt;
+  if (latest?.outcome === 'in_flight') {
+    return {
+      announcement: '问题建议正在准备中；录音和转录仍会继续。',
+      countdown: null,
+    };
+  }
+  const waiting = status?.waiting;
+  if (waiting?.reason === 'minimum_interval') {
+    return waitingCopy(
+      waiting.next_attempt_at,
+      now,
+      '距离下一次自动尝试',
+      '自动尝试时间已到，等待服务更新；不会保证出现问题。',
+    );
+  }
+  if (waiting?.reason === 'debounce') {
+    return waitingCopy(
+      waiting.next_attempt_at,
+      now,
+      '新的对话已收到，自动尝试最早可在',
+      '新的对话已收到，等待服务更新；不会保证出现问题。',
+    );
+  }
+  if (waiting?.reason === 'new_conversation') {
+    return {
+      announcement: '正在等待新的对话；录音和转录仍会继续。',
+      countdown: null,
+    };
+  }
+  if (latest?.outcome === 'succeeded') {
+    return {
+      announcement: '问题建议状态已更新；录音和转录仍会继续。',
+      countdown: null,
+    };
+  }
+  if (latest?.outcome === 'failed') {
+    return {
+      announcement: '自动问题建议未能完成；录音和转录仍会继续。',
+      countdown: null,
+    };
+  }
+  return {
+    announcement: '问题建议状态正在读取；录音和转录仍会继续。',
+    countdown: null,
+  };
+}
+
+function waitingCopy(
+  nextAttemptAt: string | null,
+  now: number,
+  prefix: string,
+  expired: string,
+): { announcement: string; countdown: string | null } {
+  if (nextAttemptAt === null) {
+    return {
+      announcement: `${prefix}时间尚未报告；不会保证出现问题。`,
+      countdown: null,
+    };
+  }
+  const nextAttemptMs = Date.parse(nextAttemptAt);
+  if (!Number.isFinite(nextAttemptMs) || nextAttemptMs <= now) {
+    return { announcement: expired, countdown: null };
+  }
+  return {
+    announcement: `${prefix}；这只表示届时可能开始尝试，不保证会出现问题。`,
+    countdown: formatRemaining(nextAttemptMs - now),
+  };
+}
+
+function formatRemaining(remainingMs: number): string {
+  const seconds = Math.max(1, Math.ceil(remainingMs / 1_000));
+  return `约 ${String(seconds)} 秒`;
+}
+
+function automaticFailureText(failureCode: AutomaticQuestionFailureCode | null): string {
+  switch (failureCode) {
+    case 'AI_PROVIDER_TIMEOUT':
+      return '自动问题建议等待超时，可以重新尝试。';
+    case 'AI_PROVIDER_UNAVAILABLE':
+    case 'AI_UNAVAILABLE':
+      return '问题建议服务暂不可用，可以重新尝试。';
+    case 'AI_OUTPUT_SCHEMA_INVALID':
+    case 'AI_CONTEXT_SCHEMA_INVALID':
+    case 'AI_OUTPUT_REFERENCE_OUTSIDE_CONTEXT':
+      return '问题建议未能通过内容核对，可以重新尝试。';
+    default:
+      return '自动问题建议暂时失败，可以重新尝试。';
+  }
 }
 
 function LegacySuggestionSeam(): React.JSX.Element {

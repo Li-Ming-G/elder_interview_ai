@@ -12,6 +12,7 @@ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
 afterEach(() => {
   cleanup();
   globalThis.sessionStorage.clear();
+  vi.useRealTimers();
 });
 
 describe('SuggestionPanel', () => {
@@ -218,6 +219,126 @@ describe('SuggestionPanel', () => {
     expect(typeof request?.request_id).toBe('string');
   });
 
+  it('keeps an automatic failure visible, avoids continue-listening, and offers retry', async () => {
+    const requestNextSuggestion = vi.fn<SuggestionApi['requestNextSuggestion']>(() =>
+      Promise.resolve({
+        accepted_presentation_revision: 2,
+        attempt_id: '66666666-6666-4666-8666-666666666666',
+        request_id: '77777777-7777-4777-8777-777777777777',
+        retry_after_ms: 0,
+        status: 'pending',
+      }),
+    );
+    const getSuggestionRequest = vi.fn<SuggestionApi['getSuggestionRequest']>(() =>
+      Promise.resolve({
+        attempt_id: '66666666-6666-4666-8666-666666666666',
+        current: currentSuggestion(),
+        error_code: null,
+        publication_outcome: 'published' as const,
+        request_id: '77777777-7777-4777-8777-777777777777',
+        result_kind: 'suggestion' as const,
+        status: 'succeeded' as const,
+      }),
+    );
+    const api = suggestionApi({
+      getCurrentSuggestion: vi.fn(() => Promise.resolve(failedAutomaticSuggestion())),
+      getSuggestionRequest,
+      requestNextSuggestion,
+    });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+
+    expect(await screen.findByRole('heading', { name: '问题建议暂不可用' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: '继续倾听' })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('可以重新尝试');
+    expect(screen.getByRole('alert').textContent).toContain('录音和转录仍会继续');
+    fireEvent.click(screen.getByRole('button', { name: '重试问题建议' }));
+    await waitFor(() => {
+      expect(requestNextSuggestion).toHaveBeenCalledTimes(1);
+    });
+    expect(getSuggestionRequest).toHaveBeenCalled();
+  });
+
+  it('does not clear an automatic failure just because time passes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-06T10:00:00.000Z'));
+    const api = suggestionApi({
+      getCurrentSuggestion: vi.fn(() => Promise.resolve(failedAutomaticSuggestion())),
+    });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('alert').textContent).toContain('自动问题建议');
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(screen.getByRole('alert').textContent).toContain('自动问题建议');
+  });
+
+  it('renders the server interval instant as a non-announced countdown and stops at zero', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-06T10:00:10.000Z'));
+    const api = suggestionApi({
+      getCurrentSuggestion: vi.fn(() =>
+        Promise.resolve({
+          ...currentSuggestion(),
+          ai_status: {
+            latest_attempt: null,
+            waiting: {
+              next_attempt_at: '2026-09-06T10:00:20.000Z',
+              reason: 'minimum_interval' as const,
+            },
+          },
+        }),
+      ),
+    });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText('约 10 秒').getAttribute('aria-hidden')).toBe('true');
+    expect(screen.getByRole('status').textContent).toContain('可能开始尝试');
+    act(() => {
+      vi.advanceTimersByTime(11_000);
+    });
+    expect(screen.getByRole('status').textContent).toContain('自动尝试时间已到');
+    expect(screen.queryByText('约 9 秒')).toBeNull();
+  });
+
+  it('states that it is waiting for conversation without inventing a countdown', async () => {
+    const api = suggestionApi({
+      getCurrentSuggestion: vi.fn(() =>
+        Promise.resolve({
+          ...currentSuggestion(),
+          ai_status: {
+            latest_attempt: null,
+            waiting: { next_attempt_at: null, reason: 'new_conversation' as const },
+          },
+        }),
+      ),
+    });
+
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+    expect((await screen.findByRole('status')).textContent).toContain('等待新的对话');
+    expect(screen.queryByText(/秒/)).toBeNull();
+  });
+
+  it('keeps the historical snapshot visible while preserving the current failure disclosure', async () => {
+    const api = suggestionApi({
+      getCurrentSuggestion: vi.fn(() => Promise.resolve(failedAutomaticSuggestion())),
+    });
+    render(<SuggestionPanel api={api} notificationRevision={undefined} sessionId={SESSION_ID} />);
+    await screen.findByRole('heading', { name: '问题建议暂不可用' });
+    fireEvent.click(screen.getByRole('button', { name: '上一个问题' }));
+    expect(await screen.findByRole('heading', { name: '更早的问题' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: '问题建议暂不可用' })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('可以重新尝试');
+    expect(screen.getByRole('button', { name: '重试问题建议' })).toBeTruthy();
+  });
+
   it.each([
     ['continue_listening', '继续倾听'],
     ['unavailable', '问题建议暂不可用'],
@@ -314,6 +435,24 @@ function currentSuggestion(): Awaited<ReturnType<SuggestionApi['getCurrentSugges
     session_id: SESSION_ID,
     snapshot_id: '33333333-3333-4333-8333-333333333333',
     withdrawal_reason: null,
+  };
+}
+
+function failedAutomaticSuggestion(): Awaited<ReturnType<SuggestionApi['getCurrentSuggestion']>> {
+  return {
+    ...currentSuggestion(),
+    kind: 'continue_listening',
+    question: null,
+    reason: '当前信息还不足以提出自然且有帮助的新问题。',
+    ai_status: {
+      latest_attempt: {
+        attempt_id: '88888888-8888-4888-8888-888888888888',
+        completed_at: '2026-09-06T10:00:05.000Z',
+        failure_code: 'AI_PROVIDER_TIMEOUT',
+        outcome: 'failed',
+      },
+      waiting: { next_attempt_at: null, reason: 'new_conversation' },
+    },
   };
 }
 
