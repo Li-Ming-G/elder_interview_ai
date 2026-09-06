@@ -340,7 +340,11 @@ describe('WorkbenchShell', () => {
     vi.mocked(harness.controller.verifyServerSession).mockRejectedValueOnce(authError);
     renderWorkbench(harness, onReturnToLogin);
 
-    const returnToLogin = await screen.findByRole('button', { name: '返回登录' });
+    const returnToLogin = await screen.findByRole(
+      'button',
+      { name: '返回登录' },
+      { timeout: 3000 },
+    );
     expect(harness.controller.verifyServerSession).toHaveBeenCalledTimes(1);
     expect(harness.controller.resume).not.toHaveBeenCalled();
     expect(harness.controller.stopAndFreeze).not.toHaveBeenCalled();

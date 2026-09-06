@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/generated/**',
       '**/node_modules/**',
       'docs/contracts/**',
+      '**/tmp/**',
     ],
   },
   eslint.configs.recommended,
