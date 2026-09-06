@@ -433,7 +433,7 @@
     },
     {
       "id": "RIU-05-REPO-HEALTH",
-      "status": "READY",
+      "status": "IN_PROGRESS",
       "task_card": "docs/agent/tasks/RIU-05-REPO-HEALTH.md",
       "worker_profile": "luna-high",
       "depends_on": ["RIU-04-AI-STATUS-UI"],
